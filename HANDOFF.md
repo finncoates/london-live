@@ -57,6 +57,26 @@ Findings and fixes:
 - The Piccadilly line was closed by a strike during testing, so it is barely exercised.
 - Elizabeth west of Paddington / east of Liverpool St runs on Network Rail track; its predictions are rougher.
 
+## v4 — trams + toggle
+- London Trams added (TfL, live, vehicle ids present). Cable car has no live data in TfL.
+- TfL / National Rail / Both switch (`?show=tfl|rail|both`, T key cycles, remembered in localStorage).
+
+## National Rail — plan (waiting on access)
+- TfL has National Rail line *geometry* (`/Line/{operator}/Route/Sequence`) but **no live arrivals**.
+- Live data: Rail Data Marketplace (raildata.org.uk), Darwin boards. User subscribed (Nov 2026) to
+  Live Departure Board, Live Arrival and Departure Board, and both Staff versions; approval pending (~3 working days).
+  Preferred: *Live Arrival and Departure Board – Staff* (up to 150 rows, includes passing trains).
+  Public WithDetails endpoints reportedly cap numRows at 10.
+- Key must stay secret and browsers likely can't call the API directly (CORS), so: a small
+  Cloudflare Worker relay holds the key, polls ~30–40 hub stations every ~60 s (free plan: ≤50 subrequests
+  per invocation), merges services by id, and returns compact JSON
+  `[{id, operator, dest, calls:[[crs, timeMs, isActual], ...]}]` with CORS headers and a 60 s cache.
+- The page places each train between its last *actual* stop and the next stop (same model as the tube),
+  on the operator's TfL route geometry. Station coordinates by CRS code come from
+  https://github.com/davwheat/uk-railway-stations (ODbL, attribute it).
+- Steps: user gives key via the secure credential form (host api1.raildata.org.uk) → test endpoints →
+  write worker + page code → guide user to create Cloudflare Worker and paste code + secret.
+
 ## To do
 1. Deploy to GitHub Pages and test on the TV (Silk): check fps 15/20/30 and the refresh hitch.
 2. Tokyo version.
