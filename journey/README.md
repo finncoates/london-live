@@ -30,7 +30,14 @@ hosted on GitHub Pages. Explain things to the owner in plain, non-technical lang
 - The journey is saved in localStorage (reload resumes it); screen wake lock while active.
 
 ## Google key
-The key is public in the page: restrict it to the site's address in Google Cloud Console.
+The key is restricted (Nov 2026) to `finncoates.github.io/*`, so the page won't load Google from `localhost`.
+To test locally, serve the local file *at the real URL* in Playwright: `page.route('https://finncoates.github.io/london-live/journey/**', ...)`
+fulfilling the page request with the local `index.html` (other requests continue).
+
+## Map options
+Map button: style "Google Maps" (default colours / a dark style) or "Original" (plain grey, like the first version, but still
+a Google map so Google routes can be drawn); "Hide places & labels" (POIs, stations, area names off; street names stay);
+dark map. Choices are saved in localStorage (`mapStyle`, `mapQuiet`, `theme`).
 
 ## URL options
 `?sim=1` test mode (drag the blue pin to pretend to move) · `?theme=dark|light` · `?app_key=` TfL key

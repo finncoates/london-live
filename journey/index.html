@@ -20,7 +20,7 @@ html,body{margin:0;height:100%;background:var(--bg);color:var(--ink);font:15px/1
 #trains{position:absolute;left:0;top:0;pointer-events:none;z-index:450}
 #panel{position:fixed;z-index:1000;top:12px;left:12px;width:360px;max-height:calc(100% - 24px);overflow:auto;
   background:var(--panel);border:1px solid var(--edge);border-radius:14px;box-shadow:0 6px 24px rgba(0,0,0,.2);padding:14px}
-h1{margin:0 0 10px;font-size:18px;font-weight:800;display:flex;align-items:center;gap:8px}
+h1{margin:0 0 10px;font-size:18px;font-weight:800;display:flex;align-items:center;gap:6px;white-space:nowrap}
 h1 .sp{flex:1}
 form{display:grid;gap:8px}
 .field{display:flex;align-items:center;gap:8px;background:var(--soft);border-radius:10px;padding:0 10px}
@@ -32,7 +32,7 @@ button{font:inherit;font-size:14px;padding:9px 12px;border-radius:10px;border:1p
 button.primary{background:var(--acc);border-color:var(--acc);color:#fff;font-weight:600}
 body.dark button.primary{color:#0e0f12}
 button:focus-visible,input:focus-visible{outline:2px solid var(--acc);outline-offset:2px}
-.icon{padding:7px 9px;font-size:13px}
+.icon{padding:7px 9px;font-size:13px;display:inline-flex;align-items:center;gap:4px;white-space:nowrap;line-height:1}
 .icon.on{background:var(--soft)}
 #options,#chainOut{display:grid;gap:8px;margin-top:12px}
 .tabs{display:flex;border:1px solid var(--edge);border-radius:10px;overflow:hidden;margin-bottom:10px}
@@ -47,6 +47,20 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--acc);outline-of
 .cmode button{padding:5px;border-radius:8px;line-height:0}
 .cmode button.sel{background:var(--soft);border-color:var(--acc);box-shadow:0 0 0 1px var(--acc) inset}
 .cmode .lbl{font-size:12px;color:var(--mute);flex-basis:100%;order:-1;margin:0 0 1px 2px}
+.mapmenu{background:var(--soft);border-radius:12px;padding:6px 12px;margin-bottom:10px;display:grid}
+.mm-row{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:8px 0;font-size:14px;cursor:pointer}
+.mm-row+.mm-row{border-top:1px solid var(--edge)}
+.mm-row small{display:block;color:var(--mute);font-size:12px;margin-top:1px}
+.seg2{display:flex;border:1px solid var(--edge);border-radius:8px;overflow:hidden;flex:none}
+.seg2 button{border:0;border-radius:0;padding:6px 10px;font-size:13px;background:var(--panel)}
+.seg2 button+button{border-left:1px solid var(--edge)}
+.seg2 button.sel{background:var(--ink);color:var(--bg);font-weight:600}
+.switch{appearance:none;-webkit-appearance:none;flex:none;width:40px;height:24px;border-radius:12px;background:#c4c7cc;position:relative;cursor:pointer;transition:background .15s;margin:0}
+.switch::after{content:"";position:absolute;top:3px;left:3px;width:18px;height:18px;border-radius:50%;background:#fff;transition:left .15s;box-shadow:0 1px 2px rgba(0,0,0,.3)}
+.switch:checked{background:var(--acc)} .switch:checked::after{left:19px}
+body.dark .switch{background:#5f6368}
+body.dark .switch:checked{background:var(--acc)}
+.icon[aria-expanded="true"]{background:var(--soft)}
 .note{background:var(--soft);border-radius:10px;padding:8px 10px;font-size:13px;margin-bottom:10px}
 .opt{text-align:left;display:grid;gap:6px;padding:10px 12px}
 .opt.sel{border-color:var(--acc);box-shadow:0 0 0 1px var(--acc) inset}
@@ -101,9 +115,16 @@ body.dark #simnote{background:#1f2a44;color:#c6dafc}
 <div id="panel">
   <h1>London Journey <span class="sp"></span>
     <button id="bTrains" class="icon" title="Show all live trains" aria-label="Show all live trains"><span id="tsym"></span> <span id="tcount"></span></button>
+    <button id="bMap" class="icon" title="Map style" aria-label="Map style" aria-expanded="false"><svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l9 5-9 5-9-5 9-5zm-9 9l9 5 9-5M3 16l9 5 9-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg></button>
     <button id="bLocate" class="icon" title="Show my location" aria-label="Show my location">◎</button>
     <button id="bTheme" class="icon" title="Dark / light" aria-label="Switch dark or light map">🌓</button>
   </h1>
+  <div id="mapMenu" class="mapmenu" hidden>
+    <div class="mm-row"><span>Map style</span>
+      <div class="seg2" role="group" aria-label="Map style"><button data-ms="google">Google Maps</button><button data-ms="original">Original</button></div></div>
+    <label class="mm-row"><span>Hide places &amp; labels<small>Shops, landmarks, stations and area names. Street names stay.</small></span><input type="checkbox" id="mQuiet" class="switch"></label>
+    <label class="mm-row"><span>Dark map</span><input type="checkbox" id="mDark" class="switch"></label>
+  </div>
   <div id="simnote">Test mode: drag the blue pin to pretend you're moving.</div>
   <div class="tabs" id="tabs" role="tablist"><button data-t="search" class="sel" role="tab">Quick route</button><button data-t="build" role="tab">Build my route</button></div>
   <section class="view" data-view="build" hidden>
@@ -221,7 +242,8 @@ function loadGoogle(){
 }
 
 // ---------- map (Google Maps) ----------
-let dark = Q.get('theme') === 'dark' || (Q.get('theme') !== 'light' && matchMedia('(prefers-color-scheme: dark)').matches);
+const savedTheme = (() => { try{ return localStorage.getItem('theme'); }catch(e){ return null; } })();
+let dark = Q.get('theme') ? Q.get('theme') === 'dark' : savedTheme ? savedTheme === 'dark' : matchMedia('(prefers-color-scheme: dark)').matches;
 try{ await loadGoogle(); }catch(e){ document.body.innerHTML = '<p style="padding:20px;font:16px system-ui">Could not load Google Maps. Check your connection and reload.</p>'; return; }
 await Promise.all(['maps','marker','routes','geometry'].map(n => google.maps.importLibrary(n)));
 const DARK_STYLE = [
@@ -230,9 +252,32 @@ const DARK_STYLE = [
   {featureType:'road', elementType:'geometry.stroke', stylers:[{color:'#1d2026'}]}, {featureType:'road.highway', elementType:'geometry', stylers:[{color:'#3b404a'}]},
   {featureType:'water', elementType:'geometry', stylers:[{color:'#0e1626'}]}, {featureType:'poi', elementType:'geometry', stylers:[{color:'#22262d'}]},
   {featureType:'poi.park', elementType:'geometry', stylers:[{color:'#1b2a22'}]}, {featureType:'transit', elementType:'geometry', stylers:[{color:'#2a2e36'}]}];
+// Map looks: Google's own colours, or the plain grey "original" look; optionally without the clutter
+const GREY_LIGHT = [
+  {elementType:'geometry', stylers:[{color:'#f1f2f3'}]}, {elementType:'labels.text.fill', stylers:[{color:'#6e7276'}]},
+  {elementType:'labels.text.stroke', stylers:[{color:'#ffffff'}]}, {elementType:'labels.icon', stylers:[{saturation:-100}, {lightness:35}]},
+  {featureType:'road', elementType:'geometry', stylers:[{color:'#ffffff'}]}, {featureType:'road.highway', elementType:'geometry', stylers:[{color:'#e4e6e8'}]},
+  {featureType:'water', elementType:'geometry', stylers:[{color:'#d5dade'}]}, {featureType:'poi', elementType:'geometry', stylers:[{color:'#e9eaeb'}]},
+  {featureType:'poi.park', elementType:'geometry', stylers:[{color:'#e1e6df'}]}, {featureType:'transit', elementType:'geometry', stylers:[{color:'#e2e3e5'}]}];
+const GREY_DARK = [
+  {elementType:'geometry', stylers:[{color:'#1b1c1f'}]}, {elementType:'labels.text.fill', stylers:[{color:'#8a8d91'}]},
+  {elementType:'labels.text.stroke', stylers:[{color:'#1b1c1f'}]}, {elementType:'labels.icon', stylers:[{saturation:-100}, {lightness:-40}]},
+  {featureType:'road', elementType:'geometry', stylers:[{color:'#2a2c30'}]}, {featureType:'road.highway', elementType:'geometry', stylers:[{color:'#34363b'}]},
+  {featureType:'water', elementType:'geometry', stylers:[{color:'#0f1012'}]}, {featureType:'poi', elementType:'geometry', stylers:[{color:'#202124'}]},
+  {featureType:'poi.park', elementType:'geometry', stylers:[{color:'#1f2421'}]}, {featureType:'transit', elementType:'geometry', stylers:[{color:'#26282c'}]}];
+const QUIET = ['poi', 'transit', 'administrative', 'landscape', 'water'].map(f => ({featureType:f, elementType:'labels', stylers:[{visibility:'off'}]}))
+  .concat([{featureType:'poi', stylers:[{visibility:'off'}]}, {featureType:'poi.park', elementType:'geometry', stylers:[{visibility:'on'}]},
+           {featureType:'road', elementType:'labels.icon', stylers:[{visibility:'off'}]}]); // street names stay
+const pref = (k, d) => { try{ return localStorage.getItem(k) ?? d; }catch(e){ return d; } };
+let MAP_STYLE = pref('mapStyle', 'google'), QUIET_ON = pref('mapQuiet', '0') === '1';
+function mapStyles(){
+  const base = MAP_STYLE === 'original' ? (dark ? GREY_DARK : GREY_LIGHT) : (dark ? DARK_STYLE : []);
+  const s = base.concat(QUIET_ON ? QUIET : []);
+  return s.length ? s : null;
+}
 const map = new google.maps.Map(document.getElementById('map'), {
   center:{lat:HOME[0][0], lng:HOME[0][1]}, zoom:Math.round(HOME[1]), disableDefaultUI:true, zoomControl:false,
-  clickableIcons:false, gestureHandling:'greedy', styles:dark ? DARK_STYLE : null});
+  clickableIcons:false, gestureHandling:'greedy', styles:mapStyles()});
 const LL = p => ({lat:p[0], lng:p[1]});
 // Small layer helpers so the rest of the code reads like before
 class Group{ constructor(){ this.items = []; } addLayer(x){ x.setMap(map); this.items.push(x); return this; }
@@ -241,7 +286,7 @@ const gStyle = s => ({strokeColor:s.color, strokeWeight:s.weight, strokeOpacity:
 function gLine(pts, s){ const p = new google.maps.Polyline(Object.assign({path:pts.map(LL)}, gStyle(s))); p.setStyle = st => p.setOptions(gStyle(st)); return p; }
 const ink = c => c==='#000000'&&dark ? '#d9d9d9' : c;
 const lineStyle = l => ({color:ink(l.colour), weight:3, opacity:!shown(l)?0:l.pinned?0.6:0.3});
-function applyTheme(){ document.body.classList.toggle('dark', dark); map.setOptions({styles:dark ? DARK_STYLE : null}); for(const l of ACTIVE) l.layer && l.layer.eachLayer(p => p.setStyle(lineStyle(l))); }
+function applyTheme(){ document.body.classList.toggle('dark', dark); map.setOptions({styles:mapStyles()}); for(const l of ACTIVE) l.layer && l.layer.eachLayer(p => p.setStyle(lineStyle(l))); }
 applyTheme();
 // Screen positions (fractional pixels, so movement is smooth) via an empty overlay's projection
 const ov = new google.maps.OverlayView(); ov.onAdd = ov.draw = ov.onRemove = () => {}; ov.setMap(map);
@@ -940,7 +985,7 @@ const J = {
   dismissed:null,              // signature of a suggestion the user said "keep" to
   lastReplan:0, offCount:0,
 };
-let me = null, meAcc = 0, meAt = 0; // GPS
+let me = null, meAcc = 0, meAt = 0, geoErr = null; // GPS
 const SIM = Q.get('sim') === '1';
 
 // ---------- map layers ----------
@@ -989,10 +1034,10 @@ if(SIM){
   simMarker.addListener('drag', e => setMe([e.latLng.lat(), e.latLng.lng()], 10));
   setMe(HOME[0], 10);
 } else if('geolocation' in navigator){
-  navigator.geolocation.watchPosition(pos => setMe([pos.coords.latitude, pos.coords.longitude], pos.coords.accuracy),
-    err => { if(J.active || J.wantGps) $('err').textContent = 'Location unavailable: ' + err.message; },
+  navigator.geolocation.watchPosition(pos => { geoErr = null; $('err').textContent = ''; setMe([pos.coords.latitude, pos.coords.longitude], pos.coords.accuracy); },
+    err => { geoErr = err.code === 1 ? 'denied' : 'unavailable'; if(J.active) $('err').textContent = 'Location unavailable: ' + err.message; },
     {enableHighAccuracy:true, maximumAge:5000, timeout:30000});
-}
+} else geoErr = 'unavailable';
 const gpsFresh = () => me && Date.now()-meAt < 90000 && meAcc < 150;
 
 // ---------- progress along the plan ----------
@@ -1214,18 +1259,25 @@ function renderAmbiguous(d){
 function leaveAt(v){ const [hh, mm] = v.split(':').map(Number); const d = new Date(); d.setHours(hh, mm, 0, 0);
   if(+d < Date.now() - 1800000) d.setDate(d.getDate() + 1); return +d; }
 // wait up to ~30 s for a GPS fix, then ask for a typed start
-function waitForGps(el, retry, tries = 0){
-  J.wantGps = true;
-  if(tries > 12){ el.innerHTML = '<div class="muted">Can\'t find your location. Type a starting point in <b>From</b> instead.</div>'; return; }
+// Wait (up to ~30 s) for a location fix. Stops as soon as you search again or type a start;
+// says straight away if location is blocked or unavailable.
+let gpsWait = 0;
+function waitForGps(el, retry, fromInput, seq = ++gpsWait, tries = 0){
+  if(seq !== gpsWait || fromInput.value.trim()) return; // superseded: a new search, or a start was typed
+  const ask = why => { el.innerHTML = `<div class="muted">${why} Type a starting point in <b>From</b>, then press Go.</div>`; fromInput.focus(); };
+  if(geoErr === 'denied') return ask('Location is turned off for this site.');
+  if(geoErr === 'unavailable' && tries > 2) return ask('Your location isn\'t available.');
+  if(tries > 12) return ask('Can\'t find your location.');
   el.innerHTML = '<div class="muted">Finding your location… (or type a starting point)</div>';
-  setTimeout(() => me ? retry() : waitForGps(el, retry, tries + 1), 2500);
+  setTimeout(() => { if(seq !== gpsWait) return; me ? retry() : waitForGps(el, retry, fromInput, seq, tries + 1); }, 2500);
 }
 async function search(){
+  gpsWait++;
   const toTxt = $('to').value.trim(); if(!toTxt) return $('to').focus();
   if(!J.to || J.to.label !== toTxt) J.to = {label:toTxt, q:toTxt};
   const fromTxt = $('from').value.trim();
   if(!fromTxt){
-    if(!me) return waitForGps($('options'), search);
+    if(!me) return waitForGps($('options'), search, $('from'));
     J.from = {label:'', q:`${me[0].toFixed(5)},${me[1].toFixed(5)}`};
   } else if(!J.from || J.from.label !== fromTxt) J.from = {label:fromTxt, q:fromTxt};
   let when = Date.now();
@@ -1309,9 +1361,10 @@ $('chain').addEventListener('click', e => {
 });
 $('bAddStop').onclick = () => { CH.stops.push(''); CH.modes.push('any'); saveChain(); renderChain(); $('chain').querySelector(`input[data-i="${CH.stops.length-1}"]`).focus(); };
 async function planBuilt(){
+  gpsWait++;
   const labels = CH.stops.map(s => s.trim());
   if(labels.slice(1).some(s => !s)){ $('chainOut').innerHTML = '<div class="muted">Fill in every stop (or remove the empty ones).</div>'; return; }
-  if(!labels[0] && !me) return waitForGps($('chainOut'), planBuilt);
+  if(!labels[0] && !me) return waitForGps($('chainOut'), planBuilt, $('cs0'));
   const qs = [labels[0] || `${me[0].toFixed(5)},${me[1].toFixed(5)}`, ...labels.slice(1)];
   let when = Date.now();
   if($('whenB').value) when = leaveAt($('whenB').value);
@@ -1339,7 +1392,10 @@ $('banner').addEventListener('click', e => { if(e.target.id==='bSwitch') switchR
 $('bEnd').onclick = endJourney;
 $('bReplan').onclick = () => { J.dismissed = null; J.lastReplan = 0; monitor(); };
 $('bSwap').onclick = () => { const a = $('from').value; $('from').value = $('to').value; $('to').value = a; const f = J.from; J.from = J.to; J.to = f; };
-$('bLocate').onclick = () => { J.follow = true; if(me){ map.panTo(LL(me)); map.setZoom(Math.max(map.getZoom(), 15)); } else J.wantGps = true; };
+setInterval(() => { if(geoErr && !me){ $('from').placeholder = 'Type a starting point'; const c = $('cs0'); if(c) c.placeholder = 'Type a starting point'; } }, 2000);
+$('bLocate').onclick = () => { J.follow = true;
+  if(me){ map.panTo(LL(me)); map.setZoom(Math.max(map.getZoom(), 15)); $('err').textContent = ''; }
+  else $('err').textContent = geoErr === 'denied' ? 'Location is turned off for this site. Allow it in your browser\'s site settings.' : geoErr ? 'Your location isn\'t available right now.' : 'Finding your location…'; };
 map.addListener('dragstart', () => { J.follow = false; $('tip').style.display = 'none'; hover = null; }); // also closes train info
 map.addListener('zoom_changed', () => { $('tip').style.display = 'none'; hover = null; });
 $('bTrains').onclick = () => {
@@ -1349,7 +1405,16 @@ $('bTrains').onclick = () => {
 };
 $('bTrains').classList.toggle('on', TRAINS_ON);
 $('tsym').innerHTML = symbol('tube', '#DC241F', 16);
-$('bTheme').onclick = () => { dark = !dark; applyTheme(); if(!$('chain').closest('[hidden]')) renderChain();
+function syncMapMenu(){
+  for(const b of document.querySelectorAll('[data-ms]')) b.classList.toggle('sel', b.dataset.ms === MAP_STYLE);
+  $('mQuiet').checked = QUIET_ON; $('mDark').checked = dark;
+}
+$('bMap').onclick = () => { const m = $('mapMenu'); m.hidden = !m.hidden; $('bMap').setAttribute('aria-expanded', !m.hidden); syncMapMenu(); };
+$('mapMenu').addEventListener('click', e => { const b = e.target.closest('[data-ms]'); if(!b) return;
+  MAP_STYLE = b.dataset.ms; try{ localStorage.setItem('mapStyle', MAP_STYLE); }catch(x){} map.setOptions({styles:mapStyles()}); syncMapMenu(); });
+$('mQuiet').onchange = () => { QUIET_ON = $('mQuiet').checked; try{ localStorage.setItem('mapQuiet', QUIET_ON ? '1' : '0'); }catch(x){} map.setOptions({styles:mapStyles()}); };
+$('mDark').onchange = () => { if($('mDark').checked !== dark) $('bTheme').click(); };
+$('bTheme').onclick = () => { dark = !dark; try{ localStorage.setItem('theme', dark ? 'dark' : 'light'); }catch(x){} applyTheme(); syncMapMenu(); if(!$('chain').closest('[hidden]')) renderChain();
   const shown = J.plan || (J.options && J.options[J.sel]); if(shown) drawJourney(shown, routeLayer);
   if(J.suggestion) drawJourney(J.suggestion.journey, altLayer, true); };
 window.onTrainsUpdate = n => { $('tcount').textContent = n ? n : ''; };
