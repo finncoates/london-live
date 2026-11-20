@@ -115,6 +115,11 @@ body.dark .st1{background:#4a3b0f;color:#ffd96b} body.dark .st2{background:#5a1f
 .deps2 .to small{color:var(--mute);font-size:11.5px;margin-left:4px}
 .deps2 b{white-space:nowrap;font-variant-numeric:tabular-nums;font-size:13px}
 .nb-more{font-size:12px;color:var(--acc);background:none;border:0;padding:0;margin-top:4px}
+.alert{background:var(--acc);color:#fff;border-radius:12px;padding:11px 13px;margin-bottom:10px;font-size:15px;display:flex;gap:10px;align-items:center}
+.alert b{font-size:17px;display:block}
+.alert .ai{font-size:24px;line-height:1}
+body.dark .alert{color:#0e0f12}
+.toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);z-index:2000;background:#202124;color:#fff;padding:9px 14px;border-radius:10px;font-size:14px;box-shadow:0 4px 14px rgba(0,0,0,.25)}
 .note{background:var(--soft);border-radius:10px;padding:8px 10px;font-size:13px;margin-bottom:10px}
 .opt{text-align:left;display:grid;gap:6px;padding:10px 12px}
 .opt.sel{border-color:var(--acc);box-shadow:0 0 0 1px var(--acc) inset}
@@ -209,11 +214,12 @@ body.dark #simnote{background:#1f2a44;color:#c6dafc}
   </section>
   <section class="view" data-view="active" hidden>
     <div id="eta"></div>
+    <div id="alert" class="alert" hidden role="alert"></div>
     <div id="note" class="note" hidden></div>
     <div id="banner" hidden></div>
     <ol id="steps"></ol>
     <a id="gmaps" class="gmaps" target="_blank" rel="noopener">Open in Google Maps ↗</a>
-    <div class="row2"><button id="bReplan">Check for a better route</button><button id="bEnd">End</button></div>
+    <div class="row2"><button id="bReplan">Check for a better route</button><button id="bShare">Share ETA</button><button id="bEnd">End</button></div>
   </section>
   <div id="err"></div>
 </div>
@@ -1365,7 +1371,8 @@ function setMe(p, acc){
 let simMarker = null;
 if(SIM){
   // Test mode: drag the blue marker to pretend to move
-  simMarker = new google.maps.Marker({position:LL(HOME[0]), map, draggable:true, title:'Drag me (test mode)', zIndex:20});
+  simMarker = new google.maps.Marker({position:LL(HOME[0]), map, draggable:true, title:'Drag me (test mode)', zIndex:20,
+    icon:{path:'M 0,0 C -2,-20 -10,-22 -10,-30 A 10,10 0 1,1 10,-30 C 10,-22 2,-20 0,0 z', fillColor:'#1a73e8', fillOpacity:1, strokeColor:'#fff', strokeWeight:2, scale:1.1}});
   simMarker.addListener('drag', e => setMe([e.latLng.lat(), e.latLng.lng()], 10));
   setMe(HOME[0], 10);
 } else if('geolocation' in navigator){
@@ -1468,7 +1475,7 @@ async function replan(why){
   if(!s && bestSig === remainingSig && legs.slice(J.idx).some(L => L.missed)){
     const nx = full.legs.find(L => !L.walk && !(full.prefixed && L === full.legs[0]));
     await adoptPlan(full);
-    J.note = nx ? `Updated: you'll now catch the <b>${hhmm(nx.dep)}</b> ${esc(nx.lineName || nx.mode)}${nx.kind==='bus' ? ' bus' : nx.kind==='tube' ? ' line' : ''}.` : 'Times updated.';
+    J.note = nx ? `Updated: you'll now catch the <b>${hhmm(nx.dep)}</b> ${esc(svcName(nx))}.` : 'Times updated.';
     J.noteAt = Date.now(); return;
   }
   J.suggestion = s ? Object.assign(s, {journey:full, sig:bestSig}) : null;
@@ -1477,7 +1484,7 @@ async function replan(why){
 }
 function missedText(){
   const L = J.plan.legs.slice(J.idx).find(L => L.missed);
-  return L ? `the ${hhmm(L.dep)} ${esc(L.lineName || L.mode)}` + (L.kind==='bus' ? ' bus' : '') : 'your connection';
+  return L ? `the ${hhmm(L.dep)} ${esc(svcName(L))}` : 'your connection';
 }
 
 let monitoring = false, monAgain = false, lastMon = 0;
@@ -1509,7 +1516,60 @@ async function monitor(){
 }
 const throttleMonitor = () => { if(Date.now() - lastMon > 10000) monitor(); };
 setInterval(() => { if(J.active) monitor(); }, 20000);
-setInterval(() => { if(J.active) renderActive(); }, 1000); // countdowns
+setInterval(() => { if(J.active){ checkAlerts(); renderActive(); } }, 1000); // countdowns + alerts
+
+// ---------- alerts: time to leave, get off at the next stop, arrived ----------
+// "the Victoria line", "the 148 bus", "the DLR", "the Southern" (National Rail operators stay as they are)
+function svcName(L){
+  const n = (L.lineName || L.mode || '').trim();
+  if(L.kind === 'bus') return `${n} bus`;
+  if(/^(dlr|trams?)$/i.test(n) || /line$/i.test(n) || L.kind === 'rail' || L.gen) return n;
+  return `${n} line`;
+}
+function toast(msg){ const t = document.createElement('div'); t.className = 'toast'; t.textContent = msg; document.body.appendChild(t); setTimeout(() => t.remove(), 2600); }
+async function notify(title, body){
+  try{ if(navigator.userActivation?.hasBeenActive) navigator.vibrate?.([200, 100, 200]); }catch(e){}
+  if(!('Notification' in window) || Notification.permission !== 'granted' || document.visibilityState === 'visible' && document.hasFocus()) return;
+  try{ const reg = await navigator.serviceWorker?.getRegistration(); if(reg) reg.showNotification(title, {body, tag:'journey', renotify:true}); else new Notification(title, {body, tag:'journey'}); }catch(e){}
+}
+function setAlert(key, icon, title, sub){
+  J.alert = {key, icon, title, sub, at:Date.now()};
+  if(!J.fired.has(key)){ J.fired.add(key); notify(title, sub || ''); }
+}
+function checkAlerts(){
+  if(!J.active || !J.plan) return;
+  const legs = J.plan.legs, L = legs[J.idx], n = Date.now(); J.fired ||= new Set();
+  let shown = false;
+  // 1. time to leave for the first vehicle you catch
+  const first = legs.find(x => !x.walk);
+  if(first && J.idx < legs.indexOf(first) && !J.riding){
+    const walkLeft = legs.slice(J.idx, legs.indexOf(first)).reduce((s, x) => s + Math.max(0, (x.eta ?? x.arr) - Math.max(n, x.dep)), 0);
+    const board = first.board ?? first.dep, slack = board - n - walkLeft;
+    if(slack < 90000 && slack > -60000){ setAlert('leave' + board, '🚶', slack > 0 ? 'Time to go' : 'Hurry up', `Leave now to catch the ${hhmm(board)} ${svcName(first)}`); shown = true; }
+  }
+  // 2. on board: your stop is next
+  if(L && !L.walk && J.riding){
+    const t = J.vehicle && trains.get(J.vehicle.line + ':' + J.vehicle.vid.trim());
+    const nextIsMine = t && L.to.id && (t.cur || t.next) === L.to.id;
+    const left = (L.eta ?? L.arr) - n;
+    if(nextIsMine || (left > 0 && left < 100000)){
+      const after = legs.slice(J.idx + 1).find(x => !x.walk);
+      setAlert('off' + J.idx, '🔔', `Get off at the next stop: ${L.to.name}`, after ? `Then change for the ${svcName(after)}` : 'Your last stop');
+      shown = true;
+    }
+  }
+  // 3. arrived
+  if(J.idx === legs.length - 1 && L.walk && (gpsFresh() ? nearestOnPath(L.path, me).total - nearestOnPath(L.path, me).along < 40 : n > (L.eta ?? L.arr))){
+    setAlert('arrived', '🏁', `You've arrived`, J.to.label); shown = true;
+  }
+  if(!shown && J.alert && n - J.alert.at > 20000) J.alert = null;
+}
+$('bShare').onclick = async () => {
+  const eta = J.proj ?? J.plan.arr, base = J.baseArr ?? J.plan.arr, late = eta - base;
+  const text = `I'm on my way to ${J.to.label}. Arriving around ${hhmm(eta)}${late > 120000 ? ` (running ${mins(late)} min late)` : ''}.`;
+  try{ if(navigator.share){ await navigator.share({text}); return; } }catch(e){ if(e.name === 'AbortError') return; }
+  try{ await navigator.clipboard.writeText(text); toast('Copied: ' + text); }catch(e){ toast(text); }
+};
 
 async function highlightVehicle(gen){
   HL.clear();
@@ -1526,9 +1586,10 @@ async function startJourney(j, keep){
   if(J.starting) return; J.starting = true;
   try{
     j = structuredClone(j); // start from a clean copy each time
+    try{ if('Notification' in window && Notification.permission === 'default') Notification.requestPermission(); }catch(e){}
     if(!keep) for(const L of j.legs) for(const f of RUN_FIELDS) delete L[f];
     Object.assign(J, {plan:j, active:true, idx:0, riding:false, vehicle:null, proj:null, suggestion:null, dismissed:null,
-      note:null, noteAt:0, offCount:0, moved:false, baseArr:null, lastReplan:Date.now(), follow:true, gen:(J.gen||0) + 1});
+      note:null, noteAt:0, offCount:0, moved:false, baseArr:null, alert:null, fired:new Set(), lastReplan:Date.now(), follow:true, gen:(J.gen||0) + 1});
     window.DIM_TRAINS = true;
     showView('active'); renderActive(true);
     drawJourney(j, routeLayer); altLayer.clearLayers(); fitJourney(j);
@@ -1678,11 +1739,13 @@ function legRow(L, i){
 const setHTML = (el, html) => { if(el._html !== html){ el.innerHTML = html; el._html = html; } };
 function renderActive(force){
   if(!J.active || !J.plan) return;
-  if(force) for(const id of ['eta','note','banner','steps']) $(id)._html = null;
+  if(force) for(const id of ['eta','note','banner','steps','alert']) $(id)._html = null;
   const base = J.baseArr ?? J.plan.arr, late = (J.proj ?? base) - base, n = Date.now();
   const st = !J.proj ? ['Checking live times…', 'muted'] : late > 120000 ? [`${mins(late)} min late`, 'bad'] : late < -120000 ? [`${mins(-late)} min early`, 'good'] : ['On time', 'good'];
   setHTML($('eta'), `<div class="eta-big">Arrive <b>${hhmm(J.proj ?? J.plan.arr)}</b></div><div class="chip ${st[1]}">${st[0]}</div>
     <div class="muted">${esc(J.to.label)} · ${Math.max(0, mins((J.proj ?? J.plan.arr) - n))} min to go</div>`);
+  $('alert').hidden = !J.alert;
+  if(J.alert) setHTML($('alert'), `<span class="ai">${J.alert.icon}</span><span><b>${esc(J.alert.title)}</b>${J.alert.sub ? esc(J.alert.sub) : ''}</span>`);
   if(J.note && Date.now() - J.noteAt > 90000) J.note = null;
   $('note').hidden = !J.note; if(J.note) setHTML($('note'), J.note);
   const s = J.suggestion;
