@@ -90,6 +90,16 @@ body.dark .st1{background:#4a3b0f;color:#ffd96b} body.dark .st2{background:#5a1f
 .sbh{display:flex;align-items:center;gap:6px;font-size:13px}
 .sbh .sw{width:14px;height:5px;border-radius:3px;display:inline-block}
 .sbi p{margin:4px 0 0;font-size:12.5px;color:var(--mute)}
+.quick{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
+.qc{display:inline-flex;align-items:center;gap:5px;font-size:13px;padding:6px 10px;border-radius:99px;border:1px solid var(--edge);background:var(--panel);max-width:100%}
+.qc span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:160px}
+.qc.add{color:var(--mute);border-style:dashed}
+.qc .x{margin-left:2px;color:var(--mute);font-size:12px}
+.qc.edit{color:var(--acc);border-color:transparent;background:none}
+.savebar{display:flex;flex-wrap:wrap;align-items:center;gap:6px;font-size:13px;color:var(--mute);margin:2px 0 4px}
+.savebar button{font-size:12.5px;padding:5px 9px;border-radius:99px}
+.savebar button.on{background:var(--acc);color:#fff;border-color:var(--acc)}
+.aclist .ic{flex:none;width:16px;text-align:center;font-size:14px;margin-top:1px}
 .note{background:var(--soft);border-radius:10px;padding:8px 10px;font-size:13px;margin-bottom:10px}
 .opt{text-align:left;display:grid;gap:6px;padding:10px 12px}
 .opt.sel{border-color:var(--acc);box-shadow:0 0 0 1px var(--acc) inset}
@@ -177,6 +187,7 @@ body.dark #simnote{background:#1f2a44;color:#c6dafc}
         <button type="submit" class="primary">Go</button>
       </div>
     </form>
+    <div id="quick" class="quick"></div>
     <div id="options"></div>
     <div id="sbox"></div>
   </section>
@@ -1555,7 +1566,7 @@ function routeWarn(j){
   return `<div class="warn">⚠ ${esc(worst.s.text)} on the ${esc(worst.name)}${/line$/i.test(worst.name) ? '' : ' line'}</div>`;
 }
 function renderOptions(el = $(J.optEl || 'options')){
-  el.innerHTML = J.options.map((j, i) => `
+  el.innerHTML = saveBar() + J.options.map((j, i) => `
     <button class="opt ${i===J.sel?'sel':''}" data-i="${i}">
       <div class="opt-top"><b>${hhmm(j.dep)} → ${hhmm(j.arr)}</b><span>${mins(j.arr-j.dep)} min</span></div>
       <div class="pills">${j.legs.map(pill).join('<span class="sep">›</span>')}</div>
@@ -1619,6 +1630,8 @@ async function search(){
     if(!J.options.length){ $('options').innerHTML = '<div class="muted">No routes found.</div>'; return; }
     renderOptions(); drawJourney(J.options[0], routeLayer); fitJourney(J.options[0]);
     try{ localStorage.setItem('lastTo', JSON.stringify(J.to)); }catch(e){}
+    if(J.pendingSave){ savePlace(J.pendingSave, J.to); J.pendingSave = null; $('to').placeholder = 'Place, station or postcode'; }
+    addRecent(J.to);
   }catch(e){ $('options').innerHTML = `<div class="muted">${esc(e.message)}</div>`; }
 }
 
@@ -1677,14 +1690,73 @@ function renderStatusBox(){
 $('sbox').addEventListener('click', e => { if(e.target.closest('#sbT')){ sboxOpen = !sboxOpen; renderStatusBox(); } });
 window.onStatus = () => { renderStatusBox(); if(J.options && J.options.length && !J.active) renderOptions(); if(J.active) renderActive(true); };
 
+// ----- saved places (Home, Work, favourites) and recent destinations -----
+const PL = {get(){ try{ return JSON.parse(localStorage.getItem('places')) || {}; }catch(e){ return {}; } },
+  set(v){ try{ localStorage.setItem('places', JSON.stringify(v)); }catch(e){} }};
+const RC = {get(){ try{ return JSON.parse(localStorage.getItem('recents')) || []; }catch(e){ return []; } },
+  set(v){ try{ localStorage.setItem('recents', JSON.stringify(v)); }catch(e){} }};
+const samePlace = (a, b) => a && b && (a.label.toLowerCase() === b.label.toLowerCase() || a.q === b.q);
+function addRecent(p){
+  if(!p || !p.label || /^-?\d/.test(p.label)) return;
+  const r = RC.get().filter(x => !samePlace(x, p)); r.unshift({label:p.label, q:p.q}); RC.set(r.slice(0, 8)); renderQuick();
+}
+function savedList(){ // [{kind, icon, label, q}]
+  const s = PL.get(), out = [];
+  if(s.home) out.push({kind:'home', icon:'🏠', name:'Home', ...s.home});
+  if(s.work) out.push({kind:'work', icon:'💼', name:'Work', ...s.work});
+  for(const f of s.favs || []) out.push({kind:'fav', icon:'★', name:f.label, ...f});
+  return out;
+}
+let quickEdit = false;
+function renderQuick(){
+  const el = $('quick'); if(!el) return;
+  const saved = savedList(), s = PL.get();
+  const recents = RC.get().filter(r => !saved.some(x => samePlace(x, r))).slice(0, 4);
+  const chip = (p, i, kind) => `<button type="button" class="qc" data-kind="${kind}" data-i="${i}" title="${esc(p.label)}">${p.icon || '🕘'} <span>${esc(p.kind === 'home' ? 'Home' : p.kind === 'work' ? 'Work' : p.label)}</span>${quickEdit ? '<b class="x">✕</b>' : ''}</button>`;
+  el.innerHTML = saved.map((p, i) => chip(p, i, 'saved')).join('')
+    + (quickEdit ? '' : (!s.home ? '<button type="button" class="qc add" data-set="home">🏠 Set home</button>' : '') + (!s.work ? '<button type="button" class="qc add" data-set="work">💼 Set work</button>' : ''))
+    + recents.map((p, i) => chip(p, i, 'recent')).join('')
+    + (saved.length || recents.length ? `<button type="button" class="qc edit" data-edit="1">${quickEdit ? 'Done' : 'Edit'}</button>` : '');
+}
+function removePlace(kind, i){
+  if(kind === 'recent'){ const saved = savedList(); const list = RC.get().filter(r => !saved.some(x => samePlace(x, r))); const gone = list[i]; RC.set(RC.get().filter(r => r !== gone && !samePlace(r, gone))); }
+  else { const p = savedList()[i], s = PL.get(); if(p.kind === 'fav') s.favs = (s.favs || []).filter(f => !samePlace(f, p)); else delete s[p.kind]; PL.set(s); }
+  renderQuick();
+}
+function savePlace(kind, p){
+  const s = PL.get(), v = {label:p.label, q:p.q};
+  if(kind === 'fav'){ s.favs = (s.favs || []).filter(f => !samePlace(f, v)); s.favs.push(v); } else s[kind] = v;
+  PL.set(s); renderQuick(); if(J.options && J.options.length) renderOptions();
+}
+$('quick').addEventListener('click', e => {
+  const b = e.target.closest('button'); if(!b) return;
+  if(b.dataset.edit){ quickEdit = !quickEdit; renderQuick(); return; }
+  if(b.dataset.set){ // "Set home": use the destination if there is one, else ask for it
+    if($('to').value.trim() && J.to && J.to.label === $('to').value.trim()) savePlace(b.dataset.set, J.to);
+    else { J.pendingSave = b.dataset.set; $('to').value = ''; $('to').placeholder = `Type your ${b.dataset.set === 'home' ? 'home' : 'work'} address`; $('to').focus(); }
+    return; }
+  const kind = b.dataset.kind, i = +b.dataset.i;
+  if(quickEdit) return removePlace(kind, i);
+  const saved = savedList(), p = kind === 'saved' ? saved[i] : RC.get().filter(r => !saved.some(x => samePlace(x, r)))[i];
+  if(!p) return;
+  J.to = {label:p.label, q:p.q}; $('to').value = p.label; search();
+});
+// "save this destination" bar above the route options
+function saveBar(){
+  if(!J.to || !J.to.label || J.optEl !== 'options') return '';
+  const s = PL.get(), is = k => k === 'fav' ? (s.favs || []).some(f => samePlace(f, J.to)) : samePlace(s[k], J.to);
+  return `<div class="savebar">Save “${esc(J.to.label)}” as <button type="button" data-save="home" class="${is('home') ? 'on' : ''}">🏠 Home</button><button type="button" data-save="work" class="${is('work') ? 'on' : ''}">💼 Work</button><button type="button" data-save="fav" class="${is('fav') ? 'on' : ''}">★ Favourite</button></div>`;
+}
+$('options').addEventListener('click', e => { const b = e.target.closest('[data-save]'); if(b){ e.stopPropagation(); savePlace(b.dataset.save, J.to); } }, true);
+
 // ----- place suggestions while typing (Google Places autocomplete) -----
 const AC = {list:document.createElement('ul'), input:null, items:[], sel:-1, token:null, timer:0, seq:0};
 AC.list.className = 'aclist'; AC.list.setAttribute('role', 'listbox'); AC.list.hidden = true;
 const PIN = '<svg class="pin" width="16" height="16" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 22s7-6.4 7-12a7 7 0 10-14 0c0 5.6 7 12 7 12z" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="10" r="2.5" fill="currentColor"/></svg>';
 function acClose(){ AC.list.hidden = true; AC.items = []; AC.sel = -1; if(AC.input) AC.input.setAttribute('aria-expanded', 'false'); }
 function acRender(){
-  AC.list.innerHTML = AC.items.map((s, i) => `<li role="option" data-i="${i}" class="${i===AC.sel?'on':''}" aria-selected="${i===AC.sel}">${PIN}<span><b>${esc(s.main)}</b><small>${esc(s.sub)}</small></span></li>`).join('')
-    + '<li class="gattr" aria-hidden="true">Powered by Google</li>';
+  AC.list.innerHTML = AC.items.map((s, i) => `<li role="option" data-i="${i}" class="${i===AC.sel?'on':''}" aria-selected="${i===AC.sel}">${s.icon ? `<span class="ic">${s.icon}</span>` : PIN}<span><b>${esc(s.main)}</b><small>${esc(s.sub)}</small></span></li>`).join('')
+    + (AC.items.some(s => !s.q) ? '<li class="gattr" aria-hidden="true">Powered by Google</li>' : '');
   AC.list.hidden = !AC.items.length; AC.input.setAttribute('aria-expanded', String(!AC.list.hidden));
 }
 async function acFetch(input){
@@ -1705,11 +1777,14 @@ async function acFetch(input){
 }
 function acPick(i){
   const s = AC.items[i], input = AC.input; if(!s || !input) return;
-  input.value = s.main; AC.token = null; acClose();
-  const place = {label:s.main, q:'place_id:' + s.id};
+  AC.token = null; acClose();
+  if(s.q === '__me__'){ input.value = ''; if(input.id === 'from') J.from = null; else if(input.dataset.i != null){ CH.stops[+input.dataset.i] = ''; saveChain(); }
+    input.dispatchEvent(new Event('picked', {bubbles:true})); return; }
+  input.value = s.label || s.main;
+  const place = {label:s.label || s.main, q:s.q || 'place_id:' + s.id};
   if(input.id === 'to') J.to = place;
   else if(input.id === 'from') J.from = place;
-  else if(input.dataset.i != null){ CH.stops[+input.dataset.i] = s.main; (CH.pids ||= {})[s.main] = place.q; saveChain(); }
+  else if(input.dataset.i != null){ CH.stops[+input.dataset.i] = place.label; (CH.pids ||= {})[place.label] = place.q; saveChain(); }
   input.dispatchEvent(new Event('picked', {bubbles:true}));
 }
 const acTarget = el => el && el.tagName === 'INPUT' && (el.id === 'from' || el.id === 'to' || el.closest('#chain'));
@@ -1720,6 +1795,15 @@ $('panel').addEventListener('keydown', e => {
     AC.sel = e.key === 'ArrowDown' ? (AC.sel + 1 >= n ? -1 : AC.sel + 1) : (AC.sel - 1 < -1 ? n - 1 : AC.sel - 1); acRender(); }
   else if(e.key === 'Enter' && AC.sel >= 0){ e.preventDefault(); acPick(AC.sel); }
   else if(e.key === 'Escape'){ acClose(); }
+});
+$('panel').addEventListener('focusin', e => {
+  const input = e.target; if(!acTarget(input) || input.value.trim()) return;
+  const saved = savedList(), recents = RC.get().filter(r => !saved.some(x => samePlace(x, r)));
+  const items = [...(input.id === 'from' && me ? [{icon:'◎', main:'My location', sub:'Where you are now', q:'__me__'}] : []),
+    ...saved.map(p => ({icon:p.icon, main:p.kind === 'fav' ? p.label : p.name, sub:p.kind === 'fav' ? 'Favourite' : p.label, q:p.q, label:p.label})),
+    ...recents.slice(0, 5).map(p => ({icon:'🕘', main:p.label, sub:'Recent', q:p.q, label:p.label}))].slice(0, 7);
+  if(!items.length) return;
+  AC.input = input; AC.sel = -1; AC.items = items; input.closest('.field').after(AC.list); acRender();
 });
 $('panel').addEventListener('focusout', e => { if(acTarget(e.target)) setTimeout(() => { if(!acTarget(document.activeElement)) acClose(); }, 150); });
 AC.list.addEventListener('mousedown', e => e.preventDefault()); // keep focus in the box while choosing
@@ -1822,6 +1906,7 @@ $('bTheme').onclick = () => { dark = !dark; try{ localStorage.setItem('theme', d
   if(J.suggestion) drawJourney(J.suggestion.journey, altLayer, true); };
 window.onTrainsUpdate = n => { $('tcount').textContent = n ? n : ''; };
 try{ const t = JSON.parse(localStorage.getItem('lastTo')); if(t){ J.to = t; $('to').value = t.label; } }catch(e){}
+renderQuick();
 if(SIM) document.body.classList.add('sim');
 if(DEBUG) window.APP = {map, draw, J, planJourneys, projectPlan, monitor, replan, setMe, startJourney, liveDepartures, ACTIVE, BY, trains, HL};
 showView('search');
