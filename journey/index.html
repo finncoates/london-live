@@ -33,7 +33,20 @@ body.dark button.primary{color:#0e0f12}
 button:focus-visible,input:focus-visible{outline:2px solid var(--acc);outline-offset:2px}
 .icon{padding:7px 9px;font-size:13px}
 .icon.on{background:var(--soft)}
-#options{display:grid;gap:8px;margin-top:12px}
+#options,#chainOut{display:grid;gap:8px;margin-top:12px}
+.tabs{display:flex;border:1px solid var(--edge);border-radius:10px;overflow:hidden;margin-bottom:10px}
+.tabs button{flex:1;border:0;border-radius:0;padding:8px;font-size:13px}
+.tabs button+button{border-left:1px solid var(--edge)}
+.tabs button.sel{background:var(--ink);color:var(--bg);font-weight:600}
+#chain{display:grid;gap:0}
+.cstop{display:flex;gap:6px;align-items:center}
+.cstop .field{flex:1}
+.cstop .x{padding:6px 9px;color:var(--mute)}
+.cmode{display:flex;flex-wrap:wrap;align-items:center;gap:5px;margin:4px 0 4px 14px;padding:4px 0 4px 12px;border-left:3px dotted var(--edge)}
+.cmode button{padding:5px;border-radius:8px;line-height:0}
+.cmode button.sel{background:var(--soft);border-color:var(--acc);box-shadow:0 0 0 1px var(--acc) inset}
+.cmode .lbl{font-size:12px;color:var(--mute);margin-left:2px;white-space:nowrap}
+.note{background:var(--soft);border-radius:10px;padding:8px 10px;font-size:13px;margin-bottom:10px}
 .opt{text-align:left;display:grid;gap:6px;padding:10px 12px}
 .opt.sel{border-color:var(--acc);box-shadow:0 0 0 1px var(--acc) inset}
 .opt-top{display:flex;justify-content:space-between}
@@ -91,6 +104,16 @@ body.dark #simnote{background:#1f2a44;color:#c6dafc}
     <button id="bTheme" class="icon" title="Dark / light">🌓</button>
   </h1>
   <div id="simnote">Test mode: drag the blue pin to pretend you're moving.</div>
+  <div class="tabs" id="tabs"><button data-t="search" class="sel">Quick route</button><button data-t="build">Build my route</button></div>
+  <section class="view" data-view="build" hidden>
+    <div id="chain"></div>
+    <div class="row2" style="margin-top:8px">
+      <button type="button" id="bAddStop">+ Add stop</button>
+      <div class="field" style="flex:1"><label for="whenB">Leave</label><input id="whenB" type="time" title="Leave at (empty = now)"></div>
+      <button type="button" id="bPlanChain" class="primary">Plan</button>
+    </div>
+    <div id="chainOut"></div>
+  </section>
   <section class="view" data-view="search">
     <form id="fSearch" autocomplete="off">
       <div class="field"><label for="from">From</label><input id="from" placeholder="My location"></div>
@@ -105,6 +128,7 @@ body.dark #simnote{background:#1f2a44;color:#c6dafc}
   </section>
   <section class="view" data-view="active" hidden>
     <div id="eta"></div>
+    <div id="note" class="note" hidden></div>
     <div id="banner" hidden></div>
     <ol id="steps"></ol>
     <div class="row2"><button id="bReplan">Check for a better route</button><button id="bEnd">End</button></div>
@@ -601,6 +625,10 @@ function symbol(kind, c, s = 16){
   c = c==='#000000' && dark ? '#d9d9d9' : c;
   const o = `<svg class="sym" width="${s}" height="${s}" viewBox="0 0 24 24" aria-hidden="true">`;
   if(kind==='walk') return o + `<circle cx="13.5" cy="3.8" r="2.3" fill="${c}"/><path d="M11 8.2l3.2-1 2.4 3.6 3 1.2M12.6 8.6l-1.7 6.6 3.7 3.4.9 4.6M10.9 15.2l-2.6 3.3-3.3 1.2" fill="none" stroke="${c}" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+  if(kind==='tubeLogo') return o + `<circle cx="12" cy="12" r="7" fill="none" stroke="#DC241F" stroke-width="3.6"/><rect x="1" y="9.6" width="22" height="4.8" rx=".6" fill="#0019A8"/></svg>`;
+  if(kind==='cycle') return o + `<g fill="none" stroke="${c}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="5.5" cy="16" r="3.8"/><circle cx="18.5" cy="16" r="3.8"/><path d="M5.5 16l4-7h6l3 7M9.5 9L12 16h3.5M8 6.5h3M15.5 9l-1-3h2.5"/></g></svg>`;
+  if(kind==='drive') return o + `<path d="M5 11l1.8-4.6A2 2 0 018.7 5h6.6a2 2 0 011.9 1.4L19 11v6.5a1 1 0 01-1 1h-1.5a1 1 0 01-1-1V16h-7v1.5a1 1 0 01-1 1H6a1 1 0 01-1-1z" fill="${c}"/><circle cx="8" cy="13" r="1.3" fill="#fff"/><circle cx="16" cy="13" r="1.3" fill="#fff"/><path d="M7.2 10.5l1.2-3h7.2l1.2 3z" fill="#fff" opacity=".85"/></svg>`;
+  if(kind==='any') return o + `<rect x="3" y="3" width="18" height="18" rx="5" fill="${c}"/><path d="M8 16.5l-1.5 2.5M16 16.5l1.5 2.5M8.5 7h7a1.5 1.5 0 011.5 1.5V14a2 2 0 01-2 2H9a2 2 0 01-2-2V8.5A1.5 1.5 0 018.5 7zM7 11.5h10" fill="none" stroke="#fff" stroke-width="1.6" stroke-linecap="round"/></svg>`;
   if(kind==='gen') return o + `<rect x="3" y="3" width="18" height="18" rx="5" fill="${c}"/><path d="M8 16.5l-1.5 2.5M16 16.5l1.5 2.5M8.5 7h7a1.5 1.5 0 011.5 1.5V14a2 2 0 01-2 2H9a2 2 0 01-2-2V8.5A1.5 1.5 0 018.5 7zM7 11.5h10" fill="none" stroke="#fff" stroke-width="1.6" stroke-linecap="round"/></svg>`;
   if(kind==='rail') return o + `<path d="M2 7.5h15L7 16.5h15M12.5 3l4.5 4.5M11.5 21L7 16.5" fill="none" stroke="${c}" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
   return o + `<circle cx="12" cy="12" r="7" fill="none" stroke="${c}" stroke-width="3.6"/><rect x="1" y="9.6" width="22" height="4.8" rx=".6" fill="${c}"/></svg>`;
@@ -695,7 +723,8 @@ function parseJourney(j){
   });
   return {dep:londonMs(j.startDateTime), arr:londonMs(j.arrivalDateTime), legs, fare:j.fare?.totalCost, src:'tfl'};
 }
-const signature = legs => legs.filter(L => !L.walk).map(L => (L.line||L.mode)+'@'+L.from.id).join('|');
+// same services from the same places (stop ids aren't used: they're only filled in once a journey starts)
+const signature = legs => legs.filter(L => !L.walk).map(L => (L.lineName||L.line||L.mode) + '@' + L.from.p.map(x => x.toFixed(3))).join('|');
 
 async function planJourneys(from, to, when){
   const p = ldnParts(when || Date.now());
@@ -779,6 +808,61 @@ async function enrichLeg(L){
   for(const r of l.routes) for(const a of A){ const ia = r.ids.indexOf(a); if(ia < 0) continue;
     for(const b of B){ if(r.ids.indexOf(b) > ia){ L.line = l.id; L.from.id = a; L.to.id = b; return; } } }
 }
+// ---------- "Build my route": a chain of steps, each with the mode you choose ----------
+const CMODES = [
+  {id:'walk',  name:'Walk',          g:'WALKING',   sym:['walk', '#5f6368']},
+  {id:'cycle', name:'Cycle',         g:'BICYCLING', sym:['cycle','#1e8e3e']},
+  {id:'drive', name:'Drive',         g:'DRIVING',   sym:['drive','#5f6368']},
+  {id:'train', name:'Train',         g:'TRANSIT', tm:['TRAIN'],  ok:m => /heavy_rail|commuter_train|high_speed_train|long_distance_train|^rail$/.test(m), sym:['rail','#1D5BA0']},
+  {id:'tube',  name:'Tube / Metro',  g:'TRANSIT', tm:['SUBWAY'], ok:m => /subway|metro_rail|light_rail|monorail/.test(m), sym:['tubeLogo','#DC241F']},
+  {id:'bus',   name:'Bus',           g:'TRANSIT', tm:['BUS'],    ok:m => /bus/.test(m), sym:['bus','#DC241F']},
+  {id:'tram',  name:'Tram',          g:'TRANSIT', tm:['TRAM'],   ok:m => /tram|light_rail/.test(m), sym:['tram','#5FB526']},
+  {id:'any',   name:'Any transport', g:'TRANSIT', tm:null,       ok:() => true, sym:['any','#1a73e8']},
+];
+const CM = Object.fromEntries(CMODES.map(m => [m.id, m]));
+const SELF = {walk:{verb:'Walk', colour:'#7a7f87'}, cycle:{verb:'Cycle', colour:'#1e8e3e'}, drive:{verb:'Drive', colour:'#5f6368'}};
+async function planSegment(from, to, modeId, t, toLabel){
+  const m = CM[modeId], {DirectionsService} = await google.maps.importLibrary('routes');
+  const loc = s => isCoord(s) ? {lat:+s.split(',')[0], lng:+s.split(',')[1]} : s;
+  const inUK = me && inUKP(me);
+  let res;
+  try{
+    res = await new DirectionsService().route({origin:loc(from), destination:loc(to), travelMode:m.g, region:inUK ? 'gb' : undefined,
+      provideRouteAlternatives:m.g === 'TRANSIT',
+      transitOptions:m.g === 'TRANSIT' ? {departureTime:new Date(t), modes:m.tm || undefined} : undefined});
+  }catch(e){ throw new Error(`No ${m.name.toLowerCase()} route to ${toLabel || 'the next stop'}`); }
+  const r0 = res.routes[0], lg0 = r0.legs[0], end = [lg0.end_location.lat(), lg0.end_location.lng()];
+  const endQ = end.map(x => x.toFixed(5)).join(',');
+  const name = toLabel || lg0.end_address.split(',')[0];
+  if(m.g !== 'TRANSIT'){
+    const dur = lg0.duration.value*1000, s = SELF[modeId];
+    const L = {mode:modeId, kind:modeId, walk:true, dep:t, arr:t + dur, summary:`${s.verb} to ${name}`, detail:lg0.distance?.text || '',
+      line:null, lineName:'', towards:'', from:{id:null, name:'', p:[lg0.start_location.lat(), lg0.start_location.lng()]},
+      to:{id:null, name, p:end}, path:r0.overview_path.map(p => [p.lat(), p.lng()]), nStops:0, disrupted:false, colour:s.colour};
+    return {legs:[L], arr:L.arr, endQ};
+  }
+  // public transport: prefer routes that really use the chosen type (Google treats it as a preference)
+  const js = res.routes.map(parseGoogle).filter(Boolean);
+  const fits = j => j.legs.filter(L => !L.walk).every(L => m.ok(L.mode));
+  js.sort((a, b) => (fits(b) - fits(a)) || (a.arr - b.arr));
+  const j = js[0]; const last = j.legs[j.legs.length-1]; if(last.walk && !last.to.name) last.to.name = name;
+  if(last.walk && /^Walk/.test(last.summary)) last.summary = `Walk to ${name}`;
+  return {legs:j.legs, arr:j.arr, endQ};
+}
+async function planChain(qs, labels, modes, when){
+  await loadGoogle();
+  const legs = [], chain = []; let t = when || Date.now(), from = qs[0];
+  for(let i=0; i<modes.length; i++){
+    const seg = await planSegment(from, qs[i+1], modes[i], t, labels[i+1]);
+    for(const L of seg.legs) L.seg = i;
+    legs.push(...seg.legs);
+    chain.push({mode:modes[i], label:labels[i+1] || '', q:seg.endQ});
+    t = seg.arr + (i < modes.length-1 && !(modes[i]==='walk' && modes[i+1]==='walk') ? 60000 : 0); // a minute to change
+    from = seg.endQ;
+  }
+  return {dep:legs[0].dep, arr:legs[legs.length-1].arr, legs, src:'google', chain};
+}
+
 const planFor = j => j && j.src === 'google' ? planGoogle : planJourneys;
 const gmapsLink = j => { const a = j.legs[0].from.p, b = j.legs[j.legs.length-1].to.p;
   return `https://www.google.com/maps/dir/?api=1&origin=${a[0]},${a[1]}&destination=${b[0]},${b[1]}&travelmode=transit`; };
@@ -852,6 +936,11 @@ function drawJourney(j, layer, ghost){
   layer.clearLayers(); if(!j) return;
   for(const g of j.legs){
     const path = g.path.map(LL);
+    if(g.walk && g.kind !== 'walk'){ // cycling / driving: solid line
+      layer.addLayer(new google.maps.Polyline({path, strokeColor:dark?'#000':'#fff', strokeWeight:ghost?0:8, strokeOpacity:.8, clickable:false, zIndex:5}));
+      layer.addLayer(new google.maps.Polyline({path, strokeColor:g.colour, strokeWeight:ghost?3:5, strokeOpacity:ghost?.6:1, clickable:false, zIndex:6}));
+      continue;
+    }
     if(g.walk){ // dotted line
       layer.addLayer(new google.maps.Polyline({path, strokeOpacity:0, clickable:false, zIndex:5,
         icons:[{icon:{path:CIRCLE, scale:ghost?1.6:2.2, fillColor:g.colour, fillOpacity:ghost?.6:1, strokeOpacity:0}, offset:'0', repeat:'9px'}]}));
@@ -924,11 +1013,11 @@ async function projectPlan(){
   const legs = J.plan.legs; let t = Date.now(); let liveChecks = 0;
   for(let i=J.idx; i<legs.length; i++){
     const L = legs[i]; L.missed = false; L.wait = null;
-    if(L.walk){
-      let m = pathLen(L.path);
-      if(i===J.idx && gpsFresh()){ const n = nearestOnPath(L.path, me); m = Math.max(0, n.total - n.along); }
-      else if(i===J.idx && !gpsFresh()) m = Math.max(0, (L.arr - Math.max(t, L.dep))/1000*WALK);
-      t += m/WALK*1000; L.eta = t; continue;
+    if(L.walk){ // walking, cycling or driving: Google's own duration, scaled by how much is left
+      const full = Math.max(0, L.arr - L.dep); let frac = 1;
+      if(i===J.idx && gpsFresh()){ const n = nearestOnPath(L.path, me); frac = n.total ? Math.max(0, n.total - n.along)/n.total : 0; }
+      else if(i===J.idx) frac = full ? Math.max(0, Math.min(1, (L.arr - Math.max(t, L.dep))/full)) : 0;
+      t += full*frac; L.eta = t; continue;
     }
     if(i===J.idx && J.riding){
       let a = null;
@@ -959,10 +1048,16 @@ async function replan(why){
   if(J.riding && !L.walk){ from = `${L.to.p[0]},${L.to.p[1]}`; when = L.eta || L.arr; prefix = [L]; } // carry on to the next stop, then see
   else if(gpsFresh()){ from = `${me[0].toFixed(5)},${me[1].toFixed(5)}`; when = Date.now(); }
   else { from = `${L.from.p[0]},${L.from.p[1]}`; when = Date.now(); }
-  let res; try{ res = await planFor(J.plan)(from, J.to.q, when); }catch(e){ return; }
-  if(!res.journeys || !res.journeys.length) return;
-  const best = res.journeys[0];
-  const full = {dep:best.dep, arr:best.arr, legs:[...prefix, ...best.legs]};
+  let best;
+  if(J.plan.chain){ // built route: re-plan the rest with the same modes, from here
+    const rest = J.plan.chain.slice(L.seg || 0);
+    try{ best = await planChain([from, ...rest.map(c => c.q)], ['', ...rest.map(c => c.label)], rest.map(c => c.mode), when); }catch(e){ return; }
+  } else {
+    let res; try{ res = await planFor(J.plan)(from, J.to.q, when); }catch(e){ return; }
+    if(!res.journeys || !res.journeys.length) return;
+    best = res.journeys[0];
+  }
+  const full = {dep:best.dep, arr:best.arr, legs:[...prefix.map(x => Object.assign({}, x, {seg:0})), ...best.legs], src:best.src, chain:best.chain, prefixed:prefix.length > 0};
   const remainingSig = signature(legs.slice(J.idx)), bestSig = signature(full.legs);
   const proj = J.proj ?? J.plan.arr;
   let s = null;
@@ -972,6 +1067,13 @@ async function replan(why){
   else if(legs.slice(J.idx).some(L => L.missed) && bestSig !== remainingSig)
     s = {kind:'missed', text:`You'll miss ${missedText()}. New route arrives <b>${hhmm(best.arr)}</b>.`};
   if(s && J.dismissed === bestSig && why !== 'offroute') s = null;
+  // same services, but the plan's times are out of date (e.g. you'll now get a later bus): just update
+  if(!s && bestSig === remainingSig && legs.slice(J.idx).some(L => L.missed)){
+    const nx = full.legs.find(L => !L.walk && L !== full.legs[0]) || full.legs.find(L => !L.walk);
+    await adoptPlan(full);
+    J.note = nx ? `Updated: you'll now catch the <b>${hhmm(nx.dep)}</b> ${esc(nx.lineName || nx.mode)}${nx.kind==='bus' ? ' bus' : nx.kind==='tube' ? ' line' : ''}.` : 'Times updated.';
+    J.noteAt = Date.now(); return;
+  }
   J.suggestion = s ? Object.assign(s, {journey:full, sig:bestSig}) : null;
   if(s){ try{ navigator.vibrate && navigator.vibrate([150, 80, 150]); }catch(e){} }
   drawJourney(J.suggestion && J.suggestion.journey, altLayer, true);
@@ -1019,14 +1121,17 @@ async function startJourney(j){
   window.DIM_TRAINS = true;
   showView('active'); renderActive(); monitor(); refresh().catch(()=>{});
 }
-async function switchRoute(){
-  const s = J.suggestion; if(!s) return;
-  const keepRiding = J.riding && s.journey.legs[0] === J.plan.legs[J.idx];
-  Object.assign(J, {plan:s.journey, idx:0, riding:keepRiding, suggestion:null, dismissed:null, proj:null});
+async function adoptPlan(j){
+  const keepRiding = J.riding && j.prefixed;
+  Object.assign(J, {plan:j, idx:0, riding:keepRiding, suggestion:null, dismissed:null});
   if(!keepRiding) J.vehicle = null;
+  if(j.chain) J.to = {label:j.chain[j.chain.length-1].label || J.to.label, q:j.chain[j.chain.length-1].q};
   drawJourney(J.plan, routeLayer); altLayer.clearLayers();
   await Promise.all(J.plan.legs.map(L => enrichLeg(L).catch(() => {})));
-  monitor();
+}
+async function switchRoute(){
+  const s = J.suggestion; if(!s) return;
+  J.proj = null; await adoptPlan(s.journey); monitor();
 }
 function keepRoute(){ if(J.suggestion){ J.dismissed = J.suggestion.sig; J.suggestion = null; altLayer.clearLayers(); renderActive(); } }
 function endJourney(){
@@ -1034,7 +1139,7 @@ function endJourney(){
   routeLayer.clearLayers(); altLayer.clearLayers();
   try{ J.wake && J.wake.release(); }catch(e){}
   try{ localStorage.removeItem('journey'); }catch(e){}
-  showView('search');
+  showView(J.optEl === 'chainOut' ? 'build' : 'search');
 }
 function saveState(){ try{ localStorage.setItem('journey', JSON.stringify({to:J.to, plan:J.plan, idx:J.idx, riding:J.riding, vehicle:J.vehicle})); }catch(e){} }
 function restoreState(){
@@ -1045,14 +1150,15 @@ function restoreState(){
 }
 
 // ---------- UI ----------
-const icon = (L, s = 18) => L.walk ? symbol('walk', dark ? '#b0b4ba' : '#5f6368', s) : L.gen ? symbol('gen', L.colour, s) : symbol(L.kind==='other' ? 'rail' : L.kind, L.colour, s);
+const icon = (L, s = 18) => L.walk ? symbol(L.kind==='cycle' ? 'cycle' : L.kind==='drive' ? 'drive' : 'walk', L.kind==='cycle' ? '#1e8e3e' : dark ? '#b0b4ba' : '#5f6368', s) : L.gen ? symbol('gen', L.colour, s) : symbol(L.kind==='other' ? 'rail' : L.kind, L.colour, s);
 const pill = L => L.walk ? `<span class="pill walk">${icon(L, 14)} ${mins(L.arr-L.dep)}</span>`
   : `<span class="pill" style="--c:${L.colour}">${icon(L, 15)} ${esc(L.kind==='bus' ? L.lineName : (L.lineName||L.mode).replace(/ line$/i,''))}</span>`;
 
-function showView(v){ $('panel').scrollTop = 0; for(const el of document.querySelectorAll('.view')) el.hidden = el.dataset.view !== v; document.body.dataset.view = v; }
+function showView(v){ $('panel').scrollTop = 0; $('tabs').hidden = v === 'active';
+  if(v !== 'active') for(const b of $('tabs').children) b.classList.toggle('sel', b.dataset.t === v); for(const el of document.querySelectorAll('.view')) el.hidden = el.dataset.view !== v; document.body.dataset.view = v; }
 
-function renderOptions(){
-  $('options').innerHTML = J.options.map((j, i) => `
+function renderOptions(el = $(J.optEl || 'options')){
+  el.innerHTML = J.options.map((j, i) => `
     <button class="opt ${i===J.sel?'sel':''}" data-i="${i}">
       <div class="opt-top"><b>${hhmm(j.dep)} → ${hhmm(j.arr)}</b><span>${mins(j.arr-j.dep)} min</span></div>
       <div class="pills">${j.legs.map(pill).join('<span class="sep">›</span>')}</div>
@@ -1091,7 +1197,7 @@ async function search(){
       r = await planJourneys(J.from.q, J.to.q, when);
       if(r.ambiguous) return renderAmbiguous(r.ambiguous);
     }
-    J.options = r.journeys.slice(0, 4); J.sel = 0;
+    J.options = r.journeys.slice(0, 4); J.sel = 0; J.optEl = 'options';
     if(!J.options.length){ $('options').innerHTML = '<div class="muted">No routes found.</div>'; return; }
     renderOptions(); drawJourney(J.options[0], routeLayer); fitJourney(J.options[0]);
     try{ localStorage.setItem('lastTo', JSON.stringify(J.to)); }catch(e){}
@@ -1123,12 +1229,54 @@ function renderActive(){
   const st = !J.proj ? ['Checking live times…', 'muted'] : late > 120000 ? [`${mins(late)} min late`, 'bad'] : late < -120000 ? [`${mins(-late)} min early`, 'good'] : ['On time', 'good'];
   $('eta').innerHTML = `<div class="eta-big">Arrive <b>${hhmm(J.proj ?? J.plan.arr)}</b></div><div class="chip ${st[1]}">${st[0]}</div>
     <div class="muted">${esc(J.to.label)} · ${Math.max(0, mins((J.proj ?? J.plan.arr) - n))} min to go</div>`;
+  if(J.note && Date.now() - J.noteAt > 90000) J.note = null;
+  $('note').hidden = !J.note; if(J.note) $('note').innerHTML = J.note;
   const s = J.suggestion;
   $('banner').hidden = !s;
   if(s) $('banner').innerHTML = `<div>${s.text}</div><div class="pills">${s.journey.legs.map(pill).join('<span class="sep">›</span>')}</div>
     <div class="row2"><button id="bSwitch" class="primary">Switch</button><button id="bKeep">Keep current</button></div>`;
   $('steps').innerHTML = J.plan.legs.map(legRow).join('') + `<li class="gnote"><a href="${gmapsLink(J.plan)}" target="_blank" rel="noopener">Open in Google Maps ↗</a></li>`;
 }
+
+// ----- route builder -----
+let CH = (() => { try{ return JSON.parse(localStorage.getItem('chain')) }catch(e){ return null } })() || {stops:['', ''], modes:['any']};
+const saveChain = () => { try{ localStorage.setItem('chain', JSON.stringify(CH)); }catch(e){} };
+function renderChain(){
+  const rows = [], n = CH.stops.length;
+  CH.stops.forEach((s, i) => {
+    const lab = i === 0 ? 'From' : i === n-1 ? 'To' : 'Stop ' + i;
+    rows.push(`<div class="cstop"><div class="field"><label>${lab}</label><input data-i="${i}" value="${esc(s)}" placeholder="${i===0 ? 'My location' : 'Place, station or postcode'}"></div>${i > 0 && n > 2 ? `<button type="button" class="x" data-del="${i}" title="Remove this stop">✕</button>` : ''}</div>`);
+    if(i < n-1){ const m = CH.modes[i];
+      rows.push(`<div class="cmode">${CMODES.map(x => `<button type="button" data-m="${i}" data-v="${x.id}" class="${x.id===m ? 'sel' : ''}" title="${x.name}" aria-label="${x.name}">${symbol(x.sym[0], x.sym[1], 20)}</button>`).join('')}<span class="lbl">${CM[m].name}</span></div>`); }
+  });
+  $('chain').innerHTML = rows.join('');
+}
+$('chain').addEventListener('input', e => { const i = e.target.dataset.i; if(i != null){ CH.stops[+i] = e.target.value; saveChain(); } });
+$('chain').addEventListener('click', e => {
+  const b = e.target.closest('button'); if(!b) return;
+  if(b.dataset.m != null){ CH.modes[+b.dataset.m] = b.dataset.v; }
+  else if(b.dataset.del != null){ const i = +b.dataset.del; CH.stops.splice(i, 1); CH.modes.splice(Math.min(i, CH.modes.length-1), 1); }
+  saveChain(); renderChain();
+});
+$('bAddStop').onclick = () => { CH.stops.push(''); CH.modes.push('any'); saveChain(); renderChain(); $('chain').querySelector(`input[data-i="${CH.stops.length-1}"]`).focus(); };
+async function planBuilt(){
+  const labels = CH.stops.map(s => s.trim());
+  if(labels.slice(1).some(s => !s)){ $('chainOut').innerHTML = '<div class="muted">Fill in every stop (or remove the empty ones).</div>'; return; }
+  if(!labels[0] && !me){ J.wantGps = true; $('chainOut').innerHTML = '<div class="muted">Waiting for your location… (or type a starting point)</div>'; return setTimeout(() => me && planBuilt(), 2500); }
+  const qs = [labels[0] || `${me[0].toFixed(5)},${me[1].toFixed(5)}`, ...labels.slice(1)];
+  let when = Date.now();
+  if($('whenB').value){ const [hh, mm] = $('whenB').value.split(':').map(Number); const d = new Date(); d.setHours(hh, mm, 0, 0); when = +d; }
+  $('chainOut').innerHTML = '<div class="muted">Planning each step…</div>';
+  try{
+    const j = await planChain(qs, labels, CH.modes, when);
+    J.to = {label:labels[labels.length-1], q:j.chain[j.chain.length-1].q};
+    J.options = [j]; J.sel = 0; J.optEl = 'chainOut';
+    renderOptions($('chainOut')); drawJourney(j, routeLayer); fitJourney(j);
+  }catch(e){ $('chainOut').innerHTML = `<div class="muted">${esc(e.message)}</div>`; }
+}
+$('bPlanChain').onclick = planBuilt;
+$('tabs').addEventListener('click', e => { const b = e.target.closest('button'); if(b){ showView(b.dataset.t); if(b.dataset.t === 'build') renderChain(); } });
+$('chainOut').addEventListener('click', e => { if(e.target.closest('#go')) startJourney(J.options[0]); });
 
 // wire up
 $('fSearch').addEventListener('submit', e => { e.preventDefault(); search(); });

@@ -20,6 +20,12 @@ hosted on GitHub Pages. Explain things to the owner in plain, non-technical lang
   3. `replan()` asks Google for the fastest route from where you are now (or your next stop if on board)
      and shows a Switch / Keep banner if you've left the route, a different route is > 2 min faster,
      or a connection is missed. Same route still best → just updates the arrival time.
+- **Build my route** (tab): your own chain of stops with a mode per step (walk, cycle, drive, train,
+  tube/metro, bus, tram, any transport). `planChain()` plans each step with Google in that mode
+  (`planSegment`; transit modes are a Google *preference*, so routes that truly use the chosen type
+  are preferred), starting each step when the previous one arrives (+1 min to change). Legs carry
+  `seg`; re-planning keeps your modes for the remaining steps. If the same services are still best
+  but a connection was missed, the plan is updated quietly with a note instead of a banner.
 - Your own train/bus is drawn bigger with a ring; tap any train for line, destination, next stop, number.
 - The journey is saved in localStorage (reload resumes it); screen wake lock while active.
 
