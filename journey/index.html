@@ -312,7 +312,7 @@ const MAP_BG = () => dark ? (MAP_STYLE === 'original' ? '#1b1c1f' : '#1d2026') :
 const ink = c => c==='#000000'&&dark ? '#d9d9d9' : c;
 const LINE_W = 4.5;
 const lineCentre = l => ({color:MAP_BG(), weight:LINE_W/3, opacity:lineStyle(l).opacity ? 1 : 0, z:2});
-const lineStyle = l => ({color:ink(l.colour), weight:LINE_W, opacity:!shown(l)?0:l.on===false?0.07:l.pinned?0.75:window.DIM_TRAINS?0.12:(window.LINE_OPACITY||0.3)});
+const lineStyle = l => ({color:ink(l.colour), weight:LINE_W, opacity:!shown(l)?0:l.on===false?0.07:l.pinned?0.75:window.DIM_TRAINS?0.05:(window.LINE_OPACITY||0.3)});
 function applyTheme(){ document.body.classList.toggle('dark', dark); map.setOptions({styles:mapStyles()}); for(const l of ACTIVE) l.layer && l.layer.eachLayer(p => p.setStyle(lineStyle(l))); }
 applyTheme();
 // Screen positions (fractional pixels, so movement is smooth) via an empty overlay's projection
@@ -667,13 +667,16 @@ function draw(ts){
   const rect = r => { ctx.moveTo(r[0],r[1]); ctx.lineTo(r[2],r[3]); ctx.lineTo(r[4],r[5]); ctx.lineTo(r[6],r[7]); ctx.closePath(); };
   // batched: one path for all outlines, then one per line colour (far fewer canvas calls on a TV stick)
   ctx.lineJoin = 'round';
-  const dim = !!window.DIM_TRAINS;
-  ctx.globalAlpha = dim ? 0.35 : 1;
+  const dim = !!window.DIM_TRAINS, FADE = 0.1; // trains not on your route fade right back
   ctx.strokeStyle = dark ? 'rgba(0,0,0,.9)' : 'rgba(255,255,255,.95)'; ctx.lineWidth = 3;
-  ctx.beginPath(); for(const d of drawn) rect(d[5]); ctx.stroke();
+  for(const front of dim ? [false, true] : [true]){ // outlines: faded ones first, then yours
+    ctx.globalAlpha = front ? 1 : FADE; ctx.beginPath();
+    for(const d of drawn) if(!dim || !!BY[d[0].line].pinned === front) rect(d[5]);
+    ctx.stroke();
+  }
   ctx.lineWidth = 1;
   for(const [l, items] of byLine){
-    ctx.globalAlpha = dim && !l.pinned ? 0.3 : 1;
+    ctx.globalAlpha = dim && !l.pinned ? FADE : 1;
     ctx.fillStyle = ctx.strokeStyle = l.colour==='#000000'&&dark ? '#e6e6e6' : l.colour;
     ctx.beginPath(); for(const d of items) rect(d[5]); ctx.fill(); ctx.stroke(); // stroke rounds the corners
     if(PARALLEL.has(l.mode)){ // centre stripe, like the line itself
@@ -892,7 +895,27 @@ function tflLook(L){
     L.summary = `${l.mode==='dlr' ? 'DLR' : l.mode==='tram' ? 'Tram' : l.name + ' line'} to ${L.to.name}`; }
   else if(L.kind === 'rail') L.gen = false; // National Rail in London
 }
+// Draw a Tube/rail leg along the very same TfL line geometry that's on the map, station by station
+// (Google's own track shape differs slightly, so the route wouldn't sit on the line otherwise)
+function alignLeg(L){
+  if(L.walk || L.kind === 'bus' || L.aligned) return;
+  const l = BY[L.line || L.tflLine]; if(!l || !l.layer || !l.routes.length) return;
+  const near = p => Object.keys(l.stops).filter(id => dist(l.stops[id].p, p) < 300).sort((a, b) => dist(l.stops[a].p, p) - dist(l.stops[b].p, p));
+  const A = L.from.id && l.stops[L.from.id] ? [L.from.id] : near(L.from.p), B = L.to.id && l.stops[L.to.id] ? [L.to.id] : near(L.to.p);
+  for(const r of l.routes) for(const a of A){ const ia = r.ids.indexOf(a); if(ia < 0) continue;
+    for(const b of B){ const ib = r.ids.indexOf(b); if(ib <= ia) continue;
+      const pts = [];
+      for(let k = ia; k < ib; k++){
+        const tp = trackPath(l, r.ids[k], r.ids[k+1]);
+        const seg = tp ? tp.pts : [l.stops[r.ids[k]].p, l.stops[r.ids[k+1]].p];
+        pts.push(...(pts.length ? seg.slice(1) : seg));
+      }
+      Object.assign(L, {gpath:L.gpath || L.path, path:pts, line:l.id, aligned:true});
+      L.from.id = a; L.to.id = b; return;
+    } }
+}
 async function enrichLeg(L){
+  if(!L.walk && L.kind !== 'bus'){ alignLeg(L); return; } // rail: matched (and drawn) along TfL's line
   if(L.walk || L.line || (!L.tflLine && !L.tflBus) || L.enriching) return; L.enriching = true;
   try{
   const l = L.tflBus ? await addLine(L.tflBus, L.lineName, '#DC241F', 'bus') : BY[L.tflLine];
@@ -1029,6 +1052,7 @@ const SIM = Q.get('sim') === '1';
 const routeLayer = new Group(), altLayer = new Group();
 const CIRCLE = google.maps.SymbolPath.CIRCLE;
 function drawJourney(j, layer, ghost){
+  if(j) for(const g of j.legs) alignLeg(g);
   if(layer === routeLayer && !J.active) previewFocus(j);
   layer.clearLayers(); if(!j) return;
   for(const g of j.legs){
@@ -1051,7 +1075,7 @@ function drawJourney(j, layer, ghost){
       layer.addLayer(new google.maps.Polyline({path, strokeColor:g.colour, strokeWeight:7, strokeOpacity:1, clickable:false, zIndex:8}));
       if(PARALLEL.has(g.kind)) layer.addLayer(new google.maps.Polyline({path, strokeColor:MAP_BG(), strokeWeight:7/3, strokeOpacity:1, clickable:false, zIndex:8}));
     }
-    for(const s of [g.from, g.to]) layer.addLayer(new google.maps.Marker({position:LL(s.p), clickable:false, zIndex:9,
+    for(const p of [g.path[0], g.path[g.path.length-1]]) layer.addLayer(new google.maps.Marker({position:LL(p), clickable:false, zIndex:9,
       icon:{path:CIRCLE, scale:ghost?3:5, fillColor:'#fff', fillOpacity:1, strokeColor:g.colour, strokeWeight:3}}));
   }
 }
@@ -1199,6 +1223,9 @@ async function monitor(){
   if(monitoring){ monAgain = true; return; } // run again straight after the current check
   monitoring = true; lastMon = Date.now(); const gen = J.gen;
   try{
+    // legs whose TfL line wasn't loaded yet when the journey started: match them now and redraw
+    const unaligned = J.plan.legs.filter(L => !L.walk && L.kind !== 'bus' && !L.aligned && L.tflLine).length;
+    if(unaligned){ J.plan.legs.forEach(alignLeg); if(J.plan.legs.filter(L => L.aligned).length) drawJourney(J.plan, routeLayer); }
     updateProgress();
     const proj = await projectPlan();
     if(gen !== J.gen) return;
@@ -1532,7 +1559,7 @@ $('bTheme').onclick = () => { dark = !dark; try{ localStorage.setItem('theme', d
 window.onTrainsUpdate = n => { $('tcount').textContent = n ? n : ''; };
 try{ const t = JSON.parse(localStorage.getItem('lastTo')); if(t){ J.to = t; $('to').value = t.label; } }catch(e){}
 if(SIM) document.body.classList.add('sim');
-if(DEBUG) window.APP = {draw, J, planJourneys, projectPlan, monitor, replan, setMe, startJourney, liveDepartures, ACTIVE, BY, trains, HL};
+if(DEBUG) window.APP = {map, draw, J, planJourneys, projectPlan, monitor, replan, setMe, startJourney, liveDepartures, ACTIVE, BY, trains, HL};
 showView('search');
 restoreState();
 
