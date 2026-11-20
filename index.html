@@ -809,7 +809,7 @@ function stationIndex(){
   for(const l of ACTIVE){ if(l.mode === 'bus' || !l.stops) continue;
     for(const [id, s] of Object.entries(l.stops)){
       const name = s.n.replace(/\s*\((?:[^)]*line|H&C|Circle Line|[^)]*Underground)[^)]*\)\s*/i, ' ').replace(/-Underground$/i, '').replace(/\s+/g, ' ').trim();
-      const key = name.toLowerCase().replace(/&/g, 'and').replace(/[^a-z0-9]+/g, ' ').trim();
+      const key = name.toLowerCase().replace(/['’.]/g, '').replace(/&/g, 'and').replace(/[^a-z0-9]+/g, ' ').trim();
       let st = by.get(key);
       if(st && dist(st.p, s.p) > 600) st = by.get(key + '#' + id) || null; // same name, different place
       if(!st){ st = {name, p:s.p, lines:new Set(), ids:new Set(), key}; by.set(by.has(key) ? key + '#' + id : key, st); }
@@ -821,7 +821,7 @@ function stationIndex(){
 const SR = {items:[], sel:-1};
 function searchStations(text){
   if(!STATIONS || STATIONS.length < 50) STATIONS = stationIndex();
-  const q = text.toLowerCase().replace(/&/g, 'and').replace(/[^a-z0-9]+/g, ' ').trim(); if(!q) return [];
+  const q = text.toLowerCase().replace(/['’.]/g, '').replace(/&/g, 'and').replace(/[^a-z0-9]+/g, ' ').replace(/\bst\b/g, 'st').trim(); if(!q) return [];
   const score = s => s.key.startsWith(q) ? 0 : s.key.split(' ').some(w => w.startsWith(q)) ? 1 : s.key.includes(q) ? 2 : 9;
   return STATIONS.map(s => [score(s), s]).filter(x => x[0] < 9).sort((a, b) => a[0]-b[0] || b[1].lines.size-a[1].lines.size || a[1].name.localeCompare(b[1].name)).slice(0, 7).map(x => x[1]);
 }
@@ -893,12 +893,12 @@ if(DEBUG) window.LLT = {trains, ACTIVE, BY, placeTrain, segTime, refresh, map, d
 (async () => {
   let ok = 0;
   const queue = ACTIVE.slice();
-  await Promise.all([0,1,2].map(async () => {
+  await Promise.all([0,1,2,3,4].map(async () => { // first visit only: line shapes are cached for a week
     for(let l; (l = queue.shift()); ){
       const cached = !!store.get('seq2:'+l.id);
       try{ await loadLine(l); ok++; $('status').textContent = `Loading lines… ${ok}/${ACTIVE.length}`; }
       catch(e){ $('err').textContent = 'Could not load ' + l.name + ': ' + e.message; }
-      if(!cached) await sleep(200);
+      if(!cached) await sleep(80);
     }
   }));
   STATIONS = null; renderModeChips(); renderLegend();
