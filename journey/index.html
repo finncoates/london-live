@@ -24,9 +24,10 @@ h1{margin:0 0 10px;font-size:18px;font-weight:800;display:flex;align-items:cente
 h1 .sp{flex:1}
 form{display:grid;gap:8px}
 .field{display:flex;align-items:center;gap:8px;background:var(--soft);border-radius:10px;padding:0 10px}
-.field label{font-size:12px;color:var(--mute);width:34px}
+.field label{font-size:12px;color:var(--mute);min-width:34px;white-space:nowrap}
 .field input{flex:1;border:0;background:transparent;color:var(--ink);font:inherit;padding:11px 0;min-width:0;outline:none}
-.row2{display:flex;gap:8px;align-items:center}
+.row2{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.field input[type=time]{min-width:0;width:100%}
 button{font:inherit;font-size:14px;padding:9px 12px;border-radius:10px;border:1px solid var(--edge);background:var(--panel);color:var(--ink);cursor:pointer}
 button.primary{background:var(--acc);border-color:var(--acc);color:#fff;font-weight:600}
 body.dark button.primary{color:#0e0f12}
@@ -45,7 +46,7 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--acc);outline-of
 .cmode{display:flex;flex-wrap:wrap;align-items:center;gap:5px;margin:4px 0 4px 14px;padding:4px 0 4px 12px;border-left:3px dotted var(--edge)}
 .cmode button{padding:5px;border-radius:8px;line-height:0}
 .cmode button.sel{background:var(--soft);border-color:var(--acc);box-shadow:0 0 0 1px var(--acc) inset}
-.cmode .lbl{font-size:12px;color:var(--mute);margin-left:2px;white-space:nowrap}
+.cmode .lbl{font-size:12px;color:var(--mute);flex-basis:100%;order:-1;margin:0 0 1px 2px}
 .note{background:var(--soft);border-radius:10px;padding:8px 10px;font-size:13px;margin-bottom:10px}
 .opt{text-align:left;display:grid;gap:6px;padding:10px 12px}
 .opt.sel{border-color:var(--acc);box-shadow:0 0 0 1px var(--acc) inset}
@@ -77,8 +78,8 @@ body.dark #banner{background:#3b2a10;color:#ffe2b0;border-color:#7a5a20}
 #steps{list-style:none;margin:0 0 10px;padding:0;display:grid;gap:2px}
 #steps li{border-left:4px solid var(--c);padding:6px 0 6px 10px;display:grid;gap:2px}
 #steps li.done{opacity:.45}
-#steps li.gnote{border:0;padding:8px 0 0}
-#steps li.gnote a{color:var(--acc);font-weight:600}
+.gmaps{display:inline-block;color:var(--acc);font-weight:600;font-size:14px;margin:0 0 12px;text-decoration:none}
+.gmaps:hover{text-decoration:underline}
 #steps li.cur{background:var(--soft);border-radius:0 8px 8px 0}
 .li-h{display:flex;gap:6px;align-items:baseline}
 .li-h span{flex:1;font-weight:600}
@@ -99,12 +100,12 @@ body.dark #simnote{background:#1f2a44;color:#c6dafc}
 <div id="map"></div>
 <div id="panel">
   <h1>London Journey <span class="sp"></span>
-    <button id="bTrains" class="icon" title="Show all live trains"><span id="tsym"></span> <span id="tcount"></span></button>
-    <button id="bLocate" class="icon" title="Show my location">◎</button>
-    <button id="bTheme" class="icon" title="Dark / light">🌓</button>
+    <button id="bTrains" class="icon" title="Show all live trains" aria-label="Show all live trains"><span id="tsym"></span> <span id="tcount"></span></button>
+    <button id="bLocate" class="icon" title="Show my location" aria-label="Show my location">◎</button>
+    <button id="bTheme" class="icon" title="Dark / light" aria-label="Switch dark or light map">🌓</button>
   </h1>
   <div id="simnote">Test mode: drag the blue pin to pretend you're moving.</div>
-  <div class="tabs" id="tabs"><button data-t="search" class="sel">Quick route</button><button data-t="build">Build my route</button></div>
+  <div class="tabs" id="tabs" role="tablist"><button data-t="search" class="sel" role="tab">Quick route</button><button data-t="build" role="tab">Build my route</button></div>
   <section class="view" data-view="build" hidden>
     <div id="chain"></div>
     <div class="row2" style="margin-top:8px">
@@ -120,7 +121,7 @@ body.dark #simnote{background:#1f2a44;color:#c6dafc}
       <div class="field"><label for="to">To</label><input id="to" placeholder="Place, station or postcode" enterkeyhint="search"></div>
       <div class="row2">
         <div class="field" style="flex:1"><label for="when">Leave</label><input id="when" type="time" title="Leave at (empty = now)"></div>
-        <button type="button" id="bSwap" title="Swap from and to">⇅</button>
+        <button type="button" id="bSwap" title="Swap from and to" aria-label="Swap from and to">⇅</button>
         <button type="submit" class="primary">Go</button>
       </div>
     </form>
@@ -131,6 +132,7 @@ body.dark #simnote{background:#1f2a44;color:#c6dafc}
     <div id="note" class="note" hidden></div>
     <div id="banner" hidden></div>
     <ol id="steps"></ol>
+    <a id="gmaps" class="gmaps" target="_blank" rel="noopener">Open in Google Maps ↗</a>
     <div class="row2"><button id="bReplan">Check for a better route</button><button id="bEnd">End</button></div>
   </section>
   <div id="err"></div>
@@ -251,7 +253,12 @@ const cv = document.createElement('canvas'); cv.id='trains';
 map.getDiv().appendChild(cv);
 const ctx = cv.getContext('2d');
 function sizeCanvas(){ const s=mapSize(), dpr=Math.min(2,devicePixelRatio||1); cv.width=s.x*dpr; cv.height=s.y*dpr; cv.style.width=s.x+'px'; cv.style.height=s.y+'px'; ctx.setTransform(dpr,0,0,dpr,0,0); }
-addEventListener('resize', sizeCanvas); sizeCanvas();
+new ResizeObserver(sizeCanvas).observe(map.getDiv()); sizeCanvas();
+// On phones the panel is a bottom sheet: the map ends where it starts, so Google's logo, your
+// position and the map centre are never hidden behind it.
+const phone = () => innerWidth <= 700;
+function fitMapToSheet(){ $('map').style.bottom = phone() ? ($('panel').offsetHeight - 2) + 'px' : '0px'; }
+new ResizeObserver(fitMapToSheet).observe($('panel')); addEventListener('resize', fitMapToSheet); fitMapToSheet();
 
 // ---------- load line geometry ----------
 // Both directions are loaded: some stations only appear in the inbound sequence
@@ -622,7 +629,7 @@ requestAnimationFrame(draw);
 // Transport symbols in the line's own colour: a roundel (ring + bar) for TfL modes,
 // the double arrow for National Rail, a walking figure for walks.
 function symbol(kind, c, s = 16){
-  c = c==='#000000' && dark ? '#d9d9d9' : c;
+  if(dark) c = c==='#000000' ? '#d9d9d9' : c==='#5f6368' ? '#b0b4ba' : c; // keep dark symbols visible in dark mode
   const o = `<svg class="sym" width="${s}" height="${s}" viewBox="0 0 24 24" aria-hidden="true">`;
   if(kind==='walk') return o + `<circle cx="13.5" cy="3.8" r="2.3" fill="${c}"/><path d="M11 8.2l3.2-1 2.4 3.6 3 1.2M12.6 8.6l-1.7 6.6 3.7 3.4.9 4.6M10.9 15.2l-2.6 3.3-3.3 1.2" fill="none" stroke="${c}" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
   if(kind==='tubeLogo') return o + `<circle cx="12" cy="12" r="7" fill="none" stroke="#DC241F" stroke-width="3.6"/><rect x="1" y="9.6" width="22" height="4.8" rx=".6" fill="#0019A8"/></svg>`;
@@ -675,7 +682,8 @@ async function addLine(id, name, colour, mode){
     ACTIVE.push(l); BY[id] = l;
   }
   l.pinned = true;
-  if(!l.layer){ try{ await loadLine(l); }catch(e){ console.warn('line', id, e); } }
+  if(!l.layer){ try{ await loadLine(l); }catch(e){
+    console.warn('line', id, e.message); ACTIVE.splice(ACTIVE.indexOf(l), 1); delete BY[id]; return null; } }
   l.layer && l.layer.eachLayer(p => p.setStyle(lineStyle(l)));
   return l;
 }
@@ -743,6 +751,8 @@ async function planJourneys(from, to, when){
 // are shown as a step list with an "Open in Google Maps" link rather than drawn on this map.
 const isCoord = s => /^-?\d+(\.\d+)?,-?\d+(\.\d+)?$/.test(s);
 const inLondon = s => { if(!isCoord(s)) return true; const [a, b] = s.split(',').map(Number); return a>51.28 && a<51.70 && b>-0.52 && b<0.34; };
+const shortAddr = s => { const parts = (s||'').replace(/,?\s*(UK|United Kingdom)$/i, '').split(',').map(x => x.replace(/\b[A-Z]{1,2}\d[A-Z\d]?\s*\d[A-Z]{2}\b/, '').trim()).filter(Boolean);
+  return parts.slice(0, parts[0] && /^\d/.test(parts[0]) ? 2 : 1).join(', ') || s; };
 const stripHtml = s => (s||'').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
 async function planGoogle(from, to, when){
   await loadGoogle();
@@ -769,7 +779,7 @@ function parseGoogle(route){
       const tr = s.transit, ln = tr.line || {}, vt = ln.vehicle?.type || '';
       const kind = /BUS|SHARE_TAXI/.test(vt) ? 'bus' : /RAIL|TRAIN/.test(vt) && !/LIGHT|MONO/.test(vt) ? 'rail' : /FERRY/.test(vt) ? 'boat' : 'metro';
       const name = ln.short_name || ln.name || ln.vehicle?.name || 'Transit';
-      let colour = ln.color || {bus:'#DC241F', rail:'#1D5BA0', boat:'#00A0E2'}[kind] || '#555'; if(light(colour)) colour = '#555';
+      let colour = /^#[0-9a-f]{6}$/i.test(ln.color||'') ? ln.color : {bus:'#DC241F', rail:'#1D5BA0', boat:'#00A0E2'}[kind] || '#555'; if(light(colour)) colour = '#555';
       const dep = +tr.departure_time.value, arr = +tr.arrival_time.value;
       legs.push({mode:vt.toLowerCase(), kind, walk:false, dep, arr, summary:`${name} to ${tr.arrival_stop.name}`, detail:'',
         line:null, lineName:name, towards:tr.headsign || '', from:pt(tr.departure_stop.name, tr.departure_stop.location),
@@ -777,7 +787,8 @@ function parseGoogle(route){
       tflLook(legs[legs.length-1]);
       t = arr;
     } else {
-      legs.push({mode:'walking', kind:'walk', walk:true, dep:t, arr:t + dur, summary:stripHtml(s.instructions) || 'Walk',
+      const ins = stripHtml(s.instructions), wto = ins.replace(/^Walk to\s*/i, '');
+      legs.push({mode:'walking', kind:'walk', walk:true, dep:t, arr:t + dur, summary:/^Walk to/i.test(ins) ? 'Walk to ' + shortAddr(wto) : (ins || 'Walk'),
         detail:'', line:null, lineName:'', towards:'', from:pt('', s.start_location), to:pt('', s.end_location),
         path:path.length ? path : [[s.start_location.lat(), s.start_location.lng()], [s.end_location.lat(), s.end_location.lng()]], nStops:0, disrupted:false, colour:'#7a7f87'});
       t += dur;
@@ -791,22 +802,25 @@ const inLondonP = p => p[0]>51.28 && p[0]<51.70 && p[1]>-0.52 && p[1]<0.34;
 const inUKP = p => p[0]>49.8 && p[0]<61 && p[1]>-8.7 && p[1]<1.9;
 function tflLook(L){
   if(!inLondonP(L.from.p) && !inLondonP(L.to.p)){ if(L.kind==='rail' && inUKP(L.from.p)) L.gen = false; return; }
-  if(L.kind==='bus'){ L.tflBus = L.lineName.toLowerCase(); L.colour = '#DC241F'; L.gen = false; return; }
+  if(L.kind==='bus'){ L.tflBus = L.lineName.toLowerCase(); L.colour = '#DC241F'; L.gen = false; L.summary = `Bus ${L.lineName} to ${L.to.name}`; return; }
   const n = L.lineName.toLowerCase().replace(/\s+line$/, '').replace(/^london\s+/, '').trim();
   const l = ACTIVE.find(l => l.mode !== 'bus' && (l.name.toLowerCase() === n || l.id === n.replace(/\s*&\s*/g, '-').replace(/\s+/g, '-')
     || (n === 'dlr' && l.id === 'dlr') || (/tram/.test(n) && l.id === 'tram')));
-  if(l){ L.tflLine = l.id; L.kind = l.mode; L.colour = l.colour; L.gen = false; }
+  if(l){ L.tflLine = l.id; L.kind = l.mode; L.colour = l.colour; L.gen = false;
+    L.summary = `${l.mode==='dlr' ? 'DLR' : l.mode==='tram' ? 'Tram' : l.name + ' line'} to ${L.to.name}`; }
   else if(L.kind === 'rail') L.gen = false; // National Rail in London
 }
 async function enrichLeg(L){
-  if(L.walk || L.line || (!L.tflLine && !L.tflBus) || L.enriched) return; L.enriched = true;
+  if(L.walk || L.line || (!L.tflLine && !L.tflBus) || L.enriching) return; L.enriching = true;
+  try{
   const l = L.tflBus ? await addLine(L.tflBus, L.lineName, '#DC241F', 'bus') : BY[L.tflLine];
-  if(!l || !l.layer) return;
+  if(!l || !l.layer) return; // not loaded yet: tried again on the next check
   // the right stops in the right direction: a route that calls at a stop near each end, in order
   const near = (p, max) => Object.keys(l.stops).filter(id => dist(l.stops[id].p, p) < max);
   const A = near(L.from.p, 300), B = near(L.to.p, 300);
   for(const r of l.routes) for(const a of A){ const ia = r.ids.indexOf(a); if(ia < 0) continue;
     for(const b of B){ if(r.ids.indexOf(b) > ia){ L.line = l.id; L.from.id = a; L.to.id = b; return; } } }
+  } finally { L.enriching = false; }
 }
 // ---------- "Build my route": a chain of steps, each with the mode you choose ----------
 const CMODES = [
@@ -961,7 +975,7 @@ function fitJourney(j){
   if(!j) return; const b = new google.maps.LatLngBounds();
   for(const g of j.legs) for(const p of g.path) b.extend(LL(p));
   const wide = innerWidth > 700;
-  map.fitBounds(b, {top:20, left:wide?390:20, right:20, bottom:wide?20:Math.round(innerHeight*0.5)});
+  map.fitBounds(b, {top:24, left:wide?390:24, right:24, bottom:24});
 }
 function setMe(p, acc){
   me = p; meAcc = acc||15; meAt = Date.now();
@@ -992,15 +1006,16 @@ function updateProgress(){
       if(!best || n.d < best.n.d - 30) best = {k, n};
     }
     if(best.n.d > Math.max(250, meAcc*1.5)){ J.offCount++; } else { J.offCount = 0; }
+    if(J.idx > 0 || best.n.along > 80) J.moved = true;
     if(best.n.d < 250){
-      if(best.k > J.idx){ J.idx = best.k; J.riding = false; }
+      if(best.k > J.idx){ J.idx = best.k; J.riding = false; J.vehicle = null; }
       const L = legs[J.idx];
       // on board once we're well clear of the boarding stop along a transit leg
       if(!L.walk && best.k === J.idx && best.n.along > 300) J.riding = true;
     }
   } else {
     // no GPS (e.g. underground): assume we're following the plan in time
-    while(J.idx < legs.length-1 && (legs[J.idx].eta ?? legs[J.idx].arr) < Date.now()) { J.idx++; J.riding = false; }
+    while(J.idx < legs.length-1 && (legs[J.idx].eta ?? legs[J.idx].arr) < Date.now()) { J.idx++; J.riding = false; J.vehicle = null; }
     const L = legs[J.idx];
     if(!L.walk && (L.board ?? L.dep) < Date.now()) J.riding = true;
   }
@@ -1010,7 +1025,8 @@ function updateProgress(){
 // Walks the remaining legs: walking at WALK speed, catching the first live vehicle we can make,
 // using its own predicted arrival at our stop. Falls back to the timetable where there's no live data.
 async function projectPlan(){
-  const legs = J.plan.legs; let t = Date.now(); let liveChecks = 0;
+  const legs = J.plan.legs; let liveChecks = 0;
+  let t = Date.now(); if(J.idx === 0 && !J.riding && legs[0].dep > t && !J.moved) t = legs[0].dep; // planned for later
   for(let i=J.idx; i<legs.length; i++){
     const L = legs[i]; L.missed = false; L.wait = null;
     if(L.walk){ // walking, cycling or driving: Google's own duration, scaled by how much is left
@@ -1042,7 +1058,7 @@ async function projectPlan(){
 
 // ---------- re-planning ----------
 async function replan(why){
-  J.lastReplan = Date.now();
+  J.lastReplan = Date.now(); const gen = J.gen;
   const legs = J.plan.legs, L = legs[J.idx];
   let from, when, prefix = [];
   if(J.riding && !L.walk){ from = `${L.to.p[0]},${L.to.p[1]}`; when = L.eta || L.arr; prefix = [L]; } // carry on to the next stop, then see
@@ -1057,73 +1073,90 @@ async function replan(why){
     if(!res.journeys || !res.journeys.length) return;
     best = res.journeys[0];
   }
+  if(gen !== J.gen || !J.active) return; // the journey changed while we were asking
   const full = {dep:best.dep, arr:best.arr, legs:[...prefix.map(x => Object.assign({}, x, {seg:0})), ...best.legs], src:best.src, chain:best.chain, prefixed:prefix.length > 0};
   const remainingSig = signature(legs.slice(J.idx)), bestSig = signature(full.legs);
   const proj = J.proj ?? J.plan.arr;
   let s = null;
   if(why === 'offroute') s = {kind:'off', text:`You seem to have left the route. New route arrives <b>${hhmm(best.arr)}</b>.`};
   else if(bestSig !== remainingSig && best.arr < proj - 120000)
-    s = {kind:'faster', text:`${J.proj - J.plan.arr > 120000 ? `Running ${mins(J.proj-J.plan.arr)} min late. ` : ''}A faster route arrives <b>${hhmm(best.arr)}</b> (${mins(proj-best.arr)} min sooner).`};
+    s = {kind:'faster', text:`${J.proj - (J.baseArr ?? J.plan.arr) > 120000 ? `Running ${mins(J.proj - (J.baseArr ?? J.plan.arr))} min late. ` : ''}A faster route arrives <b>${hhmm(best.arr)}</b> (${mins(proj-best.arr)} min sooner).`};
   else if(legs.slice(J.idx).some(L => L.missed) && bestSig !== remainingSig)
     s = {kind:'missed', text:`You'll miss ${missedText()}. New route arrives <b>${hhmm(best.arr)}</b>.`};
   if(s && J.dismissed === bestSig && why !== 'offroute') s = null;
   // same services, but the plan's times are out of date (e.g. you'll now get a later bus): just update
   if(!s && bestSig === remainingSig && legs.slice(J.idx).some(L => L.missed)){
-    const nx = full.legs.find(L => !L.walk && L !== full.legs[0]) || full.legs.find(L => !L.walk);
+    const nx = full.legs.find(L => !L.walk && !(full.prefixed && L === full.legs[0]));
     await adoptPlan(full);
     J.note = nx ? `Updated: you'll now catch the <b>${hhmm(nx.dep)}</b> ${esc(nx.lineName || nx.mode)}${nx.kind==='bus' ? ' bus' : nx.kind==='tube' ? ' line' : ''}.` : 'Times updated.';
     J.noteAt = Date.now(); return;
   }
   J.suggestion = s ? Object.assign(s, {journey:full, sig:bestSig}) : null;
-  if(s){ try{ navigator.vibrate && navigator.vibrate([150, 80, 150]); }catch(e){} }
+  if(s){ try{ if(navigator.userActivation?.hasBeenActive) navigator.vibrate?.([150, 80, 150]); }catch(e){} }
   drawJourney(J.suggestion && J.suggestion.journey, altLayer, true);
 }
 function missedText(){
   const L = J.plan.legs.slice(J.idx).find(L => L.missed);
-  return L ? `the ${hhmm(L.dep)} ${L.lineName || L.mode}` + (L.kind==='bus' ? ' bus' : '') : 'your connection';
+  return L ? `the ${hhmm(L.dep)} ${esc(L.lineName || L.mode)}` + (L.kind==='bus' ? ' bus' : '') : 'your connection';
 }
 
-let monitoring = false, lastMon = 0;
+let monitoring = false, monAgain = false, lastMon = 0;
 async function monitor(){
-  if(!J.active || monitoring) return; monitoring = true; lastMon = Date.now();
+  if(!J.active) return;
+  if(monitoring){ monAgain = true; return; } // run again straight after the current check
+  monitoring = true; lastMon = Date.now(); const gen = J.gen;
   try{
     updateProgress();
-    J.proj = await projectPlan();
-    const late = J.proj - J.plan.arr;
-    const off = J.offCount >= 2;
-    if(off) { J.offCount = 0; await replan('offroute'); }
-    else if(late > 120000 || J.plan.legs.some(L => L.missed) || Date.now() - J.lastReplan > 120000) await replan('check');
-    await highlightVehicle();
+    const proj = await projectPlan();
+    if(gen !== J.gen) return;
+    J.proj = proj;
+    // "on time" means as expected when you started (live data can differ from Google's timetable from the outset)
+    if(J.baseArr == null) J.baseArr = J.proj;
+    const late = J.proj - J.baseArr;
+    if(J.offCount >= 2){ J.offCount = 0; await replan('offroute'); }
+    else if(late > 120000 || J.plan.legs.slice(J.idx).some(L => L.missed) || Date.now() - J.lastReplan > 120000) await replan('check');
+    if(gen !== J.gen) return;
+    await highlightVehicle(gen);
     saveState();
   }catch(e){ console.error(e); }
-  monitoring = false; renderActive();
+  finally{
+    monitoring = false; renderActive();
+    if(monAgain){ monAgain = false; setTimeout(monitor, 0); }
+  }
 }
 const throttleMonitor = () => { if(Date.now() - lastMon > 10000) monitor(); };
 setInterval(() => { if(J.active) monitor(); }, 20000);
 setInterval(() => { if(J.active) renderActive(); }, 1000); // countdowns
 
-async function highlightVehicle(){
+async function highlightVehicle(gen){
   HL.clear();
   const L = J.plan.legs.slice(J.idx).find(L => !L.walk);
-  if(!L || !J.vehicle || !LIVE_KINDS.has(L.kind)) return;
-  if(!BY[L.line] || L.kind==='bus') await addLine(L.line, L.lineName, L.colour, L.kind);
+  if(!L || !L.line || !J.vehicle || !LIVE_KINDS.has(L.kind)) return;
+  if(!BY[L.line] || L.kind==='bus'){ await addLine(L.line, L.lineName, L.colour, L.kind); if(gen !== J.gen || !J.active) return; }
   else if(!BY[L.line].pinned){ BY[L.line].pinned = true; BY[L.line].layer && BY[L.line].layer.eachLayer(p => p.setStyle(lineStyle(BY[L.line]))); }
   HL.add(J.vehicle.line + ':' + J.vehicle.vid.trim());
 }
 
 // ---------- start / switch / stop ----------
-async function startJourney(j){
-  Object.assign(J, {plan:j, active:true, idx:0, riding:false, vehicle:null, proj:null, suggestion:null, dismissed:null, lastReplan:Date.now(), follow:true});
-  drawJourney(j, routeLayer); altLayer.clearLayers(); fitJourney(j);
-  await Promise.all(j.legs.map(L => enrichLeg(L).catch(() => {})));
-  for(const L of j.legs) if(L.kind==='bus' && L.line) addLine(L.line, L.lineName, L.colour, 'bus');
-  try{ J.wake = await navigator.wakeLock?.request('screen'); }catch(e){}
-  window.DIM_TRAINS = true;
-  showView('active'); renderActive(); monitor(); refresh().catch(()=>{});
+const RUN_FIELDS = ['eta', 'board', 'missed', 'pick', 'live', 'wait', 'enriching'];
+async function startJourney(j, keep){
+  if(J.starting) return; J.starting = true;
+  try{
+    j = structuredClone(j); // start from a clean copy each time
+    if(!keep) for(const L of j.legs) for(const f of RUN_FIELDS) delete L[f];
+    Object.assign(J, {plan:j, active:true, idx:0, riding:false, vehicle:null, proj:null, suggestion:null, dismissed:null,
+      note:null, noteAt:0, offCount:0, moved:false, baseArr:null, lastReplan:Date.now(), follow:true, gen:(J.gen||0) + 1});
+    window.DIM_TRAINS = true;
+    showView('active'); renderActive(true);
+    drawJourney(j, routeLayer); altLayer.clearLayers(); fitJourney(j);
+    await Promise.all(j.legs.map(L => enrichLeg(L).catch(() => {})));
+    try{ if(!J.wake) J.wake = await navigator.wakeLock?.request('screen'); }catch(e){}
+    monitor(); refresh().catch(()=>{});
+  } finally { J.starting = false; }
 }
 async function adoptPlan(j){
   const keepRiding = J.riding && j.prefixed;
-  Object.assign(J, {plan:j, idx:0, riding:keepRiding, suggestion:null, dismissed:null});
+  Object.assign(J, {plan:j, idx:0, riding:keepRiding, suggestion:null, dismissed:null, baseArr:null, gen:(J.gen||0) + 1});
   if(!keepRiding) J.vehicle = null;
   if(j.chain) J.to = {label:j.chain[j.chain.length-1].label || J.to.label, q:j.chain[j.chain.length-1].q};
   drawJourney(J.plan, routeLayer); altLayer.clearLayers();
@@ -1135,17 +1168,17 @@ async function switchRoute(){
 }
 function keepRoute(){ if(J.suggestion){ J.dismissed = J.suggestion.sig; J.suggestion = null; altLayer.clearLayers(); renderActive(); } }
 function endJourney(){
-  J.active = false; J.plan = null; J.suggestion = null; HL.clear(); unpinAll(); window.DIM_TRAINS = false;
+  J.active = false; J.plan = null; J.suggestion = null; J.gen = (J.gen||0) + 1; HL.clear(); unpinAll(); window.DIM_TRAINS = false;
   routeLayer.clearLayers(); altLayer.clearLayers();
-  try{ J.wake && J.wake.release(); }catch(e){}
+  try{ J.wake && J.wake.release(); }catch(e){} J.wake = null;
   try{ localStorage.removeItem('journey'); }catch(e){}
   showView(J.optEl === 'chainOut' ? 'build' : 'search');
 }
-function saveState(){ try{ localStorage.setItem('journey', JSON.stringify({to:J.to, plan:J.plan, idx:J.idx, riding:J.riding, vehicle:J.vehicle})); }catch(e){} }
+function saveState(){ try{ localStorage.setItem('journey', JSON.stringify({to:J.to, plan:J.plan, idx:J.idx, riding:J.riding, vehicle:J.vehicle, baseArr:J.baseArr})); }catch(e){} }
 function restoreState(){
   try{
     const s = JSON.parse(localStorage.getItem('journey')); if(!s || !s.plan || s.plan.arr < Date.now() - 600000) return false;
-    J.to = s.to; startJourney(s.plan); Object.assign(J, {idx:s.idx, riding:s.riding, vehicle:s.vehicle}); return true;
+    J.to = s.to; startJourney(s.plan, true).then(() => { Object.assign(J, {idx:s.idx, riding:s.riding, vehicle:s.vehicle, baseArr:s.baseArr ?? null}); monitor(); }); return true;
   }catch(e){ return false; }
 }
 
@@ -1155,7 +1188,7 @@ const pill = L => L.walk ? `<span class="pill walk">${icon(L, 14)} ${mins(L.arr-
   : `<span class="pill" style="--c:${L.colour}">${icon(L, 15)} ${esc(L.kind==='bus' ? L.lineName : (L.lineName||L.mode).replace(/ line$/i,''))}</span>`;
 
 function showView(v){ $('panel').scrollTop = 0; $('tabs').hidden = v === 'active';
-  if(v !== 'active') for(const b of $('tabs').children) b.classList.toggle('sel', b.dataset.t === v); for(const el of document.querySelectorAll('.view')) el.hidden = el.dataset.view !== v; document.body.dataset.view = v; }
+  if(v !== 'active') for(const b of $('tabs').children){ b.classList.toggle('sel', b.dataset.t === v); b.setAttribute('aria-selected', b.dataset.t === v); } for(const el of document.querySelectorAll('.view')) el.hidden = el.dataset.view !== v; document.body.dataset.view = v; }
 
 function renderOptions(el = $(J.optEl || 'options')){
   el.innerHTML = J.options.map((j, i) => `
@@ -1177,21 +1210,34 @@ function renderAmbiguous(d){
   $('options').innerHTML = box.join('');
 }
 
+// "Leave at" time: today, or tomorrow if that time has already passed (by more than 30 min)
+function leaveAt(v){ const [hh, mm] = v.split(':').map(Number); const d = new Date(); d.setHours(hh, mm, 0, 0);
+  if(+d < Date.now() - 1800000) d.setDate(d.getDate() + 1); return +d; }
+// wait up to ~30 s for a GPS fix, then ask for a typed start
+function waitForGps(el, retry, tries = 0){
+  J.wantGps = true;
+  if(tries > 12){ el.innerHTML = '<div class="muted">Can\'t find your location. Type a starting point in <b>From</b> instead.</div>'; return; }
+  el.innerHTML = '<div class="muted">Finding your location… (or type a starting point)</div>';
+  setTimeout(() => me ? retry() : waitForGps(el, retry, tries + 1), 2500);
+}
 async function search(){
   const toTxt = $('to').value.trim(); if(!toTxt) return $('to').focus();
   if(!J.to || J.to.label !== toTxt) J.to = {label:toTxt, q:toTxt};
   const fromTxt = $('from').value.trim();
   if(!fromTxt){
-    if(!me){ J.wantGps = true; $('options').innerHTML = '<div class="muted">Waiting for your location… (or type a starting point)</div>'; return setTimeout(() => me && search(), 2500); }
+    if(!me) return waitForGps($('options'), search);
     J.from = {label:'', q:`${me[0].toFixed(5)},${me[1].toFixed(5)}`};
   } else if(!J.from || J.from.label !== fromTxt) J.from = {label:fromTxt, q:fromTxt};
   let when = Date.now();
-  if($('when').value){ const [h, m] = $('when').value.split(':').map(Number); const d = new Date(); d.setHours(h, m, 0, 0); when = +d; }
+  if($('when').value) when = leaveAt($('when').value);
   $('options').innerHTML = '<div class="muted">Finding routes…</div>';
   let r = null;
   try{
     // Google plans everything (all transport, anywhere); TfL's planner is the backup if Google fails
-    try{ r = await planGoogle(J.from.q, J.to.q, when); if(r.end) J.to.q = r.end.map(x => x.toFixed(5)).join(','); }
+    try{
+      r = await planGoogle(J.from.q, J.to.q, when); if(r.end) J.to.q = r.end.map(x => x.toFixed(5)).join(',');
+      for(const j of r.journeys){ const last = j.legs[j.legs.length-1]; if(last.walk){ last.summary = 'Walk to ' + toTxt; last.to.name = toTxt; } }
+    }
     catch(e){
       if(/No public transport|not found/i.test(e.message) || !inLondon(J.from.q)) throw e;
       r = await planJourneys(J.from.q, J.to.q, when);
@@ -1208,7 +1254,7 @@ function legRow(L, i){
   const cur = i === J.idx, done = i < J.idx;
   let live = '';
   if(!L.walk && !done){
-    if(cur && J.riding) live = `On board · arriving ${L.to.name} <b>${hhmm(L.eta||L.arr)}</b>`;
+    if(cur && J.riding) live = `On board · arriving ${esc(L.to.name)} <b>${hhmm(L.eta||L.arr)}</b>`;
     else if(L.live && L.live.length){
       const n = Date.now(), next = L.live.filter(d => d.at > n - 30000).slice(0, 3).map(d => d===L.pick ? `<b>${Math.max(0, mins(d.at-n))}</b>` : Math.max(0, mins(d.at-n)));
       live = `Next: ${next.join(', ')} min` + (L.pick ? ` · catch the <b>${hhmm(L.pick.at)}</b>` : '');
@@ -1223,19 +1269,22 @@ function legRow(L, i){
     ${L.disrupted ? '<div class="warn">⚠ Disruption reported on this line</div>' : ''}
   </li>`;
 }
-function renderActive(){
+const setHTML = (el, html) => { if(el._html !== html){ el.innerHTML = html; el._html = html; } };
+function renderActive(force){
   if(!J.active || !J.plan) return;
-  const late = (J.proj ?? J.plan.arr) - J.plan.arr, n = Date.now();
+  if(force) for(const id of ['eta','note','banner','steps']) $(id)._html = null;
+  const base = J.baseArr ?? J.plan.arr, late = (J.proj ?? base) - base, n = Date.now();
   const st = !J.proj ? ['Checking live times…', 'muted'] : late > 120000 ? [`${mins(late)} min late`, 'bad'] : late < -120000 ? [`${mins(-late)} min early`, 'good'] : ['On time', 'good'];
-  $('eta').innerHTML = `<div class="eta-big">Arrive <b>${hhmm(J.proj ?? J.plan.arr)}</b></div><div class="chip ${st[1]}">${st[0]}</div>
-    <div class="muted">${esc(J.to.label)} · ${Math.max(0, mins((J.proj ?? J.plan.arr) - n))} min to go</div>`;
+  setHTML($('eta'), `<div class="eta-big">Arrive <b>${hhmm(J.proj ?? J.plan.arr)}</b></div><div class="chip ${st[1]}">${st[0]}</div>
+    <div class="muted">${esc(J.to.label)} · ${Math.max(0, mins((J.proj ?? J.plan.arr) - n))} min to go</div>`);
   if(J.note && Date.now() - J.noteAt > 90000) J.note = null;
-  $('note').hidden = !J.note; if(J.note) $('note').innerHTML = J.note;
+  $('note').hidden = !J.note; if(J.note) setHTML($('note'), J.note);
   const s = J.suggestion;
   $('banner').hidden = !s;
-  if(s) $('banner').innerHTML = `<div>${s.text}</div><div class="pills">${s.journey.legs.map(pill).join('<span class="sep">›</span>')}</div>
-    <div class="row2"><button id="bSwitch" class="primary">Switch</button><button id="bKeep">Keep current</button></div>`;
-  $('steps').innerHTML = J.plan.legs.map(legRow).join('') + `<li class="gnote"><a href="${gmapsLink(J.plan)}" target="_blank" rel="noopener">Open in Google Maps ↗</a></li>`;
+  if(s) setHTML($('banner'), `<div>${s.text}</div><div class="pills">${s.journey.legs.map(pill).join('<span class="sep">›</span>')}</div>
+    <div class="row2"><button id="bSwitch" class="primary">Switch</button><button id="bKeep">Keep current</button></div>`);
+  setHTML($('steps'), J.plan.legs.map(legRow).join(''));
+  $('gmaps').href = gmapsLink(J.plan);
 }
 
 // ----- route builder -----
@@ -1245,9 +1294,9 @@ function renderChain(){
   const rows = [], n = CH.stops.length;
   CH.stops.forEach((s, i) => {
     const lab = i === 0 ? 'From' : i === n-1 ? 'To' : 'Stop ' + i;
-    rows.push(`<div class="cstop"><div class="field"><label>${lab}</label><input data-i="${i}" value="${esc(s)}" placeholder="${i===0 ? 'My location' : 'Place, station or postcode'}"></div>${i > 0 && n > 2 ? `<button type="button" class="x" data-del="${i}" title="Remove this stop">✕</button>` : ''}</div>`);
+    rows.push(`<div class="cstop"><div class="field"><label for="cs${i}">${lab}</label><input id="cs${i}" data-i="${i}" value="${esc(s)}" placeholder="${i===0 ? 'My location' : 'Place, station or postcode'}"></div>${i > 0 && n > 2 ? `<button type="button" class="x" data-del="${i}" title="Remove this stop">✕</button>` : ''}</div>`);
     if(i < n-1){ const m = CH.modes[i];
-      rows.push(`<div class="cmode">${CMODES.map(x => `<button type="button" data-m="${i}" data-v="${x.id}" class="${x.id===m ? 'sel' : ''}" title="${x.name}" aria-label="${x.name}">${symbol(x.sym[0], x.sym[1], 20)}</button>`).join('')}<span class="lbl">${CM[m].name}</span></div>`); }
+      rows.push(`<div class="cmode">${CMODES.map(x => `<button type="button" data-m="${i}" data-v="${x.id}" class="${x.id===m ? 'sel' : ''}" title="${x.name}" aria-label="${x.name}">${symbol(x.sym[0], x.sym[1], 20)}</button>`).join('')}<span class="lbl">Step ${i+1} by ${CM[m].name.toLowerCase()}</span></div>`); }
   });
   $('chain').innerHTML = rows.join('');
 }
@@ -1262,10 +1311,10 @@ $('bAddStop').onclick = () => { CH.stops.push(''); CH.modes.push('any'); saveCha
 async function planBuilt(){
   const labels = CH.stops.map(s => s.trim());
   if(labels.slice(1).some(s => !s)){ $('chainOut').innerHTML = '<div class="muted">Fill in every stop (or remove the empty ones).</div>'; return; }
-  if(!labels[0] && !me){ J.wantGps = true; $('chainOut').innerHTML = '<div class="muted">Waiting for your location… (or type a starting point)</div>'; return setTimeout(() => me && planBuilt(), 2500); }
+  if(!labels[0] && !me) return waitForGps($('chainOut'), planBuilt);
   const qs = [labels[0] || `${me[0].toFixed(5)},${me[1].toFixed(5)}`, ...labels.slice(1)];
   let when = Date.now();
-  if($('whenB').value){ const [hh, mm] = $('whenB').value.split(':').map(Number); const d = new Date(); d.setHours(hh, mm, 0, 0); when = +d; }
+  if($('whenB').value) when = leaveAt($('whenB').value);
   $('chainOut').innerHTML = '<div class="muted">Planning each step…</div>';
   try{
     const j = await planChain(qs, labels, CH.modes, when);
@@ -1300,7 +1349,9 @@ $('bTrains').onclick = () => {
 };
 $('bTrains').classList.toggle('on', TRAINS_ON);
 $('tsym').innerHTML = symbol('tube', '#DC241F', 16);
-$('bTheme').onclick = () => { dark = !dark; applyTheme(); if(J.plan) drawJourney(J.plan, routeLayer); };
+$('bTheme').onclick = () => { dark = !dark; applyTheme(); if(!$('chain').closest('[hidden]')) renderChain();
+  const shown = J.plan || (J.options && J.options[J.sel]); if(shown) drawJourney(shown, routeLayer);
+  if(J.suggestion) drawJourney(J.suggestion.journey, altLayer, true); };
 window.onTrainsUpdate = n => { $('tcount').textContent = n ? n : ''; };
 try{ const t = JSON.parse(localStorage.getItem('lastTo')); if(t){ J.to = t; $('to').value = t.label; } }catch(e){}
 if(SIM) document.body.classList.add('sim');
