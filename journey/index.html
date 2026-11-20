@@ -1230,7 +1230,8 @@ async function planSegment(from, to, modeId, t, toLabel){
   try{
     res = await new DirectionsService().route({origin:loc(from), destination:loc(to), travelMode:m.g, region:inUK ? 'gb' : undefined,
       provideRouteAlternatives:m.g === 'TRANSIT',
-      transitOptions:m.g === 'TRANSIT' ? {departureTime:new Date(t), modes:m.tm || undefined} : undefined});
+      transitOptions:m.g === 'TRANSIT' ? {departureTime:new Date(t), modes:m.tm || undefined,
+        routingPreference:PREF === 'fewer' ? 'FEWER_TRANSFERS' : PREF === 'walk' || PREF === 'stepfree' ? 'LESS_WALKING' : undefined} : undefined});
   }catch(e){ throw new Error(`No ${m.name.toLowerCase()} route to ${toLabel || 'the next stop'}`); }
   const r0 = res.routes[0], lg0 = r0.legs[0], end = [lg0.end_location.lat(), lg0.end_location.lng()];
   const endQ = end.map(x => x.toFixed(5)).join(',');
