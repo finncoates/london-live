@@ -5,6 +5,11 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#1a73e8">
 <title>London Journey</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Journey">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;600;800&display=swap" rel="stylesheet">
 <style>
@@ -2079,6 +2084,8 @@ renderQuick();
 $('to').addEventListener('input', () => { if(!$('to').value.trim() && J.optEl === 'options' && J.options && J.options.length){ J.options = []; $('options').innerHTML = ''; drawJourney(null, routeLayer); renderNearby(); } });
 const nbFirst = setInterval(() => { if(me){ clearInterval(nbFirst); renderNearby(); } }, 1000);
 if(SIM) document.body.classList.add('sim');
+// installable app: offline shell + notifications
+if('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js').catch(() => {});
 if(DEBUG) window.APP = {scr: p => scr(p), stationIdx, renderNearby, nb, map, draw, J, planJourneys, projectPlan, monitor, replan, setMe, startJourney, liveDepartures, ACTIVE, BY, trains, HL};
 showView('search');
 restoreState();
