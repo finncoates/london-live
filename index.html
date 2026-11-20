@@ -643,6 +643,8 @@ function placeTrain(t){
 // ---------- drawing ----------
 let hover = null, lastDraw = 0;
 const HL = new Set(); // keys of highlighted trains (the user's vehicle)
+// real train sizes in metres [length, width]: e.g. a 7-car 1973/1992 Tube stock is ~110-130 m, Class 345 is 205 m
+const REAL_SIZE = {tube:[113, 2.65], elizabeth:[205, 2.8], overground:[100, 2.8], dlr:[87, 2.65], tram:[32, 2.65], bus:[11, 2.55], rail:[200, 2.8]};
 const TAU = 2; // seconds: corrections after a refresh glide rather than jump
 function draw(ts){
   requestAnimationFrame(draw);
@@ -653,7 +655,12 @@ function draw(ts){
   if(!ov.getProjection()) return;
   const s = mapSize(); ctx.clearRect(0,0,s.x,s.y);
   // train size: a long thin rectangle, roughly tube-train proportions (not to scale)
-  const z = map.getZoom(), hl = Math.max(7, Math.min(16, (z-9)*3)), hw = Math.max(2.2, hl/3.6);
+  const z = map.getZoom(), hl0 = Math.max(7, Math.min(16, (z-9)*3)), hw0 = Math.max(2.2, hl0/3.6);
+  // zoomed right in: once a real train would be bigger than the icon, draw it at real size
+  const mpp = 156543.03*Math.cos(map.getCenter().lat()*rad)/2**z; // metres per screen pixel
+  const size = l => { const [len, wid] = REAL_SIZE[l.mode] || REAL_SIZE.tube;
+    return [Math.max(hl0, len/2/mpp), Math.max(hw0, wid/2/mpp)]; };
+  let hl = hl0, hw = hw0;
   const wall = Date.now(), cosLat = Math.cos(map.getCenter().lat()*rad);
   const drawn = [], byLine = new Map();
   for(const t of trains.values()){
@@ -674,9 +681,10 @@ function draw(ts){
     const c = toScreen(t.d);
     if(c.x<-40||c.y<-40||c.x>s.x+40||c.y>s.y+40) continue;
     const cs = Math.cos(t.ang), sn = Math.sin(t.ang);
+    [hl, hw] = size(l);
     const ux = cs*hl, uy = sn*hl, vx = -sn*hw, vy = cs*hw; // half-length and half-width vectors
     const r = [c.x+ux+vx, c.y+uy+vy, c.x+ux-vx, c.y+uy-vy, c.x-ux-vx, c.y-uy-vy, c.x-ux+vx, c.y-uy+vy];
-    const item = [t, c.x, c.y, c.x, c.y, r, cs, sn]; drawn.push(item);
+    const item = [t, c.x, c.y, c.x, c.y, r, cs, sn, hl, hw]; drawn.push(item);
     if(!byLine.has(l)) byLine.set(l, []); byLine.get(l).push(item);
   }
   const rect = r => { ctx.moveTo(r[0],r[1]); ctx.lineTo(r[2],r[3]); ctx.lineTo(r[4],r[5]); ctx.lineTo(r[6],r[7]); ctx.closePath(); };
@@ -693,7 +701,7 @@ function draw(ts){
     ctx.beginPath(); for(const d of items) rect(d[5]); ctx.fill(); ctx.stroke(); // stroke rounds the corners
     if(PARALLEL.has(l.mode)){ // centre stripe, like the line itself
       ctx.fillStyle = MAP_BG(); ctx.beginPath();
-      for(const [, x, y, , , , cs, sn] of items){ const ux=cs*hl*0.72, uy=sn*hl*0.72, vx=-sn*hw/3, vy=cs*hw/3;
+      for(const [, x, y, , , , cs, sn, hl, hw] of items){ const ux=cs*(hl-hw*1.2), uy=sn*(hl-hw*1.2), vx=-sn*hw/3, vy=cs*hw/3;
         ctx.moveTo(x+ux+vx, y+uy+vy); ctx.lineTo(x+ux-vx, y+uy-vy); ctx.lineTo(x-ux-vx, y-uy-vy); ctx.lineTo(x-ux+vx, y-uy+vy); ctx.closePath(); }
       ctx.fill();
     }
@@ -701,7 +709,7 @@ function draw(ts){
   ctx.globalAlpha = 1;
   // the user's own train/bus: drawn larger, on top, with a ring
   for(const d of drawn) if(HL.has(d[0].key)){
-    const [t, x, y, , , , cs, sn] = d, k = 1.7, ux=cs*hl*k, uy=sn*hl*k, vx=-sn*hw*k, vy=cs*hw*k;
+    const [t, x, y, , , , cs, sn, hl, hw] = d, k = hl > hl0 ? 1.15 : 1.7, ux=cs*hl*k, uy=sn*hl*k, vx=-sn*hw*k, vy=cs*hw*k;
     const r = [x+ux+vx, y+uy+vy, x+ux-vx, y+uy-vy, x-ux-vx, y-uy-vy, x-ux+vx, y-uy+vy];
     ctx.beginPath(); ctx.arc(x, y, hl*k+6, 0, 7); ctx.fillStyle = dark ? 'rgba(255,255,255,.18)' : 'rgba(0,0,0,.12)'; ctx.fill();
     ctx.beginPath(); rect(r); ctx.lineWidth = 4; ctx.strokeStyle = dark ? '#fff' : '#111'; ctx.stroke();
@@ -714,7 +722,7 @@ function draw(ts){
     ctx.beginPath(); ctx.arc(c.x, c.y, 8, 0, 7); ctx.fillStyle = '#1a73e8'; ctx.fill(); ctx.lineWidth = 3; ctx.strokeStyle = '#fff'; ctx.stroke();
   }
   const h = hover && drawn.find(d => d[0]===hover);
-  if(h){ ctx.strokeStyle=dark?'#fff':'#000'; ctx.lineWidth=1.5; ctx.beginPath(); ctx.arc(h[1],h[2],hl+4,0,7); ctx.stroke(); }
+  if(h){ ctx.strokeStyle=dark?'#fff':'#000'; ctx.lineWidth=1.5; ctx.beginPath(); ctx.arc(h[1],h[2],h[8]+4,0,7); ctx.stroke(); }
   draw.hit = drawn;
   if(DEBUG) draw.ms = (draw.ms||0)*0.9 + (performance.now()-t0)*0.1;
 }
@@ -736,10 +744,11 @@ function symbol(kind, c, s = 16){
   return o + `<circle cx="12" cy="12" r="7" fill="none" stroke="${c}" stroke-width="3.6"/><rect x="1" y="9.6" width="22" height="4.8" rx=".6" fill="${c}"/></svg>`;
 }
 function nearest(x,y){
-  let best=null, bd = matchMedia('(pointer:coarse)').matches ? 30 : 18; // fingers are less precise
-  for(const [t,hx,hy,tx,ty] of draw.hit||[]){
-    const mx=(hx+tx)/2, my=(hy+ty)/2, d=Math.hypot(mx-x,my-y);
-    if(d<bd){bd=d;best=t}
+  let best=null, bd=Infinity; const base = matchMedia('(pointer:coarse)').matches ? 30 : 18; // fingers are less precise
+  for(const [t,hx,hy,,,,cs,sn,hl] of draw.hit||[]){
+    // distance to the train's centre line (long, life-size trains can be tapped anywhere along them)
+    const dx=x-hx, dy=y-hy, along=Math.max(-hl, Math.min(hl, dx*cs+dy*sn)), d=Math.hypot(dx-along*cs, dy-along*sn);
+    if(d<base && d<bd){bd=d;best=t}
   }
   return best;
 }
