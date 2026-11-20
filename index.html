@@ -177,7 +177,7 @@ body.dark #simnote{background:#1f2a44;color:#c6dafc}
 body.kiosk #panel{display:none} body.kiosk #clock{display:block} body.boardon #clock{display:none!important}
 body.kiosk #map{bottom:0!important}
 /* departure board (TV): station-style next trains, beside the map */
-#board{position:fixed;top:24px;right:24px;z-index:1000;width:min(560px,44vw);max-height:calc(100% - 120px);overflow:hidden;
+#board{position:fixed;top:24px;right:24px;z-index:1000;width:min(560px,44vw);max-height:calc(100% - 120px);overflow:auto;
   background:#0b0b0b;color:#ffb000;border-radius:14px;padding:18px 20px;box-shadow:0 10px 30px rgba(0,0,0,.35);font-variant-numeric:tabular-nums}
 #board h2{margin:0 0 4px;font-size:30px;color:#fff;font-weight:800;display:flex;justify-content:space-between;gap:12px}
 #board h2 small{font-size:22px;color:#ffb000;font-weight:600}
@@ -190,7 +190,7 @@ body.kiosk #map{bottom:0!important}
 #board li .d small{display:block;font-size:16px;color:#c98a00}
 #board li b{font-size:26px;color:#fff}
 #board .msg{font-size:18px;color:#ffcf4d;border-top:1px solid #333;margin-top:14px;padding-top:10px}
-@media (max-width:700px){#board{left:12px;right:12px;width:auto;top:12px;padding:14px}#board h2{font-size:22px}#board li{font-size:18px}#board li b{font-size:19px}}
+@media (max-width:700px){#board{left:12px;right:12px;width:auto;top:12px;padding:14px;max-height:calc(100% - 24px);z-index:1100}#board h2{font-size:22px}#board li{font-size:18px}#board li b{font-size:19px}}
 .st-actions{display:flex;gap:6px;margin:6px 0 2px}
 .st-actions button{font-size:12.5px;padding:5px 10px}
 </style>
@@ -1152,6 +1152,7 @@ let FOCUS_ST = null, boardTimer = 0, BOARD_ST = null;
 function findStation(name){
   const r = searchStations(name); return r[0] || null;
 }
+const boardCol = c => c === '#000000' ? '#d9d9d9' : c; // the board is black: keep the Northern visible
 async function openBoard(st){
   BOARD_ST = st; clearInterval(boardTimer); $('board').hidden = false; document.body.classList.add('boardon');
   try{ const u = new URL(location); u.searchParams.set('board', st.name); history.replaceState(null, '', u); }catch(e){}
@@ -1162,9 +1163,9 @@ async function openBoard(st){
       .filter(a => { const k = a.vehicleId + a.lineId + a.platformName; if(seen.has(k)) return false; seen.add(k); return true; }).slice(0, 9);
     const bad = [...st.lines].map(id => [BY[id], lineStatus(id)]).filter(([, s]) => s && s.lv);
     $('board').innerHTML = `<h2><span>${esc(st.name)}</span><small id="bclock">${new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}</small></h2>
-      <div class="bl">${[...st.lines].map(id => `<i style="background:${BY[id].colour}"></i>`).join('')}</div>
+      <div class="bl">${[...st.lines].map(id => `<i style="background:${boardCol(BY[id].colour)}"></i>`).join('')}</div>
       ${rows.length ? `<ol>${rows.map(a => { const l = BY[a.lineId], m = Math.round(a.timeToStation/60);
-        return `<li><span class="c" style="background:${l.colour}"></span><span class="d">${esc(cleanName(a.destinationName || a.towards || l.name))}<small>${esc(l.name)}${a.platformName ? ' · ' + esc(a.platformName.replace(/^.*- /, '')) : ''}</small></span><b>${m < 1 ? 'Due' : m + ' min'}</b></li>`; }).join('')}</ol>` : '<div class="msg">No trains listed right now</div>'}
+        return `<li><span class="c" style="background:${boardCol(l.colour)}"></span><span class="d">${esc(cleanName(a.destinationName || a.towards || l.name))}<small>${esc(l.name)}${a.platformName ? ' · ' + esc(a.platformName.replace(/^.*- /, '')) : ''}</small></span><b>${m < 1 ? 'Due' : m + ' min'}</b></li>`; }).join('')}</ol>` : '<div class="msg">No trains listed right now</div>'}
       ${bad.map(([l, s]) => `<div class="msg">⚠ ${esc(l.name)}: ${esc(s.text)}</div>`).join('')}`;
   };
   await draw(); boardTimer = setInterval(draw, 20000);
