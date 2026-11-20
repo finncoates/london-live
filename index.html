@@ -480,7 +480,7 @@ let OFF = null;
 function renderOff(zi, T, k){
   const s = mapSize(), m = 0.3, odpr = LDPR();
   // visible area in world px at zoom zi, plus a margin all round
-  const x0 = (0 - T.x)/k, y0 = (0 - T.y)/k, w = s.x/k, hh = s.y/k;
+  const x0 = (0 - T.x)/k, y0 = (0 - T.y)/k, w = s.x/Math.max(k, 0.5), hh = s.y/Math.max(k, 0.5); // size capped
   const box = {x:x0 - w*m, y:y0 - hh*m, w:w*(1+2*m), h:hh*(1+2*m)};
   const c = OFF && OFF.canvas || document.createElement('canvas');
   c.width = Math.ceil(box.w*odpr); c.height = Math.ceil(box.h*odpr);
@@ -491,7 +491,7 @@ function renderOff(zi, T, k){
     g.globalAlpha = op; g.strokeStyle = ink(l.colour); g.lineWidth = W; g.stroke(path);
     if(PARALLEL.has(l.mode)){ g.globalAlpha = 1; g.strokeStyle = MAP_BG(); g.lineWidth = W/3; g.stroke(path); }
   }
-  OFF = {canvas:c, zi, box, odpr, sig:offSig()};
+  OFF = {canvas:c, zi, box, odpr, sig:offSig()}; linesSig = ''; // force the on-screen copy to update
 }
 const offSig = () => [dark, MAP_STYLE, lpathSig, ...ACTIVE.map(l => lineStyle(l).opacity)].join();
 function drawLines(){
@@ -505,7 +505,7 @@ function drawLines(){
   const settled = Math.abs(k - 1) < 1e-3;
   const inside = OFF && OFF.zi === z && (0 - T.x)/k >= OFF.box.x && (0 - T.y)/k >= OFF.box.y
     && (s.x - T.x)/k <= OFF.box.x + OFF.box.w && (s.y - T.y)/k <= OFF.box.y + OFF.box.h;
-  if(!OFF || OFF.zi !== z || OFF.sig !== offSig() || (!inside && settled) || (settled && OFF.k1 === false)){ renderOff(z, T, k); OFF.k1 = settled; }
+  if(!OFF || ((OFF.zi !== z || OFF.sig !== offSig() || !inside || OFF.k1 === false) && settled) || (OFF.sig !== offSig() && OFF.zi === z)){ renderOff(z, T, k); OFF.k1 = settled; }
   const sig = [T.x.toFixed(1), T.y.toFixed(1), k.toFixed(4), OFF.box.x, OFF.box.y].join();
   if(sig === linesSig) return; linesSig = sig;
   const dpr = LDPR();
