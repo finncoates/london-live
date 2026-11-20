@@ -1,0 +1,1154 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#1a73e8">
+<title>London Journey</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;600;800&display=swap" rel="stylesheet">
+<style>
+/* London Journey — plan a London trip and get re-routed live when things go wrong.
+   Data: TfL Unified API (journey planner, live arrivals). Map: Leaflet + Esri.
+   URL options: ?sim=1 (test mode: drag the blue marker)  ?theme=dark|light  ?app_key=TFLKEY  ?debug=1 */
+:root{--bg:#fff;--ink:#141414;--mute:#666;--panel:#fff;--edge:rgba(0,0,0,.12);--soft:#f2f4f7;--acc:#1a73e8;--good:#188038;--bad:#d93025}
+body.dark{--bg:#0e0f12;--ink:#f2f2f2;--mute:#9a9a9a;--panel:#17181c;--edge:rgba(255,255,255,.14);--soft:#22242a;--acc:#8ab4f8;--good:#81c995;--bad:#f28b82}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html,body{margin:0;height:100%;background:var(--bg);color:var(--ink);font:15px/1.4 "Hanken Grotesk",system-ui,sans-serif;overflow:hidden}
+#map{position:fixed;inset:0;background:var(--bg)}
+#trains{position:absolute;left:0;top:0;pointer-events:none;z-index:450}
+.leaflet-container{background:var(--bg)}
+#panel{position:fixed;z-index:1000;top:12px;left:12px;width:360px;max-height:calc(100% - 24px);overflow:auto;
+  background:var(--panel);border:1px solid var(--edge);border-radius:14px;box-shadow:0 6px 24px rgba(0,0,0,.2);padding:14px}
+h1{margin:0 0 10px;font-size:18px;font-weight:800;display:flex;align-items:center;gap:8px}
+h1 .sp{flex:1}
+form{display:grid;gap:8px}
+.field{display:flex;align-items:center;gap:8px;background:var(--soft);border-radius:10px;padding:0 10px}
+.field label{font-size:12px;color:var(--mute);width:34px}
+.field input{flex:1;border:0;background:transparent;color:var(--ink);font:inherit;padding:11px 0;min-width:0;outline:none}
+.row2{display:flex;gap:8px;align-items:center}
+button{font:inherit;font-size:14px;padding:9px 12px;border-radius:10px;border:1px solid var(--edge);background:var(--panel);color:var(--ink);cursor:pointer}
+button.primary{background:var(--acc);border-color:var(--acc);color:#fff;font-weight:600}
+body.dark button.primary{color:#0e0f12}
+button:focus-visible,input:focus-visible{outline:2px solid var(--acc);outline-offset:2px}
+.icon{padding:7px 9px;font-size:13px}
+.icon.on{background:var(--soft)}
+#options{display:grid;gap:8px;margin-top:12px}
+.opt{text-align:left;display:grid;gap:6px;padding:10px 12px}
+.opt.sel{border-color:var(--acc);box-shadow:0 0 0 1px var(--acc) inset}
+.opt-top{display:flex;justify-content:space-between}
+.pills{display:flex;flex-wrap:wrap;gap:4px;align-items:center}
+.pill{font-size:12px;font-weight:600;padding:2px 7px 2px 5px;border-radius:6px;white-space:nowrap;background:var(--soft);
+  display:inline-flex;align-items:center;gap:4px;box-shadow:inset 0 -2px 0 var(--c)}
+.pill.walk{font-weight:400;box-shadow:none}
+.sym{flex:none;vertical-align:-3px}
+.li-h .sym{align-self:center}
+.tt-h{display:flex;align-items:center;gap:6px;font-size:15px;margin-bottom:2px}
+.tt-m{color:var(--mute);font-size:12px}
+.tt-you{color:var(--acc);font-weight:600;font-size:12px}
+.sep{color:var(--mute);font-size:12px}
+.muted{color:var(--mute);font-size:13px}
+.warn{color:#b06000;font-size:12px}
+body.dark .warn{color:#fdd663}
+.bad{color:var(--bad)} .good{color:var(--good)}
+.amb-h{font-weight:600;margin-top:4px}
+.amb{text-align:left;display:flex;justify-content:space-between;gap:8px}
+.amb small{color:var(--mute)}
+#eta{display:grid;gap:4px;margin-bottom:10px}
+.eta-big{font-size:22px}
+.chip{justify-self:start;font-size:13px;font-weight:600;padding:2px 9px;border-radius:99px;background:var(--soft)}
+.chip.bad{background:var(--bad);color:#fff} .chip.good{background:var(--good);color:#fff}
+body.dark .chip.bad,body.dark .chip.good{color:#111}
+#banner{background:#fff4e5;color:#3b2600;border-radius:12px;padding:10px 12px;display:grid;gap:8px;margin-bottom:10px;border:1px solid #f5c26b}
+body.dark #banner{background:#3b2a10;color:#ffe2b0;border-color:#7a5a20}
+#steps{list-style:none;margin:0 0 10px;padding:0;display:grid;gap:2px}
+#steps li{border-left:4px solid var(--c);padding:6px 0 6px 10px;display:grid;gap:2px}
+#steps li.done{opacity:.45}
+#steps li.gnote{border:0;padding:8px 0 0}
+#steps li.gnote a{color:var(--acc);font-weight:600}
+#steps li.cur{background:var(--soft);border-radius:0 8px 8px 0}
+.li-h{display:flex;gap:6px;align-items:baseline}
+.li-h span{flex:1;font-weight:600}
+.li-h small,.li-d{color:var(--mute);font-size:12.5px}
+.li-live{font-size:13px}
+#err{color:var(--bad);font-size:12px;margin-top:6px}
+#tip{position:fixed;z-index:1001;pointer-events:none;background:var(--panel);border:1px solid var(--edge);border-radius:10px;padding:8px 10px;font-size:13px;display:none;max-width:250px;box-shadow:0 4px 14px rgba(0,0,0,.2);display:none}
+#tip div{margin:1px 0}
+#simnote{display:none;font-size:12px;background:#e8f0fe;color:#174ea6;border-radius:8px;padding:6px 8px;margin-bottom:8px}
+body.sim #simnote{display:block}
+body.dark #simnote{background:#1f2a44;color:#c6dafc}
+.leaflet-control-zoom{display:none}
+@media (max-width:700px){
+  #panel{top:auto;bottom:0;left:0;right:0;width:auto;max-height:52%;border-radius:16px 16px 0 0;padding:12px 14px calc(12px + env(safe-area-inset-bottom))}
+}
+</style>
+</head>
+<body>
+<div id="map"></div>
+<div id="panel">
+  <h1>London Journey <span class="sp"></span>
+    <button id="bTrains" class="icon" title="Show all live trains"><span id="tsym"></span> <span id="tcount"></span></button>
+    <button id="bLocate" class="icon" title="Show my location">◎</button>
+    <button id="bTheme" class="icon" title="Dark / light">🌓</button>
+  </h1>
+  <div id="simnote">Test mode: drag the blue pin to pretend you're moving.</div>
+  <section class="view" data-view="search">
+    <form id="fSearch" autocomplete="off">
+      <div class="field"><label for="from">From</label><input id="from" placeholder="My location"></div>
+      <div class="field"><label for="to">To</label><input id="to" placeholder="Place, station or postcode" enterkeyhint="search"></div>
+      <div class="row2">
+        <div class="field" style="flex:1"><label for="when">Leave</label><input id="when" type="time" title="Leave at (empty = now)"></div>
+        <button type="button" id="bSwap" title="Swap from and to">⇅</button>
+        <button type="submit" class="primary">Go</button>
+      </div>
+    </form>
+    <div id="options"></div>
+  </section>
+  <section class="view" data-view="active" hidden>
+    <div id="eta"></div>
+    <div id="banner" hidden></div>
+    <ol id="steps"></ol>
+    <div class="row2"><button id="bReplan">Check for a better route</button><button id="bEnd">End</button></div>
+  </section>
+  <div id="err"></div>
+</div>
+<div id="tip"></div>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+{
+const Q = new URLSearchParams(location.search);
+const API = 'https://api.tfl.gov.uk';
+const KEY = Q.get('app_key') ? 'app_key=' + encodeURIComponent(Q.get('app_key')) : '';
+const REFRESH = Math.max(15, +(Q.get('refresh') || 30)) * 1000;
+const FPS = Math.min(60, Math.max(5, +(Q.get('fps') || 30)));
+const DEBUG = Q.get('debug') === '1';
+const VIEW = (Q.get('view') || '').split(',').map(Number);
+const HOME = VIEW.length === 3 && VIEW.every(isFinite) ? [[VIEW[0], VIEW[1]], VIEW[2]] : [[51.512, -0.11], 11.5];
+
+// Line catalogue: TfL line id -> name, colour, mode.
+// Tube/DLR/Elizabeth: TfL print colours. Overground: TfL digital colour standard (2024 line names).
+const LINES = [
+  ['bakerloo','Bakerloo','#B36305','tube'],
+  ['central','Central','#E32017','tube'],
+  ['circle','Circle','#FFD300','tube'],
+  ['district','District','#00782A','tube'],
+  ['hammersmith-city','Hammersmith & City','#F3A9BB','tube'],
+  ['jubilee','Jubilee','#A0A5A9','tube'],
+  ['metropolitan','Metropolitan','#9B0056','tube'],
+  ['northern','Northern','#000000','tube'],
+  ['piccadilly','Piccadilly','#003688','tube'],
+  ['victoria','Victoria','#0098D4','tube'],
+  ['waterloo-city','Waterloo & City','#95CDBA','tube'],
+  ['elizabeth','Elizabeth','#6950A1','elizabeth'],
+  ['dlr','DLR','#00A4A7','dlr'],
+  ['liberty','Liberty','#61686B','overground'],
+  ['lioness','Lioness','#FFA600','overground'],
+  ['mildmay','Mildmay','#006FE6','overground'],
+  ['suffragette','Suffragette','#18A95D','overground'],
+  ['weaver','Weaver','#9B0058','overground'],
+  ['windrush','Windrush','#DC241F','overground'],
+  ['tram','Trams','#5FB526','tram'],
+];
+// Typical dwell (s) at a station and fallback cruise speed (m/s) when no segment time has been learned yet.
+const DWELL = {tube:25, dlr:20, elizabeth:40, overground:35, tram:20, bus:15};
+const SPEED = {tube:12, dlr:10, elizabeth:17, overground:13, tram:7, bus:6};
+const modesWanted = (Q.get('modes') || 'tube,elizabeth,dlr,overground,tram').split(',');
+const linesWanted = Q.get('lines') ? Q.get('lines').split(',') : null;
+const ACTIVE = LINES.filter(l => modesWanted.includes(l[3]) && (!linesWanted || linesWanted.includes(l[0])))
+  .map(([id,name,colour,mode]) => ({id,name,colour,mode,group:mode==='rail'?'rail':'tfl',on:true,count:0,polys:[],routes:[],stops:{},seg:{}}));
+const BY = Object.fromEntries(ACTIVE.map(l => [l.id, l]));
+// Which services to show: 'tfl' (Underground, Overground, Elizabeth, DLR, trams), 'rail' (National Rail) or 'both'
+// Background trains can be switched off; lines used by the current journey are always shown ("pinned")
+let TRAINS_ON = (() => { try{ return localStorage.getItem('trainsOn') !== '0' }catch(e){ return true } })();
+const shown = l => l.pinned || (TRAINS_ON && l.mode !== 'bus');
+
+// ---------- helpers ----------
+const $ = id => document.getElementById(id);
+const R = 6371000, rad = Math.PI/180;
+function dist(a, b){ // a,b = [lat,lon]
+  const dLat=(b[0]-a[0])*rad, dLon=(b[1]-a[1])*rad;
+  const x=Math.sin(dLat/2)**2+Math.cos(a[0]*rad)*Math.cos(b[0]*rad)*Math.sin(dLon/2)**2;
+  return 2*R*Math.asin(Math.sqrt(x));
+}
+const store = {
+  get(k){ try{ const v=JSON.parse(localStorage.getItem(k)); return v && v.exp>Date.now() ? v.d : null }catch(e){ return null } },
+  set(k,d,ms){ try{ localStorage.setItem(k, JSON.stringify({d,exp:Date.now()+ms})) }catch(e){} }
+};
+async function get(path){
+  const url = API + path + (KEY ? (path.includes('?')?'&':'?') + KEY : '');
+  const r = await fetch(url);
+  if(!r.ok){ const e = new Error(r.status + ' ' + path); e.status = r.status; throw e; }
+  return r.json();
+}
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+const cleanName = n => n.replace(/ (Underground|DLR|Rail) Station$/,'').replace(/ Station$/,'');
+const normName = n => cleanName(n||'').replace(/\s*\(London\)/,'').toLowerCase().trim();
+
+// ---------- map ----------
+let dark = Q.get('theme') === 'dark' || (Q.get('theme') !== 'light' && matchMedia('(prefers-color-scheme: dark)').matches);
+const map = L.map('map', {zoomControl:true, preferCanvas:true, zoomSnap:0.25, attributionControl:true})
+  .setView(HOME[0], HOME[1]);
+// Basemap. CARTO now needs a (free) key — without one every tile is watermarked — so the
+// default is Esri's keyless Light/Dark Gray Canvas. ?carto_key=KEY switches to CARTO Voyager/Dark Matter.
+const CARTO_KEY = Q.get('carto_key');
+function makeTiles(d){
+  if(CARTO_KEY) return L.tileLayer(`https://{s}.basemaps.cartocdn.com/rastertiles/${d?'dark_all':'voyager'}/{z}/{x}/{y}{r}.png?key=${encodeURIComponent(CARTO_KEY)}`,
+    {maxZoom:19, subdomains:'abcd', attribution:'© OpenStreetMap contributors © CARTO · Live data: TfL'});
+  const esri = n => `https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_${d?'Dark':'Light'}_Gray_${n}/MapServer/tile/{z}/{y}/{x}`;
+  return L.layerGroup([
+    L.tileLayer(esri('Base'), {maxZoom:19, maxNativeZoom:16, attribution:'Esri, HERE, Garmin, © OpenStreetMap contributors · Live data: TfL'}),
+    L.tileLayer(esri('Reference'), {maxZoom:19, maxNativeZoom:16, opacity:0.8})]);
+}
+let tiles = makeTiles(dark).addTo(map);
+const ink = c => c==='#000000'&&dark ? '#d9d9d9' : c;
+const lineStyle = l => ({color:ink(l.colour), weight:3, opacity:!shown(l)?0:l.pinned?0.6:0.35, interactive:false});
+function applyTheme(){ document.body.classList.toggle('dark', dark); map.removeLayer(tiles); tiles = makeTiles(dark).addTo(map); for(const l of ACTIVE) l.layer && l.layer.eachLayer(p => p.setStyle(lineStyle(l))); }
+applyTheme();
+if(Q.get('kiosk')==='1') document.body.classList.add('kiosk');
+
+// train canvas overlay (in the map container, above tiles, redrawn each frame)
+const cv = document.createElement('canvas'); cv.id='trains';
+map.getContainer().appendChild(cv);
+const ctx = cv.getContext('2d');
+function sizeCanvas(){ const s=map.getSize(), dpr=Math.min(2,devicePixelRatio||1); cv.width=s.x*dpr; cv.height=s.y*dpr; cv.style.width=s.x+'px'; cv.style.height=s.y+'px'; ctx.setTransform(dpr,0,0,dpr,0,0); }
+map.on('resize', sizeCanvas); sizeCanvas();
+
+// ---------- load line geometry ----------
+// Both directions are loaded: some stations only appear in the inbound sequence
+// (e.g. Mildmay's Clapham Junction platform), and inbound routes give inbound stop order.
+async function loadLine(l){
+  let d = store.get('seq2:'+l.id);
+  if(!d){
+    const [o, i] = await Promise.all([
+      get(`/Line/${l.id}/Route/Sequence/outbound`),
+      get(`/Line/${l.id}/Route/Sequence/inbound`).catch(() => null)]);
+    const r5 = x => Math.round(x*1e5)/1e5;
+    d = {polys: o.lineStrings.flatMap(s => JSON.parse(s)).map(p => p.map(([lon,lat]) => [r5(lat),r5(lon)])), routes: [], stops: {}};
+    for(const [j, dir] of [[o,'outbound'],[i,'inbound']]) if(j){
+      for(const r of j.orderedLineRoutes||[]) d.routes.push({dir, ids:r.naptanIds}); // ids in travel order
+      for(const seq of j.stopPointSequences||[]) for(const s of seq.stopPoint)
+        if(!d.stops[s.id]) d.stops[s.id] = {n:cleanName(s.name), p:[r5(s.lat),r5(s.lon)]};
+    }
+    store.set('seq2:'+l.id, d, 7*864e5);
+  }
+  Object.assign(l, d);
+  l.adj = new Set(); for(const r of l.routes) for(let k=1;k<r.ids.length;k++) l.adj.add(r.ids[k-1]+'>'+r.ids[k]);
+  l.byName = {}; for(const [id,s] of Object.entries(l.stops)) (l.byName[normName(s.n)] ||= []).push(id);
+  l.alias = {};
+  l.seg = store.get('segt:'+l.id) || {};
+  l.curves = l.polys.map(roundCorners);
+  l.layer = L.layerGroup(l.curves.map(p => L.polyline(p, lineStyle(l)))).addTo(map);
+  l.pathCache = {}; l.snapCache = {};
+}
+
+// Round each bend of a polyline with a short curve (radius up to ~250 m, never more than
+// 40% of either neighbouring stretch). Samples include each curve's midpoint, which is
+// where a station on a bend ends up, so trains can stop exactly on the drawn line.
+function roundCorners(poly){
+  if(poly.length < 3) return poly;
+  const kx = Math.cos(poly[0][0]*rad); // lon degrees -> comparable to lat degrees
+  const out = [poly[0]];
+  for(let i=1;i<poly.length-1;i++){
+    const P=poly[i-1], C=poly[i], N=poly[i+1];
+    const ax=(P[1]-C[1])*kx, ay=P[0]-C[0], bx=(N[1]-C[1])*kx, by=N[0]-C[0];
+    const la=Math.hypot(ax,ay), lb=Math.hypot(bx,by);
+    const turn = Math.PI - Math.acos(Math.max(-1, Math.min(1, (ax*bx+ay*by)/(la*lb||1))));
+    if(!la || !lb || turn < 0.05){ out.push(C); continue; }
+    const r = Math.min(250/111320, la*0.4, lb*0.4);
+    const Q1=[C[0]+ay/la*r, C[1]+ax/la*r/kx], Q2=[C[0]+by/lb*r, C[1]+bx/lb*r/kx];
+    for(let j=0;j<=8;j++){ const t=j/8, u=1-t; // quadratic Bezier Q1 -> (C) -> Q2
+      out.push([u*u*Q1[0]+2*u*t*C[0]+t*t*Q2[0], u*u*Q1[1]+2*u*t*C[1]+t*t*Q2[1]]); }
+  }
+  out.push(poly[poly.length-1]);
+  return out;
+}
+// A station's spot on the drawn line (nearest curve point), with the line's direction there
+function snapAt(l, id){
+  if(l.snapCache[id]) return l.snapCache[id];
+  const P = l.stops[id].p; let best = {p:P, a:null, b:null}, bd = 250;
+  for(const c of l.curves) for(let i=0;i<c.length;i++){
+    const d = dist(c[i],P);
+    if(d<bd){ bd=d; best={p:c[i], a:c[Math.max(0,i-1)], b:c[Math.min(c.length-1,i+1)]}; }
+  }
+  return l.snapCache[id] = best;
+}
+const snapStop = (l, id) => snapAt(l, id).p;
+
+// Map a prediction's naptanId onto a stop of this line's sequence. Interchanges sometimes
+// report a different NaPTAN id (Elizabeth at Farringdon/Whitechapel, H&C at Paddington), so match by name.
+function resolve(l, id, name){
+  if(!id) return null;
+  if(l.stops[id]) return id;
+  if(id in l.alias) return l.alias[id];
+  const n = normName(name); let hit = l.byName[n];
+  if(!hit && n) for(const k in l.byName) if(k.startsWith(n+' (')){ hit = l.byName[k]; break; }
+  return l.alias[id] = hit ? hit[0] : null;
+}
+
+// Path between two stations along the line geometry (falls back to straight line)
+function trackPath(l, a, b){
+  const key = a+'>'+b; if(l.pathCache[key]) return l.pathCache[key];
+  const A = l.stops[a]?.p, B = l.stops[b]?.p; if(!A||!B) return null;
+  const straight = dist(A,B);
+  let best = null, bestScore = Infinity;
+  for(const poly of l.curves){
+    let ia=-1, da=1e9, ib=-1, db=1e9;
+    for(let i=0;i<poly.length;i++){ const x=dist(poly[i],A), y=dist(poly[i],B); if(x<da){da=x;ia=i} if(y<db){db=y;ib=i} }
+    if(da>250||db>250||ia===ib) continue;
+    let pts = ia<ib ? poly.slice(ia, ib+1) : poly.slice(ib, ia+1).reverse();
+    let len=0; for(let i=1;i<pts.length;i++) len+=dist(pts[i-1],pts[i]);
+    if(len>straight*3+500) continue;
+    const score = da+db+len*0.01;
+    if(score<bestScore){ bestScore=score; best=pts; }
+  }
+  let pts = best;
+  if(!pts){ // no drawn line joins these stations: draw one, so the train still sits on a line
+    pts = [snapStop(l,a), snapStop(l,b)];
+    l.layer && l.layer.addLayer(L.polyline(pts, lineStyle(l)));
+  }
+  const cum=[0]; for(let i=1;i<pts.length;i++) cum.push(cum[i-1]+dist(pts[i-1],pts[i]));
+  return l.pathCache[key] = {pts, cum, len:cum[cum.length-1]};
+}
+// Nearest point on a path to p -> {p, a, b} (keeps eased trains on the line)
+function project(path, p){
+  const P = path.pts, kx = Math.cos(p[0]*rad); let best = null, bd = Infinity;
+  for(let i=1;i<P.length;i++){
+    const A=P[i-1], B=P[i], vx=(B[1]-A[1])*kx, vy=B[0]-A[0], wx=(p[1]-A[1])*kx, wy=p[0]-A[0];
+    const L2 = vx*vx+vy*vy, k = L2 ? Math.max(0, Math.min(1, (vx*wx+vy*wy)/L2)) : 0;
+    const q = [A[0]+(B[0]-A[0])*k, A[1]+(B[1]-A[1])*k], d = (q[0]-p[0])**2 + ((q[1]-p[1])*kx)**2;
+    if(d<bd){ bd=d; best={p:q, a:A, b:B}; }
+  }
+  return best;
+}
+function along(path, f){ // fraction 0..1 -> {p, a, b}
+  const t = f*path.len, c = path.cum, p = path.pts;
+  let i=1; while(i<c.length-1 && c[i]<t) i++;
+  const seg = c[i]-c[i-1] || 1, k = Math.min(1, Math.max(0, (t-c[i-1])/seg));
+  return {p:[p[i-1][0]+(p[i][0]-p[i-1][0])*k, p[i-1][1]+(p[i][1]-p[i-1][1])*k], a:p[i-1], b:p[i]};
+}
+
+// Where a train at `next` (heading on towards `later`) came from, and where it goes after.
+function routeCtx(l, next, later, dirHint){
+  if(later && later!==next) for(const r of l.routes){
+    const i = r.ids.indexOf(next), j = r.ids.indexOf(later);
+    if(i>0 && j>i) return {prev:r.ids[i-1], after:r.ids[i+1]};
+  }
+  if(dirHint) for(const r of l.routes){
+    if(r.dir!==dirHint) continue;
+    const i = r.ids.indexOf(next);
+    if(i>0) return {prev:r.ids[i-1], after:r.ids[i+1]||null};
+  }
+  return null;
+}
+
+// Run time (s) between adjacent stations: learned from live data, else estimated from distance.
+function segTime(l, a, b){
+  const k = l.seg[a+'>'+b] ?? l.seg[b+'>'+a];
+  if(k) return k;
+  const p = trackPath(l, a, b);
+  return Math.max(45, (p ? p.len : 1000)/SPEED[l.mode] + 20);
+}
+function learn(l, a, b, diff){
+  if(!l.adj.has(a+'>'+b)) return;
+  const run = diff - DWELL[l.mode];
+  if(run < 20 || run > 900) return;
+  const k = a+'>'+b, o = l.seg[k];
+  l.seg[k] = Math.round(o ? o*0.8 + run*0.2 : run);
+}
+
+// ---------- live trains ----------
+let trains = new Map(); // key -> train state
+let skew = 0; // server time - local time (ms), only used if the local clock is clearly wrong
+const now = () => Date.now() + skew;
+let failStreak = 0, anonSeq = 0;
+
+async function refresh(){
+  // retry any line whose geometry failed to load at boot (e.g. network blip when the TV woke up)
+  for(const l of ACTIVE) if(!l.layer){ try{ await loadLine(l); }catch(e){} }
+  const ids = ACTIVE.filter(l => shown(l) && l.layer).map(l=>l.id);
+  const chunks = []; for(let i=0;i<ids.length;i+=8) chunks.push(ids.slice(i,i+8));
+  const res = await Promise.allSettled(chunks.map(c => get(`/Line/${c.join(',')}/Arrivals`)));
+  let preds = []; const failed = new Set(); let err = null;
+  res.forEach((r,i) => { if(r.status==='fulfilled') preds = preds.concat(r.value); else { err = r.reason; chunks[i].forEach(id => failed.add(id)); } });
+  if(err){
+    failStreak++;
+    $('err').textContent = 'Live train data error: ' + err.message + (err.status===429 ? (KEY ? ' — rate limited, or the app_key is invalid' : ' — rate limited; add ?app_key= (free from api-portal.tfl.gov.uk)') : '') + ' (retrying)';
+    if(failed.size === ids.length) return false;
+  } else { failStreak = 0; $('err').textContent = ''; }
+
+  const t0 = Date.now();
+  const stamps = preds.map(p=>Date.parse(p.timestamp)).filter(Boolean);
+  if(stamps.length){ const s = Math.max(...stamps) - t0; skew = Math.abs(s) > 120e3 ? s : 0; }
+
+  const out = [];   // {key, line, next, prev, arr, towards, loc}
+  const groups = new Map(), anon = [];
+  for(const p of preds){
+    const l = BY[p.lineId]; if(!l || !l.routes.length) continue;
+    p.S = resolve(l, p.naptanId, p.stationName); if(!p.S) continue;
+    p.D = resolve(l, p.destinationNaptanId, p.destinationName);
+    const vid = (p.vehicleId||'').trim();
+    if(vid && !/^0+$/.test(vid)){ const k = p.lineId+':'+vid; if(!groups.has(k)) groups.set(k, []); groups.get(k).push(p); }
+    else anon.push(p);
+  }
+
+  // 1. Trains with a vehicle id: next stop = soonest prediction, direction from the stop after it.
+  for(const [key, list] of groups){
+    list.sort((a,b)=>a.timeToStation-b.timeToStation);
+    const l = BY[list[0].lineId];
+    // one entry per station (interchanges can list the same train under two stop ids, e.g. Paddington)
+    const seq = [];
+    for(const p of list){ const q = seq[seq.length-1]; if(!q || (q.S !== p.S && dist(l.stops[q.S].p, l.stops[p.S].p) > 400)) seq.push(p); }
+    for(let i=1;i<seq.length;i++) learn(l, seq[i-1].S, seq[i].S, seq[i].timeToStation - seq[i-1].timeToStation);
+    // Already at/leaving a stop (often the origin terminus, which has no previous stop):
+    // treat the following stop as next, so the train sits at this one until it departs.
+    while(seq.length > 1 && seq[0].timeToStation <= 0) seq.shift();
+    let first = seq[0];
+    // Rail feeds list timetabled trips at their starting station long before they leave: if the
+    // following station is much further off than the run time, the train isn't really there yet.
+    if(seq[1] && seq[1].timeToStation - first.timeToStation > segTime(l, first.S, seq[1].S) + 300) continue;
+    let prev = routeCtx(l, first.S, seq[1]?.S || first.D, first.direction)?.prev || null;
+    if(!prev && seq[1]){ prev = first.S; first = seq[1]; } // at its origin: wait there until it departs
+    if(!prev && first.timeToStation > 120) continue;          // not started yet / in a siding
+    if(prev && first.timeToStation > segTime(l, prev, first.S) + 600) continue; // too far out to place
+    // keep the next few stops with TfL's own times, so the train can carry on past a stop whose
+    // predicted time has passed (the feed is ~60 s old, so that happens all the time)
+    const ahead = seq.slice(seq.indexOf(first), seq.indexOf(first)+4).map(p => [p.S, Date.parse(p.expectedArrival)]);
+    out.push({key, line:l.id, next:first.S, prev, arr:ahead[0][1], ahead, towards:first.towards||first.destinationName||'', loc:first.currentLocation||'', ...(DEBUG?{raw:list.map(p=>[p.S,p.D,p.timeToStation,p.direction,p.destinationNaptanId])}:{})});
+  }
+
+  // 2. Trains without a vehicle id (all of DLR, some Metropolitan): every train shows up at
+  //    several stations, so count trains per segment. A prediction at stop S coming from P
+  //    is the same train as an earlier one at P if it arrives after it; whatever is left
+  //    over at S must be a train already between P and S.
+  const seen2 = new Set(), at = new Map(), bySeg = new Map();
+  for(const p of anon){
+    const l = BY[p.lineId];
+    const k = [p.lineId, p.S, p.platformName, p.D, Math.round(p.timeToStation/20)].join('|');
+    if(seen2.has(k)) continue; seen2.add(k);
+    const ctx = routeCtx(l, p.S, p.D, p.direction); if(!ctx) continue;
+    p.prev = ctx.prev; p.after = ctx.after;
+    const ka = p.lineId+'|'+p.S+'|'+p.after; if(!at.has(ka)) at.set(ka, []); at.get(ka).push(p.timeToStation);
+    const ks = p.lineId+'|'+p.prev+'|'+p.S; if(!bySeg.has(ks)) bySeg.set(ks, []); bySeg.get(ks).push(p);
+  }
+  for(const [ks, list] of bySeg){
+    const [lineId, prev, S] = ks.split('|'), l = BY[lineId];
+    const run = segTime(l, prev, S);
+    const up = (at.get(lineId+'|'+prev+'|'+S) || []).slice().sort((a,b)=>a-b);
+    list.sort((a,b)=>a.timeToStation-b.timeToStation);
+    const used = new Array(list.length).fill(false);
+    for(const s of up){ const i = list.findIndex((p,i) => !used[i] && p.timeToStation > s + 15); if(i>=0) used[i] = true; }
+    list.forEach((p,i) => {
+      if(used[i] || p.timeToStation > run + 90) return;
+      out.push({key:null, anon:true, line:lineId, next:S, prev, arr:Date.parse(p.expectedArrival),
+        towards:p.towards||p.destinationName||'', loc:p.currentLocation||''});
+    });
+  }
+  // No ids, so follow each anonymous train by matching it to the nearest one from the last refresh.
+  const olds = [...trains.values()].filter(t => t.anon && t.d), cand = [];
+  for(const o of out) if(o.anon){
+    const pos = placeTrain(o); if(!pos) continue;
+    for(const t of olds) if(t.line===o.line && t.towards===o.towards){ const d = dist(t.d, pos.p); if(d < 2000) cand.push([d, o, t]); }
+  }
+  cand.sort((a,b)=>a[0]-b[0]);
+  for(const [, o, t] of cand) if(!o.key && !t.claimed){ o.key = t.key; t.claimed = true; }
+  for(const t of olds) delete t.claimed;
+  for(const o of out) if(!o.key) o.key = o.line+':a'+(++anonSeq);
+
+  // merge into persistent state
+  const keep = new Set(), fresh = [];
+  for(const o of out){
+    let t = trains.get(o.key);
+    if(!t){ t = {key:o.key}; trains.set(o.key, t); fresh.push(t); }
+    delete o.f; delete o.fk;  // progress state belongs to the persistent train
+    Object.assign(t, o, {seen:t0}); keep.add(o.key);
+  }
+  const gone = [];
+  for(const [k,t] of trains) if(!keep.has(k)){
+    if(failed.has(t.line)){ t.seen = t0; continue; }           // that request failed: keep as is
+    if(t.anon || t0 - t.seen > REFRESH*2.5){ trains.delete(k); gone.push(t); }
+  }
+  // A train that moved on to a new segment gets a new key: carry its on-screen position over so it glides.
+  for(const t of fresh){
+    let best = null, bd = 1500;
+    for(const g of gone){
+      if(g.line!==t.line || !g.d || g.taken) continue;
+      const pos = placeTrain(t); if(!pos) continue;
+      const d = dist(g.d, pos.p); if(d<bd){ bd=d; best=g; }
+    }
+    if(best){ best.taken = true; t.d = best.d; t.ang = best.ang; }
+  }
+  for(const l of ACTIVE){ l.count = 0; if(!failed.has(l.id)) store.set('segt:'+l.id, l.seg, 30*864e5); }
+  for(const t of trains.values()) if(t0 - t.seen < REFRESH*1.5) BY[t.line].count++;
+  window.onTrainsUpdate && onTrainsUpdate(ACTIVE.reduce((s,l)=>s+(shown(l)?l.count:0),0));
+  return !err;
+}
+
+// Where is a train right now?
+function placeTrain(t){
+  const l = BY[t.line], n = now();
+  let prev = t.prev, next = t.next, arr = t.arr;
+  if(t.ahead){ // move on along the predicted stops once a stop's time has passed
+    let k = 0; while(k < t.ahead.length-1 && t.ahead[k][1] < n) k++;
+    if(k){ prev = t.ahead[k-1][0]; }
+    [next, arr] = t.ahead[k];
+  }
+  t.cur = next; t.curArr = arr;
+  if(!l.stops[next]) return null;
+  if(!prev || !l.stops[prev]) return snapAt(l, next);
+  const path = trackPath(l, prev, next); if(!path) return snapAt(l, next);
+  const remain = (arr - n)/1000;
+  let f = Math.min(1, Math.max(0, 1 - remain/segTime(l, prev, next)));
+  // trains don't reverse: if a prediction slips, hold position instead of sliding back
+  const sk = prev+'>'+next;
+  if(t.fk === sk && f < t.f) f = t.f; else { t.fk = sk; t.f = f; }
+  return Object.assign(along(path, f), {path});
+}
+
+// ---------- drawing ----------
+let hover = null, lastDraw = 0;
+const HL = new Set(); // keys of highlighted trains (the user's vehicle)
+const TAU = 2; // seconds: corrections after a refresh glide rather than jump
+function draw(ts){
+  requestAnimationFrame(draw);
+  if(ts - lastDraw < 1000/FPS - 2) return;
+  const dt = Math.min(1, (ts - lastDraw)/1000); lastDraw = ts;
+  const t0 = DEBUG ? performance.now() : 0;
+  const k = 1 - Math.exp(-dt/TAU), ka = 1 - Math.exp(-dt/0.4);
+  const s = map.getSize(); ctx.clearRect(0,0,s.x,s.y);
+  // train size: a long thin rectangle, roughly tube-train proportions (not to scale)
+  const z = map.getZoom(), hl = Math.max(7, Math.min(16, (z-9)*3)), hw = Math.max(2.2, hl/3.6);
+  const wall = Date.now(), cosLat = Math.cos(map.getCenter().lat*rad);
+  // Leaflet's latLngToContainerPoint rounds to whole pixels, which makes slow trains move in
+  // 1-pixel hops. Project without rounding so they glide (canvas draws at sub-pixel positions).
+  const zz = map.getZoom(), origin = map.project(map.getCenter(), zz).subtract(map.getSize().divideBy(2));
+  const toScreen = ll => map.project(ll, zz).subtract(origin);
+  const drawn = [], byLine = new Map();
+  for(const t of trains.values()){
+    const l = BY[t.line]; if(!l.on || !shown(l) || wall - t.seen > REFRESH*1.5) continue;
+    const pos = placeTrain(t); if(!pos) continue;
+    // ease the displayed position, then put it back onto the line so it never cuts corners
+    if(!t.d || dist(t.d, pos.p) > 3000) t.d = pos.p.slice();
+    else { t.d[0]+= (pos.p[0]-t.d[0])*k; t.d[1]+= (pos.p[1]-t.d[1])*k; }
+    let on = pos;
+    if(pos.path){ on = project(pos.path, t.d); t.d = on.p.slice(); }
+    else t.d = pos.p.slice();
+    let ang = t.ang ?? 0;
+    if(on.a && on.b){ const dx=(on.b[1]-on.a[1])*cosLat, dy=on.a[0]-on.b[0]; if(dx||dy) ang=Math.atan2(dy,dx); }
+    // the rectangle looks the same both ways round, so turn it the short way (mod 180°)
+    let dA = Math.atan2(Math.sin(ang-(t.ang??ang)), Math.cos(ang-(t.ang??ang)));
+    if(dA > Math.PI/2) dA -= Math.PI; else if(dA < -Math.PI/2) dA += Math.PI;
+    t.ang = (t.ang??ang) + dA*ka;
+    const c = toScreen(t.d);
+    if(c.x<-40||c.y<-40||c.x>s.x+40||c.y>s.y+40) continue;
+    const cs = Math.cos(t.ang), sn = Math.sin(t.ang);
+    const ux = cs*hl, uy = sn*hl, vx = -sn*hw, vy = cs*hw; // half-length and half-width vectors
+    const r = [c.x+ux+vx, c.y+uy+vy, c.x+ux-vx, c.y+uy-vy, c.x-ux-vx, c.y-uy-vy, c.x-ux+vx, c.y-uy+vy];
+    const item = [t, c.x, c.y, c.x, c.y, r, cs, sn]; drawn.push(item);
+    if(!byLine.has(l)) byLine.set(l, []); byLine.get(l).push(item);
+  }
+  const rect = r => { ctx.moveTo(r[0],r[1]); ctx.lineTo(r[2],r[3]); ctx.lineTo(r[4],r[5]); ctx.lineTo(r[6],r[7]); ctx.closePath(); };
+  // batched: one path for all outlines, then one per line colour (far fewer canvas calls on a TV stick)
+  ctx.lineJoin = 'round';
+  const dim = !!window.DIM_TRAINS;
+  ctx.globalAlpha = dim ? 0.35 : 1;
+  ctx.strokeStyle = dark ? 'rgba(0,0,0,.9)' : 'rgba(255,255,255,.95)'; ctx.lineWidth = 3;
+  ctx.beginPath(); for(const d of drawn) rect(d[5]); ctx.stroke();
+  ctx.lineWidth = 1;
+  for(const [l, items] of byLine){
+    ctx.globalAlpha = dim && !l.pinned ? 0.3 : 1;
+    ctx.fillStyle = ctx.strokeStyle = l.colour==='#000000'&&dark ? '#e6e6e6' : l.colour;
+    ctx.beginPath(); for(const d of items) rect(d[5]); ctx.fill(); ctx.stroke(); // stroke rounds the corners
+  }
+  ctx.globalAlpha = 1;
+  // the user's own train/bus: drawn larger, on top, with a ring
+  for(const d of drawn) if(HL.has(d[0].key)){
+    const [t, x, y, , , , cs, sn] = d, k = 1.7, ux=cs*hl*k, uy=sn*hl*k, vx=-sn*hw*k, vy=cs*hw*k;
+    const r = [x+ux+vx, y+uy+vy, x+ux-vx, y+uy-vy, x-ux-vx, y-uy-vy, x-ux+vx, y-uy+vy];
+    ctx.beginPath(); ctx.arc(x, y, hl*k+6, 0, 7); ctx.fillStyle = dark ? 'rgba(255,255,255,.18)' : 'rgba(0,0,0,.12)'; ctx.fill();
+    ctx.beginPath(); rect(r); ctx.lineWidth = 4; ctx.strokeStyle = dark ? '#fff' : '#111'; ctx.stroke();
+    ctx.fillStyle = BY[t.line].colour; ctx.fill();
+  }
+  const h = hover && drawn.find(d => d[0]===hover);
+  if(h){ ctx.strokeStyle=dark?'#fff':'#000'; ctx.lineWidth=1.5; ctx.beginPath(); ctx.arc(h[1],h[2],hl+4,0,7); ctx.stroke(); }
+  draw.hit = drawn;
+  if(DEBUG) draw.ms = (draw.ms||0)*0.9 + (performance.now()-t0)*0.1;
+}
+requestAnimationFrame(draw);
+
+// hover / tap info
+// Transport symbols in the line's own colour: a roundel (ring + bar) for TfL modes,
+// the double arrow for National Rail, a walking figure for walks.
+function symbol(kind, c, s = 16){
+  c = c==='#000000' && dark ? '#d9d9d9' : c;
+  const o = `<svg class="sym" width="${s}" height="${s}" viewBox="0 0 24 24" aria-hidden="true">`;
+  if(kind==='walk') return o + `<circle cx="13.5" cy="3.8" r="2.3" fill="${c}"/><path d="M11 8.2l3.2-1 2.4 3.6 3 1.2M12.6 8.6l-1.7 6.6 3.7 3.4.9 4.6M10.9 15.2l-2.6 3.3-3.3 1.2" fill="none" stroke="${c}" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+  if(kind==='gen') return o + `<rect x="3" y="3" width="18" height="18" rx="5" fill="${c}"/><path d="M8 16.5l-1.5 2.5M16 16.5l1.5 2.5M8.5 7h7a1.5 1.5 0 011.5 1.5V14a2 2 0 01-2 2H9a2 2 0 01-2-2V8.5A1.5 1.5 0 018.5 7zM7 11.5h10" fill="none" stroke="#fff" stroke-width="1.6" stroke-linecap="round"/></svg>`;
+  if(kind==='rail') return o + `<path d="M2 7.5h15L7 16.5h15M12.5 3l4.5 4.5M11.5 21L7 16.5" fill="none" stroke="${c}" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+  return o + `<circle cx="12" cy="12" r="7" fill="none" stroke="${c}" stroke-width="3.6"/><rect x="1" y="9.6" width="22" height="4.8" rx=".6" fill="${c}"/></svg>`;
+}
+function nearest(x,y){
+  let best=null, bd = matchMedia('(pointer:coarse)').matches ? 30 : 18; // fingers are less precise
+  for(const [t,hx,hy,tx,ty] of draw.hit||[]){
+    const mx=(hx+tx)/2, my=(hy+ty)/2, d=Math.hypot(mx-x,my-y);
+    if(d<bd){bd=d;best=t}
+  }
+  return best;
+}
+const esc = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'})[c]);
+function showTip(e){
+  const r = map.getContainer().getBoundingClientRect();
+  const t = nearest(e.clientX-r.left, e.clientY-r.top); hover = t;
+  const tip = $('tip');
+  if(!t){ tip.style.display='none'; return; }
+  const l = BY[t.line], secs = Math.max(0, Math.round(((t.curArr??t.arr)-now())/1000));
+  // TfL has no train names; tube trains have a set number and buses a registration (rail ids are trip codes)
+  const vid = t.anon ? '' : t.key.slice(t.line.length + 1);
+  const num = !vid ? '' : l.mode==='bus' ? `Bus ${vid}` : l.mode==='tube' ? `Train ${vid}` : '';
+  tip.innerHTML = `<div class="tt-h">${symbol(l.mode, l.colour, 20)}<b>${esc(l.name)}${l.mode==='bus'?' bus':l.mode==='tube'?' line':''}</b></div>
+    ${HL.has(t.key) ? '<div class="tt-you">Your train</div>' : ''}
+    ${t.towards ? `<div>To <b>${esc(t.towards)}</b></div>` : ''}
+    <div>Next stop: ${esc(l.stops[t.cur||t.next]?.n||'?')} · ${secs<30?'due':Math.round(secs/60)+' min'}</div>
+    ${t.loc ? `<div class="tt-m">${esc(t.loc)}</div>` : ''}
+    ${num ? `<div class="tt-m">${esc(num)}</div>` : ''}`;
+  tip.style.display='block';
+  tip.style.left = Math.max(8, Math.min(innerWidth-258, e.clientX+14))+'px'; tip.style.top = Math.max(8, Math.min(innerHeight-150, e.clientY+14))+'px';
+}
+map.getContainer().addEventListener('mousemove', showTip);
+map.getContainer().addEventListener('click', showTip);
+
+// ====================================================================================
+// Journey app: plan with TfL Journey Planner, track live, re-plan when things go wrong
+// ====================================================================================
+
+// Bus (and other) lines used by a journey are added to the live layer on demand
+async function addLine(id, name, colour, mode){
+  let l = BY[id];
+  if(!l){
+    l = {id, name, colour, mode, group:'tfl', on:true, count:0, polys:[], routes:[], stops:{}, seg:{}};
+    ACTIVE.push(l); BY[id] = l;
+  }
+  l.pinned = true;
+  if(!l.layer){ try{ await loadLine(l); }catch(e){ console.warn('line', id, e); } }
+  l.layer && l.layer.eachLayer(p => p.setStyle(lineStyle(l)));
+  return l;
+}
+function unpinAll(){
+  for(const l of ACTIVE) if(l.pinned){ l.pinned = false; l.layer && l.layer.eachLayer(p => p.setStyle(lineStyle(l))); }
+}
+
+// ---------- time (TfL journey times are London local time without an offset) ----------
+const LDN = new Intl.DateTimeFormat('en-GB', {timeZone:'Europe/London', hourCycle:'h23',
+  year:'numeric', month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit', second:'2-digit'});
+function ldnParts(ms){ const o = {}; for(const p of LDN.formatToParts(new Date(ms))) o[p.type] = p.value; return o; }
+function londonMs(s){
+  const [d, t] = s.split('T'), [y, m, dd] = d.split('-').map(Number), [h, mi, se] = t.split(':').map(Number);
+  const guess = Date.UTC(y, m-1, dd, h, mi, se||0), p = ldnParts(guess);
+  return guess - (Date.UTC(+p.year, p.month-1, +p.day, +p.hour, +p.minute, +p.second) - guess);
+}
+const hhmm = ms => new Date(ms).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit', hour12:false}); // phone's local time
+const mins = ms => Math.round(ms/60000);
+
+// ---------- journey planner ----------
+const MODE = {tube:'tube', dlr:'dlr', 'elizabeth-line':'elizabeth', overground:'overground', tram:'tram',
+  bus:'bus', coach:'bus', 'national-rail':'rail', 'international-rail':'rail', 'river-bus':'boat', 'cable-car':'other',
+  walking:'walk', cycle:'walk'};
+const LIVE_KINDS = new Set(['tube','dlr','elizabeth','overground','tram','bus']);
+function legColour(L){
+  if(L.walk) return '#7a7f87';
+  if(BY[L.line]) return BY[L.line].colour;
+  return {bus:'#DC241F', rail:'#1D5BA0', boat:'#00A0E2', other:'#555'}[L.kind] || '#555';
+}
+// TfL gives street addresses in capitals ("Walk to 2 TOWER HILL, LONDON"): make them readable
+const tidy = s => !/[A-Z]{3,}[ ,]+[A-Z]{3,}/.test(s) ? s : s.replace(/\b[A-Z][A-Z'&-]{2,}\b/g, w => w[0] + w.slice(1).toLowerCase()).replace(/, London$/, '');
+function parseJourney(j){
+  const legs = j.legs.map(l => {
+    const ro = (l.routeOptions||[])[0] || {}, mode = l.mode.id, kind = MODE[mode] || 'other';
+    const pt = q => ({id:q.naptanId||null, name:cleanName(q.commonName||''), p:[q.lat, q.lon]});
+    let path = []; try{ path = JSON.parse(l.path.lineString); }catch(e){}
+    const L = {mode, kind, walk:kind==='walk', dep:londonMs(l.departureTime), arr:londonMs(l.arrivalTime),
+      summary:tidy(l.instruction.summary), detail:l.instruction.detailed||'',
+      line:ro.lineIdentifier?.id || null, lineName:ro.name || '', towards:cleanName((ro.directions||[''])[0]||''),
+      from:pt(l.departurePoint), to:pt(l.arrivalPoint), path, nStops:(l.path.stopPoints||[]).length,
+      disrupted:!!l.isDisrupted};
+    if(!path.length) L.path = [L.from.p, L.to.p];
+    L.colour = legColour(L);
+    return L;
+  });
+  return {dep:londonMs(j.startDateTime), arr:londonMs(j.arrivalDateTime), legs, fare:j.fare?.totalCost, src:'tfl'};
+}
+const signature = legs => legs.filter(L => !L.walk).map(L => (L.line||L.mode)+'@'+L.from.id).join('|');
+
+async function planJourneys(from, to, when){
+  const p = ldnParts(when || Date.now());
+  const qs = `?timeIs=Departing&journeyPreference=leasttime&date=${p.year}${p.month}${p.day}&time=${p.hour}${p.minute}`;
+  const url = API + `/Journey/JourneyResults/${encodeURIComponent(from)}/to/${encodeURIComponent(to)}` + qs + (KEY?'&'+KEY:'');
+  const r = await fetch(url);
+  if(r.status === 300){ const d = await r.json(); return {ambiguous:d}; }
+  if(!r.ok) throw new Error(r.status === 404 ? 'No route found' : 'Journey planner error ' + r.status);
+  const d = await r.json();
+  return {journeys:(d.journeys||[]).map(parseJourney).sort((a,b) => a.arr-b.arr)};
+}
+
+// ---------- Google (journeys outside London) ----------
+// Google's directions work almost anywhere, but give timetable times only (no live boards or
+// vehicle positions), and its terms only allow drawing them on a Google map, so Google journeys
+// are shown as a step list with an "Open in Google Maps" link rather than drawn on this map.
+const GKEY = Q.get('gkey') || 'AIzaSyBoPbaWi2vyme87RJceKPGo-lCRNRff1FY';
+let gReady = null;
+function loadGoogle(){
+  return gReady ||= new Promise((res, rej) => {
+    window.__gInit = () => res();
+    const s = document.createElement('script');
+    s.src = `https://maps.googleapis.com/maps/api/js?key=${GKEY}&loading=async&callback=__gInit`;
+    s.onerror = () => { gReady = null; rej(new Error('Could not load Google')); };
+    document.head.appendChild(s);
+  });
+}
+const isCoord = s => /^-?\d+(\.\d+)?,-?\d+(\.\d+)?$/.test(s);
+const inLondon = s => { if(!isCoord(s)) return true; const [a, b] = s.split(',').map(Number); return a>51.28 && a<51.70 && b>-0.52 && b<0.34; };
+const stripHtml = s => (s||'').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+async function planGoogle(from, to, when){
+  await loadGoogle();
+  const {DirectionsService} = await google.maps.importLibrary('routes');
+  const loc = s => isCoord(s) ? {lat:+s.split(',')[0], lng:+s.split(',')[1]} : s;
+  let res;
+  try{
+    res = await new DirectionsService().route({origin:loc(from), destination:loc(to), travelMode:'TRANSIT',
+      provideRouteAlternatives:true, transitOptions:{departureTime:new Date(when || Date.now())}});
+  }catch(e){ throw new Error(e && e.code==='ZERO_RESULTS' ? 'No public transport routes found' : e && e.code==='NOT_FOUND' ? 'Place not found' : 'Google directions error' + (e && e.code ? ' (' + e.code + ')' : '')); }
+  const leg0 = res.routes[0]?.legs[0];
+  return {journeys:res.routes.map(parseGoogle).filter(Boolean).sort((a,b) => a.arr-b.arr),
+    end:leg0 && [leg0.end_location.lat(), leg0.end_location.lng()], endName:leg0?.end_address, start:leg0 && [leg0.start_location.lat(), leg0.start_location.lng()]};
+}
+function parseGoogle(route){
+  const lg = route.legs[0]; if(!lg) return null;
+  let t = lg.departure_time ? +lg.departure_time.value : Date.now();
+  const legs = [], pt = (name, ll) => ({id:null, name, p:[ll.lat(), ll.lng()]});
+  const light = c => { const n = parseInt((c||'#555').slice(1), 16); return ((n>>16)*299 + ((n>>8)&255)*587 + (n&255)*114)/1000 > 215; };
+  for(const s of lg.steps){
+    const path = (s.path || []).map(p => [p.lat(), p.lng()]), dur = s.duration.value*1000;
+    if(s.travel_mode === 'TRANSIT' && s.transit){
+      const tr = s.transit, ln = tr.line || {}, vt = ln.vehicle?.type || '';
+      const kind = /BUS|SHARE_TAXI/.test(vt) ? 'bus' : /RAIL|TRAIN/.test(vt) && !/LIGHT|MONO/.test(vt) ? 'rail' : /FERRY/.test(vt) ? 'boat' : 'metro';
+      const name = ln.short_name || ln.name || ln.vehicle?.name || 'Transit';
+      let colour = ln.color || {bus:'#DC241F', rail:'#1D5BA0', boat:'#00A0E2'}[kind] || '#555'; if(light(colour)) colour = '#555';
+      const dep = +tr.departure_time.value, arr = +tr.arrival_time.value;
+      legs.push({mode:vt.toLowerCase(), kind, walk:false, dep, arr, summary:`${name} to ${tr.arrival_stop.name}`, detail:'',
+        line:null, lineName:name, towards:tr.headsign || '', from:pt(tr.departure_stop.name, tr.departure_stop.location),
+        to:pt(tr.arrival_stop.name, tr.arrival_stop.location), path, nStops:tr.num_stops || 0, disrupted:false, colour, gen:true});
+      t = arr;
+    } else {
+      legs.push({mode:'walking', kind:'walk', walk:true, dep:t, arr:t + dur, summary:stripHtml(s.instructions) || 'Walk',
+        detail:'', line:null, lineName:'', towards:'', from:pt('', s.start_location), to:pt('', s.end_location),
+        path:path.length ? path : [[s.start_location.lat(), s.start_location.lng()], [s.end_location.lat(), s.end_location.lng()]], nStops:0, disrupted:false, colour:'#7a7f87'});
+      t += dur;
+    }
+  }
+  return {dep:legs[0]?.dep ?? t, arr:lg.arrival_time ? +lg.arrival_time.value : t, legs, src:'google'};
+}
+const planFor = j => j && j.src === 'google' ? planGoogle : planJourneys;
+const gmapsLink = j => { const a = j.legs[0].from.p, b = j.legs[j.legs.length-1].to.p;
+  return `https://www.google.com/maps/dir/?api=1&origin=${a[0]},${a[1]}&destination=${b[0]},${b[1]}&travelmode=transit`; };
+
+// ---------- live departures for a leg (vehicles that call at both ends, in the right order) ----------
+const arrCache = new Map();
+async function stopArrivals(id){
+  const c = arrCache.get(id); if(c && Date.now()-c.t < 20000) return c.d;
+  const d = await get(`/StopPoint/${id}/Arrivals`).catch(() => []);
+  arrCache.set(id, {t:Date.now(), d}); return d;
+}
+async function liveDepartures(L){
+  if(!LIVE_KINDS.has(L.kind) || !L.line || !L.from.id || !L.to.id) return null;
+  const [a, b] = await Promise.all([stopArrivals(L.from.id), stopArrivals(L.to.id)]);
+  const atTo = new Map();
+  for(const p of b) if(p.lineId===L.line && p.vehicleId) atTo.set(p.vehicleId, Date.parse(p.expectedArrival));
+  const out = [];
+  for(const p of a){
+    if(p.lineId!==L.line || !p.vehicleId) continue;
+    const at = Date.parse(p.expectedArrival), atDest = atTo.get(p.vehicleId);
+    if(atDest && atDest > at) out.push({vid:p.vehicleId, at, atDest, towards:p.towards||p.destinationName||''});
+  }
+  if(!out.length){
+    // Starting at a terminus: the trains we can catch are the ones arriving here to terminate,
+    // which turn round (allow ~3 min) and aren't yet predicted further along. Work out the
+    // arrival at our stop from the planned ride time.
+    const ride = L.arr - L.dep;
+    for(const p of a){
+      if(p.lineId!==L.line || !p.vehicleId || p.destinationNaptanId!==L.from.id) continue;
+      const at = Date.parse(p.expectedArrival) + 180000;
+      out.push({vid:p.vehicleId, at, atDest:at + ride, est:true, towards:L.towards});
+    }
+  }
+  return out.sort((x,y) => x.at-y.at);
+}
+
+// ---------- geometry ----------
+function nearestOnPath(path, p){ // -> {d (m), along (m from start), total (m)}
+  const kx = Math.cos(p[0]*rad); let best = {d:Infinity, along:0}, acc = 0;
+  for(let i=1;i<path.length;i++){
+    const A = path[i-1], B = path[i], seg = dist(A, B);
+    const vx=(B[1]-A[1])*kx, vy=B[0]-A[0], wx=(p[1]-A[1])*kx, wy=p[0]-A[0], L2 = vx*vx+vy*vy;
+    const k = L2 ? Math.max(0, Math.min(1, (vx*wx+vy*wy)/L2)) : 0;
+    const q = [A[0]+(B[0]-A[0])*k, A[1]+(B[1]-A[1])*k], d = dist(q, p);
+    if(d < best.d) best = {d, along:acc + seg*k};
+    acc += seg;
+  }
+  best.total = acc; return best;
+}
+const pathLen = path => { let s = 0; for(let i=1;i<path.length;i++) s += dist(path[i-1], path[i]); return s; };
+const WALK = 1.25; // m/s, with a little slack for crossings
+
+// ---------- state ----------
+const J = {
+  to:null, from:null,          // {label, q}
+  options:[], plan:null,       // chosen journey
+  active:false, idx:0,         // current leg index
+  riding:false, vehicle:null,  // {line, vid}
+  proj:null,                   // projected arrival (ms)
+  suggestion:null,             // {kind, journey, text}
+  dismissed:null,              // signature of a suggestion the user said "keep" to
+  lastReplan:0, offCount:0,
+};
+let me = null, meAcc = 0, meAt = 0; // GPS
+const SIM = Q.get('sim') === '1';
+
+// ---------- map layers ----------
+const routeLayer = L.layerGroup().addTo(map), altLayer = L.layerGroup().addTo(map);
+function drawJourney(j, layer, ghost){
+  layer.clearLayers(); if(!j || j.src === 'google') return; // Google routes may only be drawn on Google maps
+  for(const g of j.legs){
+    if(g.walk){ layer.addLayer(L.polyline(g.path, {color:g.colour, weight:ghost?3:4, dashArray:'2 8', lineCap:'round', opacity:ghost?.6:.95, interactive:false})); continue; }
+    if(!ghost) layer.addLayer(L.polyline(g.path, {color:dark?'#000':'#fff', weight:10, opacity:.9, interactive:false}));
+    layer.addLayer(L.polyline(g.path, {color:g.colour, weight:ghost?4:6, opacity:ghost?.55:1, dashArray:ghost?'8 8':null, interactive:false}));
+    for(const s of [g.from, g.to]) layer.addLayer(L.circleMarker(s.p, {radius:ghost?3:5, color:g.colour, weight:3, fillColor:'#fff', fillOpacity:1, interactive:false}));
+  }
+}
+const fitJourney = j => j && j.src !== 'google' && map.fitBounds(L.latLngBounds(j.legs.flatMap(L => L.path)), {paddingTopLeft:[innerWidth>700?380:20, 20], paddingBottomRight:[20, innerWidth>700?20:innerHeight*0.45]});
+
+// "me" marker: blue dot (draggable in test mode)
+map.createPane('me').style.zIndex = 460; // above the trains canvas
+const meDot = L.circleMarker([0,0], {pane:'me', radius:8, color:'#fff', weight:3, fillColor:'#1a73e8', fillOpacity:1, interactive:SIM});
+const meHalo = L.circle([0,0], {pane:'me', radius:30, color:'#1a73e8', weight:0, fillOpacity:.15, interactive:false});
+let simMarker = null;
+function setMe(p, acc){
+  me = p; meAcc = acc||15; meAt = Date.now();
+  if(!map.hasLayer(meDot)){ meHalo.addTo(map); meDot.addTo(map); }
+  meDot.setLatLng(p); meHalo.setLatLng(p).setRadius(meAcc);
+  if(J.follow) map.panTo(p, {animate:true});
+  if(J.active) throttleMonitor();
+}
+if(SIM){
+  // Test mode: drag the blue marker to pretend to move
+  simMarker = L.marker(HOME[0], {draggable:true, title:'Drag me (test mode)'}).addTo(map);
+  simMarker.on('drag', e => setMe([e.latlng.lat, e.latlng.lng], 10));
+  setMe(HOME[0], 10);
+} else if('geolocation' in navigator){
+  navigator.geolocation.watchPosition(pos => setMe([pos.coords.latitude, pos.coords.longitude], pos.coords.accuracy),
+    err => { if(J.active || J.wantGps) $('err').textContent = 'Location unavailable: ' + err.message; },
+    {enableHighAccuracy:true, maximumAge:5000, timeout:30000});
+}
+const gpsFresh = () => me && Date.now()-meAt < 90000 && meAcc < 150;
+
+// ---------- progress along the plan ----------
+function updateProgress(){
+  const legs = J.plan.legs;
+  if(gpsFresh()){
+    // nearest of the current and next two legs (never go back)
+    let best = null;
+    for(let k=J.idx; k<Math.min(legs.length, J.idx+3); k++){
+      const n = nearestOnPath(legs[k].path, me);
+      if(!best || n.d < best.n.d - 30) best = {k, n};
+    }
+    if(best.n.d > Math.max(250, meAcc*1.5)){ J.offCount++; } else { J.offCount = 0; }
+    if(best.n.d < 250){
+      if(best.k > J.idx){ J.idx = best.k; J.riding = false; }
+      const L = legs[J.idx];
+      // on board once we're well clear of the boarding stop along a transit leg
+      if(!L.walk && best.k === J.idx && best.n.along > 300) J.riding = true;
+    }
+  } else {
+    // no GPS (e.g. underground): assume we're following the plan in time
+    while(J.idx < legs.length-1 && (legs[J.idx].eta ?? legs[J.idx].arr) < Date.now()) { J.idx++; J.riding = false; }
+    const L = legs[J.idx];
+    if(!L.walk && (L.board ?? L.dep) < Date.now()) J.riding = true;
+  }
+}
+
+// ---------- live projection of the current plan ----------
+// Walks the remaining legs: walking at WALK speed, catching the first live vehicle we can make,
+// using its own predicted arrival at our stop. Falls back to the timetable where there's no live data.
+async function projectPlan(){
+  const legs = J.plan.legs; let t = Date.now(); let liveChecks = 0;
+  for(let i=J.idx; i<legs.length; i++){
+    const L = legs[i]; L.missed = false; L.wait = null;
+    if(L.walk){
+      let m = pathLen(L.path);
+      if(i===J.idx && gpsFresh()){ const n = nearestOnPath(L.path, me); m = Math.max(0, n.total - n.along); }
+      else if(i===J.idx && !gpsFresh()) m = Math.max(0, (L.arr - Math.max(t, L.dep))/1000*WALK);
+      t += m/WALK*1000; L.eta = t; continue;
+    }
+    if(i===J.idx && J.riding){
+      let a = null;
+      if(J.vehicle){ const b = await stopArrivals(L.to.id); const v = b.find(p => p.vehicleId===J.vehicle.vid && p.lineId===L.line); if(v) a = Date.parse(v.expectedArrival); }
+      t = a ?? Math.max(t, L.arr); L.eta = t; L.board = L.board ?? L.dep; continue;
+    }
+    const ready = t + (L.kind==='tube' || L.kind==='elizabeth' ? 60000 : 30000); // getting to the platform/stop
+    const deps = liveChecks < 2 ? await liveDepartures(L) : null; if(deps) liveChecks++;
+    L.live = deps;
+    const pick = deps && deps.find(d => d.at >= ready);
+    if(pick){
+      L.pick = pick; L.board = pick.at; t = pick.atDest; L.wait = pick.at - ready;
+      if(i===J.idx || (i===J.idx+1 && legs[J.idx].walk)) J.vehicle = {line:L.line, vid:pick.vid};
+    } else if(L.dep >= ready){ L.pick = null; L.board = L.dep; t = Math.max(t, L.arr); }
+    else { // planned service already gone and no live info: next one, guessed at the same journey time + a typical wait
+      L.pick = null; L.missed = true; L.board = ready + (L.kind==='rail' ? 15 : L.kind==='bus' ? 8 : 4)*60000; t = L.board + (L.arr - L.dep);
+    }
+    L.eta = t;
+  }
+  return t;
+}
+
+// ---------- re-planning ----------
+async function replan(why){
+  J.lastReplan = Date.now();
+  const legs = J.plan.legs, L = legs[J.idx];
+  let from, when, prefix = [];
+  if(J.riding && !L.walk){ from = `${L.to.p[0]},${L.to.p[1]}`; when = L.eta || L.arr; prefix = [L]; } // carry on to the next stop, then see
+  else if(gpsFresh()){ from = `${me[0].toFixed(5)},${me[1].toFixed(5)}`; when = Date.now(); }
+  else { from = `${L.from.p[0]},${L.from.p[1]}`; when = Date.now(); }
+  let res; try{ res = await planFor(J.plan)(from, J.to.q, when); }catch(e){ return; }
+  if(!res.journeys || !res.journeys.length) return;
+  const best = res.journeys[0];
+  const full = {dep:best.dep, arr:best.arr, legs:[...prefix, ...best.legs]};
+  const remainingSig = signature(legs.slice(J.idx)), bestSig = signature(full.legs);
+  const proj = J.proj ?? J.plan.arr;
+  let s = null;
+  if(why === 'offroute') s = {kind:'off', text:`You seem to have left the route. New route arrives <b>${hhmm(best.arr)}</b>.`};
+  else if(bestSig !== remainingSig && best.arr < proj - 120000)
+    s = {kind:'faster', text:`${J.proj - J.plan.arr > 120000 ? `Running ${mins(J.proj-J.plan.arr)} min late. ` : ''}A faster route arrives <b>${hhmm(best.arr)}</b> (${mins(proj-best.arr)} min sooner).`};
+  else if(legs.slice(J.idx).some(L => L.missed) && bestSig !== remainingSig)
+    s = {kind:'missed', text:`You'll miss ${missedText()}. New route arrives <b>${hhmm(best.arr)}</b>.`};
+  if(s && J.dismissed === bestSig && why !== 'offroute') s = null;
+  J.suggestion = s ? Object.assign(s, {journey:full, sig:bestSig}) : null;
+  if(s){ try{ navigator.vibrate && navigator.vibrate([150, 80, 150]); }catch(e){} }
+  drawJourney(J.suggestion && J.suggestion.journey, altLayer, true);
+}
+function missedText(){
+  const L = J.plan.legs.slice(J.idx).find(L => L.missed);
+  return L ? `the ${hhmm(L.dep)} ${L.lineName || L.mode}` + (L.kind==='bus' ? ' bus' : '') : 'your connection';
+}
+
+let monitoring = false, lastMon = 0;
+async function monitor(){
+  if(!J.active || monitoring) return; monitoring = true; lastMon = Date.now();
+  try{
+    updateProgress();
+    J.proj = await projectPlan();
+    const late = J.proj - J.plan.arr;
+    const off = J.offCount >= 2;
+    if(off) { J.offCount = 0; await replan('offroute'); }
+    else if(late > 120000 || J.plan.legs.some(L => L.missed) || Date.now() - J.lastReplan > 120000) await replan('check');
+    await highlightVehicle();
+    saveState();
+  }catch(e){ console.error(e); }
+  monitoring = false; renderActive();
+}
+const throttleMonitor = () => { if(Date.now() - lastMon > 10000) monitor(); };
+setInterval(() => { if(J.active) monitor(); }, 20000);
+setInterval(() => { if(J.active) renderActive(); }, 1000); // countdowns
+
+async function highlightVehicle(){
+  HL.clear();
+  const L = J.plan.legs.slice(J.idx).find(L => !L.walk);
+  if(!L || !J.vehicle || !LIVE_KINDS.has(L.kind)) return;
+  if(!BY[L.line] || L.kind==='bus') await addLine(L.line, L.lineName, L.colour, L.kind);
+  else if(!BY[L.line].pinned){ BY[L.line].pinned = true; BY[L.line].layer && BY[L.line].layer.eachLayer(p => p.setStyle(lineStyle(BY[L.line]))); }
+  HL.add(J.vehicle.line + ':' + J.vehicle.vid.trim());
+}
+
+// ---------- start / switch / stop ----------
+async function startJourney(j){
+  Object.assign(J, {plan:j, active:true, idx:0, riding:false, vehicle:null, proj:null, suggestion:null, dismissed:null, lastReplan:Date.now(), follow:true});
+  drawJourney(j, routeLayer); altLayer.clearLayers(); fitJourney(j);
+  for(const L of j.legs) if(L.kind==='bus' && L.line) addLine(L.line, L.lineName, L.colour, 'bus');
+  try{ J.wake = await navigator.wakeLock?.request('screen'); }catch(e){}
+  window.DIM_TRAINS = true;
+  showView('active'); renderActive(); monitor(); refresh().catch(()=>{});
+}
+function switchRoute(){
+  const s = J.suggestion; if(!s) return;
+  const keepRiding = J.riding && s.journey.legs[0] === J.plan.legs[J.idx];
+  Object.assign(J, {plan:s.journey, idx:0, riding:keepRiding, suggestion:null, dismissed:null, proj:null});
+  if(!keepRiding) J.vehicle = null;
+  drawJourney(J.plan, routeLayer); altLayer.clearLayers();
+  for(const L of J.plan.legs) if(L.kind==='bus' && L.line) addLine(L.line, L.lineName, L.colour, 'bus');
+  monitor();
+}
+function keepRoute(){ if(J.suggestion){ J.dismissed = J.suggestion.sig; J.suggestion = null; altLayer.clearLayers(); renderActive(); } }
+function endJourney(){
+  J.active = false; J.plan = null; J.suggestion = null; HL.clear(); unpinAll(); window.DIM_TRAINS = false;
+  routeLayer.clearLayers(); altLayer.clearLayers();
+  try{ J.wake && J.wake.release(); }catch(e){}
+  try{ localStorage.removeItem('journey'); }catch(e){}
+  showView('search');
+}
+function saveState(){ try{ localStorage.setItem('journey', JSON.stringify({to:J.to, plan:J.plan, idx:J.idx, riding:J.riding, vehicle:J.vehicle})); }catch(e){} }
+function restoreState(){
+  try{
+    const s = JSON.parse(localStorage.getItem('journey')); if(!s || !s.plan || s.plan.arr < Date.now() - 600000) return false;
+    J.to = s.to; startJourney(s.plan); Object.assign(J, {idx:s.idx, riding:s.riding, vehicle:s.vehicle}); return true;
+  }catch(e){ return false; }
+}
+
+// ---------- UI ----------
+const icon = (L, s = 18) => L.walk ? symbol('walk', dark ? '#b0b4ba' : '#5f6368', s) : L.gen ? symbol('gen', L.colour, s) : symbol(L.kind==='other' ? 'rail' : L.kind, L.colour, s);
+const pill = L => L.walk ? `<span class="pill walk">${icon(L, 14)} ${mins(L.arr-L.dep)}</span>`
+  : `<span class="pill" style="--c:${L.colour}">${icon(L, 15)} ${esc(L.kind==='bus' ? L.lineName : (L.lineName||L.mode).replace(/ line$/i,''))}</span>`;
+
+function showView(v){ $('panel').scrollTop = 0; for(const el of document.querySelectorAll('.view')) el.hidden = el.dataset.view !== v; document.body.dataset.view = v; }
+
+function renderOptions(){
+  $('options').innerHTML = J.options.map((j, i) => `
+    <button class="opt ${i===J.sel?'sel':''}" data-i="${i}">
+      <div class="opt-top"><b>${hhmm(j.dep)} → ${hhmm(j.arr)}</b><span>${mins(j.arr-j.dep)} min</span></div>
+      <div class="pills">${j.legs.map(pill).join('<span class="sep">›</span>')}</div>
+      ${j.legs.some(L => L.disrupted) ? '<div class="warn">⚠ Disruption on this route</div>' : ''}
+      ${j.src==='google' ? '<div class="muted">Timetable times · directions by Google</div>' : ''}
+    </button>`).join('') + (J.options.length ? `<button id="go" class="primary">Start journey</button>` : '');
+}
+const placeName = p => p.placeType==='PointOfInterest' ? p.commonName.replace(/^[^,]+,\s*/, '') : cleanName(p.commonName);
+function renderAmbiguous(d){
+  const box = [];
+  for(const [key, label] of [['fromLocationDisambiguation','From'], ['toLocationDisambiguation','To']]){
+    const opts = (d[key]?.disambiguationOptions || []).slice(0, 6);
+    if(!opts.length || d[key].matchStatus === 'identified') continue;
+    box.push(`<div class="amb-h">${label}: did you mean…</div>` + opts.map(o => `<button class="amb" data-end="${label}" data-q="${esc(o.parameterValue)}" data-label="${esc(placeName(o.place))}">${esc(placeName(o.place))}<small>${esc(o.place.placeType==='StopPoint'?'Stop / station':o.place.placeType==='PointOfInterest'?'Place':o.place.placeType||'')}</small></button>`).join(''));
+  }
+  box.push(`<button class="amb" data-google="1">Search everywhere for “${esc($('to').value.trim())}”<small>Google</small></button>`);
+  $('options').innerHTML = box.join('');
+}
+
+async function search(google = false){
+  const toTxt = $('to').value.trim(); if(!toTxt) return $('to').focus();
+  if(!J.to || J.to.label !== toTxt) J.to = {label:toTxt, q:toTxt};
+  const fromTxt = $('from').value.trim();
+  if(!fromTxt){
+    if(!me){ J.wantGps = true; $('options').innerHTML = '<div class="muted">Waiting for your location… (or type a starting point)</div>'; return setTimeout(() => me && search(google), 2500); }
+    J.from = {label:'', q:`${me[0].toFixed(5)},${me[1].toFixed(5)}`};
+  } else if(!J.from || J.from.label !== fromTxt) J.from = {label:fromTxt, q:fromTxt};
+  let when = Date.now();
+  if($('when').value){ const [h, m] = $('when').value.split(':').map(Number); const d = new Date(); d.setHours(h, m, 0, 0); when = +d; }
+  // London trips use TfL (live data); anything TfL can't plan goes to Google
+  let useG = google || !inLondon(J.from.q) || !inLondon(J.to.q), r = null;
+  $('options').innerHTML = '<div class="muted">Finding routes…</div>';
+  try{
+    if(!useG){
+      try{ r = await planJourneys(J.from.q, J.to.q, when); }catch(e){ useG = true; }
+      if(r && r.ambiguous){
+        // TfL only knows London: weak matches (e.g. "Gare du Nord, Paris" ~540, London places 950+) go to Google
+        const weak = ['fromLocationDisambiguation','toLocationDisambiguation'].some(k => {
+          const x = r.ambiguous[k]; if(!x || x.matchStatus !== 'list') return false;
+          return Math.max(0, ...(x.disambiguationOptions||[]).map(o => o.matchQuality||0)) < 900; });
+        if(!weak) return renderAmbiguous(r.ambiguous);
+        useG = true;
+      }
+      if(r && r.journeys && !r.journeys.length) useG = true;
+    }
+    if(useG){
+      $('options').innerHTML = '<div class="muted">Finding routes with Google…</div>';
+      r = await planGoogle(J.from.q, J.to.q, when);
+      if(r.end) J.to.q = r.end.map(x => x.toFixed(5)).join(','); // so re-planning goes to the same place
+    }
+    J.options = r.journeys.slice(0, 4); J.sel = 0;
+    if(!J.options.length){ $('options').innerHTML = '<div class="muted">No routes found.</div>'; return; }
+    renderOptions(); drawJourney(J.options[0], routeLayer); fitJourney(J.options[0]);
+    try{ localStorage.setItem('lastTo', JSON.stringify(J.to)); }catch(e){}
+  }catch(e){ $('options').innerHTML = `<div class="muted">${esc(e.message)}</div>`; }
+}
+
+function legRow(L, i){
+  const cur = i === J.idx, done = i < J.idx;
+  let live = '';
+  if(!L.walk && !done){
+    if(cur && J.riding) live = `On board · arriving ${L.to.name} <b>${hhmm(L.eta||L.arr)}</b>`;
+    else if(L.live && L.live.length){
+      const n = Date.now(), next = L.live.filter(d => d.at > n - 30000).slice(0, 3).map(d => d===L.pick ? `<b>${Math.max(0, mins(d.at-n))}</b>` : Math.max(0, mins(d.at-n)));
+      live = `Next: ${next.join(', ')} min` + (L.pick ? ` · catch the <b>${hhmm(L.pick.at)}</b>` : '');
+    } else if(L.missed) live = `<span class="bad">Planned ${hhmm(L.dep)} service missed</span>`;
+    else live = `Departs ${hhmm(L.board ?? L.dep)}` + (LIVE_KINDS.has(L.kind) ? '' : ' (timetable)');
+  }
+  const time = L.walk ? `${mins(L.arr-L.dep)} min` : `${hhmm(L.board ?? L.dep)}–${hhmm(L.eta ?? L.arr)}`;
+  return `<li class="${cur?'cur':''} ${done?'done':''}" style="--c:${L.colour}">
+    <div class="li-h">${icon(L)} <span>${esc(L.summary)}</span><small>${time}</small></div>
+    ${L.walk ? '' : `<div class="li-d">${esc(L.from.name)} → ${esc(L.to.name)}${L.towards?` · towards ${esc(L.towards)}`:''}${L.nStops?` · ${L.nStops} stop${L.nStops>1?'s':''}`:''}</div>`}
+    ${live ? `<div class="li-live">${live}</div>` : ''}
+    ${L.disrupted ? '<div class="warn">⚠ Disruption reported on this line</div>' : ''}
+  </li>`;
+}
+function renderActive(){
+  if(!J.active || !J.plan) return;
+  const late = (J.proj ?? J.plan.arr) - J.plan.arr, n = Date.now();
+  const st = !J.proj ? ['Checking live times…', 'muted'] : late > 120000 ? [`${mins(late)} min late`, 'bad'] : late < -120000 ? [`${mins(-late)} min early`, 'good'] : ['On time', 'good'];
+  $('eta').innerHTML = `<div class="eta-big">Arrive <b>${hhmm(J.proj ?? J.plan.arr)}</b></div><div class="chip ${st[1]}">${st[0]}</div>
+    <div class="muted">${esc(J.to.label)} · ${Math.max(0, mins((J.proj ?? J.plan.arr) - n))} min to go</div>`;
+  const s = J.suggestion;
+  $('banner').hidden = !s;
+  if(s) $('banner').innerHTML = `<div>${s.text}</div><div class="pills">${s.journey.legs.map(pill).join('<span class="sep">›</span>')}</div>
+    <div class="row2"><button id="bSwitch" class="primary">Switch</button><button id="bKeep">Keep current</button></div>`;
+  $('steps').innerHTML = J.plan.legs.map(legRow).join('') + (J.plan.src === 'google'
+    ? `<li class="gnote"><a href="${gmapsLink(J.plan)}" target="_blank" rel="noopener">Open route in Google Maps ↗</a><div class="muted">Directions by Google · timetable times (live checks are London-only)</div></li>` : '');
+}
+
+// wire up
+$('fSearch').addEventListener('submit', e => { e.preventDefault(); search(); });
+$('options').addEventListener('click', e => {
+  const o = e.target.closest('.opt'), a = e.target.closest('.amb');
+  if(a && a.dataset.google) return search(true);
+  if(o){ J.sel = +o.dataset.i; renderOptions(); drawJourney(J.options[J.sel], routeLayer); fitJourney(J.options[J.sel]); }
+  else if(a){ const end = a.dataset.end === 'From' ? 'from' : 'to'; J[end] = {label:a.dataset.label, q:a.dataset.q}; $(end).value = a.dataset.label; search(); }
+  else if(e.target.id === 'go') startJourney(J.options[J.sel]);
+});
+$('banner').addEventListener('click', e => { if(e.target.id==='bSwitch') switchRoute(); if(e.target.id==='bKeep') keepRoute(); });
+$('bEnd').onclick = endJourney;
+$('bReplan').onclick = () => { J.dismissed = null; J.lastReplan = 0; monitor(); };
+$('bSwap').onclick = () => { const a = $('from').value; $('from').value = $('to').value; $('to').value = a; const f = J.from; J.from = J.to; J.to = f; };
+$('bLocate').onclick = () => { J.follow = true; if(me) map.setView(me, Math.max(map.getZoom(), 15)); else J.wantGps = true; };
+map.on('dragstart', () => { J.follow = false; });
+map.on('movestart', () => { $('tip').style.display = 'none'; hover = null; }); // close train info when the map moves
+$('bTrains').onclick = () => {
+  TRAINS_ON = !TRAINS_ON; try{ localStorage.setItem('trainsOn', TRAINS_ON?'1':'0'); }catch(e){}
+  for(const l of ACTIVE) l.layer && l.layer.eachLayer(p => p.setStyle(lineStyle(l)));
+  $('bTrains').classList.toggle('on', TRAINS_ON); refresh().catch(()=>{});
+};
+$('bTrains').classList.toggle('on', TRAINS_ON);
+$('tsym').innerHTML = symbol('tube', '#DC241F', 16);
+$('bTheme').onclick = () => { dark = !dark; applyTheme(); if(J.plan) drawJourney(J.plan, routeLayer); };
+window.onTrainsUpdate = n => { $('tcount').textContent = n ? n : ''; };
+try{ const t = JSON.parse(localStorage.getItem('lastTo')); if(t){ J.to = t; $('to').value = t.label; } }catch(e){}
+if(SIM) document.body.classList.add('sim');
+if(DEBUG) window.APP = {draw, J, planJourneys, projectPlan, monitor, replan, setMe, startJourney, liveDepartures, ACTIVE, BY, trains, HL};
+showView('search');
+restoreState();
+
+// ---------- boot: live trains in the background ----------
+(async () => {
+  const queue = ACTIVE.slice();
+  await Promise.all([0,1,2].map(async () => {
+    for(let l; (l = queue.shift()); ){
+      const cached = !!store.get('seq2:'+l.id);
+      try{ await loadLine(l); }catch(e){ console.warn('Could not load', l.name, e.message); }
+      if(!cached) await sleep(200);
+    }
+  }));
+  for(;;){
+    let good = false;
+    try{ good = await refresh(); }catch(e){ console.error(e); }
+    await sleep(good ? REFRESH : Math.min(REFRESH*8, REFRESH*2**Math.min(3, failStreak)));
+  }
+})();
+}
+</script>
+</body>
+</html>
