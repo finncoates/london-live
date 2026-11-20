@@ -5,21 +5,19 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#1a73e8">
 <title>London Journey</title>
-<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;600;800&display=swap" rel="stylesheet">
 <style>
 /* London Journey — plan a London trip and get re-routed live when things go wrong.
-   Data: TfL Unified API (journey planner, live arrivals). Map: Leaflet + Esri.
+   Journeys: Google directions (all transport, anywhere). Live London data: TfL Unified API. Map: Google Maps.
    URL options: ?sim=1 (test mode: drag the blue marker)  ?theme=dark|light  ?app_key=TFLKEY  ?debug=1 */
 :root{--bg:#fff;--ink:#141414;--mute:#666;--panel:#fff;--edge:rgba(0,0,0,.12);--soft:#f2f4f7;--acc:#1a73e8;--good:#188038;--bad:#d93025}
 body.dark{--bg:#0e0f12;--ink:#f2f2f2;--mute:#9a9a9a;--panel:#17181c;--edge:rgba(255,255,255,.14);--soft:#22242a;--acc:#8ab4f8;--good:#81c995;--bad:#f28b82}
 *{box-sizing:border-box}
 [hidden]{display:none!important}
 html,body{margin:0;height:100%;background:var(--bg);color:var(--ink);font:15px/1.4 "Hanken Grotesk",system-ui,sans-serif;overflow:hidden}
-#map{position:fixed;inset:0;background:var(--bg)}
+#map{position:fixed!important;inset:0;background:var(--bg)} /* Google sets position:relative inline */
 #trains{position:absolute;left:0;top:0;pointer-events:none;z-index:450}
-.leaflet-container{background:var(--bg)}
 #panel{position:fixed;z-index:1000;top:12px;left:12px;width:360px;max-height:calc(100% - 24px);overflow:auto;
   background:var(--panel);border:1px solid var(--edge);border-radius:14px;box-shadow:0 6px 24px rgba(0,0,0,.2);padding:14px}
 h1{margin:0 0 10px;font-size:18px;font-weight:800;display:flex;align-items:center;gap:8px}
@@ -79,7 +77,6 @@ body.dark #banner{background:#3b2a10;color:#ffe2b0;border-color:#7a5a20}
 #simnote{display:none;font-size:12px;background:#e8f0fe;color:#174ea6;border-radius:8px;padding:6px 8px;margin-bottom:8px}
 body.sim #simnote{display:block}
 body.dark #simnote{background:#1f2a44;color:#c6dafc}
-.leaflet-control-zoom{display:none}
 @media (max-width:700px){
   #panel{top:auto;bottom:0;left:0;right:0;width:auto;max-height:52%;border-radius:16px 16px 0 0;padding:12px 14px calc(12px + env(safe-area-inset-bottom))}
 }
@@ -115,9 +112,8 @@ body.dark #simnote{background:#1f2a44;color:#c6dafc}
   <div id="err"></div>
 </div>
 <div id="tip"></div>
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
-{
+(async () => {
 const Q = new URLSearchParams(location.search);
 const API = 'https://api.tfl.gov.uk';
 const KEY = Q.get('app_key') ? 'app_key=' + encodeURIComponent(Q.get('app_key')) : '';
@@ -186,34 +182,52 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
 const cleanName = n => n.replace(/ (Underground|DLR|Rail) Station$/,'').replace(/ Station$/,'');
 const normName = n => cleanName(n||'').replace(/\s*\(London\)/,'').toLowerCase().trim();
 
-// ---------- map ----------
-let dark = Q.get('theme') === 'dark' || (Q.get('theme') !== 'light' && matchMedia('(prefers-color-scheme: dark)').matches);
-const map = L.map('map', {zoomControl:true, preferCanvas:true, zoomSnap:0.25, attributionControl:true})
-  .setView(HOME[0], HOME[1]);
-// Basemap. CARTO now needs a (free) key — without one every tile is watermarked — so the
-// default is Esri's keyless Light/Dark Gray Canvas. ?carto_key=KEY switches to CARTO Voyager/Dark Matter.
-const CARTO_KEY = Q.get('carto_key');
-function makeTiles(d){
-  if(CARTO_KEY) return L.tileLayer(`https://{s}.basemaps.cartocdn.com/rastertiles/${d?'dark_all':'voyager'}/{z}/{x}/{y}{r}.png?key=${encodeURIComponent(CARTO_KEY)}`,
-    {maxZoom:19, subdomains:'abcd', attribution:'© OpenStreetMap contributors © CARTO · Live data: TfL'});
-  const esri = n => `https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_${d?'Dark':'Light'}_Gray_${n}/MapServer/tile/{z}/{y}/{x}`;
-  return L.layerGroup([
-    L.tileLayer(esri('Base'), {maxZoom:19, maxNativeZoom:16, attribution:'Esri, HERE, Garmin, © OpenStreetMap contributors · Live data: TfL'}),
-    L.tileLayer(esri('Reference'), {maxZoom:19, maxNativeZoom:16, opacity:0.8})]);
+const GKEY = Q.get('gkey') || 'AIzaSyBoPbaWi2vyme87RJceKPGo-lCRNRff1FY';
+let gReady = null;
+function loadGoogle(){
+  return gReady ||= new Promise((res, rej) => {
+    window.__gInit = () => res();
+    const s = document.createElement('script');
+    s.src = `https://maps.googleapis.com/maps/api/js?key=${GKEY}&loading=async&callback=__gInit`;
+    s.onerror = () => { gReady = null; rej(new Error('Could not load Google')); };
+    document.head.appendChild(s);
+  });
 }
-let tiles = makeTiles(dark).addTo(map);
-const ink = c => c==='#000000'&&dark ? '#d9d9d9' : c;
-const lineStyle = l => ({color:ink(l.colour), weight:3, opacity:!shown(l)?0:l.pinned?0.6:0.35, interactive:false});
-function applyTheme(){ document.body.classList.toggle('dark', dark); map.removeLayer(tiles); tiles = makeTiles(dark).addTo(map); for(const l of ACTIVE) l.layer && l.layer.eachLayer(p => p.setStyle(lineStyle(l))); }
-applyTheme();
-if(Q.get('kiosk')==='1') document.body.classList.add('kiosk');
 
-// train canvas overlay (in the map container, above tiles, redrawn each frame)
+// ---------- map (Google Maps) ----------
+let dark = Q.get('theme') === 'dark' || (Q.get('theme') !== 'light' && matchMedia('(prefers-color-scheme: dark)').matches);
+try{ await loadGoogle(); }catch(e){ document.body.innerHTML = '<p style="padding:20px;font:16px system-ui">Could not load Google Maps. Check your connection and reload.</p>'; return; }
+await Promise.all(['maps','marker','routes','geometry'].map(n => google.maps.importLibrary(n)));
+const DARK_STYLE = [
+  {elementType:'geometry', stylers:[{color:'#1d2026'}]}, {elementType:'labels.text.fill', stylers:[{color:'#9aa0a6'}]},
+  {elementType:'labels.text.stroke', stylers:[{color:'#1d2026'}]}, {featureType:'road', elementType:'geometry', stylers:[{color:'#2c3038'}]},
+  {featureType:'road', elementType:'geometry.stroke', stylers:[{color:'#1d2026'}]}, {featureType:'road.highway', elementType:'geometry', stylers:[{color:'#3b404a'}]},
+  {featureType:'water', elementType:'geometry', stylers:[{color:'#0e1626'}]}, {featureType:'poi', elementType:'geometry', stylers:[{color:'#22262d'}]},
+  {featureType:'poi.park', elementType:'geometry', stylers:[{color:'#1b2a22'}]}, {featureType:'transit', elementType:'geometry', stylers:[{color:'#2a2e36'}]}];
+const map = new google.maps.Map(document.getElementById('map'), {
+  center:{lat:HOME[0][0], lng:HOME[0][1]}, zoom:Math.round(HOME[1]), disableDefaultUI:true, zoomControl:false,
+  clickableIcons:false, gestureHandling:'greedy', styles:dark ? DARK_STYLE : null});
+const LL = p => ({lat:p[0], lng:p[1]});
+// Small layer helpers so the rest of the code reads like before
+class Group{ constructor(){ this.items = []; } addLayer(x){ x.setMap(map); this.items.push(x); return this; }
+  eachLayer(f){ this.items.forEach(f); } clearLayers(){ this.items.forEach(x => x.setMap(null)); this.items = []; } }
+const gStyle = s => ({strokeColor:s.color, strokeWeight:s.weight, strokeOpacity:s.opacity, clickable:false, zIndex:s.z||1});
+function gLine(pts, s){ const p = new google.maps.Polyline(Object.assign({path:pts.map(LL)}, gStyle(s))); p.setStyle = st => p.setOptions(gStyle(st)); return p; }
+const ink = c => c==='#000000'&&dark ? '#d9d9d9' : c;
+const lineStyle = l => ({color:ink(l.colour), weight:3, opacity:!shown(l)?0:l.pinned?0.6:0.3});
+function applyTheme(){ document.body.classList.toggle('dark', dark); map.setOptions({styles:dark ? DARK_STYLE : null}); for(const l of ACTIVE) l.layer && l.layer.eachLayer(p => p.setStyle(lineStyle(l))); }
+applyTheme();
+// Screen positions (fractional pixels, so movement is smooth) via an empty overlay's projection
+const ov = new google.maps.OverlayView(); ov.onAdd = ov.draw = ov.onRemove = () => {}; ov.setMap(map);
+const mapSize = () => { const d = map.getDiv(); return {x:d.clientWidth, y:d.clientHeight}; };
+const toScreen = p => ov.getProjection().fromLatLngToContainerPixel(new google.maps.LatLng(p[0], p[1]));
+
+// train canvas overlay (on top of the map, redrawn each frame)
 const cv = document.createElement('canvas'); cv.id='trains';
-map.getContainer().appendChild(cv);
+map.getDiv().appendChild(cv);
 const ctx = cv.getContext('2d');
-function sizeCanvas(){ const s=map.getSize(), dpr=Math.min(2,devicePixelRatio||1); cv.width=s.x*dpr; cv.height=s.y*dpr; cv.style.width=s.x+'px'; cv.style.height=s.y+'px'; ctx.setTransform(dpr,0,0,dpr,0,0); }
-map.on('resize', sizeCanvas); sizeCanvas();
+function sizeCanvas(){ const s=mapSize(), dpr=Math.min(2,devicePixelRatio||1); cv.width=s.x*dpr; cv.height=s.y*dpr; cv.style.width=s.x+'px'; cv.style.height=s.y+'px'; ctx.setTransform(dpr,0,0,dpr,0,0); }
+addEventListener('resize', sizeCanvas); sizeCanvas();
 
 // ---------- load line geometry ----------
 // Both directions are loaded: some stations only appear in the inbound sequence
@@ -239,7 +253,7 @@ async function loadLine(l){
   l.alias = {};
   l.seg = store.get('segt:'+l.id) || {};
   l.curves = l.polys.map(roundCorners);
-  l.layer = L.layerGroup(l.curves.map(p => L.polyline(p, lineStyle(l)))).addTo(map);
+  l.layer = new Group(); for(const p of l.curves) l.layer.addLayer(gLine(p, lineStyle(l)));
   l.pathCache = {}; l.snapCache = {};
 }
 
@@ -306,7 +320,7 @@ function trackPath(l, a, b){
   let pts = best;
   if(!pts){ // no drawn line joins these stations: draw one, so the train still sits on a line
     pts = [snapStop(l,a), snapStop(l,b)];
-    l.layer && l.layer.addLayer(L.polyline(pts, lineStyle(l)));
+    l.layer && l.layer.addLayer(gLine(pts, lineStyle(l)));
   }
   const cum=[0]; for(let i=1;i<pts.length;i++) cum.push(cum[i-1]+dist(pts[i-1],pts[i]));
   return l.pathCache[key] = {pts, cum, len:cum[cum.length-1]};
@@ -516,14 +530,11 @@ function draw(ts){
   const dt = Math.min(1, (ts - lastDraw)/1000); lastDraw = ts;
   const t0 = DEBUG ? performance.now() : 0;
   const k = 1 - Math.exp(-dt/TAU), ka = 1 - Math.exp(-dt/0.4);
-  const s = map.getSize(); ctx.clearRect(0,0,s.x,s.y);
+  if(!ov.getProjection()) return;
+  const s = mapSize(); ctx.clearRect(0,0,s.x,s.y);
   // train size: a long thin rectangle, roughly tube-train proportions (not to scale)
   const z = map.getZoom(), hl = Math.max(7, Math.min(16, (z-9)*3)), hw = Math.max(2.2, hl/3.6);
-  const wall = Date.now(), cosLat = Math.cos(map.getCenter().lat*rad);
-  // Leaflet's latLngToContainerPoint rounds to whole pixels, which makes slow trains move in
-  // 1-pixel hops. Project without rounding so they glide (canvas draws at sub-pixel positions).
-  const zz = map.getZoom(), origin = map.project(map.getCenter(), zz).subtract(map.getSize().divideBy(2));
-  const toScreen = ll => map.project(ll, zz).subtract(origin);
+  const wall = Date.now(), cosLat = Math.cos(map.getCenter().lat()*rad);
   const drawn = [], byLine = new Map();
   for(const t of trains.values()){
     const l = BY[t.line]; if(!l.on || !shown(l) || wall - t.seen > REFRESH*1.5) continue;
@@ -570,6 +581,12 @@ function draw(ts){
     ctx.beginPath(); rect(r); ctx.lineWidth = 4; ctx.strokeStyle = dark ? '#fff' : '#111'; ctx.stroke();
     ctx.fillStyle = BY[t.line].colour; ctx.fill();
   }
+  // you: blue dot with accuracy halo, on top of everything
+  if(me){
+    const c = toScreen(me), mpp = 156543.03*Math.cos(me[0]*rad)/2**map.getZoom();
+    ctx.beginPath(); ctx.arc(c.x, c.y, Math.max(10, meAcc/mpp), 0, 7); ctx.fillStyle = 'rgba(26,115,232,.15)'; ctx.fill();
+    ctx.beginPath(); ctx.arc(c.x, c.y, 8, 0, 7); ctx.fillStyle = '#1a73e8'; ctx.fill(); ctx.lineWidth = 3; ctx.strokeStyle = '#fff'; ctx.stroke();
+  }
   const h = hover && drawn.find(d => d[0]===hover);
   if(h){ ctx.strokeStyle=dark?'#fff':'#000'; ctx.lineWidth=1.5; ctx.beginPath(); ctx.arc(h[1],h[2],hl+4,0,7); ctx.stroke(); }
   draw.hit = drawn;
@@ -598,7 +615,7 @@ function nearest(x,y){
 }
 const esc = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'})[c]);
 function showTip(e){
-  const r = map.getContainer().getBoundingClientRect();
+  const r = map.getDiv().getBoundingClientRect();
   const t = nearest(e.clientX-r.left, e.clientY-r.top); hover = t;
   const tip = $('tip');
   if(!t){ tip.style.display='none'; return; }
@@ -615,8 +632,8 @@ function showTip(e){
   tip.style.display='block';
   tip.style.left = Math.max(8, Math.min(innerWidth-258, e.clientX+14))+'px'; tip.style.top = Math.max(8, Math.min(innerHeight-150, e.clientY+14))+'px';
 }
-map.getContainer().addEventListener('mousemove', showTip);
-map.getContainer().addEventListener('click', showTip);
+map.getDiv().addEventListener('mousemove', showTip);
+map.getDiv().addEventListener('click', showTip);
 
 // ====================================================================================
 // Journey app: plan with TfL Journey Planner, track live, re-plan when things go wrong
@@ -695,17 +712,6 @@ async function planJourneys(from, to, when){
 // Google's directions work almost anywhere, but give timetable times only (no live boards or
 // vehicle positions), and its terms only allow drawing them on a Google map, so Google journeys
 // are shown as a step list with an "Open in Google Maps" link rather than drawn on this map.
-const GKEY = Q.get('gkey') || 'AIzaSyBoPbaWi2vyme87RJceKPGo-lCRNRff1FY';
-let gReady = null;
-function loadGoogle(){
-  return gReady ||= new Promise((res, rej) => {
-    window.__gInit = () => res();
-    const s = document.createElement('script');
-    s.src = `https://maps.googleapis.com/maps/api/js?key=${GKEY}&loading=async&callback=__gInit`;
-    s.onerror = () => { gReady = null; rej(new Error('Could not load Google')); };
-    document.head.appendChild(s);
-  });
-}
 const isCoord = s => /^-?\d+(\.\d+)?,-?\d+(\.\d+)?$/.test(s);
 const inLondon = s => { if(!isCoord(s)) return true; const [a, b] = s.split(',').map(Number); return a>51.28 && a<51.70 && b>-0.52 && b<0.34; };
 const stripHtml = s => (s||'').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
@@ -715,7 +721,8 @@ async function planGoogle(from, to, when){
   const loc = s => isCoord(s) ? {lat:+s.split(',')[0], lng:+s.split(',')[1]} : s;
   let res;
   try{
-    res = await new DirectionsService().route({origin:loc(from), destination:loc(to), travelMode:'TRANSIT',
+    const inUK = me && me[0] > 49.8 && me[0] < 61 && me[1] > -8.7 && me[1] < 1.9;
+    res = await new DirectionsService().route({origin:loc(from), destination:loc(to), travelMode:'TRANSIT', region:inUK ? 'gb' : undefined,
       provideRouteAlternatives:true, transitOptions:{departureTime:new Date(when || Date.now())}});
   }catch(e){ throw new Error(e && e.code==='ZERO_RESULTS' ? 'No public transport routes found' : e && e.code==='NOT_FOUND' ? 'Place not found' : 'Google directions error' + (e && e.code ? ' (' + e.code + ')' : '')); }
   const leg0 = res.routes[0]?.legs[0];
@@ -738,6 +745,7 @@ function parseGoogle(route){
       legs.push({mode:vt.toLowerCase(), kind, walk:false, dep, arr, summary:`${name} to ${tr.arrival_stop.name}`, detail:'',
         line:null, lineName:name, towards:tr.headsign || '', from:pt(tr.departure_stop.name, tr.departure_stop.location),
         to:pt(tr.arrival_stop.name, tr.arrival_stop.location), path, nStops:tr.num_stops || 0, disrupted:false, colour, gen:true});
+      tflLook(legs[legs.length-1]);
       t = arr;
     } else {
       legs.push({mode:'walking', kind:'walk', walk:true, dep:t, arr:t + dur, summary:stripHtml(s.instructions) || 'Walk',
@@ -747,6 +755,29 @@ function parseGoogle(route){
     }
   }
   return {dep:legs[0]?.dep ?? t, arr:lg.arrival_time ? +lg.arrival_time.value : t, legs, src:'google'};
+}
+// London legs of a Google journey: match them to TfL lines so they get roundels, live
+// countdowns and the moving-train view. Buses are matched by route number.
+const inLondonP = p => p[0]>51.28 && p[0]<51.70 && p[1]>-0.52 && p[1]<0.34;
+const inUKP = p => p[0]>49.8 && p[0]<61 && p[1]>-8.7 && p[1]<1.9;
+function tflLook(L){
+  if(!inLondonP(L.from.p) && !inLondonP(L.to.p)){ if(L.kind==='rail' && inUKP(L.from.p)) L.gen = false; return; }
+  if(L.kind==='bus'){ L.tflBus = L.lineName.toLowerCase(); L.colour = '#DC241F'; L.gen = false; return; }
+  const n = L.lineName.toLowerCase().replace(/\s+line$/, '').replace(/^london\s+/, '').trim();
+  const l = ACTIVE.find(l => l.mode !== 'bus' && (l.name.toLowerCase() === n || l.id === n.replace(/\s*&\s*/g, '-').replace(/\s+/g, '-')
+    || (n === 'dlr' && l.id === 'dlr') || (/tram/.test(n) && l.id === 'tram')));
+  if(l){ L.tflLine = l.id; L.kind = l.mode; L.colour = l.colour; L.gen = false; }
+  else if(L.kind === 'rail') L.gen = false; // National Rail in London
+}
+async function enrichLeg(L){
+  if(L.walk || L.line || (!L.tflLine && !L.tflBus) || L.enriched) return; L.enriched = true;
+  const l = L.tflBus ? await addLine(L.tflBus, L.lineName, '#DC241F', 'bus') : BY[L.tflLine];
+  if(!l || !l.layer) return;
+  // the right stops in the right direction: a route that calls at a stop near each end, in order
+  const near = (p, max) => Object.keys(l.stops).filter(id => dist(l.stops[id].p, p) < max);
+  const A = near(L.from.p, 300), B = near(L.to.p, 300);
+  for(const r of l.routes) for(const a of A){ const ia = r.ids.indexOf(a); if(ia < 0) continue;
+    for(const b of B){ if(r.ids.indexOf(b) > ia){ L.line = l.id; L.from.id = a; L.to.id = b; return; } } }
 }
 const planFor = j => j && j.src === 'google' ? planGoogle : planJourneys;
 const gmapsLink = j => { const a = j.legs[0].from.p, b = j.legs[j.legs.length-1].to.p;
@@ -815,34 +846,44 @@ let me = null, meAcc = 0, meAt = 0; // GPS
 const SIM = Q.get('sim') === '1';
 
 // ---------- map layers ----------
-const routeLayer = L.layerGroup().addTo(map), altLayer = L.layerGroup().addTo(map);
+const routeLayer = new Group(), altLayer = new Group();
+const CIRCLE = google.maps.SymbolPath.CIRCLE;
 function drawJourney(j, layer, ghost){
-  layer.clearLayers(); if(!j || j.src === 'google') return; // Google routes may only be drawn on Google maps
+  layer.clearLayers(); if(!j) return;
   for(const g of j.legs){
-    if(g.walk){ layer.addLayer(L.polyline(g.path, {color:g.colour, weight:ghost?3:4, dashArray:'2 8', lineCap:'round', opacity:ghost?.6:.95, interactive:false})); continue; }
-    if(!ghost) layer.addLayer(L.polyline(g.path, {color:dark?'#000':'#fff', weight:10, opacity:.9, interactive:false}));
-    layer.addLayer(L.polyline(g.path, {color:g.colour, weight:ghost?4:6, opacity:ghost?.55:1, dashArray:ghost?'8 8':null, interactive:false}));
-    for(const s of [g.from, g.to]) layer.addLayer(L.circleMarker(s.p, {radius:ghost?3:5, color:g.colour, weight:3, fillColor:'#fff', fillOpacity:1, interactive:false}));
+    const path = g.path.map(LL);
+    if(g.walk){ // dotted line
+      layer.addLayer(new google.maps.Polyline({path, strokeOpacity:0, clickable:false, zIndex:5,
+        icons:[{icon:{path:CIRCLE, scale:ghost?1.6:2.2, fillColor:g.colour, fillOpacity:ghost?.6:1, strokeOpacity:0}, offset:'0', repeat:'9px'}]}));
+      continue;
+    }
+    if(ghost){ // dashed
+      layer.addLayer(new google.maps.Polyline({path, strokeOpacity:0, clickable:false, zIndex:6,
+        icons:[{icon:{path:'M 0,-1 0,1', strokeColor:g.colour, strokeOpacity:.7, strokeWeight:4, scale:3}, offset:'0', repeat:'14px'}]}));
+    } else {
+      layer.addLayer(new google.maps.Polyline({path, strokeColor:dark?'#000':'#fff', strokeWeight:10, strokeOpacity:.9, clickable:false, zIndex:7}));
+      layer.addLayer(new google.maps.Polyline({path, strokeColor:g.colour, strokeWeight:6, strokeOpacity:1, clickable:false, zIndex:8}));
+    }
+    for(const s of [g.from, g.to]) layer.addLayer(new google.maps.Marker({position:LL(s.p), clickable:false, zIndex:9,
+      icon:{path:CIRCLE, scale:ghost?3:5, fillColor:'#fff', fillOpacity:1, strokeColor:g.colour, strokeWeight:3}}));
   }
 }
-const fitJourney = j => j && j.src !== 'google' && map.fitBounds(L.latLngBounds(j.legs.flatMap(L => L.path)), {paddingTopLeft:[innerWidth>700?380:20, 20], paddingBottomRight:[20, innerWidth>700?20:innerHeight*0.45]});
-
-// "me" marker: blue dot (draggable in test mode)
-map.createPane('me').style.zIndex = 460; // above the trains canvas
-const meDot = L.circleMarker([0,0], {pane:'me', radius:8, color:'#fff', weight:3, fillColor:'#1a73e8', fillOpacity:1, interactive:SIM});
-const meHalo = L.circle([0,0], {pane:'me', radius:30, color:'#1a73e8', weight:0, fillOpacity:.15, interactive:false});
-let simMarker = null;
+function fitJourney(j){
+  if(!j) return; const b = new google.maps.LatLngBounds();
+  for(const g of j.legs) for(const p of g.path) b.extend(LL(p));
+  const wide = innerWidth > 700;
+  map.fitBounds(b, {top:20, left:wide?390:20, right:20, bottom:wide?20:Math.round(innerHeight*0.5)});
+}
 function setMe(p, acc){
   me = p; meAcc = acc||15; meAt = Date.now();
-  if(!map.hasLayer(meDot)){ meHalo.addTo(map); meDot.addTo(map); }
-  meDot.setLatLng(p); meHalo.setLatLng(p).setRadius(meAcc);
-  if(J.follow) map.panTo(p, {animate:true});
+  if(J.follow) map.panTo(LL(p));
   if(J.active) throttleMonitor();
 }
+let simMarker = null;
 if(SIM){
   // Test mode: drag the blue marker to pretend to move
-  simMarker = L.marker(HOME[0], {draggable:true, title:'Drag me (test mode)'}).addTo(map);
-  simMarker.on('drag', e => setMe([e.latlng.lat, e.latlng.lng], 10));
+  simMarker = new google.maps.Marker({position:LL(HOME[0]), map, draggable:true, title:'Drag me (test mode)', zIndex:20});
+  simMarker.addListener('drag', e => setMe([e.latLng.lat(), e.latLng.lng()], 10));
   setMe(HOME[0], 10);
 } else if('geolocation' in navigator){
   navigator.geolocation.watchPosition(pos => setMe([pos.coords.latitude, pos.coords.longitude], pos.coords.accuracy),
@@ -901,7 +942,7 @@ async function projectPlan(){
     if(pick){
       L.pick = pick; L.board = pick.at; t = pick.atDest; L.wait = pick.at - ready;
       if(i===J.idx || (i===J.idx+1 && legs[J.idx].walk)) J.vehicle = {line:L.line, vid:pick.vid};
-    } else if(L.dep >= ready){ L.pick = null; L.board = L.dep; t = Math.max(t, L.arr); }
+    } else if(L.dep >= (deps ? ready : t - 60000)){ L.pick = null; L.board = L.dep; t = Math.max(t, L.arr); } // timetable only: a minute's leeway
     else { // planned service already gone and no live info: next one, guessed at the same journey time + a typical wait
       L.pick = null; L.missed = true; L.board = ready + (L.kind==='rail' ? 15 : L.kind==='bus' ? 8 : 4)*60000; t = L.board + (L.arr - L.dep);
     }
@@ -972,18 +1013,19 @@ async function highlightVehicle(){
 async function startJourney(j){
   Object.assign(J, {plan:j, active:true, idx:0, riding:false, vehicle:null, proj:null, suggestion:null, dismissed:null, lastReplan:Date.now(), follow:true});
   drawJourney(j, routeLayer); altLayer.clearLayers(); fitJourney(j);
+  await Promise.all(j.legs.map(L => enrichLeg(L).catch(() => {})));
   for(const L of j.legs) if(L.kind==='bus' && L.line) addLine(L.line, L.lineName, L.colour, 'bus');
   try{ J.wake = await navigator.wakeLock?.request('screen'); }catch(e){}
   window.DIM_TRAINS = true;
   showView('active'); renderActive(); monitor(); refresh().catch(()=>{});
 }
-function switchRoute(){
+async function switchRoute(){
   const s = J.suggestion; if(!s) return;
   const keepRiding = J.riding && s.journey.legs[0] === J.plan.legs[J.idx];
   Object.assign(J, {plan:s.journey, idx:0, riding:keepRiding, suggestion:null, dismissed:null, proj:null});
   if(!keepRiding) J.vehicle = null;
   drawJourney(J.plan, routeLayer); altLayer.clearLayers();
-  for(const L of J.plan.legs) if(L.kind==='bus' && L.line) addLine(L.line, L.lineName, L.colour, 'bus');
+  await Promise.all(J.plan.legs.map(L => enrichLeg(L).catch(() => {})));
   monitor();
 }
 function keepRoute(){ if(J.suggestion){ J.dismissed = J.suggestion.sig; J.suggestion = null; altLayer.clearLayers(); renderActive(); } }
@@ -1015,7 +1057,7 @@ function renderOptions(){
       <div class="opt-top"><b>${hhmm(j.dep)} → ${hhmm(j.arr)}</b><span>${mins(j.arr-j.dep)} min</span></div>
       <div class="pills">${j.legs.map(pill).join('<span class="sep">›</span>')}</div>
       ${j.legs.some(L => L.disrupted) ? '<div class="warn">⚠ Disruption on this route</div>' : ''}
-      ${j.src==='google' ? '<div class="muted">Timetable times · directions by Google</div>' : ''}
+
     </button>`).join('') + (J.options.length ? `<button id="go" class="primary">Start journey</button>` : '');
 }
 const placeName = p => p.placeType==='PointOfInterest' ? p.commonName.replace(/^[^,]+,\s*/, '') : cleanName(p.commonName);
@@ -1026,40 +1068,28 @@ function renderAmbiguous(d){
     if(!opts.length || d[key].matchStatus === 'identified') continue;
     box.push(`<div class="amb-h">${label}: did you mean…</div>` + opts.map(o => `<button class="amb" data-end="${label}" data-q="${esc(o.parameterValue)}" data-label="${esc(placeName(o.place))}">${esc(placeName(o.place))}<small>${esc(o.place.placeType==='StopPoint'?'Stop / station':o.place.placeType==='PointOfInterest'?'Place':o.place.placeType||'')}</small></button>`).join(''));
   }
-  box.push(`<button class="amb" data-google="1">Search everywhere for “${esc($('to').value.trim())}”<small>Google</small></button>`);
   $('options').innerHTML = box.join('');
 }
 
-async function search(google = false){
+async function search(){
   const toTxt = $('to').value.trim(); if(!toTxt) return $('to').focus();
   if(!J.to || J.to.label !== toTxt) J.to = {label:toTxt, q:toTxt};
   const fromTxt = $('from').value.trim();
   if(!fromTxt){
-    if(!me){ J.wantGps = true; $('options').innerHTML = '<div class="muted">Waiting for your location… (or type a starting point)</div>'; return setTimeout(() => me && search(google), 2500); }
+    if(!me){ J.wantGps = true; $('options').innerHTML = '<div class="muted">Waiting for your location… (or type a starting point)</div>'; return setTimeout(() => me && search(), 2500); }
     J.from = {label:'', q:`${me[0].toFixed(5)},${me[1].toFixed(5)}`};
   } else if(!J.from || J.from.label !== fromTxt) J.from = {label:fromTxt, q:fromTxt};
   let when = Date.now();
   if($('when').value){ const [h, m] = $('when').value.split(':').map(Number); const d = new Date(); d.setHours(h, m, 0, 0); when = +d; }
-  // London trips use TfL (live data); anything TfL can't plan goes to Google
-  let useG = google || !inLondon(J.from.q) || !inLondon(J.to.q), r = null;
   $('options').innerHTML = '<div class="muted">Finding routes…</div>';
+  let r = null;
   try{
-    if(!useG){
-      try{ r = await planJourneys(J.from.q, J.to.q, when); }catch(e){ useG = true; }
-      if(r && r.ambiguous){
-        // TfL only knows London: weak matches (e.g. "Gare du Nord, Paris" ~540, London places 950+) go to Google
-        const weak = ['fromLocationDisambiguation','toLocationDisambiguation'].some(k => {
-          const x = r.ambiguous[k]; if(!x || x.matchStatus !== 'list') return false;
-          return Math.max(0, ...(x.disambiguationOptions||[]).map(o => o.matchQuality||0)) < 900; });
-        if(!weak) return renderAmbiguous(r.ambiguous);
-        useG = true;
-      }
-      if(r && r.journeys && !r.journeys.length) useG = true;
-    }
-    if(useG){
-      $('options').innerHTML = '<div class="muted">Finding routes with Google…</div>';
-      r = await planGoogle(J.from.q, J.to.q, when);
-      if(r.end) J.to.q = r.end.map(x => x.toFixed(5)).join(','); // so re-planning goes to the same place
+    // Google plans everything (all transport, anywhere); TfL's planner is the backup if Google fails
+    try{ r = await planGoogle(J.from.q, J.to.q, when); if(r.end) J.to.q = r.end.map(x => x.toFixed(5)).join(','); }
+    catch(e){
+      if(/No public transport|not found/i.test(e.message) || !inLondon(J.from.q)) throw e;
+      r = await planJourneys(J.from.q, J.to.q, when);
+      if(r.ambiguous) return renderAmbiguous(r.ambiguous);
     }
     J.options = r.journeys.slice(0, 4); J.sel = 0;
     if(!J.options.length){ $('options').innerHTML = '<div class="muted">No routes found.</div>'; return; }
@@ -1097,15 +1127,13 @@ function renderActive(){
   $('banner').hidden = !s;
   if(s) $('banner').innerHTML = `<div>${s.text}</div><div class="pills">${s.journey.legs.map(pill).join('<span class="sep">›</span>')}</div>
     <div class="row2"><button id="bSwitch" class="primary">Switch</button><button id="bKeep">Keep current</button></div>`;
-  $('steps').innerHTML = J.plan.legs.map(legRow).join('') + (J.plan.src === 'google'
-    ? `<li class="gnote"><a href="${gmapsLink(J.plan)}" target="_blank" rel="noopener">Open route in Google Maps ↗</a><div class="muted">Directions by Google · timetable times (live checks are London-only)</div></li>` : '');
+  $('steps').innerHTML = J.plan.legs.map(legRow).join('') + `<li class="gnote"><a href="${gmapsLink(J.plan)}" target="_blank" rel="noopener">Open in Google Maps ↗</a></li>`;
 }
 
 // wire up
 $('fSearch').addEventListener('submit', e => { e.preventDefault(); search(); });
 $('options').addEventListener('click', e => {
   const o = e.target.closest('.opt'), a = e.target.closest('.amb');
-  if(a && a.dataset.google) return search(true);
   if(o){ J.sel = +o.dataset.i; renderOptions(); drawJourney(J.options[J.sel], routeLayer); fitJourney(J.options[J.sel]); }
   else if(a){ const end = a.dataset.end === 'From' ? 'from' : 'to'; J[end] = {label:a.dataset.label, q:a.dataset.q}; $(end).value = a.dataset.label; search(); }
   else if(e.target.id === 'go') startJourney(J.options[J.sel]);
@@ -1114,9 +1142,9 @@ $('banner').addEventListener('click', e => { if(e.target.id==='bSwitch') switchR
 $('bEnd').onclick = endJourney;
 $('bReplan').onclick = () => { J.dismissed = null; J.lastReplan = 0; monitor(); };
 $('bSwap').onclick = () => { const a = $('from').value; $('from').value = $('to').value; $('to').value = a; const f = J.from; J.from = J.to; J.to = f; };
-$('bLocate').onclick = () => { J.follow = true; if(me) map.setView(me, Math.max(map.getZoom(), 15)); else J.wantGps = true; };
-map.on('dragstart', () => { J.follow = false; });
-map.on('movestart', () => { $('tip').style.display = 'none'; hover = null; }); // close train info when the map moves
+$('bLocate').onclick = () => { J.follow = true; if(me){ map.panTo(LL(me)); map.setZoom(Math.max(map.getZoom(), 15)); } else J.wantGps = true; };
+map.addListener('dragstart', () => { J.follow = false; $('tip').style.display = 'none'; hover = null; }); // also closes train info
+map.addListener('zoom_changed', () => { $('tip').style.display = 'none'; hover = null; });
 $('bTrains').onclick = () => {
   TRAINS_ON = !TRAINS_ON; try{ localStorage.setItem('trainsOn', TRAINS_ON?'1':'0'); }catch(e){}
   for(const l of ACTIVE) l.layer && l.layer.eachLayer(p => p.setStyle(lineStyle(l)));
@@ -1148,7 +1176,7 @@ restoreState();
     await sleep(good ? REFRESH : Math.min(REFRESH*8, REFRESH*2**Math.min(3, failStreak)));
   }
 })();
-}
+})();
 </script>
 </body>
 </html>
