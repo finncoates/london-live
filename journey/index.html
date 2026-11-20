@@ -321,8 +321,16 @@ const vkey = p => p[0].toFixed(4) + ',' + p[1].toFixed(4);
 const W0 = [51.5, -0.1];
 function world(p, z){ const sc = 256*2**z, s = Math.sin(p[0]*rad);
   return [(p[1] + 180)/360*sc, (0.5 - Math.log((1 + s)/(1 - s))/(4*Math.PI))*sc]; }
-let PV = null; // {z, ox, oy}: screen = world + offset
-function viewNow(){ const z = map.getZoom(), r = toScreen(W0), w = world(W0, z); return PV = {z, ox:r.x - w[0], oy:r.y - w[1]}; }
+// During Google's zoom animation the map is drawn at in-between (fractional) zoom levels, while
+// map.getZoom() already says the target. So read the real scale off the projection each frame.
+const W1 = [51.5, 0.0];
+let PV = null; // {z (real, fractional), zi (integer target), k = 2^(z-zi), ox, oy}: screen = world(p, z) + offset
+function viewNow(){
+  const zi = map.getZoom(), r = toScreen(W0), r1 = toScreen(W1);
+  const w0 = world(W0, 0), w1 = world(W1, 0), sc = (r1.x - r.x)/(w1[0] - w0[0]);
+  const z = sc > 0 && isFinite(sc) ? Math.log2(sc) : zi, w = world(W0, z);
+  return PV = {z, zi, k:2**(z - zi), ox:r.x - w[0], oy:r.y - w[1]};
+}
 const scr = p => { const w = world(p, PV.z); return {x:w[0] + PV.ox, y:w[1] + PV.oy}; };
 
 function buildLanes(){
@@ -381,12 +389,12 @@ function buildLanes(){
       for(const poly of l.polys) for(const q of poly){ const d = dist(q, s.p); if(d < bd){ bd = d; best = q; } }
       if(best) l.vk[id] = vkey(best); } }
 }
-const lineW = () => { const z = map.getZoom(); return z <= 10 ? 2.5 : z <= 11 ? 3.2 : z <= 12 ? 4 : z <= 13 ? 5 : z <= 15 ? 6 : 7; };
+const lineW = (z = map.getZoom()) => { z = Math.round(z); return z <= 10 ? 2.5 : z <= 11 ? 3.2 : z <= 12 ? 4 : z <= 13 ? 5 : z <= 15 ? 6 : 7; };
 // sideways offset (px) of line l on an edge: lines sharing it are spread out, centred on the track
 function laneOffset(e, id){
   const vis = e.lines.filter(x => { const m = BY[x]; return m && lineStyle(m).opacity > 0; });
   const i = vis.indexOf(id); if(i < 0 || vis.length < 2) return 0;
-  return (i - (vis.length - 1)/2) * lineW();
+  return (i - (vis.length - 1)/2) * lineW() * (PV ? PV.k : 1);
 }
 // Line shapes (Path2D in world pixels) are built once per zoom / visible set; panning just shifts them.
 let LPATHS = null, lpathSig = '';
@@ -401,7 +409,7 @@ function buildPaths(z){
       const eo = [];
       for(let i=1;i<n;i++){ let ka = vkey(poly[i-1]), kb = vkey(poly[i]), sign = 1;
         if(ka > kb){ [ka, kb] = [kb, ka]; sign = -1; }
-        const e = LANES.get(ka + '|' + kb); const off = e ? laneOffset(e, l.id) * sign : 0;
+        const e = LANES.get(ka + '|' + kb); const off = e ? laneOffset(e, l.id) / (PV ? PV.k : 1) * sign : 0;
         const dx = P[i].x - P[i-1].x, dy = P[i].y - P[i-1].y, L = Math.hypot(dx, dy) || 1;
         eo.push({nx:-dy/L, ny:dx/L, off}); }
       const Q = P.map((p, i) => {
@@ -420,24 +428,44 @@ function buildPaths(z){
     LPATHS.set(l, path);
   }
 }
+// Lines are rendered once into an off-screen image a bit larger than the screen; while you pan or
+// zoom that image is just moved/scaled (cheap), and only re-rendered when you leave it or the zoom settles.
+let OFF = null;
+function renderOff(zi, T, k){
+  const s = mapSize(), m = 0.3, odpr = LDPR();
+  // visible area in world px at zoom zi, plus a margin all round
+  const x0 = (0 - T.x)/k, y0 = (0 - T.y)/k, w = s.x/k, hh = s.y/k;
+  const box = {x:x0 - w*m, y:y0 - hh*m, w:w*(1+2*m), h:hh*(1+2*m)};
+  const c = OFF && OFF.canvas || document.createElement('canvas');
+  c.width = Math.ceil(box.w*odpr); c.height = Math.ceil(box.h*odpr);
+  const g = c.getContext('2d'); g.setTransform(odpr, 0, 0, odpr, -box.x*odpr, -box.y*odpr);
+  g.lineJoin = 'round'; g.lineCap = 'round'; const W = lineW(zi);
+  for(const [l, path] of LPATHS){
+    const op = lineStyle(l).opacity; if(!op) continue;
+    g.globalAlpha = op; g.strokeStyle = ink(l.colour); g.lineWidth = W; g.stroke(path);
+    if(PARALLEL.has(l.mode)){ g.globalAlpha = 1; g.strokeStyle = MAP_BG(); g.lineWidth = W/3; g.stroke(path); }
+  }
+  OFF = {canvas:c, zi, box, odpr, sig:offSig()};
+}
+const offSig = () => [dark, MAP_STYLE, lpathSig, ...ACTIVE.map(l => lineStyle(l).opacity)].join();
 function drawLines(){
   if(!ov.getProjection() || !PV) return;
   if(!LANES) buildLanes();
-  const z = PV.z, vis = ACTIVE.map(l => lineStyle(l).opacity > 0 ? 1 : 0).join('');
+  const z = PV.zi, vis = ACTIVE.map(l => lineStyle(l).opacity > 0 ? 1 : 0).join('');
   const psig = z + vis + (LANES ? LANES.size : 0);
-  if(!LPATHS || psig !== lpathSig){ lpathSig = psig; buildPaths(z); linesSig = ''; }
-  const sig = [PV.ox.toFixed(1), PV.oy.toFixed(1), psig, dark, MAP_STYLE, ...ACTIVE.map(l => lineStyle(l).opacity)].join();
+  if(!LPATHS || psig !== lpathSig){ lpathSig = psig; buildPaths(z); OFF = null; }
+  // screen = world_zi * k + T
+  const k = PV.k, w0 = world(W0, z), r = scr(W0), T = {x:r.x - w0[0]*k, y:r.y - w0[1]*k}, s = mapSize();
+  const settled = Math.abs(k - 1) < 1e-3;
+  const inside = OFF && OFF.zi === z && (0 - T.x)/k >= OFF.box.x && (0 - T.y)/k >= OFF.box.y
+    && (s.x - T.x)/k <= OFF.box.x + OFF.box.w && (s.y - T.y)/k <= OFF.box.y + OFF.box.h;
+  if(!OFF || OFF.zi !== z || OFF.sig !== offSig() || (!inside && settled) || (settled && OFF.k1 === false)){ renderOff(z, T, k); OFF.k1 = settled; }
+  const sig = [T.x.toFixed(1), T.y.toFixed(1), k.toFixed(4), OFF.box.x, OFF.box.y].join();
   if(sig === linesSig) return; linesSig = sig;
-  const s = mapSize(), dpr = Math.min(2, devicePixelRatio||1), W = lineW();
+  const dpr = LDPR();
   lctx.setTransform(dpr, 0, 0, dpr, 0, 0); lctx.clearRect(0, 0, s.x, s.y);
-  lctx.setTransform(dpr, 0, 0, dpr, PV.ox*dpr, PV.oy*dpr);
-  lctx.lineJoin = 'round'; lctx.lineCap = 'round';
-  for(const [l, path] of LPATHS){
-    const op = lineStyle(l).opacity; if(!op) continue;
-    lctx.globalAlpha = op; lctx.strokeStyle = ink(l.colour); lctx.lineWidth = W; lctx.stroke(path);
-    if(PARALLEL.has(l.mode)){ lctx.globalAlpha = 1; lctx.strokeStyle = MAP_BG(); lctx.lineWidth = W/3; lctx.stroke(path); }
-  }
-  lctx.globalAlpha = 1; lctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  lctx.imageSmoothingEnabled = true;
+  lctx.drawImage(OFF.canvas, OFF.box.x*k + T.x, OFF.box.y*k + T.y, OFF.box.w*k, OFF.box.h*k);
 }
 // a train's sideways lane offset: the lane of the edge between its previous and next station
 function trainLane(t, l){
@@ -462,9 +490,11 @@ const lctx = lcv.getContext('2d');
 const cv = document.createElement('canvas'); cv.id='trains';
 map.getDiv().appendChild(cv);
 const ctx = cv.getContext('2d');
-function sizeCanvas(){ const s=mapSize(), dpr=Math.min(2,devicePixelRatio||1);
+// layer resolution: crisp enough for thin lines and small trains, but not full Retina (4x the pixels to push)
+const LDPR = () => Math.min(1.25, devicePixelRatio||1);
+function sizeCanvas(){ const s=mapSize(), dpr=LDPR();
   for(const [c, x] of [[cv, ctx], [lcv, lctx]]){ c.width=s.x*dpr; c.height=s.y*dpr; c.style.width=s.x+'px'; c.style.height=s.y+'px'; x.setTransform(dpr,0,0,dpr,0,0); }
-  linesSig = ''; LPATHS = null; }
+  linesSig = ''; LPATHS = null; OFF = null; }
 new ResizeObserver(sizeCanvas).observe(map.getDiv()); sizeCanvas();
 // On phones the panel is a bottom sheet: the map ends where it starts, so Google's logo, your
 // position and the map centre are never hidden behind it.
@@ -785,7 +815,7 @@ function draw(ts){
   viewNow(); drawLines();
   const s = mapSize(); ctx.clearRect(0,0,s.x,s.y);
   // train size: a long thin rectangle, roughly tube-train proportions (not to scale)
-  const z = map.getZoom(), hl0 = Math.max(7, Math.min(16, (z-9)*3)), hw0 = Math.max(2.2, hl0/3.6);
+  const z = PV.z, hl0 = Math.max(7, Math.min(16, (z-9)*3)), hw0 = Math.max(2.2, hl0/3.6);
   // zoomed right in: once a real train would be bigger than the icon, draw it at real size
   const mpp = 156543.03*Math.cos(map.getCenter().lat()*rad)/2**z; // metres per screen pixel
   const size = l => { const [len, wid] = REAL_SIZE[l.mode] || REAL_SIZE.tube;
@@ -854,7 +884,7 @@ function draw(ts){
   }
   // you: blue dot with accuracy halo, on top of everything
   if(me){
-    const c = scr(me), mpp = 156543.03*Math.cos(me[0]*rad)/2**map.getZoom();
+    const c = scr(me), mpp = 156543.03*Math.cos(me[0]*rad)/2**PV.z;
     ctx.beginPath(); ctx.arc(c.x, c.y, Math.max(10, meAcc/mpp), 0, 7); ctx.fillStyle = 'rgba(26,115,232,.15)'; ctx.fill();
     ctx.beginPath(); ctx.arc(c.x, c.y, 8, 0, 7); ctx.fillStyle = '#1a73e8'; ctx.fill(); ctx.lineWidth = 3; ctx.strokeStyle = '#fff'; ctx.stroke();
   }
