@@ -130,6 +130,7 @@ body.dark .alert{color:#0e0f12}
 .prefs::-webkit-scrollbar{display:none}
 .prefs button{flex:none;font-size:12.5px;padding:5px 10px;border-radius:99px}
 .prefs button.sel{background:var(--ink);color:var(--bg);border-color:var(--ink);font-weight:600}
+.wm{border:0;background:none;padding:0 6px 0 0;font-size:12px;color:var(--acc);font-weight:600;white-space:nowrap;min-width:44px;text-align:left}
 .note{background:var(--soft);border-radius:10px;padding:8px 10px;font-size:13px;margin-bottom:10px}
 .opt{text-align:left;display:grid;gap:6px;padding:10px 12px}
 .opt.sel{border-color:var(--acc);box-shadow:0 0 0 1px var(--acc) inset}
@@ -212,7 +213,7 @@ body.dark #simnote{background:#1f2a44;color:#c6dafc}
       <div class="field"><label for="from">From</label><input id="from" placeholder="My location" role="combobox" aria-autocomplete="list" aria-expanded="false"></div>
       <div class="field"><label for="to">To</label><input id="to" placeholder="Place, station or postcode" enterkeyhint="search" role="combobox" aria-autocomplete="list" aria-expanded="false"></div>
       <div class="row2">
-        <div class="field" style="flex:1"><label for="when">Leave</label><input id="when" type="time" title="Leave at (empty = now)"></div>
+        <div class="field" style="flex:1"><button type="button" id="whenMode" class="wm" title="Switch between leave at and arrive by">Leave</button><input id="when" type="time" title="Time (empty = now)" aria-label="Time"></div>
         <button type="button" id="bSwap" title="Swap from and to" aria-label="Swap from and to">⇅</button>
         <button type="submit" class="primary">Go</button>
       </div>
@@ -1089,13 +1090,15 @@ function parseJourney(j){
 // same services from the same places (stop ids aren't used: they're only filled in once a journey starts)
 const signature = legs => legs.filter(L => !L.walk).map(L => (L.lineName||L.line||L.mode) + '@' + L.from.p.map(x => x.toFixed(3))).join('|');
 
+// "Arrive by" (search only; re-planning while travelling always departs now)
+let ARRIVE = false;
 // route preference: fastest | fewer (changes) | walk (less walking) | stepfree (TfL, London only)
 let PREF = (() => { try{ return localStorage.getItem('pref') || 'fastest'; }catch(e){ return 'fastest'; } })();
 async function planJourneys(from, to, when){
   const p = ldnParts(when || Date.now());
   const jp = PREF === 'fewer' ? 'leastinterchange' : PREF === 'walk' ? 'leastwalking' : 'leasttime';
   const acc = PREF === 'stepfree' ? '&accessibilityPreference=NoSolidStairs,NoEscalators,StepFreeToPlatform' : '';
-  const qs = `?timeIs=Departing&journeyPreference=${jp}${acc}&date=${p.year}${p.month}${p.day}&time=${p.hour}${p.minute}`;
+  const qs = `?timeIs=${ARRIVE ? 'Arriving' : 'Departing'}&journeyPreference=${jp}${acc}&date=${p.year}${p.month}${p.day}&time=${p.hour}${p.minute}`;
   const url = API + `/Journey/JourneyResults/${encodeURIComponent(from)}/to/${encodeURIComponent(to)}` + qs + (KEY?'&'+KEY:'');
   const r = await fetch(url);
   if(r.status === 300){ const d = await r.json(); return {ambiguous:d}; }
@@ -1123,7 +1126,7 @@ async function planGoogle(from, to, when){
   try{
     const inUK = me && me[0] > 49.8 && me[0] < 61 && me[1] > -8.7 && me[1] < 1.9;
     res = await new DirectionsService().route({origin:loc(from), destination:loc(to), travelMode:'TRANSIT', region:inUK ? 'gb' : undefined,
-      provideRouteAlternatives:true, transitOptions:{departureTime:new Date(when || Date.now()),
+      provideRouteAlternatives:true, transitOptions:{...(ARRIVE ? {arrivalTime:new Date(when)} : {departureTime:new Date(when || Date.now())}),
         routingPreference:PREF === 'fewer' ? 'FEWER_TRANSFERS' : PREF === 'walk' || PREF === 'busonly' ? 'LESS_WALKING' : undefined,
         modes:PREF === 'busonly' ? ['BUS'] : undefined}});
   }catch(e){ throw new Error(e && e.code==='ZERO_RESULTS' ? 'No public transport routes found' : e && e.code==='NOT_FOUND' ? 'Place not found' : 'Google directions error' + (e && e.code ? ' (' + e.code + ')' : '')); }
@@ -1682,6 +1685,9 @@ function renderAmbiguous(d){
 }
 
 // "Leave at" time: today, or tomorrow if that time has already passed (by more than 30 min)
+let whenMode = 'leave';
+$('whenMode').onclick = () => { whenMode = whenMode === 'leave' ? 'arrive' : 'leave'; $('whenMode').textContent = whenMode === 'leave' ? 'Leave' : 'Arrive by';
+  if(!$('when').value) $('when').focus(); };
 function leaveAt(v){ const [hh, mm] = v.split(':').map(Number); const d = new Date(); d.setHours(hh, mm, 0, 0);
   if(+d < Date.now() - 1800000) d.setDate(d.getDate() + 1); return +d; }
 // wait up to ~30 s for a GPS fix, then ask for a typed start
@@ -1708,6 +1714,7 @@ async function search(){
   } else if(!J.from || J.from.label !== fromTxt) J.from = {label:fromTxt, q:fromTxt};
   let when = Date.now();
   if($('when').value) when = leaveAt($('when').value);
+  ARRIVE = whenMode === 'arrive' && !!$('when').value;
   $('options').innerHTML = '<div class="muted">Finding routes…</div>'; $('nearby').innerHTML = ''; nb.focus = null;
   let r = null;
   try{
@@ -1732,13 +1739,15 @@ async function search(){
       r = await planJourneys(tq(J.from), tq(J.to), when);
       if(r.ambiguous) return renderAmbiguous(r.ambiguous);
     }
+    ARRIVE = false;
     J.options = r.journeys.slice(0, 4); J.sel = 0; J.optEl = 'options';
+    if(whenMode === 'arrive' && $('when').value) J.options.sort((a, b) => b.dep - a.dep); // latest you can leave first
     if(!J.options.length){ $('options').innerHTML = '<div class="muted">No routes found.</div>'; return; }
     renderOptions(); drawJourney(J.options[0], routeLayer); fitJourney(J.options[0]);
     try{ localStorage.setItem('lastTo', JSON.stringify(J.to)); }catch(e){}
     if(J.pendingSave){ savePlace(J.pendingSave, J.to); J.pendingSave = null; $('to').placeholder = 'Place, station or postcode'; }
     addRecent(J.to);
-  }catch(e){ $('options').innerHTML = `<div class="muted">${esc(e.message)}</div>`; }
+  }catch(e){ ARRIVE = false; $('options').innerHTML = `<div class="muted">${esc(e.message)}</div>`; }
 }
 
 function legWarn(L){
