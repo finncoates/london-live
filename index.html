@@ -185,6 +185,7 @@ body.kiosk #map{bottom:0!important}
       <div class="seg2" role="group" aria-label="Map style"><button data-ms="google">Google Maps</button><button data-ms="original">Original</button></div></div>
     <label class="mm-row"><span>Hide places &amp; labels<small>Shops, landmarks, stations and area names. Street names stay.</small></span><input type="checkbox" id="mQuiet" class="switch"></label>
     <label class="mm-row"><span>Dark map</span><input type="checkbox" id="mDark" class="switch"></label>
+    <label class="mm-row"><span>Show trains<small>The moving train shapes. The lines stay.</small></span><input type="checkbox" id="mIcons" class="switch"></label>
   </div>
   <div class="chips" id="mModes" aria-label="Show transport types"></div>
   <div id="legend"></div>
@@ -645,6 +646,7 @@ let hover = null, lastDraw = 0;
 const HL = new Set(); // keys of highlighted trains (the user's vehicle)
 // real train sizes in metres [length, width]: e.g. a 7-car 1973/1992 Tube stock is ~110-130 m, Class 345 is 205 m
 const REAL_SIZE = {tube:[113, 2.65], elizabeth:[205, 2.8], overground:[100, 2.8], dlr:[87, 2.65], tram:[32, 2.65], bus:[11, 2.55], rail:[200, 2.8]};
+let SHOW_ICONS = (() => { try{ return localStorage.getItem('trainIcons') !== '0'; }catch(e){ return true; } })();
 const TAU = 2; // seconds: corrections after a refresh glide rather than jump
 function draw(ts){
   requestAnimationFrame(draw);
@@ -687,6 +689,9 @@ function draw(ts){
     const item = [t, c.x, c.y, c.x, c.y, r, cs, sn, hl, hw]; drawn.push(item);
     if(!byLine.has(l)) byLine.set(l, []); byLine.get(l).push(item);
   }
+  // "Show trains" off: no train shapes (your own train, if any, still shows)
+  if(!SHOW_ICONS){ for(let i = drawn.length-1; i >= 0; i--) if(!HL.has(drawn[i][0].key)) drawn.splice(i, 1);
+    for(const [l, items] of byLine){ const keep = items.filter(d => HL.has(d[0].key)); keep.length ? byLine.set(l, keep) : byLine.delete(l); } }
   const rect = r => { ctx.moveTo(r[0],r[1]); ctx.lineTo(r[2],r[3]); ctx.lineTo(r[4],r[5]); ctx.lineTo(r[6],r[7]); ctx.closePath(); };
   // batched: one path for all outlines, then one per line colour (far fewer canvas calls on a TV stick)
   ctx.lineJoin = 'round';
@@ -814,12 +819,14 @@ $('mModes').addEventListener('click', e => { const b = e.target.closest('[data-m
 // ---------- map options ----------
 function syncMapMenu(){
   for(const b of document.querySelectorAll('[data-ms]')) b.classList.toggle('sel', b.dataset.ms === MAP_STYLE);
-  $('mQuiet').checked = QUIET_ON; $('mDark').checked = dark;
+  $('mQuiet').checked = QUIET_ON; $('mDark').checked = dark; $('mIcons').checked = SHOW_ICONS;
 }
 $('bMap').onclick = () => { const m = $('mapMenu'); m.hidden = !m.hidden; $('bMap').setAttribute('aria-expanded', !m.hidden); syncMapMenu(); };
 $('mapMenu').addEventListener('click', e => { const b = e.target.closest('[data-ms]'); if(!b) return;
   MAP_STYLE = b.dataset.ms; try{ localStorage.setItem('mapStyle', MAP_STYLE); }catch(x){} applyTheme(); syncMapMenu(); });
 $('mQuiet').onchange = () => { QUIET_ON = $('mQuiet').checked; try{ localStorage.setItem('mapQuiet', QUIET_ON ? '1' : '0'); }catch(x){} map.setOptions({styles:mapStyles()}); };
+$('mIcons').onchange = () => { SHOW_ICONS = $('mIcons').checked; try{ localStorage.setItem('trainIcons', SHOW_ICONS ? '1' : '0'); }catch(x){}
+  $('tip').style.display = 'none'; hover = null; };
 $('mDark').onchange = () => { if($('mDark').checked !== dark) toggleDark(); };
 function toggleDark(){ dark = !dark; try{ localStorage.setItem('theme', dark ? 'dark' : 'light'); }catch(x){} applyTheme(); syncMapMenu(); renderModeChips(); renderLegend(); }
 $('bTheme').onclick = toggleDark;
