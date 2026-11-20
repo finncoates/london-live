@@ -29,18 +29,28 @@ Everything else should support those three, or remove friction for everyday use.
 Things I considered and rejected for now: live buses on the map (thousands of predictions, heavy,
 little value on a map), crowding (TfL crowding API is patchy), weather, social features.
 
-## Build order (tonight)
-| # | Feature | Why | Effort |
-|---|---|---|---|
-| 1 | Smooth zoom (done) | Was the #1 complaint | — |
-| 2 | **Line status**: badges in the live-map legend, a status list, warnings on route options and during a journey | Problem 1 | M |
-| 3 | **Saved places + recents**: Home/Work/favourites, one-tap routes | Problem 2 | M |
-| 4 | **Nearby departures**: nearest stations with next trains; tap a station on the Journey map | Problem 3 | M |
-| 5 | **Get-off alert**: "Next stop: X — get off here", vibration, notification if allowed | Problem 4 | S |
-| 6 | **Share my ETA** (Web Share / copy) | Problem 5 | S |
-| 7 | **Installable app** (manifest, icons, offline shell) | Problem 6 | S |
-| 8 | TV **departure board** mode for the live map (`?board=Oxford Circus`) | TV use | S |
-| 9 | Fares where Google gives them | Nice to have | S |
+## Built overnight (20–21 Nov) — all live, each tested in a browser on desktop + phone, light + dark
+| Feature | Where |
+|---|---|
+| Smooth zoom (layers follow Google's in-between zoom; lines cached off-screen; lighter layer resolution) — ~2× fps on Retina | both |
+| Line status: badges, "N lines with problems" + reasons, warnings on routes and steps | both |
+| Saved places (Home/Work/favourites) + recents, one-tap routes, suggestions when tapping an empty box | Journey |
+| Near you: live departures from nearest stations + bus stops; tap any station on the map; "Route here" | Journey |
+| Alerts: time to leave, get off at the next stop, arrived (vibration + notification if allowed) | Journey |
+| Share ETA (share sheet or copy) | Journey |
+| Installable app (manifest, original icon, offline shell, service worker) | Journey |
+| TV departure board (`?board=Oxford Circus` or "Show as TV board") | Live map |
+| Fares on route options (where Google gives them) | Journey |
+| Route preferences: fastest / fewer changes / less walking / step-free (TfL; bus fallback when no step-free rail) | Journey |
+| Arrive by (plan backwards from a time) | Journey |
+| 10 bugs from an independent code review fixed (see git log) | both |
+
+## Next ideas (not built yet)
+- Live National Rail (waiting on the Rail Data Marketplace key; plan in HANDOFF.md).
+- "Leave by" reminders for planned trips (needs the page open, or a push server).
+- Build-my-route: apply route preferences (step-free) per step.
+- Optional OSM track geometry so lines follow real curves.
+- Crowding indicator per line (TfL crowding API) — check data quality first.
 
 ## Later
 - Live National Rail (waiting on the key; plan in HANDOFF.md).
