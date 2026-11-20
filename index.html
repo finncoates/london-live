@@ -332,17 +332,64 @@ const LINE_W = 4.5;
 // Track is matched between lines by their station-to-station edges (endpoints rounded to ~10 m).
 let LANES = null, linesSig = '';
 const vkey = p => p[0].toFixed(4) + ',' + p[1].toFixed(4);
+// Fast projection: Web Mercator "world pixels" at the map's zoom; one Google call per frame gives the offset.
+const W0 = [51.5, -0.1];
+function world(p, z){ const sc = 256*2**z, s = Math.sin(p[0]*rad);
+  return [(p[1] + 180)/360*sc, (0.5 - Math.log((1 + s)/(1 - s))/(4*Math.PI))*sc]; }
+let PV = null; // {z, ox, oy}: screen = world + offset
+function viewNow(){ const z = map.getZoom(), r = toScreen(W0), w = world(W0, z); return PV = {z, ox:r.x - w[0], oy:r.y - w[1]}; }
+const scr = p => { const w = world(p, PV.z); return {x:w[0] + PV.ox, y:w[1] + PV.oy}; };
+
 function buildLanes(){
-  const edges = new Map(); // edge key -> {a, b, lines:[ids]}; a/b in a fixed order so "left" means the same for everyone
-  for(const l of ACTIVE) if(l.polys) for(const poly of l.polys) for(let i=1;i<poly.length;i++){
+  // 1. per line: hide non-stop "express" edges where the same line also has a stopping route alongside
+  //    (e.g. Elizabeth line Stratford -> Liverpool Street main line, Metropolitan Harrow -> Finchley Road)
+  for(const l of ACTIVE){ if(!l.polys) continue;
+    const adj = new Map(), pos = new Map();
+    const add = (a, b, d) => { if(!adj.has(a)) adj.set(a, []); adj.get(a).push([b, d]); };
+    for(const poly of l.polys) for(let i=1;i<poly.length;i++){ const a = vkey(poly[i-1]), b = vkey(poly[i]); if(a === b) continue;
+      pos.set(a, poly[i-1]); pos.set(b, poly[i]); const d = dist(poly[i-1], poly[i]); add(a, b, d); add(b, a, d); }
+    l.skip = new Map();
+    const seen = new Set();
+    for(const [a, list] of adj) for(const [b, d] of list){
+      const k = a < b ? a + '|' + b : b + '|' + a; if(seen.has(k) || d < 2500) continue; seen.add(k);
+      // shortest other way from a to (near) b, not using this edge, a few stops long
+      const B = pos.get(b), best = new Map([[a, 0]]), prev = new Map(); let frontier = [a], found = null;
+      for(let hop = 0; hop < 8 && frontier.length && !found; hop++){
+        const next = [];
+        for(const u of frontier) for(const [v, w] of adj.get(u) || []){
+          if((u === a && v === b) || (u === b && v === a)) continue;
+          const nd = best.get(u) + w; if(nd > d*1.35 + 400 || (best.has(v) && best.get(v) <= nd)) continue;
+          best.set(v, nd); prev.set(v, u); next.push(v);
+          if(v !== a && dist(pos.get(v), B) < 350){ found = v; break; }
+        }
+        frontier = next;
+      }
+      if(found){ const path = [found]; while(path[0] !== a) path.unshift(prev.get(path[0]));
+        const pts = path.map(x => pos.get(x)); if(dist(pts[pts.length-1], B) > 1) pts.push(B);
+        l.skip.set(k, a < b ? pts : pts.slice().reverse()); }
+    }
+    // polylines to draw: split where an edge is skipped
+    l.dpolys = [];
+    for(const poly of l.polys){ let cur = [poly[0]];
+      for(let i=1;i<poly.length;i++){ const a = vkey(poly[i-1]), b = vkey(poly[i]);
+        if(l.skip.has(a < b ? a + '|' + b : b + '|' + a)){ if(cur.length > 1) l.dpolys.push(cur); cur = [poly[i]]; }
+        else cur.push(poly[i]); }
+      if(cur.length > 1) l.dpolys.push(cur); }
+    if(l.skip.size) for(const k in l.pathCache) if(l.pathCache[k].pts.length === 2) delete l.pathCache[k];
+  }
+  // 2. shared track: which lines use each edge (drawn edges only)
+  const edges = new Map(); // edge key -> {a, b, nx, ny, lines}; a/b in a fixed order so "left" means the same for everyone
+  for(const l of ACTIVE) if(l.dpolys) for(const poly of l.dpolys) for(let i=1;i<poly.length;i++){
     let A = poly[i-1], B = poly[i], ka = vkey(A), kb = vkey(B); if(ka === kb) continue;
     if(ka > kb){ [A, B] = [B, A]; [ka, kb] = [kb, ka]; }
-    const k = ka + '|' + kb; let e = edges.get(k); if(!e) edges.set(k, e = {a:A, b:B, lines:[]});
+    const k = ka + '|' + kb; let e = edges.get(k);
+    if(!e){ const dx = (B[1]-A[1])*Math.cos(A[0]*rad), dy = -(B[0]-A[0]), L = Math.hypot(dx, dy) || 1;
+      edges.set(k, e = {a:A, b:B, nx:-dy/L, ny:dx/L, lines:[]}); }
     if(!e.lines.includes(l.id)) e.lines.push(l.id);
   }
   const order = Object.fromEntries(ACTIVE.map((l, i) => [l.id, i]));
   for(const e of edges.values()) e.lines.sort((x, y) => order[x] - order[y]);
-  LANES = edges;
+  LANES = edges; LPATHS = null;
   // each station -> nearest drawn vertex (to put trains in their lane)
   for(const l of ACTIVE) if(l.stops && l.polys){ l.vk = {};
     for(const [id, s] of Object.entries(l.stops)){ let best = null, bd = 300;
@@ -356,23 +403,18 @@ function laneOffset(e, id){
   const i = vis.indexOf(id); if(i < 0 || vis.length < 2) return 0;
   return (i - (vis.length - 1)/2) * lineW();
 }
-function drawLines(){
-  if(!ov.getProjection()) return;
-  if(!LANES) buildLanes();
-  const o = toScreen([51.5, -0.1]), z = map.getZoom();
-  const sig = [o.x.toFixed(1), o.y.toFixed(1), z, dark, MAP_STYLE, ...ACTIVE.map(l => lineStyle(l).opacity)].join();
-  if(sig === linesSig) return; linesSig = sig;
-  const s = mapSize(); lctx.clearRect(0, 0, s.x, s.y);
+// Line shapes (Path2D in world pixels) are built once per zoom / visible set; panning just shifts them.
+let LPATHS = null, lpathSig = '';
+function buildPaths(z){
   const W = lineW(), mpp = 156543.03*Math.cos(51.5*rad)/2**z, R = Math.max(6, 250/mpp);
-  lctx.lineJoin = 'round'; lctx.lineCap = 'round';
+  LPATHS = new Map();
   for(const l of ACTIVE){
-    const op = lineStyle(l).opacity; if(!op || !l.polys) continue;
-    const paths = [];
-    for(const poly of l.polys){
-      const P = poly.map(toScreen), n = P.length; if(n < 2) continue;
-      // offset of each edge, then each vertex = average of its edges' offsets (mitred)
+    if(!lineStyle(l).opacity || !l.dpolys) continue;
+    const path = new Path2D();
+    for(const poly of l.dpolys){
+      const P = poly.map(p => { const w = world(p, z); return {x:w[0], y:w[1]}; }), n = P.length;
       const eo = [];
-      for(let i=1;i<n;i++){ let A = poly[i-1], B = poly[i], ka = vkey(A), kb = vkey(B), sign = 1;
+      for(let i=1;i<n;i++){ let ka = vkey(poly[i-1]), kb = vkey(poly[i]), sign = 1;
         if(ka > kb){ [ka, kb] = [kb, ka]; sign = -1; }
         const e = LANES.get(ka + '|' + kb); const off = e ? laneOffset(e, l.id) * sign : 0;
         const dx = P[i].x - P[i-1].x, dy = P[i].y - P[i-1].y, L = Math.hypot(dx, dy) || 1;
@@ -381,32 +423,44 @@ function drawLines(){
         const a = eo[i-1], b = eo[i];
         if(!a || !b){ const e = a || b; return {x:p.x + e.nx*e.off, y:p.y + e.ny*e.off}; }
         let nx = a.nx + b.nx, ny = a.ny + b.ny; const L = Math.hypot(nx, ny);
-        if(L < 0.2) return {x:p.x + b.nx*b.off, y:p.y + b.ny*b.off}; // hairpin
+        if(L < 0.2) return {x:p.x + b.nx*b.off, y:p.y + b.ny*b.off};
         nx /= L; ny /= L; const cos = nx*b.nx + ny*b.ny, off = (a.off + b.off)/2 / Math.max(0.5, cos);
         return {x:p.x + nx*off, y:p.y + ny*off};
       });
-      paths.push(Q);
+      path.moveTo(Q[0].x, Q[0].y);
+      for(let i=1;i<n-1;i++){ const a = Q[i-1], b = Q[i], c = Q[i+1];
+        path.arcTo(b.x, b.y, c.x, c.y, Math.min(R, Math.hypot(b.x-a.x, b.y-a.y)*0.45, Math.hypot(c.x-b.x, c.y-b.y)*0.45)); }
+      path.lineTo(Q[n-1].x, Q[n-1].y);
     }
-    const trace = () => { lctx.beginPath();
-      for(const Q of paths){ lctx.moveTo(Q[0].x, Q[0].y);
-        for(let i=1;i<Q.length-1;i++){ const a = Q[i-1], b = Q[i], c = Q[i+1];
-          const r = Math.min(R, Math.hypot(b.x-a.x, b.y-a.y)*0.45, Math.hypot(c.x-b.x, c.y-b.y)*0.45);
-          lctx.arcTo(b.x, b.y, c.x, c.y, r); }
-        const e = Q[Q.length-1]; lctx.lineTo(e.x, e.y); } };
-    lctx.globalAlpha = op; trace();
-    lctx.strokeStyle = ink(l.colour); lctx.lineWidth = W; lctx.stroke();
-    if(PARALLEL.has(l.mode)){ lctx.globalAlpha = 1; lctx.strokeStyle = MAP_BG(); lctx.lineWidth = W/3; lctx.stroke(); }
+    LPATHS.set(l, path);
   }
-  lctx.globalAlpha = 1;
+}
+function drawLines(){
+  if(!ov.getProjection() || !PV) return;
+  if(!LANES) buildLanes();
+  const z = PV.z, vis = ACTIVE.map(l => lineStyle(l).opacity > 0 ? 1 : 0).join('');
+  const psig = z + vis + (LANES ? LANES.size : 0);
+  if(!LPATHS || psig !== lpathSig){ lpathSig = psig; buildPaths(z); linesSig = ''; }
+  const sig = [PV.ox.toFixed(1), PV.oy.toFixed(1), psig, dark, MAP_STYLE, ...ACTIVE.map(l => lineStyle(l).opacity)].join();
+  if(sig === linesSig) return; linesSig = sig;
+  const s = mapSize(), dpr = Math.min(2, devicePixelRatio||1), W = lineW();
+  lctx.setTransform(dpr, 0, 0, dpr, 0, 0); lctx.clearRect(0, 0, s.x, s.y);
+  lctx.setTransform(dpr, 0, 0, dpr, PV.ox*dpr, PV.oy*dpr);
+  lctx.lineJoin = 'round'; lctx.lineCap = 'round';
+  for(const [l, path] of LPATHS){
+    const op = lineStyle(l).opacity; if(!op) continue;
+    lctx.globalAlpha = op; lctx.strokeStyle = ink(l.colour); lctx.lineWidth = W; lctx.stroke(path);
+    if(PARALLEL.has(l.mode)){ lctx.globalAlpha = 1; lctx.strokeStyle = MAP_BG(); lctx.lineWidth = W/3; lctx.stroke(path); }
+  }
+  lctx.globalAlpha = 1; lctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 }
 // a train's sideways lane offset: the lane of the edge between its previous and next station
 function trainLane(t, l){
   if(!LANES || !l.vk) return null;
   const a = l.vk[t.prev], b = l.vk[t.cur || t.next]; if(!a || !b || a === b) return null;
-  const [ka, kb] = a < b ? [a, b] : [b, a], e = LANES.get(ka + '|' + kb); if(!e) return null;
+  const e = LANES.get(a < b ? a + '|' + b : b + '|' + a); if(!e) return null;
   const off = laneOffset(e, l.id); if(!off) return null;
-  const A = toScreen(e.a), B = toScreen(e.b), dx = B.x - A.x, dy = B.y - A.y, L = Math.hypot(dx, dy) || 1;
-  return {x:-dy/L*off, y:dx/L*off};
+  return {x:e.nx*off, y:e.ny*off};
 }
 const lineCentre = l => ({color:MAP_BG(), weight:LINE_W/3, opacity:lineStyle(l).opacity ? 1 : 0, z:2});
 const lineStyle = l => ({color:ink(l.colour), weight:LINE_W, opacity:!shown(l)?0:l.on===false?0.07:window.DIM_TRAINS?0.08:1});
@@ -425,7 +479,7 @@ map.getDiv().appendChild(cv);
 const ctx = cv.getContext('2d');
 function sizeCanvas(){ const s=mapSize(), dpr=Math.min(2,devicePixelRatio||1);
   for(const [c, x] of [[cv, ctx], [lcv, lctx]]){ c.width=s.x*dpr; c.height=s.y*dpr; c.style.width=s.x+'px'; c.style.height=s.y+'px'; x.setTransform(dpr,0,0,dpr,0,0); }
-  linesSig = ''; }
+  linesSig = ''; LPATHS = null; }
 new ResizeObserver(sizeCanvas).observe(map.getDiv()); sizeCanvas();
 // On phones the panel is a bottom sheet: the map ends where it starts, so Google's logo, your
 // position and the map centre are never hidden behind it.
@@ -509,6 +563,10 @@ function resolve(l, id, name){
 function trackPath(l, a, b){
   const key = a+'>'+b; if(l.pathCache[key]) return l.pathCache[key];
   const A = l.stops[a]?.p, B = l.stops[b]?.p; if(!A||!B) return null;
+  if(l.skip && l.vk && l.vk[a] && l.vk[b]){ const ka = l.vk[a], kb = l.vk[b], sk = l.skip.get(ka < kb ? ka+'|'+kb : kb+'|'+ka);
+    if(sk){ const pts = [A, ...(ka < kb ? sk : sk.slice().reverse()).slice(1, -1), B];
+      const cum=[0]; for(let i=1;i<pts.length;i++) cum.push(cum[i-1]+dist(pts[i-1],pts[i]));
+      return l.pathCache[key] = {pts, cum, len:cum[cum.length-1]}; } }
   const straight = dist(A,B);
   let best = null, bestScore = Infinity;
   for(const poly of l.curves){
@@ -524,7 +582,8 @@ function trackPath(l, a, b){
   let pts = best;
   if(!pts){ // no drawn line joins these stations: draw one, so the train still sits on a line
     pts = [snapStop(l,a), snapStop(l,b)];
-    l.polys.push([l.stops[a].p, l.stops[b].p]); LANES = null; linesSig = ""; // drawn by drawLines from now on
+    const fk = [a, b].sort().join('|'); l.fb ||= new Set();
+    if(!l.fb.has(fk)){ l.fb.add(fk); l.polys.push([l.stops[a].p, l.stops[b].p]); LANES = null; linesSig = ""; } // drawn by drawLines from now on
   }
   const cum=[0]; for(let i=1;i<pts.length;i++) cum.push(cum[i-1]+dist(pts[i-1],pts[i]));
   return l.pathCache[key] = {pts, cum, len:cum[cum.length-1]};
@@ -738,7 +797,7 @@ function draw(ts){
   const t0 = DEBUG ? performance.now() : 0;
   const k = 1 - Math.exp(-dt/TAU), ka = 1 - Math.exp(-dt/0.4);
   if(!ov.getProjection()) return;
-  drawLines();
+  viewNow(); drawLines();
   const s = mapSize(); ctx.clearRect(0,0,s.x,s.y);
   // train size: a long thin rectangle, roughly tube-train proportions (not to scale)
   const z = map.getZoom(), hl0 = Math.max(7, Math.min(16, (z-9)*3)), hw0 = Math.max(2.2, hl0/3.6);
@@ -764,7 +823,7 @@ function draw(ts){
     let dA = Math.atan2(Math.sin(ang-(t.ang??ang)), Math.cos(ang-(t.ang??ang)));
     if(dA > Math.PI/2) dA -= Math.PI; else if(dA < -Math.PI/2) dA += Math.PI;
     t.ang = (t.ang??ang) + dA*ka;
-    const c = toScreen(t.d), lane = trainLane(t, l); if(lane){ c.x += lane.x; c.y += lane.y; }
+    const c = scr(t.d), lane = trainLane(t, l); if(lane){ c.x += lane.x; c.y += lane.y; }
     if(c.x<-40||c.y<-40||c.x>s.x+40||c.y>s.y+40) continue;
     const cs = Math.cos(t.ang), sn = Math.sin(t.ang);
     [hl, hw] = size(l);
@@ -806,7 +865,7 @@ function draw(ts){
   }
   // you: blue dot with accuracy halo, on top of everything
   if(me){
-    const c = toScreen(me), mpp = 156543.03*Math.cos(me[0]*rad)/2**map.getZoom();
+    const c = scr(me), mpp = 156543.03*Math.cos(me[0]*rad)/2**map.getZoom();
     ctx.beginPath(); ctx.arc(c.x, c.y, Math.max(10, meAcc/mpp), 0, 7); ctx.fillStyle = 'rgba(26,115,232,.15)'; ctx.fill();
     ctx.beginPath(); ctx.arc(c.x, c.y, 8, 0, 7); ctx.fillStyle = '#1a73e8'; ctx.fill(); ctx.lineWidth = 3; ctx.strokeStyle = '#fff'; ctx.stroke();
   }
