@@ -1,0 +1,518 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>London Live Trains</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;600;800&display=swap" rel="stylesheet">
+<style>
+/* London Live Trains — single file. Data: TfL Unified API (arrival predictions).
+   Map: Leaflet + CARTO basemaps. URL options:
+   ?theme=dark|light  ?kiosk=1 (hide panel)  ?lines=victoria,central  ?app_key=YOURKEY
+   ?modes=tube,dlr,elizabeth,overground  ?refresh=30 (seconds)  ?fps=30  ?debug=1
+   ?view=lat,lon,zoom (start view, e.g. 51.51,-0.12,12)  ?carto_key=KEY (use CARTO basemaps) */
+:root{--bg:#fff;--ink:#141414;--mute:#666;--panel:rgba(255,255,255,.92);--edge:rgba(0,0,0,.12)}
+body.dark{--bg:#0e0f12;--ink:#f2f2f2;--mute:#9a9a9a;--panel:rgba(16,17,20,.88);--edge:rgba(255,255,255,.12)}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;background:var(--bg);color:var(--ink);font:15px/1.4 "Hanken Grotesk",system-ui,sans-serif;overflow:hidden}
+#map{position:fixed;inset:0;background:var(--bg)}
+#trains{position:absolute;left:0;top:0;pointer-events:none;z-index:450}
+#panel{position:fixed;top:14px;left:14px;z-index:1000;width:250px;max-height:calc(100% - 28px);overflow:auto;
+  background:var(--panel);border:1px solid var(--edge);border-radius:12px;padding:14px 14px 10px;box-shadow:0 6px 24px rgba(0,0,0,.18)}
+#panel h1{margin:0 0 2px;font-size:19px;font-weight:800;letter-spacing:-.01em}
+#status{font-size:13px;color:var(--mute);margin-bottom:10px}
+#status b{color:var(--ink)}
+.row{display:flex;align-items:center;gap:8px;padding:3px 0;cursor:pointer;user-select:none;font-size:14px}
+.row .sw{width:22px;height:6px;border-radius:3px;flex:none}
+.row .n{margin-left:auto;color:var(--mute);font-variant-numeric:tabular-nums;font-size:13px}
+.row.off{opacity:.35}
+.btns{display:flex;gap:6px;margin-top:10px;flex-wrap:wrap}
+button{font:inherit;font-size:13px;padding:6px 10px;border-radius:8px;border:1px solid var(--edge);background:transparent;color:var(--ink);cursor:pointer}
+button:focus-visible,.row:focus-visible{outline:2px solid #0098D4;outline-offset:2px}
+#tip{position:fixed;z-index:1001;pointer-events:none;background:var(--panel);border:1px solid var(--edge);border-radius:8px;padding:7px 9px;font-size:13px;display:none;max-width:240px}
+#tip b{display:block;font-size:14px}
+#err{color:#E32017;font-size:12px;margin-top:6px}
+body.kiosk #panel{display:none}
+body.kiosk .leaflet-control-zoom{display:none}
+#clock{position:fixed;right:16px;bottom:22px;z-index:1000;font-weight:800;font-size:28px;font-variant-numeric:tabular-nums;color:var(--ink);text-shadow:0 0 8px var(--bg);display:none}
+body.kiosk #clock{display:block}
+.leaflet-container{background:var(--bg)}
+@media (max-width:600px){#panel{width:200px;font-size:13px}}
+</style>
+</head>
+<body>
+<div id="map"></div>
+<div id="panel">
+  <h1>London live trains</h1>
+  <div id="status">Loading lines…</div>
+  <div id="legend"></div>
+  <div class="btns">
+    <button id="bTheme">Dark / light</button>
+    <button id="bKiosk">Kiosk (K)</button>
+    <button id="bFit">Re-centre</button>
+  </div>
+  <div id="err"></div>
+</div>
+<div id="tip"></div>
+<div id="clock"></div>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+{
+const Q = new URLSearchParams(location.search);
+const API = 'https://api.tfl.gov.uk';
+const KEY = Q.get('app_key') ? 'app_key=' + encodeURIComponent(Q.get('app_key')) : '';
+const REFRESH = Math.max(15, +(Q.get('refresh') || 30)) * 1000;
+const FPS = Math.min(60, Math.max(5, +(Q.get('fps') || 30)));
+const DEBUG = Q.get('debug') === '1';
+const VIEW = (Q.get('view') || '').split(',').map(Number);
+const HOME = VIEW.length === 3 && VIEW.every(isFinite) ? [[VIEW[0], VIEW[1]], VIEW[2]] : [[51.512, -0.11], 11.5];
+
+// Line catalogue: TfL line id -> name, colour, mode, lane.
+// Tube/DLR/Elizabeth: TfL print colours. Overground: TfL digital colour standard (2024 line names).
+// lane: lines sharing track get drawn side by side (0 = on the track centre line).
+const LINES = [
+  ['bakerloo','Bakerloo','#B36305','tube',0],
+  ['central','Central','#E32017','tube',0],
+  ['circle','Circle','#FFD300','tube',0],
+  ['district','District','#00782A','tube',2],
+  ['hammersmith-city','Hammersmith & City','#F3A9BB','tube',1],
+  ['jubilee','Jubilee','#A0A5A9','tube',0],
+  ['metropolitan','Metropolitan','#9B0056','tube',3],
+  ['northern','Northern','#000000','tube',0],
+  ['piccadilly','Piccadilly','#003688','tube',1],
+  ['victoria','Victoria','#0098D4','tube',0],
+  ['waterloo-city','Waterloo & City','#95CDBA','tube',0],
+  ['elizabeth','Elizabeth','#6950A1','elizabeth',0],
+  ['dlr','DLR','#00A4A7','dlr',0],
+  ['liberty','Liberty','#61686B','overground',0],
+  ['lioness','Lioness','#FFA600','overground',1],
+  ['mildmay','Mildmay','#006FE6','overground',0],
+  ['suffragette','Suffragette','#18A95D','overground',0],
+  ['weaver','Weaver','#9B0058','overground',0],
+  ['windrush','Windrush','#DC241F','overground',0],
+];
+// Typical dwell (s) at a station and fallback cruise speed (m/s) when no segment time has been learned yet.
+const DWELL = {tube:25, dlr:20, elizabeth:40, overground:35};
+const SPEED = {tube:12, dlr:10, elizabeth:17, overground:13};
+const modesWanted = (Q.get('modes') || 'tube,elizabeth,dlr,overground').split(',');
+const linesWanted = Q.get('lines') ? Q.get('lines').split(',') : null;
+const ACTIVE = LINES.filter(l => modesWanted.includes(l[3]) && (!linesWanted || linesWanted.includes(l[0])))
+  .map(([id,name,colour,mode,lane]) => ({id,name,colour,mode,lane,on:true,count:0,polys:[],routes:[],stops:{},seg:{}}));
+const BY = Object.fromEntries(ACTIVE.map(l => [l.id, l]));
+
+// ---------- helpers ----------
+const $ = id => document.getElementById(id);
+const R = 6371000, rad = Math.PI/180;
+function dist(a, b){ // a,b = [lat,lon]
+  const dLat=(b[0]-a[0])*rad, dLon=(b[1]-a[1])*rad;
+  const x=Math.sin(dLat/2)**2+Math.cos(a[0]*rad)*Math.cos(b[0]*rad)*Math.sin(dLon/2)**2;
+  return 2*R*Math.asin(Math.sqrt(x));
+}
+const store = {
+  get(k){ try{ const v=JSON.parse(localStorage.getItem(k)); return v && v.exp>Date.now() ? v.d : null }catch(e){ return null } },
+  set(k,d,ms){ try{ localStorage.setItem(k, JSON.stringify({d,exp:Date.now()+ms})) }catch(e){} }
+};
+async function get(path){
+  const url = API + path + (KEY ? (path.includes('?')?'&':'?') + KEY : '');
+  const r = await fetch(url);
+  if(!r.ok){ const e = new Error(r.status + ' ' + path); e.status = r.status; throw e; }
+  return r.json();
+}
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+const cleanName = n => n.replace(/ (Underground|DLR|Rail) Station$/,'').replace(/ Station$/,'');
+const normName = n => cleanName(n||'').replace(/\s*\(London\)/,'').toLowerCase().trim();
+
+// ---------- map ----------
+let dark = Q.get('theme') === 'dark' || (Q.get('theme') !== 'light' && matchMedia('(prefers-color-scheme: dark)').matches);
+const map = L.map('map', {zoomControl:true, preferCanvas:true, zoomSnap:0.25, attributionControl:true})
+  .setView(HOME[0], HOME[1]);
+// Basemap. CARTO now needs a (free) key — without one every tile is watermarked — so the
+// default is Esri's keyless Light/Dark Gray Canvas. ?carto_key=KEY switches to CARTO Voyager/Dark Matter.
+const CARTO_KEY = Q.get('carto_key');
+function makeTiles(d){
+  if(CARTO_KEY) return L.tileLayer(`https://{s}.basemaps.cartocdn.com/rastertiles/${d?'dark_all':'voyager'}/{z}/{x}/{y}{r}.png?key=${encodeURIComponent(CARTO_KEY)}`,
+    {maxZoom:19, subdomains:'abcd', attribution:'© OpenStreetMap contributors © CARTO · Live data: TfL'});
+  const esri = n => `https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_${d?'Dark':'Light'}_Gray_${n}/MapServer/tile/{z}/{y}/{x}`;
+  return L.layerGroup([
+    L.tileLayer(esri('Base'), {maxZoom:19, maxNativeZoom:16, attribution:'Esri, HERE, Garmin, © OpenStreetMap contributors · Live data: TfL'}),
+    L.tileLayer(esri('Reference'), {maxZoom:19, maxNativeZoom:16, opacity:0.8})]);
+}
+let tiles = makeTiles(dark).addTo(map);
+const ink = c => c==='#000000'&&dark ? '#d9d9d9' : c;
+const lineStyle = l => ({color:ink(l.colour), weight:3, opacity:l.on?0.45:0.08, interactive:false});
+function applyTheme(){ document.body.classList.toggle('dark', dark); map.removeLayer(tiles); tiles = makeTiles(dark).addTo(map); for(const l of ACTIVE) l.layer && l.layer.eachLayer(p => p.setStyle(lineStyle(l))); }
+applyTheme();
+if(Q.get('kiosk')==='1') document.body.classList.add('kiosk');
+
+// train canvas overlay (in the map container, above tiles, redrawn each frame)
+const cv = document.createElement('canvas'); cv.id='trains';
+map.getContainer().appendChild(cv);
+const ctx = cv.getContext('2d');
+function sizeCanvas(){ const s=map.getSize(), dpr=Math.min(2,devicePixelRatio||1); cv.width=s.x*dpr; cv.height=s.y*dpr; cv.style.width=s.x+'px'; cv.style.height=s.y+'px'; ctx.setTransform(dpr,0,0,dpr,0,0); }
+map.on('resize', sizeCanvas); sizeCanvas();
+
+// ---------- load line geometry ----------
+// Both directions are loaded: some stations only appear in the inbound sequence
+// (e.g. Mildmay's Clapham Junction platform), and inbound routes give inbound stop order.
+async function loadLine(l){
+  let d = store.get('seq2:'+l.id);
+  if(!d){
+    const [o, i] = await Promise.all([
+      get(`/Line/${l.id}/Route/Sequence/outbound`),
+      get(`/Line/${l.id}/Route/Sequence/inbound`).catch(() => null)]);
+    const r5 = x => Math.round(x*1e5)/1e5;
+    d = {polys: o.lineStrings.flatMap(s => JSON.parse(s)).map(p => p.map(([lon,lat]) => [r5(lat),r5(lon)])), routes: [], stops: {}};
+    for(const [j, dir] of [[o,'outbound'],[i,'inbound']]) if(j){
+      for(const r of j.orderedLineRoutes||[]) d.routes.push({dir, ids:r.naptanIds}); // ids in travel order
+      for(const seq of j.stopPointSequences||[]) for(const s of seq.stopPoint)
+        if(!d.stops[s.id]) d.stops[s.id] = {n:cleanName(s.name), p:[r5(s.lat),r5(s.lon)]};
+    }
+    store.set('seq2:'+l.id, d, 7*864e5);
+  }
+  Object.assign(l, d);
+  l.adj = new Set(); for(const r of l.routes) for(let k=1;k<r.ids.length;k++) l.adj.add(r.ids[k-1]+'>'+r.ids[k]);
+  l.byName = {}; for(const [id,s] of Object.entries(l.stops)) (l.byName[normName(s.n)] ||= []).push(id);
+  l.alias = {};
+  l.seg = store.get('segt:'+l.id) || {};
+  l.layer = L.layerGroup(l.polys.map(p => L.polyline(p, lineStyle(l)))).addTo(map);
+  l.pathCache = {};
+}
+
+// Map a prediction's naptanId onto a stop of this line's sequence. Interchanges sometimes
+// report a different NaPTAN id (Elizabeth at Farringdon/Whitechapel, H&C at Paddington), so match by name.
+function resolve(l, id, name){
+  if(!id) return null;
+  if(l.stops[id]) return id;
+  if(id in l.alias) return l.alias[id];
+  const n = normName(name); let hit = l.byName[n];
+  if(!hit && n) for(const k in l.byName) if(k.startsWith(n+' (')){ hit = l.byName[k]; break; }
+  return l.alias[id] = hit ? hit[0] : null;
+}
+
+// Path between two stations along the line geometry (falls back to straight line)
+function trackPath(l, a, b){
+  const key = a+'>'+b; if(l.pathCache[key]) return l.pathCache[key];
+  const A = l.stops[a]?.p, B = l.stops[b]?.p; if(!A||!B) return null;
+  const straight = dist(A,B);
+  let best = null, bestScore = Infinity;
+  for(const poly of l.polys){
+    let ia=-1, da=1e9, ib=-1, db=1e9;
+    for(let i=0;i<poly.length;i++){ const x=dist(poly[i],A), y=dist(poly[i],B); if(x<da){da=x;ia=i} if(y<db){db=y;ib=i} }
+    if(da>250||db>250||ia===ib) continue;
+    let pts = ia<ib ? poly.slice(ia, ib+1) : poly.slice(ib, ia+1).reverse();
+    let len=0; for(let i=1;i<pts.length;i++) len+=dist(pts[i-1],pts[i]);
+    if(len>straight*3+500) continue;
+    const score = da+db+len*0.01;
+    if(score<bestScore){ bestScore=score; best=pts; }
+  }
+  const pts = best ? [A, ...best.slice(1,-1), B] : [A,B];
+  const cum=[0]; for(let i=1;i<pts.length;i++) cum.push(cum[i-1]+dist(pts[i-1],pts[i]));
+  return l.pathCache[key] = {pts, cum, len:cum[cum.length-1]};
+}
+function along(path, f){ // fraction 0..1 -> {p, a, b}
+  const t = f*path.len, c = path.cum, p = path.pts;
+  let i=1; while(i<c.length-1 && c[i]<t) i++;
+  const seg = c[i]-c[i-1] || 1, k = Math.min(1, Math.max(0, (t-c[i-1])/seg));
+  return {p:[p[i-1][0]+(p[i][0]-p[i-1][0])*k, p[i-1][1]+(p[i][1]-p[i-1][1])*k], a:p[i-1], b:p[i]};
+}
+
+// Where a train at `next` (heading on towards `later`) came from, and where it goes after.
+function routeCtx(l, next, later, dirHint){
+  if(later && later!==next) for(const r of l.routes){
+    const i = r.ids.indexOf(next), j = r.ids.indexOf(later);
+    if(i>0 && j>i) return {prev:r.ids[i-1], after:r.ids[i+1]};
+  }
+  if(dirHint) for(const r of l.routes){
+    if(r.dir!==dirHint) continue;
+    const i = r.ids.indexOf(next);
+    if(i>0) return {prev:r.ids[i-1], after:r.ids[i+1]||null};
+  }
+  return null;
+}
+
+// Run time (s) between adjacent stations: learned from live data, else estimated from distance.
+function segTime(l, a, b){
+  const k = l.seg[a+'>'+b] ?? l.seg[b+'>'+a];
+  if(k) return k;
+  const p = trackPath(l, a, b);
+  return Math.max(45, (p ? p.len : 1000)/SPEED[l.mode] + 20);
+}
+function learn(l, a, b, diff){
+  if(!l.adj.has(a+'>'+b)) return;
+  const run = diff - DWELL[l.mode];
+  if(run < 20 || run > 900) return;
+  const k = a+'>'+b, o = l.seg[k];
+  l.seg[k] = Math.round(o ? o*0.8 + run*0.2 : run);
+}
+
+// ---------- live trains ----------
+let trains = new Map(); // key -> train state
+let skew = 0; // server time - local time (ms), only used if the local clock is clearly wrong
+const now = () => Date.now() + skew;
+let failStreak = 0, anonSeq = 0;
+
+async function refresh(){
+  // retry any line whose geometry failed to load at boot (e.g. network blip when the TV woke up)
+  for(const l of ACTIVE) if(!l.layer){ try{ await loadLine(l); }catch(e){} }
+  const ids = ACTIVE.map(l=>l.id);
+  const chunks = []; for(let i=0;i<ids.length;i+=8) chunks.push(ids.slice(i,i+8));
+  const res = await Promise.allSettled(chunks.map(c => get(`/Line/${c.join(',')}/Arrivals`)));
+  let preds = []; const failed = new Set(); let err = null;
+  res.forEach((r,i) => { if(r.status==='fulfilled') preds = preds.concat(r.value); else { err = r.reason; chunks[i].forEach(id => failed.add(id)); } });
+  if(err){
+    failStreak++;
+    $('err').textContent = 'Live data error: ' + err.message + (err.status===429 ? (KEY ? ' — rate limited, or the app_key is invalid' : ' — rate limited; add ?app_key= (free from api-portal.tfl.gov.uk)') : '') + ' (retrying)';
+    if(failed.size === ids.length) return false;
+  } else { failStreak = 0; $('err').textContent = ''; }
+
+  const t0 = Date.now();
+  const stamps = preds.map(p=>Date.parse(p.timestamp)).filter(Boolean);
+  if(stamps.length){ const s = Math.max(...stamps) - t0; skew = Math.abs(s) > 120e3 ? s : 0; }
+
+  const out = [];   // {key, line, next, prev, arr, towards, loc}
+  const groups = new Map(), anon = [];
+  for(const p of preds){
+    const l = BY[p.lineId]; if(!l || !l.routes.length) continue;
+    p.S = resolve(l, p.naptanId, p.stationName); if(!p.S) continue;
+    p.D = resolve(l, p.destinationNaptanId, p.destinationName);
+    const vid = (p.vehicleId||'').trim();
+    if(vid && !/^0+$/.test(vid)){ const k = p.lineId+':'+vid; if(!groups.has(k)) groups.set(k, []); groups.get(k).push(p); }
+    else anon.push(p);
+  }
+
+  // 1. Trains with a vehicle id: next stop = soonest prediction, direction from the stop after it.
+  for(const [key, list] of groups){
+    list.sort((a,b)=>a.timeToStation-b.timeToStation);
+    const l = BY[list[0].lineId];
+    // one entry per station (interchanges can list the same train under two stop ids, e.g. Paddington)
+    const seq = [];
+    for(const p of list){ const q = seq[seq.length-1]; if(!q || (q.S !== p.S && dist(l.stops[q.S].p, l.stops[p.S].p) > 400)) seq.push(p); }
+    for(let i=1;i<seq.length;i++) learn(l, seq[i-1].S, seq[i].S, seq[i].timeToStation - seq[i-1].timeToStation);
+    // Already at/leaving a stop (often the origin terminus, which has no previous stop):
+    // treat the following stop as next, so the train sits at this one until it departs.
+    while(seq.length > 1 && seq[0].timeToStation <= 0) seq.shift();
+    let first = seq[0];
+    // Rail feeds list timetabled trips at their starting station long before they leave: if the
+    // following station is much further off than the run time, the train isn't really there yet.
+    if(seq[1] && seq[1].timeToStation - first.timeToStation > segTime(l, first.S, seq[1].S) + 300) continue;
+    let prev = routeCtx(l, first.S, seq[1]?.S || first.D, first.direction)?.prev || null;
+    if(!prev && seq[1]){ prev = first.S; first = seq[1]; } // at its origin: wait there until it departs
+    if(!prev && first.timeToStation > 120) continue;          // not started yet / in a siding
+    if(prev && first.timeToStation > segTime(l, prev, first.S) + 600) continue; // too far out to place
+    // keep the next few stops with TfL's own times, so the train can carry on past a stop whose
+    // predicted time has passed (the feed is ~60 s old, so that happens all the time)
+    const ahead = seq.slice(seq.indexOf(first), seq.indexOf(first)+4).map(p => [p.S, Date.parse(p.expectedArrival)]);
+    out.push({key, line:l.id, next:first.S, prev, arr:ahead[0][1], ahead, towards:first.towards||first.destinationName||'', loc:first.currentLocation||'', ...(DEBUG?{raw:list.map(p=>[p.S,p.D,p.timeToStation,p.direction,p.destinationNaptanId])}:{})});
+  }
+
+  // 2. Trains without a vehicle id (all of DLR, some Metropolitan): every train shows up at
+  //    several stations, so count trains per segment. A prediction at stop S coming from P
+  //    is the same train as an earlier one at P if it arrives after it; whatever is left
+  //    over at S must be a train already between P and S.
+  const seen2 = new Set(), at = new Map(), bySeg = new Map();
+  for(const p of anon){
+    const l = BY[p.lineId];
+    const k = [p.lineId, p.S, p.platformName, p.D, Math.round(p.timeToStation/20)].join('|');
+    if(seen2.has(k)) continue; seen2.add(k);
+    const ctx = routeCtx(l, p.S, p.D, p.direction); if(!ctx) continue;
+    p.prev = ctx.prev; p.after = ctx.after;
+    const ka = p.lineId+'|'+p.S+'|'+p.after; if(!at.has(ka)) at.set(ka, []); at.get(ka).push(p.timeToStation);
+    const ks = p.lineId+'|'+p.prev+'|'+p.S; if(!bySeg.has(ks)) bySeg.set(ks, []); bySeg.get(ks).push(p);
+  }
+  for(const [ks, list] of bySeg){
+    const [lineId, prev, S] = ks.split('|'), l = BY[lineId];
+    const run = segTime(l, prev, S);
+    const up = (at.get(lineId+'|'+prev+'|'+S) || []).slice().sort((a,b)=>a-b);
+    list.sort((a,b)=>a.timeToStation-b.timeToStation);
+    const used = new Array(list.length).fill(false);
+    for(const s of up){ const i = list.findIndex((p,i) => !used[i] && p.timeToStation > s + 15); if(i>=0) used[i] = true; }
+    list.forEach((p,i) => {
+      if(used[i] || p.timeToStation > run + 90) return;
+      out.push({key:null, anon:true, line:lineId, next:S, prev, arr:Date.parse(p.expectedArrival),
+        towards:p.towards||p.destinationName||'', loc:p.currentLocation||''});
+    });
+  }
+  // No ids, so follow each anonymous train by matching it to the nearest one from the last refresh.
+  const olds = [...trains.values()].filter(t => t.anon && t.d), cand = [];
+  for(const o of out) if(o.anon){
+    const pos = placeTrain(o); if(!pos) continue;
+    for(const t of olds) if(t.line===o.line && t.towards===o.towards){ const d = dist(t.d, pos.p); if(d < 2000) cand.push([d, o, t]); }
+  }
+  cand.sort((a,b)=>a[0]-b[0]);
+  for(const [, o, t] of cand) if(!o.key && !t.claimed){ o.key = t.key; t.claimed = true; }
+  for(const t of olds) delete t.claimed;
+  for(const o of out) if(!o.key) o.key = o.line+':a'+(++anonSeq);
+
+  // merge into persistent state
+  const keep = new Set(), fresh = [];
+  for(const o of out){
+    let t = trains.get(o.key);
+    if(!t){ t = {key:o.key}; trains.set(o.key, t); fresh.push(t); }
+    delete o.f; delete o.fk;  // progress state belongs to the persistent train
+    Object.assign(t, o, {seen:t0}); keep.add(o.key);
+  }
+  const gone = [];
+  for(const [k,t] of trains) if(!keep.has(k)){
+    if(failed.has(t.line)){ t.seen = t0; continue; }           // that request failed: keep as is
+    if(t.anon || t0 - t.seen > REFRESH*2.5){ trains.delete(k); gone.push(t); }
+  }
+  // A train that moved on to a new segment gets a new key: carry its on-screen position over so it glides.
+  for(const t of fresh){
+    let best = null, bd = 1500;
+    for(const g of gone){
+      if(g.line!==t.line || !g.d || g.taken) continue;
+      const pos = placeTrain(t); if(!pos) continue;
+      const d = dist(g.d, pos.p); if(d<bd){ bd=d; best=g; }
+    }
+    if(best){ best.taken = true; t.d = best.d; t.ang = best.ang; }
+  }
+  for(const l of ACTIVE){ l.count = 0; if(!failed.has(l.id)) store.set('segt:'+l.id, l.seg, 30*864e5); }
+  for(const t of trains.values()) if(t0 - t.seen < REFRESH*1.5) BY[t.line].count++;
+  const total = ACTIVE.reduce((s,l)=>s+l.count,0);
+  $('status').innerHTML = `<b>${total}</b> trains · updated ${new Date(t0).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit',second:'2-digit'})}`;
+  renderLegend();
+  return !err;
+}
+
+// Where is a train right now?
+function placeTrain(t){
+  const l = BY[t.line], n = now();
+  let prev = t.prev, next = t.next, arr = t.arr;
+  if(t.ahead){ // move on along the predicted stops once a stop's time has passed
+    let k = 0; while(k < t.ahead.length-1 && t.ahead[k][1] < n) k++;
+    if(k){ prev = t.ahead[k-1][0]; }
+    [next, arr] = t.ahead[k];
+  }
+  t.cur = next; t.curArr = arr;
+  const N = l.stops[next]; if(!N) return null;
+  if(!prev || !l.stops[prev]) return {p:N.p, a:null, b:null};
+  const path = trackPath(l, prev, next); if(!path) return {p:N.p};
+  const remain = (arr - n)/1000;
+  let f = Math.min(1, Math.max(0, 1 - remain/segTime(l, prev, next)));
+  // trains don't reverse: if a prediction slips, hold position instead of sliding back
+  const sk = prev+'>'+next;
+  if(t.fk === sk && f < t.f) f = t.f; else { t.fk = sk; t.f = f; }
+  return along(path, f);
+}
+
+// ---------- drawing ----------
+let hover = null, lastDraw = 0;
+const TAU = 2; // seconds: corrections after a refresh glide rather than jump
+function draw(ts){
+  requestAnimationFrame(draw);
+  if(ts - lastDraw < 1000/FPS - 2) return;
+  const dt = Math.min(1, (ts - lastDraw)/1000); lastDraw = ts;
+  const t0 = DEBUG ? performance.now() : 0;
+  const k = 1 - Math.exp(-dt/TAU), ka = 1 - Math.exp(-dt/0.4);
+  const s = map.getSize(); ctx.clearRect(0,0,s.x,s.y);
+  const z = map.getZoom(), lenPx = Math.max(10, Math.min(30, (z-9)*6)), w = z>=13?7:z>=11.5?5.5:4.5;
+  const gap = w*0.6, laneGap = z>=13 ? w*0.6 : w*0.4, wall = Date.now(), cosLat = Math.cos(map.getCenter().lat*rad);
+  const drawn = [], byLine = new Map();
+  for(const t of trains.values()){
+    const l = BY[t.line]; if(!l.on || wall - t.seen > REFRESH*1.5) continue;
+    const pos = placeTrain(t); if(!pos) continue;
+    let ang = t.ang ?? 0;
+    // heading straight from lat/lng (Web Mercator is conformal), no projection needed
+    if(pos.a && pos.b){ const dx=(pos.b[1]-pos.a[1])*cosLat, dy=pos.a[0]-pos.b[0]; if(dx||dy) ang=Math.atan2(dy,dx); }
+    // smooth: ease displayed position (in lat/lng) towards target, snap on big jumps
+    if(!t.d || dist(t.d, pos.p) > 3000) t.d = pos.p.slice();
+    else { t.d[0]+= (pos.p[0]-t.d[0])*k; t.d[1]+= (pos.p[1]-t.d[1])*k; }
+    const dA = Math.atan2(Math.sin(ang-(t.ang??ang)), Math.cos(ang-(t.ang??ang)));
+    t.ang = (t.ang??ang) + dA*ka;
+    const c = map.latLngToContainerPoint(t.d);
+    if(c.x<-60||c.y<-60||c.x>s.x+60||c.y>s.y+60) continue;
+    // keep left (UK running), and spread lines that share track into lanes
+    const off = gap + l.lane*laneGap, cs = Math.cos(t.ang), sn = Math.sin(t.ang);
+    const hx = c.x + sn*off, hy = c.y - cs*off;
+    const tx = hx - cs*lenPx, ty = hy - sn*lenPx;
+    const seg = [t,hx,hy,tx,ty]; drawn.push(seg);
+    if(!byLine.has(l)) byLine.set(l, []); byLine.get(l).push(seg);
+  }
+  // batched: one path for all outlines, then one per line colour (far fewer canvas calls on a TV stick)
+  ctx.lineCap = 'round';
+  ctx.strokeStyle = dark ? 'rgba(0,0,0,.85)' : 'rgba(255,255,255,.95)'; ctx.lineWidth = w+3;
+  ctx.beginPath(); for(const [,hx,hy,tx,ty] of drawn){ ctx.moveTo(tx,ty); ctx.lineTo(hx,hy); } ctx.stroke();
+  ctx.lineWidth = w;
+  for(const [l, segs] of byLine){
+    ctx.strokeStyle = l.colour==='#000000'&&dark ? '#e6e6e6' : l.colour;
+    ctx.beginPath(); for(const [,hx,hy,tx,ty] of segs){ ctx.moveTo(tx,ty); ctx.lineTo(hx,hy); } ctx.stroke();
+  }
+  const h = hover && drawn.find(d => d[0]===hover);
+  if(h){ ctx.strokeStyle=dark?'#fff':'#000'; ctx.lineWidth=1.5; ctx.beginPath(); ctx.arc(h[1],h[2],w+4,0,7); ctx.stroke(); }
+  draw.hit = drawn;
+  if(DEBUG) draw.ms = (draw.ms||0)*0.9 + (performance.now()-t0)*0.1;
+}
+requestAnimationFrame(draw);
+
+// hover / tap info
+function nearest(x,y){
+  let best=null, bd=18;
+  for(const [t,hx,hy,tx,ty] of draw.hit||[]){
+    const mx=(hx+tx)/2, my=(hy+ty)/2, d=Math.hypot(mx-x,my-y);
+    if(d<bd){bd=d;best=t}
+  }
+  return best;
+}
+const esc = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'})[c]);
+function showTip(e){
+  const r = map.getContainer().getBoundingClientRect();
+  const t = nearest(e.clientX-r.left, e.clientY-r.top); hover = t;
+  const tip = $('tip');
+  if(!t){ tip.style.display='none'; return; }
+  const l = BY[t.line], secs = Math.max(0, Math.round(((t.curArr??t.arr)-now())/1000));
+  tip.innerHTML = `<b style="color:${l.colour==='#000000'&&dark?'#fff':l.colour}">${l.name}</b>${t.towards?`Towards ${esc(t.towards)}<br>`:''}Next: ${esc(l.stops[t.cur||t.next]?.n||'?')} · ${secs<30?'due':Math.round(secs/60)+' min'}${t.loc?`<br><span style="color:var(--mute)">${esc(t.loc)}</span>`:''}`;
+  tip.style.display='block';
+  tip.style.left = Math.min(innerWidth-250, e.clientX+14)+'px'; tip.style.top = Math.min(innerHeight-90, e.clientY+14)+'px';
+}
+map.getContainer().addEventListener('mousemove', showTip);
+map.getContainer().addEventListener('click', showTip);
+
+// ---------- UI ----------
+function renderLegend(){
+  $('legend').innerHTML = ACTIVE.map(l => `<div class="row ${l.on?'':'off'}" tabindex="0" data-id="${l.id}"><span class="sw" style="background:${l.colour}"></span>${l.name}<span class="n">${l.count||''}</span></div>`).join('');
+}
+$('legend').addEventListener('click', e => {
+  const row = e.target.closest('.row'); if(!row) return;
+  const l = BY[row.dataset.id]; l.on = !l.on;
+  l.layer && l.layer.eachLayer(p => p.setStyle(lineStyle(l))); renderLegend();
+});
+$('legend').addEventListener('keydown', e => { if(e.key==='Enter') e.target.click(); });
+$('bTheme').onclick = () => { dark=!dark; applyTheme(); };
+$('bKiosk').onclick = () => document.body.classList.toggle('kiosk');
+$('bFit').onclick = () => map.setView(HOME[0], HOME[1]);
+addEventListener('keydown', e => {
+  if(e.key==='k'||e.key==='K') document.body.classList.toggle('kiosk');
+  if(e.key==='d'||e.key==='D') { dark=!dark; applyTheme(); }
+});
+const tick = () => { $('clock').textContent = new Date().toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'}); };
+tick(); setInterval(tick, 1000);
+
+if(DEBUG) window.LLT = {trains, ACTIVE, BY, placeTrain, segTime, refresh, map, draw};
+
+// ---------- boot ----------
+(async () => {
+  renderLegend();
+  let ok = 0;
+  // load a few lines at a time: fast, but well under TfL's anonymous rate limit
+  const queue = ACTIVE.slice();
+  await Promise.all([0,1,2].map(async () => {
+    for(let l; (l = queue.shift()); ){
+      const cached = !!store.get('seq2:'+l.id);
+      try{ await loadLine(l); ok++; $('status').textContent = `Loading lines… ${ok}/${ACTIVE.length}`; }
+      catch(e){ $('err').textContent = 'Could not load '+l.name+': '+e.message; }
+      if(!cached) await sleep(200);
+    }
+  }));
+  // refresh loop with backoff on errors (e.g. 429 rate limiting)
+  for(;;){
+    let good = false;
+    try{ good = await refresh(); }catch(e){ $('err').textContent = 'Error: '+e.message; console.error(e); }
+    await sleep(good ? REFRESH : Math.min(REFRESH*8, REFRESH*2**Math.min(3, failStreak)));
+  }
+})();
+}
+</script>
+</body>
+</html>
