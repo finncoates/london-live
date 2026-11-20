@@ -43,6 +43,7 @@ little value on a map), crowding (TfL crowding API is patchy), weather, social f
 | Fares on route options (where Google gives them) | Journey |
 | Route preferences: fastest / fewer changes / less walking / step-free (TfL; bus fallback when no step-free rail) | Journey |
 | Arrive by (plan backwards from a time) | Journey |
+| Customise: turn any planned route into an editable Build-my-route chain | Journey |
 | 10 bugs from an independent code review fixed (see git log) | both |
 
 ## Next ideas (not built yet)

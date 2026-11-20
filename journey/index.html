@@ -1672,7 +1672,23 @@ function renderOptions(el = $(J.optEl || 'options')){
       <div class="pills">${j.legs.map(pill).join('<span class="sep">›</span>')}</div>
       ${routeWarn(j)}${j.note ? `<div class="muted" style="font-size:12px">${esc(j.note)}</div>` : ''}
 
-    </button>`).join('') + (J.options.length ? `<button id="go" class="primary">Start journey</button>` : '');
+    </button>`).join('') + (J.options.length ? `<div class="row2"><button id="go" class="primary" style="flex:1">Start journey</button>${J.optEl === 'options' ? '<button type="button" id="custom" title="Change the steps of this route in Build my route">Customise</button>' : ''}</div>` : '');
+}
+// Copy a planned route into "Build my route": one stop per change, one mode per vehicle
+function customise(j){
+  const modeOf = L => /bus/.test(L.mode) || L.kind === 'bus' ? 'bus' : /tram/.test(L.mode) || L.kind === 'tram' ? 'tram'
+    : /subway|metro|light_rail/.test(L.mode) || ['tube','dlr'].includes(L.kind) ? 'tube' : /rail|train/.test(L.mode) || ['rail','overground','elizabeth'].includes(L.kind) ? 'train' : 'any';
+  const rides = j.legs.filter(L => !L.walk && L.kind !== 'cycle' && L.kind !== 'drive');
+  const stops = [$('from').value.trim()], modes = [], pids = {};
+  if(J.from && J.from.label) pids[J.from.label] = J.from.q;
+  if(!rides.length){ stops.push(J.to.label); modes.push('walk'); }
+  rides.forEach((L, i) => {
+    modes.push(modeOf(L));
+    const last = i === rides.length - 1, name = last ? J.to.label : L.to.name;
+    stops.push(name); pids[name] = last ? J.to.q : L.to.p.map(x => x.toFixed(5)).join(',');
+  });
+  CH = {stops, modes, pids}; saveChain();
+  showView('build'); renderChain(); $('chainOut').innerHTML = '<div class="muted">Change any step, then tap Plan.</div>';
 }
 const placeName = p => p.placeType==='PointOfInterest' ? p.commonName.replace(/^[^,]+,\s*/, '') : cleanName(p.commonName);
 function renderAmbiguous(d){
@@ -2082,6 +2098,7 @@ $('options').addEventListener('click', e => {
   if(o){ J.sel = +o.dataset.i; renderOptions(); drawJourney(J.options[J.sel], routeLayer); fitJourney(J.options[J.sel]); }
   else if(a){ const end = a.dataset.end === 'From' ? 'from' : 'to'; J[end] = {label:a.dataset.label, q:a.dataset.q}; $(end).value = a.dataset.label; search(); }
   else if(e.target.id === 'go') startJourney(J.options[J.sel]);
+  else if(e.target.id === 'custom') customise(J.options[J.sel]);
 });
 $('banner').addEventListener('click', e => { if(e.target.id==='bSwitch') switchRoute(); if(e.target.id==='bKeep') keepRoute(); });
 $('bEnd').onclick = endJourney;
