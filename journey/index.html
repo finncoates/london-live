@@ -17,7 +17,8 @@ body.dark{--bg:#0e0f12;--ink:#f2f2f2;--mute:#9a9a9a;--panel:#17181c;--edge:rgba(
 [hidden]{display:none!important}
 html,body{margin:0;height:100%;background:var(--bg);color:var(--ink);font:15px/1.4 "Hanken Grotesk",system-ui,sans-serif;overflow:hidden}
 #map{position:fixed!important;inset:0;background:var(--bg)} /* Google sets position:relative inline */
-#trains{position:absolute;left:0;top:0;pointer-events:none;z-index:450}
+#trains,#lines{position:absolute;left:0;top:0;pointer-events:none;z-index:450}
+#lines{z-index:449}
 #panel{position:fixed;z-index:1000;top:12px;left:12px;width:360px;max-height:calc(100% - 24px);overflow:auto;
   background:var(--panel);border:1px solid var(--edge);border-radius:14px;box-shadow:0 6px 24px rgba(0,0,0,.2);padding:14px}
 h1{margin:0 0 10px;font-size:18px;font-weight:800;display:flex;align-items:center;gap:6px;white-space:nowrap}
@@ -312,8 +313,88 @@ const PARALLEL = new Set(['dlr', 'elizabeth', 'overground', 'tram']);
 const MAP_BG = () => dark ? (MAP_STYLE === 'original' ? '#1b1c1f' : '#1d2026') : '#ffffff';
 const ink = c => c==='#000000'&&dark ? '#d9d9d9' : c;
 const LINE_W = 4.5;
+// ---- Lines drawn like the TfL map: solid colours, and lines that share track run side by side ----
+// Track is matched between lines by their station-to-station edges (endpoints rounded to ~10 m).
+let LANES = null, linesSig = '';
+const vkey = p => p[0].toFixed(4) + ',' + p[1].toFixed(4);
+function buildLanes(){
+  const edges = new Map(); // edge key -> {a, b, lines:[ids]}; a/b in a fixed order so "left" means the same for everyone
+  for(const l of ACTIVE) if(l.polys) for(const poly of l.polys) for(let i=1;i<poly.length;i++){
+    let A = poly[i-1], B = poly[i], ka = vkey(A), kb = vkey(B); if(ka === kb) continue;
+    if(ka > kb){ [A, B] = [B, A]; [ka, kb] = [kb, ka]; }
+    const k = ka + '|' + kb; let e = edges.get(k); if(!e) edges.set(k, e = {a:A, b:B, lines:[]});
+    if(!e.lines.includes(l.id)) e.lines.push(l.id);
+  }
+  const order = Object.fromEntries(ACTIVE.map((l, i) => [l.id, i]));
+  for(const e of edges.values()) e.lines.sort((x, y) => order[x] - order[y]);
+  LANES = edges;
+  // each station -> nearest drawn vertex (to put trains in their lane)
+  for(const l of ACTIVE) if(l.stops && l.polys){ l.vk = {};
+    for(const [id, s] of Object.entries(l.stops)){ let best = null, bd = 300;
+      for(const poly of l.polys) for(const q of poly){ const d = dist(q, s.p); if(d < bd){ bd = d; best = q; } }
+      if(best) l.vk[id] = vkey(best); } }
+}
+const lineW = () => { const z = map.getZoom(); return z <= 10 ? 2.5 : z <= 11 ? 3.2 : z <= 12 ? 4 : z <= 13 ? 5 : z <= 15 ? 6 : 7; };
+// sideways offset (px) of line l on an edge: lines sharing it are spread out, centred on the track
+function laneOffset(e, id){
+  const vis = e.lines.filter(x => { const m = BY[x]; return m && lineStyle(m).opacity > 0; });
+  const i = vis.indexOf(id); if(i < 0 || vis.length < 2) return 0;
+  return (i - (vis.length - 1)/2) * lineW();
+}
+function drawLines(){
+  if(!ov.getProjection()) return;
+  if(!LANES) buildLanes();
+  const o = toScreen([51.5, -0.1]), z = map.getZoom();
+  const sig = [o.x.toFixed(1), o.y.toFixed(1), z, dark, MAP_STYLE, ...ACTIVE.map(l => lineStyle(l).opacity)].join();
+  if(sig === linesSig) return; linesSig = sig;
+  const s = mapSize(); lctx.clearRect(0, 0, s.x, s.y);
+  const W = lineW(), mpp = 156543.03*Math.cos(51.5*rad)/2**z, R = Math.max(6, 250/mpp);
+  lctx.lineJoin = 'round'; lctx.lineCap = 'round';
+  for(const l of ACTIVE){
+    const op = lineStyle(l).opacity; if(!op || !l.polys) continue;
+    const paths = [];
+    for(const poly of l.polys){
+      const P = poly.map(toScreen), n = P.length; if(n < 2) continue;
+      // offset of each edge, then each vertex = average of its edges' offsets (mitred)
+      const eo = [];
+      for(let i=1;i<n;i++){ let A = poly[i-1], B = poly[i], ka = vkey(A), kb = vkey(B), sign = 1;
+        if(ka > kb){ [ka, kb] = [kb, ka]; sign = -1; }
+        const e = LANES.get(ka + '|' + kb); const off = e ? laneOffset(e, l.id) * sign : 0;
+        const dx = P[i].x - P[i-1].x, dy = P[i].y - P[i-1].y, L = Math.hypot(dx, dy) || 1;
+        eo.push({nx:-dy/L, ny:dx/L, off}); }
+      const Q = P.map((p, i) => {
+        const a = eo[i-1], b = eo[i];
+        if(!a || !b){ const e = a || b; return {x:p.x + e.nx*e.off, y:p.y + e.ny*e.off}; }
+        let nx = a.nx + b.nx, ny = a.ny + b.ny; const L = Math.hypot(nx, ny);
+        if(L < 0.2) return {x:p.x + b.nx*b.off, y:p.y + b.ny*b.off}; // hairpin
+        nx /= L; ny /= L; const cos = nx*b.nx + ny*b.ny, off = (a.off + b.off)/2 / Math.max(0.5, cos);
+        return {x:p.x + nx*off, y:p.y + ny*off};
+      });
+      paths.push(Q);
+    }
+    const trace = () => { lctx.beginPath();
+      for(const Q of paths){ lctx.moveTo(Q[0].x, Q[0].y);
+        for(let i=1;i<Q.length-1;i++){ const a = Q[i-1], b = Q[i], c = Q[i+1];
+          const r = Math.min(R, Math.hypot(b.x-a.x, b.y-a.y)*0.45, Math.hypot(c.x-b.x, c.y-b.y)*0.45);
+          lctx.arcTo(b.x, b.y, c.x, c.y, r); }
+        const e = Q[Q.length-1]; lctx.lineTo(e.x, e.y); } };
+    lctx.globalAlpha = op; trace();
+    lctx.strokeStyle = ink(l.colour); lctx.lineWidth = W; lctx.stroke();
+    if(PARALLEL.has(l.mode)){ lctx.globalAlpha = 1; lctx.strokeStyle = MAP_BG(); lctx.lineWidth = W/3; lctx.stroke(); }
+  }
+  lctx.globalAlpha = 1;
+}
+// a train's sideways lane offset: the lane of the edge between its previous and next station
+function trainLane(t, l){
+  if(!LANES || !l.vk) return null;
+  const a = l.vk[t.prev], b = l.vk[t.cur || t.next]; if(!a || !b || a === b) return null;
+  const [ka, kb] = a < b ? [a, b] : [b, a], e = LANES.get(ka + '|' + kb); if(!e) return null;
+  const off = laneOffset(e, l.id); if(!off) return null;
+  const A = toScreen(e.a), B = toScreen(e.b), dx = B.x - A.x, dy = B.y - A.y, L = Math.hypot(dx, dy) || 1;
+  return {x:-dy/L*off, y:dx/L*off};
+}
 const lineCentre = l => ({color:MAP_BG(), weight:LINE_W/3, opacity:lineStyle(l).opacity ? 1 : 0, z:2});
-const lineStyle = l => ({color:ink(l.colour), weight:LINE_W, opacity:!shown(l)?0:l.on===false?0.07:window.DIM_TRAINS?0.05:l.pinned?0.75:(window.LINE_OPACITY||0.3)});
+const lineStyle = l => ({color:ink(l.colour), weight:LINE_W, opacity:!shown(l)?0:l.on===false?0.07:window.DIM_TRAINS?0.08:1});
 function applyTheme(){ document.body.classList.toggle('dark', dark); map.setOptions({styles:mapStyles()}); for(const l of ACTIVE) l.layer && l.layer.eachLayer(p => p.setStyle(lineStyle(l))); }
 applyTheme();
 // Screen positions (fractional pixels, so movement is smooth) via an empty overlay's projection
@@ -321,11 +402,15 @@ const ov = new google.maps.OverlayView(); ov.onAdd = ov.draw = ov.onRemove = () 
 const mapSize = () => { const d = map.getDiv(); return {x:d.clientWidth, y:d.clientHeight}; };
 const toScreen = p => ov.getProjection().fromLatLngToContainerPixel(new google.maps.LatLng(p[0], p[1]));
 
-// train canvas overlay (on top of the map, redrawn each frame)
+// canvases on top of the map: the lines (redrawn when the view changes) and the trains (every frame)
+const lcv = document.createElement('canvas'); lcv.id='lines'; map.getDiv().appendChild(lcv);
+const lctx = lcv.getContext('2d');
 const cv = document.createElement('canvas'); cv.id='trains';
 map.getDiv().appendChild(cv);
 const ctx = cv.getContext('2d');
-function sizeCanvas(){ const s=mapSize(), dpr=Math.min(2,devicePixelRatio||1); cv.width=s.x*dpr; cv.height=s.y*dpr; cv.style.width=s.x+'px'; cv.style.height=s.y+'px'; ctx.setTransform(dpr,0,0,dpr,0,0); }
+function sizeCanvas(){ const s=mapSize(), dpr=Math.min(2,devicePixelRatio||1);
+  for(const [c, x] of [[cv, ctx], [lcv, lctx]]){ c.width=s.x*dpr; c.height=s.y*dpr; c.style.width=s.x+'px'; c.style.height=s.y+'px'; x.setTransform(dpr,0,0,dpr,0,0); }
+  linesSig = ''; }
 new ResizeObserver(sizeCanvas).observe(map.getDiv()); sizeCanvas();
 // On phones the panel is a bottom sheet: the map ends where it starts, so Google's logo, your
 // position and the map centre are never hidden behind it.
@@ -357,10 +442,8 @@ async function loadLine(l){
   l.alias = {};
   l.seg = store.get('segt:'+l.id) || {};
   l.curves = l.polys.map(roundCorners);
-  l.layer = new Group();
-  for(const p of l.curves){ l.layer.addLayer(gLine(p, () => lineStyle(l)));
-    if(PARALLEL.has(l.mode)) l.layer.addLayer(gLine(p, () => lineCentre(l))); }
-  l.pathCache = {}; l.snapCache = {};
+  l.layer = new Group(); // lines are drawn on the lines canvas (drawLines); kept so "is loaded" checks work
+  l.pathCache = {}; l.snapCache = {}; LANES = null; linesSig = "";
 }
 
 // Round each bend of a polyline with a short curve (radius up to ~250 m, never more than
@@ -426,7 +509,7 @@ function trackPath(l, a, b){
   let pts = best;
   if(!pts){ // no drawn line joins these stations: draw one, so the train still sits on a line
     pts = [snapStop(l,a), snapStop(l,b)];
-    if(l.layer){ l.layer.addLayer(gLine(pts, () => lineStyle(l))); if(PARALLEL.has(l.mode)) l.layer.addLayer(gLine(pts, () => lineCentre(l))); }
+    l.polys.push([l.stops[a].p, l.stops[b].p]); LANES = null; linesSig = ""; // drawn by drawLines from now on
   }
   const cum=[0]; for(let i=1;i<pts.length;i++) cum.push(cum[i-1]+dist(pts[i-1],pts[i]));
   return l.pathCache[key] = {pts, cum, len:cum[cum.length-1]};
@@ -640,6 +723,7 @@ function draw(ts){
   const t0 = DEBUG ? performance.now() : 0;
   const k = 1 - Math.exp(-dt/TAU), ka = 1 - Math.exp(-dt/0.4);
   if(!ov.getProjection()) return;
+  drawLines();
   const s = mapSize(); ctx.clearRect(0,0,s.x,s.y);
   // train size: a long thin rectangle, roughly tube-train proportions (not to scale)
   const z = map.getZoom(), hl0 = Math.max(7, Math.min(16, (z-9)*3)), hw0 = Math.max(2.2, hl0/3.6);
@@ -665,7 +749,7 @@ function draw(ts){
     let dA = Math.atan2(Math.sin(ang-(t.ang??ang)), Math.cos(ang-(t.ang??ang)));
     if(dA > Math.PI/2) dA -= Math.PI; else if(dA < -Math.PI/2) dA += Math.PI;
     t.ang = (t.ang??ang) + dA*ka;
-    const c = toScreen(t.d);
+    const c = toScreen(t.d), lane = trainLane(t, l); if(lane){ c.x += lane.x; c.y += lane.y; }
     if(c.x<-40||c.y<-40||c.x>s.x+40||c.y>s.y+40) continue;
     const cs = Math.cos(t.ang), sn = Math.sin(t.ang);
     [hl, hw] = size(l);
