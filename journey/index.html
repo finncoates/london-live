@@ -79,6 +79,17 @@ body.dark .switch:checked{background:var(--acc)}
 .aclist small{display:block;color:var(--mute);font-size:12px}
 .aclist .gattr{justify-content:flex-end;cursor:default;padding:2px 6px;font-size:11px;color:var(--mute)}
 .aclist .gattr:hover{background:none}
+.st{font-size:11px;font-weight:700;padding:1px 6px;border-radius:99px;white-space:nowrap;line-height:1.5}
+.st1{background:#fff1c2;color:#7a5200} .st2{background:#ffd9cc;color:#9a2400} .st3{background:#e3e3e3;color:#333}
+body.dark .st1{background:#4a3b0f;color:#ffd96b} body.dark .st2{background:#5a1f12;color:#ffb39e} body.dark .st3{background:#3a3a3a;color:#ddd}
+.sb{display:flex;justify-content:space-between;align-items:center;width:100%;font-size:13px;padding:8px 10px;border-radius:10px;background:var(--soft);border:0;margin-top:12px;text-align:left}
+.sb span{color:var(--acc);font-size:12px}
+.sb.ok{color:var(--good);font-weight:600}
+.sbl{display:grid;gap:8px;margin-top:8px}
+.sbi{background:var(--soft);border-radius:10px;padding:8px 10px}
+.sbh{display:flex;align-items:center;gap:6px;font-size:13px}
+.sbh .sw{width:14px;height:5px;border-radius:3px;display:inline-block}
+.sbi p{margin:4px 0 0;font-size:12.5px;color:var(--mute)}
 .note{background:var(--soft);border-radius:10px;padding:8px 10px;font-size:13px;margin-bottom:10px}
 .opt{text-align:left;display:grid;gap:6px;padding:10px 12px}
 .opt.sel{border-color:var(--acc);box-shadow:0 0 0 1px var(--acc) inset}
@@ -167,6 +178,7 @@ body.dark #simnote{background:#1f2a44;color:#c6dafc}
       </div>
     </form>
     <div id="options"></div>
+    <div id="sbox"></div>
   </section>
   <section class="view" data-view="active" hidden>
     <div id="eta"></div>
@@ -649,6 +661,32 @@ function learn(l, a, b, diff){
   const k = a+'>'+b, o = l.seg[k];
   l.seg[k] = Math.round(o ? o*0.8 + run*0.2 : run);
 }
+
+// ---------- service status (TfL) ----------
+// level: 0 good, 1 minor delays etc., 2 severe / part closure, 3 closed / suspended
+const STATUS = new Map();
+const SEV_LEVEL = s => [1,2,4,16,20].includes(s) ? 3 : [3,5,6,11].includes(s) ? 2 : [10,18,19].includes(s) ? 0 : 1;
+const LEVEL_NAME = ['Good service', 'Minor delays', 'Severe delays', 'Closed'];
+async function refreshStatus(){
+  try{
+    const ids = ACTIVE.filter(l => l.mode !== 'bus').map(l => l.id);
+    const res = await get(`/Line/${ids.join(',')}/Status`);
+    STATUS.clear();
+    for(const l of res){
+      const ss = (l.lineStatuses || []).map(s => ({lv:SEV_LEVEL(s.statusSeverity), text:s.statusSeverityDescription, reason:(s.reason||'').trim()}));
+      ss.sort((a, b) => b.lv - a.lv);
+      const top = ss[0] || {lv:0, text:'Good service'};
+      // reasons: drop the "Line name:" prefix and duplicates
+      const reasons = [...new Set(ss.map(s => s.reason.replace(/^[^:]{2,40}:\s*/, '')).filter(Boolean))];
+      STATUS.set(l.id, {lv:top.lv, text:top.lv ? top.text : 'Good service', reasons});
+    }
+    window.onStatus && onStatus();
+  }catch(e){ console.warn('status', e.message); }
+}
+const lineStatus = id => STATUS.get(id) || null;
+const statusBadge = (id, short) => { const s = lineStatus(id); if(!s || !s.lv) return '';
+  return `<span class="st st${s.lv}" title="${esc(s.reasons[0] || s.text)}">${esc(short ? ['', 'Delays', 'Severe', 'Closed'][s.lv] : s.text)}</span>`; };
+setTimeout(refreshStatus, 1500); setInterval(refreshStatus, 120000);
 
 // ---------- live trains ----------
 let trains = new Map(); // key -> train state
@@ -1508,12 +1546,20 @@ const pill = L => L.walk ? `<span class="pill walk">${icon(L, 14)} ${mins(L.arr-
 function showView(v){ $('panel').scrollTop = 0; $('tabs').hidden = v === 'active';
   if(v !== 'active') for(const b of $('tabs').children){ b.classList.toggle('sel', b.dataset.t === v); b.setAttribute('aria-selected', b.dataset.t === v); } for(const el of document.querySelectorAll('.view')) el.hidden = el.dataset.view !== v; document.body.dataset.view = v; }
 
+// worst status among the lines a journey uses (TfL lines only)
+function routeWarn(j){
+  let worst = null;
+  for(const L of j.legs){ const id = L.line || L.tflLine; const s = id && lineStatus(id);
+    if(s && s.lv && (!worst || s.lv > worst.s.lv)) worst = {s, name:BY[id] ? BY[id].name : L.lineName}; }
+  if(!worst) return j.legs.some(L => L.disrupted) ? '<div class="warn">⚠ Disruption on this route</div>' : '';
+  return `<div class="warn">⚠ ${esc(worst.s.text)} on the ${esc(worst.name)}${/line$/i.test(worst.name) ? '' : ' line'}</div>`;
+}
 function renderOptions(el = $(J.optEl || 'options')){
   el.innerHTML = J.options.map((j, i) => `
     <button class="opt ${i===J.sel?'sel':''}" data-i="${i}">
       <div class="opt-top"><b>${hhmm(j.dep)} → ${hhmm(j.arr)}</b><span>${mins(j.arr-j.dep)} min</span></div>
       <div class="pills">${j.legs.map(pill).join('<span class="sep">›</span>')}</div>
-      ${j.legs.some(L => L.disrupted) ? '<div class="warn">⚠ Disruption on this route</div>' : ''}
+      ${routeWarn(j)}
 
     </button>`).join('') + (J.options.length ? `<button id="go" class="primary">Start journey</button>` : '');
 }
@@ -1576,6 +1622,11 @@ async function search(){
   }catch(e){ $('options').innerHTML = `<div class="muted">${esc(e.message)}</div>`; }
 }
 
+function legWarn(L){
+  const id = L.line || L.tflLine, s = id && lineStatus(id);
+  if(s && s.lv) return `<div class="warn">⚠ ${esc(s.text)}${s.reasons[0] ? ': ' + esc(s.reasons[0].replace(/\s*(Good service|Valid tickets).*$/i, '')) : ''}</div>`;
+  return L.disrupted ? '<div class="warn">⚠ Disruption reported on this line</div>' : '';
+}
 function legRow(L, i){
   const cur = i === J.idx, done = i < J.idx;
   let live = '';
@@ -1592,7 +1643,7 @@ function legRow(L, i){
     <div class="li-h">${icon(L)} <span>${esc(L.summary)}</span><small>${time}</small></div>
     ${L.walk ? '' : `<div class="li-d">${esc(L.from.name)} → ${esc(L.to.name)}${L.towards?` · towards ${esc(L.towards)}`:''}${L.nStops?` · ${L.nStops} stop${L.nStops>1?'s':''}`:''}</div>`}
     ${live ? `<div class="li-live">${live}</div>` : ''}
-    ${L.disrupted ? '<div class="warn">⚠ Disruption reported on this line</div>' : ''}
+    ${legWarn(L)}
   </li>`;
 }
 const setHTML = (el, html) => { if(el._html !== html){ el.innerHTML = html; el._html = html; } };
@@ -1612,6 +1663,19 @@ function renderActive(force){
   setHTML($('steps'), J.plan.legs.map(legRow).join(''));
   $('gmaps').href = gmapsLink(J.plan);
 }
+
+// ----- service status box (search screen) -----
+let sboxOpen = false;
+function renderStatusBox(){
+  const el = $('sbox'); if(!el) return;
+  const bad = ACTIVE.filter(l => l.mode !== 'bus' && lineStatus(l.id)?.lv).sort((a, b) => lineStatus(b.id).lv - lineStatus(a.id).lv);
+  if(!STATUS.size){ el.innerHTML = ''; return; }
+  el.innerHTML = !bad.length ? '<div class="sb ok">✓ Good service on all TfL lines</div>'
+    : `<button type="button" class="sb" id="sbT" aria-expanded="${sboxOpen}"><b>Service status: ${bad.length} line${bad.length > 1 ? 's' : ''} with problems</b><span>${sboxOpen ? 'Hide' : 'Details'}</span></button>`
+      + (sboxOpen ? `<div class="sbl">${bad.map(l => { const s = lineStatus(l.id); return `<div class="sbi"><div class="sbh"><span class="sw" style="background:${ink(l.colour)}"></span><b>${esc(l.name)}</b>${statusBadge(l.id)}</div>${s.reasons.map(r => `<p>${esc(r)}</p>`).join('')}</div>`; }).join('')}</div>` : '');
+}
+$('sbox').addEventListener('click', e => { if(e.target.closest('#sbT')){ sboxOpen = !sboxOpen; renderStatusBox(); } });
+window.onStatus = () => { renderStatusBox(); if(J.options && J.options.length && !J.active) renderOptions(); if(J.active) renderActive(true); };
 
 // ----- place suggestions while typing (Google Places autocomplete) -----
 const AC = {list:document.createElement('ul'), input:null, items:[], sel:-1, token:null, timer:0, seq:0};

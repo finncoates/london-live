@@ -83,6 +83,9 @@ body.dark .switch:checked{background:var(--acc)}
 .aclist small{display:block;color:var(--mute);font-size:12px}
 .aclist .gattr{justify-content:flex-end;cursor:default;padding:2px 6px;font-size:11px;color:var(--mute)}
 .aclist .gattr:hover{background:none}
+.st{font-size:11px;font-weight:700;padding:1px 6px;border-radius:99px;white-space:nowrap;line-height:1.5}
+.st1{background:#fff1c2;color:#7a5200} .st2{background:#ffd9cc;color:#9a2400} .st3{background:#e3e3e3;color:#333}
+body.dark .st1{background:#4a3b0f;color:#ffd96b} body.dark .st2{background:#5a1f12;color:#ffb39e} body.dark .st3{background:#3a3a3a;color:#ddd}
 .note{background:var(--soft);border-radius:10px;padding:8px 10px;font-size:13px;margin-bottom:10px}
 .opt{text-align:left;display:grid;gap:6px;padding:10px 12px}
 .opt.sel{border-color:var(--acc);box-shadow:0 0 0 1px var(--acc) inset}
@@ -159,6 +162,15 @@ body.dark #simnote{background:#1f2a44;color:#c6dafc}
 .row:hover{background:var(--soft)}
 .row .sw{width:22px;height:6px;border-radius:3px;flex:none}
 .row .nm{flex:1}
+.row .st{margin-left:4px}
+.sb{display:flex;justify-content:space-between;align-items:center;width:100%;font-size:13px;padding:7px 10px;border-radius:10px;background:var(--soft);border:0;margin-bottom:8px;text-align:left}
+.sb span{color:var(--acc);font-size:12px}
+.sb.ok{color:var(--good);font-weight:600}
+.sbl{display:grid;gap:8px;margin:-2px 0 10px;max-height:260px;overflow:auto}
+.sbi{background:var(--soft);border-radius:10px;padding:8px 10px}
+.sbh{display:flex;align-items:center;gap:6px;font-size:13px}
+.sbh .sw{width:14px;height:5px;border-radius:3px}
+.sbi p{margin:4px 0 0;font-size:12.5px;color:var(--mute)}
 .row .n{color:var(--mute);font-variant-numeric:tabular-nums;font-size:13px}
 .row.off{opacity:.38}
 #clock{position:fixed;right:16px;bottom:30px;z-index:1000;font-weight:800;font-size:30px;font-variant-numeric:tabular-nums;color:var(--ink);text-shadow:0 0 8px var(--bg);display:none}
@@ -189,6 +201,7 @@ body.kiosk #map{bottom:0!important}
     <label class="mm-row"><span>Show trains<small>The moving train shapes. The lines stay.</small></span><input type="checkbox" id="mIcons" class="switch"></label>
   </div>
   <div class="chips" id="mModes" aria-label="Show transport types"></div>
+  <div id="sbox"></div>
   <div id="legend"></div>
   <div id="err"></div>
 </div>
@@ -665,6 +678,32 @@ function learn(l, a, b, diff){
   l.seg[k] = Math.round(o ? o*0.8 + run*0.2 : run);
 }
 
+// ---------- service status (TfL) ----------
+// level: 0 good, 1 minor delays etc., 2 severe / part closure, 3 closed / suspended
+const STATUS = new Map();
+const SEV_LEVEL = s => [1,2,4,16,20].includes(s) ? 3 : [3,5,6,11].includes(s) ? 2 : [10,18,19].includes(s) ? 0 : 1;
+const LEVEL_NAME = ['Good service', 'Minor delays', 'Severe delays', 'Closed'];
+async function refreshStatus(){
+  try{
+    const ids = ACTIVE.filter(l => l.mode !== 'bus').map(l => l.id);
+    const res = await get(`/Line/${ids.join(',')}/Status`);
+    STATUS.clear();
+    for(const l of res){
+      const ss = (l.lineStatuses || []).map(s => ({lv:SEV_LEVEL(s.statusSeverity), text:s.statusSeverityDescription, reason:(s.reason||'').trim()}));
+      ss.sort((a, b) => b.lv - a.lv);
+      const top = ss[0] || {lv:0, text:'Good service'};
+      // reasons: drop the "Line name:" prefix and duplicates
+      const reasons = [...new Set(ss.map(s => s.reason.replace(/^[^:]{2,40}:\s*/, '')).filter(Boolean))];
+      STATUS.set(l.id, {lv:top.lv, text:top.lv ? top.text : 'Good service', reasons});
+    }
+    window.onStatus && onStatus();
+  }catch(e){ console.warn('status', e.message); }
+}
+const lineStatus = id => STATUS.get(id) || null;
+const statusBadge = (id, short) => { const s = lineStatus(id); if(!s || !s.lv) return '';
+  return `<span class="st st${s.lv}" title="${esc(s.reasons[0] || s.text)}">${esc(short ? ['', 'Delays', 'Severe', 'Closed'][s.lv] : s.text)}</span>`; };
+setTimeout(refreshStatus, 1500); setInterval(refreshStatus, 120000);
+
 // ---------- live trains ----------
 let trains = new Map(); // key -> train state
 let skew = 0; // server time - local time (ms), only used if the local clock is clearly wrong
@@ -967,8 +1006,20 @@ window.onTrainsUpdate = n => {
 function renderLegend(){
   const rows = ACTIVE.filter(l => l.mode !== 'bus' && !MODES_OFF.has(l.mode));
   $('legend').innerHTML = rows.map(l => `<button type="button" class="row ${l.on ? '' : 'off'}" data-id="${l.id}" aria-pressed="${l.on}">
-    <span class="sw" style="background:${PARALLEL.has(l.mode) ? `linear-gradient(${ink(l.colour)} 34%, var(--panel) 34% 66%, ${ink(l.colour)} 66%)` : ink(l.colour)}"></span><span class="nm">${esc(l.name)}</span><span class="n">${l.count || ''}</span></button>`).join('');
+    <span class="sw" style="background:${PARALLEL.has(l.mode) ? `linear-gradient(${ink(l.colour)} 34%, var(--panel) 34% 66%, ${ink(l.colour)} 66%)` : ink(l.colour)}"></span><span class="nm">${esc(l.name)}</span>${statusBadge(l.id, true)}<span class="n">${l.count || ''}</span></button>`).join('');
+  renderStatusBox();
 }
+// service status summary: which lines have problems, and why
+let sboxOpen = false;
+function renderStatusBox(){
+  const bad = ACTIVE.filter(l => l.mode !== 'bus' && lineStatus(l.id)?.lv).sort((a, b) => lineStatus(b.id).lv - lineStatus(a.id).lv);
+  if(!STATUS.size){ $('sbox').innerHTML = ''; return; }
+  $('sbox').innerHTML = !bad.length ? '<div class="sb ok">✓ Good service on all lines</div>'
+    : `<button type="button" class="sb" id="sbT" aria-expanded="${sboxOpen}"><b>${bad.length} line${bad.length > 1 ? 's' : ''} with problems</b><span>${sboxOpen ? 'Hide' : 'Details'}</span></button>`
+      + (sboxOpen ? `<div class="sbl">${bad.map(l => { const s = lineStatus(l.id); return `<div class="sbi"><div class="sbh"><span class="sw" style="background:${ink(l.colour)}"></span><b>${esc(l.name)}</b>${statusBadge(l.id)}</div>${s.reasons.map(r => `<p>${esc(r)}</p>`).join('')}</div>`; }).join('')}</div>` : '');
+}
+$('sbox').addEventListener('click', e => { if(e.target.closest('#sbT')){ sboxOpen = !sboxOpen; renderStatusBox(); } });
+window.onStatus = renderLegend;
 $('legend').addEventListener('click', e => {
   const r = e.target.closest('.row'); if(!r) return;
   const l = BY[r.dataset.id]; l.on = !l.on;
