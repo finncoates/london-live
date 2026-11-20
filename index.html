@@ -11,7 +11,7 @@
 /* London Live Trains — every Tube, DLR, Overground, Elizabeth line and tram train, live on Google Maps.
    (Shares its train engine and map code with London Journey: ../journey/index.html)
    URL options: ?kiosk=1  ?theme=dark|light  ?lines=victoria,central  ?modes=tube,dlr,...  ?view=lat,lon,zoom
-   ?refresh=30  ?fps=30  ?app_key=TFLKEY  ?debug=1  ·  Keys: K kiosk, D dark/light, / search
+   ?board=Oxford Circus (TV departure board)  ?refresh=30  ?fps=30  ?app_key=TFLKEY  ?debug=1  ·  Keys: K kiosk, D dark/light, / search
    Old notes from the Journey page follow, unchanged:
    Journeys: Google directions (all transport, anywhere). Live London data: TfL Unified API. Map: Google Maps.
    URL options: ?sim=1 (test mode: drag the blue marker)  ?theme=dark|light  ?app_key=TFLKEY  ?debug=1 */
@@ -174,8 +174,25 @@ body.dark #simnote{background:#1f2a44;color:#c6dafc}
 .row .n{color:var(--mute);font-variant-numeric:tabular-nums;font-size:13px}
 .row.off{opacity:.38}
 #clock{position:fixed;right:16px;bottom:30px;z-index:1000;font-weight:800;font-size:30px;font-variant-numeric:tabular-nums;color:var(--ink);text-shadow:0 0 8px var(--bg);display:none}
-body.kiosk #panel{display:none} body.kiosk #clock{display:block}
+body.kiosk #panel{display:none} body.kiosk #clock{display:block} body.boardon #clock{display:none!important}
 body.kiosk #map{bottom:0!important}
+/* departure board (TV): station-style next trains, beside the map */
+#board{position:fixed;top:24px;right:24px;z-index:1000;width:min(560px,44vw);max-height:calc(100% - 120px);overflow:hidden;
+  background:#0b0b0b;color:#ffb000;border-radius:14px;padding:18px 20px;box-shadow:0 10px 30px rgba(0,0,0,.35);font-variant-numeric:tabular-nums}
+#board h2{margin:0 0 4px;font-size:30px;color:#fff;font-weight:800;display:flex;justify-content:space-between;gap:12px}
+#board h2 small{font-size:22px;color:#ffb000;font-weight:600}
+#board .bl{display:flex;gap:6px;margin:0 0 12px}
+#board .bl i{height:6px;flex:1;border-radius:3px}
+#board ol{list-style:none;margin:0;padding:0;display:grid;gap:10px}
+#board li{display:grid;grid-template-columns:8px 1fr auto;gap:12px;align-items:center;font-size:24px;line-height:1.15}
+#board li .c{align-self:stretch;border-radius:3px}
+#board li .d{color:#ffcf4d;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+#board li .d small{display:block;font-size:16px;color:#c98a00}
+#board li b{font-size:26px;color:#fff}
+#board .msg{font-size:18px;color:#ffcf4d;border-top:1px solid #333;margin-top:14px;padding-top:10px}
+@media (max-width:700px){#board{left:12px;right:12px;width:auto;top:12px;padding:14px}#board h2{font-size:22px}#board li{font-size:18px}#board li b{font-size:19px}}
+.st-actions{display:flex;gap:6px;margin:6px 0 2px}
+.st-actions button{font-size:12.5px;padding:5px 10px}
 </style>
 </head>
 <body>
@@ -207,6 +224,7 @@ body.kiosk #map{bottom:0!important}
 </div>
 <div id="tip"></div>
 <div id="clock"></div>
+<div id="board" hidden></div>
 <script>
 (async () => {
 const Q = new URLSearchParams(location.search);
@@ -1103,7 +1121,7 @@ $('sres').addEventListener('click', e => { const li = e.target.closest('li[data-
 let focusMarker = null, focusTimer = 0;
 function clearFocus(){ if(focusMarker){ focusMarker.setMap(null); focusMarker = null; } $('station').hidden = true; clearInterval(focusTimer); }
 async function goStation(st){
-  clearFocus();
+  clearFocus(); FOCUS_ST = st;
   $('q').value = st.name; SR.items = []; $('sres').hidden = true; $('q').setAttribute('aria-expanded', 'false'); $('q').blur();
   map.panTo(LL(st.p)); map.setZoom(15);
   const col = BY[[...st.lines][0]].colour;
@@ -1111,6 +1129,7 @@ async function goStation(st){
     icon:{path:google.maps.SymbolPath.CIRCLE, scale:14, fillColor:'#fff', fillOpacity:.25, strokeColor:ink(col), strokeWeight:4}});
   const box = $('station'); box.hidden = false;
   const head = `<div class="st-h"><b>${esc(st.name)}</b><button type="button" class="x" id="stClose" aria-label="Close">✕</button></div>
+    <div class="st-actions"><button type="button" id="stBoard">Show as TV board</button></div>
     <div class="st-lines">${[...st.lines].map(id => `<span class="pill" style="--c:${BY[id].colour}">${symbol(BY[id].mode==='tube'?'tube':BY[id].mode, BY[id].colour, 14)} ${esc(BY[id].name)}</span>`).join('')}</div>`;
   box.innerHTML = head + '<div class="muted">Loading next trains…</div>';
   const load = async () => {
@@ -1124,7 +1143,35 @@ async function goStation(st){
   };
   load(); focusTimer = setInterval(load, 30000);
 }
-$('station').addEventListener('click', e => { if(e.target.closest('#stClose')){ clearFocus(); $('q').value = ''; } });
+$('station').addEventListener('click', e => {
+  if(e.target.closest('#stClose')){ clearFocus(); $('q').value = ''; }
+  if(e.target.closest('#stBoard') && FOCUS_ST){ openBoard(FOCUS_ST); }
+});
+// ---------- departure board ----------
+let FOCUS_ST = null, boardTimer = 0, BOARD_ST = null;
+function findStation(name){
+  const r = searchStations(name); return r[0] || null;
+}
+async function openBoard(st){
+  BOARD_ST = st; clearInterval(boardTimer); $('board').hidden = false; document.body.classList.add('boardon');
+  try{ const u = new URL(location); u.searchParams.set('board', st.name); history.replaceState(null, '', u); }catch(e){}
+  const draw = async () => {
+    const all = (await Promise.all([...st.ids].slice(0, 4).map(id => get(`/StopPoint/${id}/Arrivals`).catch(() => [])))).flat().filter(a => st.lines.has(a.lineId));
+    const seen = new Set();
+    const rows = all.sort((a, b) => a.timeToStation - b.timeToStation)
+      .filter(a => { const k = a.vehicleId + a.lineId + a.platformName; if(seen.has(k)) return false; seen.add(k); return true; }).slice(0, 9);
+    const bad = [...st.lines].map(id => [BY[id], lineStatus(id)]).filter(([, s]) => s && s.lv);
+    $('board').innerHTML = `<h2><span>${esc(st.name)}</span><small id="bclock">${new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}</small></h2>
+      <div class="bl">${[...st.lines].map(id => `<i style="background:${BY[id].colour}"></i>`).join('')}</div>
+      ${rows.length ? `<ol>${rows.map(a => { const l = BY[a.lineId], m = Math.round(a.timeToStation/60);
+        return `<li><span class="c" style="background:${l.colour}"></span><span class="d">${esc(cleanName(a.destinationName || a.towards || l.name))}<small>${esc(l.name)}${a.platformName ? ' · ' + esc(a.platformName.replace(/^.*- /, '')) : ''}</small></span><b>${m < 1 ? 'Due' : m + ' min'}</b></li>`; }).join('')}</ol>` : '<div class="msg">No trains listed right now</div>'}
+      ${bad.map(([l, s]) => `<div class="msg">⚠ ${esc(l.name)}: ${esc(s.text)}</div>`).join('')}`;
+  };
+  await draw(); boardTimer = setInterval(draw, 20000);
+}
+function closeBoard(){ clearInterval(boardTimer); BOARD_ST = null; $('board').hidden = true; document.body.classList.remove('boardon');
+  try{ const u = new URL(location); u.searchParams.delete('board'); history.replaceState(null, '', u); }catch(e){} }
+$('board').addEventListener('click', closeBoard);
 
 // ---------- kiosk, clock, re-centre, keys ----------
 if(Q.get('kiosk') === '1') document.body.classList.add('kiosk');
@@ -1156,6 +1203,7 @@ if(DEBUG) window.LLT = {trains, ACTIVE, BY, placeTrain, segTime, refresh, map, d
     }
   }));
   STATIONS = null; renderModeChips(); renderLegend();
+  if(Q.get('board')){ const st = findStation(Q.get('board')); if(st){ openBoard(st); map.panTo(LL(st.p)); map.setZoom(14); } }
   for(;;){
     let good = false;
     try{ good = await refresh(); }catch(e){ $('err').textContent = 'Error: ' + e.message; console.error(e); }
