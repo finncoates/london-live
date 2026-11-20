@@ -35,8 +35,6 @@ Findings and fixes:
   Result: ~0–1.5 % of train-seconds show a visible correction (was ~10–20 % of trains per refresh).
 - **Segment times** are learned from live data (difference between consecutive predictions
   minus a dwell time) and cached in localStorage (`segt:` keys). Fallback: distance / mode speed.
-- **Shared track**: trains keep left, and Circle/H&C/District/Met (plus Piccadilly, Lioness)
-  get lanes so they draw side by side.
 - **Overground colours** set to the TfL digital colour standard: Liberty #61686B, Lioness #FFA600,
   Mildmay #006FE6, Suffragette #18A95D, Weaver #9B0058, Windrush #DC241F.
 - **Rate limits**: requests run in parallel and with backoff on errors; a failed chunk keeps its
@@ -46,6 +44,12 @@ Findings and fixes:
   from lat/lng without projecting. `draw()` is ~1.7 ms/frame on a desktop (~10 ms at 6× CPU throttle).
   Each refresh downloads ~280 KB gzipped, but that's **~6.8 MB of JSON** to parse (~1 s at 6× throttle),
   which may cause a brief hitch every 30 s on the Fire TV Stick. Use `?refresh=45` if needed.
+
+## v3 — visual changes
+- Lines have rounded bends (quadratic curves, radius up to ~250 m), drawn and followed by trains.
+- Trains sit exactly on their line: positions are eased, then projected back onto the track,
+  and stations are snapped to the curve. (The keep-left/lane offsets were removed.)
+- Trains are drawn as rounded rectangles, about 3.6:1 like a tube train, sized by zoom.
 
 ## Known limits / ideas
 - TfL `lineStrings` are straight lines between stations, not real track. Real curves would need

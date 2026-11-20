@@ -69,29 +69,28 @@ const DEBUG = Q.get('debug') === '1';
 const VIEW = (Q.get('view') || '').split(',').map(Number);
 const HOME = VIEW.length === 3 && VIEW.every(isFinite) ? [[VIEW[0], VIEW[1]], VIEW[2]] : [[51.512, -0.11], 11.5];
 
-// Line catalogue: TfL line id -> name, colour, mode, lane.
+// Line catalogue: TfL line id -> name, colour, mode.
 // Tube/DLR/Elizabeth: TfL print colours. Overground: TfL digital colour standard (2024 line names).
-// lane: lines sharing track get drawn side by side (0 = on the track centre line).
 const LINES = [
-  ['bakerloo','Bakerloo','#B36305','tube',0],
-  ['central','Central','#E32017','tube',0],
-  ['circle','Circle','#FFD300','tube',0],
-  ['district','District','#00782A','tube',2],
-  ['hammersmith-city','Hammersmith & City','#F3A9BB','tube',1],
-  ['jubilee','Jubilee','#A0A5A9','tube',0],
-  ['metropolitan','Metropolitan','#9B0056','tube',3],
-  ['northern','Northern','#000000','tube',0],
-  ['piccadilly','Piccadilly','#003688','tube',1],
-  ['victoria','Victoria','#0098D4','tube',0],
-  ['waterloo-city','Waterloo & City','#95CDBA','tube',0],
-  ['elizabeth','Elizabeth','#6950A1','elizabeth',0],
-  ['dlr','DLR','#00A4A7','dlr',0],
-  ['liberty','Liberty','#61686B','overground',0],
-  ['lioness','Lioness','#FFA600','overground',1],
-  ['mildmay','Mildmay','#006FE6','overground',0],
-  ['suffragette','Suffragette','#18A95D','overground',0],
-  ['weaver','Weaver','#9B0058','overground',0],
-  ['windrush','Windrush','#DC241F','overground',0],
+  ['bakerloo','Bakerloo','#B36305','tube'],
+  ['central','Central','#E32017','tube'],
+  ['circle','Circle','#FFD300','tube'],
+  ['district','District','#00782A','tube'],
+  ['hammersmith-city','Hammersmith & City','#F3A9BB','tube'],
+  ['jubilee','Jubilee','#A0A5A9','tube'],
+  ['metropolitan','Metropolitan','#9B0056','tube'],
+  ['northern','Northern','#000000','tube'],
+  ['piccadilly','Piccadilly','#003688','tube'],
+  ['victoria','Victoria','#0098D4','tube'],
+  ['waterloo-city','Waterloo & City','#95CDBA','tube'],
+  ['elizabeth','Elizabeth','#6950A1','elizabeth'],
+  ['dlr','DLR','#00A4A7','dlr'],
+  ['liberty','Liberty','#61686B','overground'],
+  ['lioness','Lioness','#FFA600','overground'],
+  ['mildmay','Mildmay','#006FE6','overground'],
+  ['suffragette','Suffragette','#18A95D','overground'],
+  ['weaver','Weaver','#9B0058','overground'],
+  ['windrush','Windrush','#DC241F','overground'],
 ];
 // Typical dwell (s) at a station and fallback cruise speed (m/s) when no segment time has been learned yet.
 const DWELL = {tube:25, dlr:20, elizabeth:40, overground:35};
@@ -99,7 +98,7 @@ const SPEED = {tube:12, dlr:10, elizabeth:17, overground:13};
 const modesWanted = (Q.get('modes') || 'tube,elizabeth,dlr,overground').split(',');
 const linesWanted = Q.get('lines') ? Q.get('lines').split(',') : null;
 const ACTIVE = LINES.filter(l => modesWanted.includes(l[3]) && (!linesWanted || linesWanted.includes(l[0])))
-  .map(([id,name,colour,mode,lane]) => ({id,name,colour,mode,lane,on:true,count:0,polys:[],routes:[],stops:{},seg:{}}));
+  .map(([id,name,colour,mode]) => ({id,name,colour,mode,on:true,count:0,polys:[],routes:[],stops:{},seg:{}}));
 const BY = Object.fromEntries(ACTIVE.map(l => [l.id, l]));
 
 // ---------- helpers ----------
@@ -176,9 +175,43 @@ async function loadLine(l){
   l.byName = {}; for(const [id,s] of Object.entries(l.stops)) (l.byName[normName(s.n)] ||= []).push(id);
   l.alias = {};
   l.seg = store.get('segt:'+l.id) || {};
-  l.layer = L.layerGroup(l.polys.map(p => L.polyline(p, lineStyle(l)))).addTo(map);
-  l.pathCache = {};
+  l.curves = l.polys.map(roundCorners);
+  l.layer = L.layerGroup(l.curves.map(p => L.polyline(p, lineStyle(l)))).addTo(map);
+  l.pathCache = {}; l.snapCache = {};
 }
+
+// Round each bend of a polyline with a short curve (radius up to ~250 m, never more than
+// 40% of either neighbouring stretch). Samples include each curve's midpoint, which is
+// where a station on a bend ends up, so trains can stop exactly on the drawn line.
+function roundCorners(poly){
+  if(poly.length < 3) return poly;
+  const kx = Math.cos(poly[0][0]*rad); // lon degrees -> comparable to lat degrees
+  const out = [poly[0]];
+  for(let i=1;i<poly.length-1;i++){
+    const P=poly[i-1], C=poly[i], N=poly[i+1];
+    const ax=(P[1]-C[1])*kx, ay=P[0]-C[0], bx=(N[1]-C[1])*kx, by=N[0]-C[0];
+    const la=Math.hypot(ax,ay), lb=Math.hypot(bx,by);
+    const turn = Math.PI - Math.acos(Math.max(-1, Math.min(1, (ax*bx+ay*by)/(la*lb||1))));
+    if(!la || !lb || turn < 0.05){ out.push(C); continue; }
+    const r = Math.min(250/111320, la*0.4, lb*0.4);
+    const Q1=[C[0]+ay/la*r, C[1]+ax/la*r/kx], Q2=[C[0]+by/lb*r, C[1]+bx/lb*r/kx];
+    for(let j=0;j<=8;j++){ const t=j/8, u=1-t; // quadratic Bezier Q1 -> (C) -> Q2
+      out.push([u*u*Q1[0]+2*u*t*C[0]+t*t*Q2[0], u*u*Q1[1]+2*u*t*C[1]+t*t*Q2[1]]); }
+  }
+  out.push(poly[poly.length-1]);
+  return out;
+}
+// A station's spot on the drawn line (nearest curve point), with the line's direction there
+function snapAt(l, id){
+  if(l.snapCache[id]) return l.snapCache[id];
+  const P = l.stops[id].p; let best = {p:P, a:null, b:null}, bd = 250;
+  for(const c of l.curves) for(let i=0;i<c.length;i++){
+    const d = dist(c[i],P);
+    if(d<bd){ bd=d; best={p:c[i], a:c[Math.max(0,i-1)], b:c[Math.min(c.length-1,i+1)]}; }
+  }
+  return l.snapCache[id] = best;
+}
+const snapStop = (l, id) => snapAt(l, id).p;
 
 // Map a prediction's naptanId onto a stop of this line's sequence. Interchanges sometimes
 // report a different NaPTAN id (Elizabeth at Farringdon/Whitechapel, H&C at Paddington), so match by name.
@@ -197,7 +230,7 @@ function trackPath(l, a, b){
   const A = l.stops[a]?.p, B = l.stops[b]?.p; if(!A||!B) return null;
   const straight = dist(A,B);
   let best = null, bestScore = Infinity;
-  for(const poly of l.polys){
+  for(const poly of l.curves){
     let ia=-1, da=1e9, ib=-1, db=1e9;
     for(let i=0;i<poly.length;i++){ const x=dist(poly[i],A), y=dist(poly[i],B); if(x<da){da=x;ia=i} if(y<db){db=y;ib=i} }
     if(da>250||db>250||ia===ib) continue;
@@ -207,9 +240,24 @@ function trackPath(l, a, b){
     const score = da+db+len*0.01;
     if(score<bestScore){ bestScore=score; best=pts; }
   }
-  const pts = best ? [A, ...best.slice(1,-1), B] : [A,B];
+  let pts = best;
+  if(!pts){ // no drawn line joins these stations: draw one, so the train still sits on a line
+    pts = [snapStop(l,a), snapStop(l,b)];
+    l.layer && l.layer.addLayer(L.polyline(pts, lineStyle(l)));
+  }
   const cum=[0]; for(let i=1;i<pts.length;i++) cum.push(cum[i-1]+dist(pts[i-1],pts[i]));
   return l.pathCache[key] = {pts, cum, len:cum[cum.length-1]};
+}
+// Nearest point on a path to p -> {p, a, b} (keeps eased trains on the line)
+function project(path, p){
+  const P = path.pts, kx = Math.cos(p[0]*rad); let best = null, bd = Infinity;
+  for(let i=1;i<P.length;i++){
+    const A=P[i-1], B=P[i], vx=(B[1]-A[1])*kx, vy=B[0]-A[0], wx=(p[1]-A[1])*kx, wy=p[0]-A[0];
+    const L2 = vx*vx+vy*vy, k = L2 ? Math.max(0, Math.min(1, (vx*wx+vy*wy)/L2)) : 0;
+    const q = [A[0]+(B[0]-A[0])*k, A[1]+(B[1]-A[1])*k], d = (q[0]-p[0])**2 + ((q[1]-p[1])*kx)**2;
+    if(d<bd){ bd=d; best={p:q, a:A, b:B}; }
+  }
+  return best;
 }
 function along(path, f){ // fraction 0..1 -> {p, a, b}
   const t = f*path.len, c = path.cum, p = path.pts;
@@ -386,15 +434,15 @@ function placeTrain(t){
     [next, arr] = t.ahead[k];
   }
   t.cur = next; t.curArr = arr;
-  const N = l.stops[next]; if(!N) return null;
-  if(!prev || !l.stops[prev]) return {p:N.p, a:null, b:null};
-  const path = trackPath(l, prev, next); if(!path) return {p:N.p};
+  if(!l.stops[next]) return null;
+  if(!prev || !l.stops[prev]) return snapAt(l, next);
+  const path = trackPath(l, prev, next); if(!path) return snapAt(l, next);
   const remain = (arr - n)/1000;
   let f = Math.min(1, Math.max(0, 1 - remain/segTime(l, prev, next)));
   // trains don't reverse: if a prediction slips, hold position instead of sliding back
   const sk = prev+'>'+next;
   if(t.fk === sk && f < t.f) f = t.f; else { t.fk = sk; t.f = f; }
-  return along(path, f);
+  return Object.assign(along(path, f), {path});
 }
 
 // ---------- drawing ----------
@@ -407,40 +455,45 @@ function draw(ts){
   const t0 = DEBUG ? performance.now() : 0;
   const k = 1 - Math.exp(-dt/TAU), ka = 1 - Math.exp(-dt/0.4);
   const s = map.getSize(); ctx.clearRect(0,0,s.x,s.y);
-  const z = map.getZoom(), lenPx = Math.max(10, Math.min(30, (z-9)*6)), w = z>=13?7:z>=11.5?5.5:4.5;
-  const gap = w*0.6, laneGap = z>=13 ? w*0.6 : w*0.4, wall = Date.now(), cosLat = Math.cos(map.getCenter().lat*rad);
+  // train size: a long thin rectangle, roughly tube-train proportions (not to scale)
+  const z = map.getZoom(), hl = Math.max(7, Math.min(16, (z-9)*3)), hw = Math.max(2.2, hl/3.6);
+  const wall = Date.now(), cosLat = Math.cos(map.getCenter().lat*rad);
   const drawn = [], byLine = new Map();
   for(const t of trains.values()){
     const l = BY[t.line]; if(!l.on || wall - t.seen > REFRESH*1.5) continue;
     const pos = placeTrain(t); if(!pos) continue;
-    let ang = t.ang ?? 0;
-    // heading straight from lat/lng (Web Mercator is conformal), no projection needed
-    if(pos.a && pos.b){ const dx=(pos.b[1]-pos.a[1])*cosLat, dy=pos.a[0]-pos.b[0]; if(dx||dy) ang=Math.atan2(dy,dx); }
-    // smooth: ease displayed position (in lat/lng) towards target, snap on big jumps
+    // ease the displayed position, then put it back onto the line so it never cuts corners
     if(!t.d || dist(t.d, pos.p) > 3000) t.d = pos.p.slice();
     else { t.d[0]+= (pos.p[0]-t.d[0])*k; t.d[1]+= (pos.p[1]-t.d[1])*k; }
-    const dA = Math.atan2(Math.sin(ang-(t.ang??ang)), Math.cos(ang-(t.ang??ang)));
+    let on = pos;
+    if(pos.path){ on = project(pos.path, t.d); t.d = on.p.slice(); }
+    else t.d = pos.p.slice();
+    let ang = t.ang ?? 0;
+    if(on.a && on.b){ const dx=(on.b[1]-on.a[1])*cosLat, dy=on.a[0]-on.b[0]; if(dx||dy) ang=Math.atan2(dy,dx); }
+    // the rectangle looks the same both ways round, so turn it the short way (mod 180°)
+    let dA = Math.atan2(Math.sin(ang-(t.ang??ang)), Math.cos(ang-(t.ang??ang)));
+    if(dA > Math.PI/2) dA -= Math.PI; else if(dA < -Math.PI/2) dA += Math.PI;
     t.ang = (t.ang??ang) + dA*ka;
     const c = map.latLngToContainerPoint(t.d);
-    if(c.x<-60||c.y<-60||c.x>s.x+60||c.y>s.y+60) continue;
-    // keep left (UK running), and spread lines that share track into lanes
-    const off = gap + l.lane*laneGap, cs = Math.cos(t.ang), sn = Math.sin(t.ang);
-    const hx = c.x + sn*off, hy = c.y - cs*off;
-    const tx = hx - cs*lenPx, ty = hy - sn*lenPx;
-    const seg = [t,hx,hy,tx,ty]; drawn.push(seg);
-    if(!byLine.has(l)) byLine.set(l, []); byLine.get(l).push(seg);
+    if(c.x<-40||c.y<-40||c.x>s.x+40||c.y>s.y+40) continue;
+    const cs = Math.cos(t.ang), sn = Math.sin(t.ang);
+    const ux = cs*hl, uy = sn*hl, vx = -sn*hw, vy = cs*hw; // half-length and half-width vectors
+    const r = [c.x+ux+vx, c.y+uy+vy, c.x+ux-vx, c.y+uy-vy, c.x-ux-vx, c.y-uy-vy, c.x-ux+vx, c.y-uy+vy];
+    const item = [t, c.x, c.y, c.x, c.y, r]; drawn.push(item);
+    if(!byLine.has(l)) byLine.set(l, []); byLine.get(l).push(item);
   }
+  const rect = r => { ctx.moveTo(r[0],r[1]); ctx.lineTo(r[2],r[3]); ctx.lineTo(r[4],r[5]); ctx.lineTo(r[6],r[7]); ctx.closePath(); };
   // batched: one path for all outlines, then one per line colour (far fewer canvas calls on a TV stick)
-  ctx.lineCap = 'round';
-  ctx.strokeStyle = dark ? 'rgba(0,0,0,.85)' : 'rgba(255,255,255,.95)'; ctx.lineWidth = w+3;
-  ctx.beginPath(); for(const [,hx,hy,tx,ty] of drawn){ ctx.moveTo(tx,ty); ctx.lineTo(hx,hy); } ctx.stroke();
-  ctx.lineWidth = w;
-  for(const [l, segs] of byLine){
-    ctx.strokeStyle = l.colour==='#000000'&&dark ? '#e6e6e6' : l.colour;
-    ctx.beginPath(); for(const [,hx,hy,tx,ty] of segs){ ctx.moveTo(tx,ty); ctx.lineTo(hx,hy); } ctx.stroke();
+  ctx.lineJoin = 'round';
+  ctx.strokeStyle = dark ? 'rgba(0,0,0,.9)' : 'rgba(255,255,255,.95)'; ctx.lineWidth = 3;
+  ctx.beginPath(); for(const d of drawn) rect(d[5]); ctx.stroke();
+  ctx.lineWidth = 1;
+  for(const [l, items] of byLine){
+    ctx.fillStyle = ctx.strokeStyle = l.colour==='#000000'&&dark ? '#e6e6e6' : l.colour;
+    ctx.beginPath(); for(const d of items) rect(d[5]); ctx.fill(); ctx.stroke(); // stroke rounds the corners
   }
   const h = hover && drawn.find(d => d[0]===hover);
-  if(h){ ctx.strokeStyle=dark?'#fff':'#000'; ctx.lineWidth=1.5; ctx.beginPath(); ctx.arc(h[1],h[2],w+4,0,7); ctx.stroke(); }
+  if(h){ ctx.strokeStyle=dark?'#fff':'#000'; ctx.lineWidth=1.5; ctx.beginPath(); ctx.arc(h[1],h[2],hl+4,0,7); ctx.stroke(); }
   draw.hit = drawn;
   if(DEBUG) draw.ms = (draw.ms||0)*0.9 + (performance.now()-t0)*0.1;
 }
