@@ -312,7 +312,7 @@ const MAP_BG = () => dark ? (MAP_STYLE === 'original' ? '#1b1c1f' : '#1d2026') :
 const ink = c => c==='#000000'&&dark ? '#d9d9d9' : c;
 const LINE_W = 4.5;
 const lineCentre = l => ({color:MAP_BG(), weight:LINE_W/3, opacity:lineStyle(l).opacity ? 1 : 0, z:2});
-const lineStyle = l => ({color:ink(l.colour), weight:LINE_W, opacity:!shown(l)?0:l.on===false?0.07:l.pinned?0.75:window.DIM_TRAINS?0.05:(window.LINE_OPACITY||0.3)});
+const lineStyle = l => ({color:ink(l.colour), weight:LINE_W, opacity:!shown(l)?0:l.on===false?0.07:window.DIM_TRAINS?0.05:l.pinned?0.75:(window.LINE_OPACITY||0.3)});
 function applyTheme(){ document.body.classList.toggle('dark', dark); map.setOptions({styles:mapStyles()}); for(const l of ACTIVE) l.layer && l.layer.eachLayer(p => p.setStyle(lineStyle(l))); }
 applyTheme();
 // Screen positions (fractional pixels, so movement is smooth) via an empty overlay's projection
@@ -671,12 +671,13 @@ function draw(ts){
   ctx.strokeStyle = dark ? 'rgba(0,0,0,.9)' : 'rgba(255,255,255,.95)'; ctx.lineWidth = 3;
   for(const front of dim ? [false, true] : [true]){ // outlines: faded ones first, then yours
     ctx.globalAlpha = front ? 1 : FADE; ctx.beginPath();
-    for(const d of drawn) if(!dim || !!BY[d[0].line].pinned === front) rect(d[5]);
+    for(const d of drawn) if(!dim || onRoute(d[0]) === front) rect(d[5]);
     ctx.stroke();
   }
   ctx.lineWidth = 1;
-  for(const [l, items] of byLine){
-    ctx.globalAlpha = dim && !l.pinned ? FADE : 1;
+  for(const front of dim ? [false, true] : [true]) for(const [l, all] of byLine){
+    const items = dim ? all.filter(d => onRoute(d[0]) === front) : all; if(!items.length) continue;
+    ctx.globalAlpha = front ? 1 : FADE;
     ctx.fillStyle = ctx.strokeStyle = l.colour==='#000000'&&dark ? '#e6e6e6' : l.colour;
     ctx.beginPath(); for(const d of items) rect(d[5]); ctx.fill(); ctx.stroke(); // stroke rounds the corners
     if(PARALLEL.has(l.mode)){ // centre stripe, like the line itself
@@ -910,7 +911,7 @@ function alignLeg(L){
         const seg = tp ? tp.pts : [l.stops[r.ids[k]].p, l.stops[r.ids[k+1]].p];
         pts.push(...(pts.length ? seg.slice(1) : seg));
       }
-      Object.assign(L, {gpath:L.gpath || L.path, path:pts, line:l.id, aligned:true});
+      Object.assign(L, {gpath:L.gpath || L.path, path:pts, line:l.id, aligned:true, stopIds:r.ids.slice(ia, ib+1)});
       L.from.id = a; L.to.id = b; return;
     } }
 }
@@ -1051,8 +1052,18 @@ const SIM = Q.get('sim') === '1';
 // ---------- map layers ----------
 const routeLayer = new Group(), altLayer = new Group();
 const CIRCLE = google.maps.SymbolPath.CIRCLE;
+const FOCUS = new Map();
+function setFocus(j){
+  FOCUS.clear();
+  if(j) for(const g of j.legs){ const id = g.line || g.tflLine; if(!id || g.walk) continue;
+    if(!FOCUS.has(id)) FOCUS.set(id, new Set()); for(const s of g.stopIds || [g.from.id, g.to.id]) if(s) FOCUS.get(id).add(s); }
+}
+// a train counts as "on your route" if it is between (or at) stations of a stretch you travel
+const onRoute = t => { const s = FOCUS.get(t.line); if(!s) return false; const a = t.cur || t.next, b = t.prev;
+  return s.has(a) && (!b || s.has(b)) || HL.has(t.key); };
 function drawJourney(j, layer, ghost){
   if(j) for(const g of j.legs) alignLeg(g);
+  if(layer === routeLayer) setFocus(j);
   if(layer === routeLayer && !J.active) previewFocus(j);
   layer.clearLayers(); if(!j) return;
   for(const g of j.legs){
