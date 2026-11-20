@@ -51,9 +51,3 @@ little value on a map), crowding (TfL crowding API is patchy), weather, social f
 - Build-my-route: apply route preferences (step-free) per step.
 - Optional OSM track geometry so lines follow real curves.
 - Crowding indicator per line (TfL crowding API) — check data quality first.
-
-## Later
-- Live National Rail (waiting on the key; plan in HANDOFF.md).
-- Step-free journeys (TfL planner supports accessibility preferences; Google doesn't).
-- Leave-by reminders for planned trips (needs the page open, or a push service).
-- Optional OSM track geometry so lines follow real curves instead of station-to-station lines.
