@@ -2,71 +2,198 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#0e0f12">
 <title>London Live Trains</title>
-<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;600;800&display=swap" rel="stylesheet">
 <style>
-/* London Live Trains — single file. Data: TfL Unified API (arrival predictions).
-   Map: Leaflet + CARTO basemaps. URL options:
-   ?theme=dark|light  ?kiosk=1 (hide panel)  ?lines=victoria,central  ?app_key=YOURKEY
-   ?modes=tube,dlr,elizabeth,overground  ?refresh=30 (seconds)  ?fps=30  ?debug=1
-   ?show=tfl|rail|both (T key cycles)  ?view=lat,lon,zoom (start view, e.g. 51.51,-0.12,12)  ?carto_key=KEY (use CARTO basemaps) */
-:root{--bg:#fff;--ink:#141414;--mute:#666;--panel:rgba(255,255,255,.92);--edge:rgba(0,0,0,.12)}
-body.dark{--bg:#0e0f12;--ink:#f2f2f2;--mute:#9a9a9a;--panel:rgba(16,17,20,.88);--edge:rgba(255,255,255,.12)}
+/* London Live Trains — every Tube, DLR, Overground, Elizabeth line and tram train, live on Google Maps.
+   (Shares its train engine and map code with London Journey: ../journey/index.html)
+   URL options: ?kiosk=1  ?theme=dark|light  ?lines=victoria,central  ?modes=tube,dlr,...  ?view=lat,lon,zoom
+   ?refresh=30  ?fps=30  ?app_key=TFLKEY  ?debug=1  ·  Keys: K kiosk, D dark/light, / search
+   Old notes from the Journey page follow, unchanged:
+   Journeys: Google directions (all transport, anywhere). Live London data: TfL Unified API. Map: Google Maps.
+   URL options: ?sim=1 (test mode: drag the blue marker)  ?theme=dark|light  ?app_key=TFLKEY  ?debug=1 */
+:root{--bg:#fff;--ink:#141414;--mute:#666;--panel:#fff;--edge:rgba(0,0,0,.12);--soft:#f2f4f7;--acc:#1a73e8;--good:#188038;--bad:#d93025}
+body.dark{--bg:#0e0f12;--ink:#f2f2f2;--mute:#9a9a9a;--panel:#17181c;--edge:rgba(255,255,255,.14);--soft:#22242a;--acc:#8ab4f8;--good:#81c995;--bad:#f28b82}
 *{box-sizing:border-box}
+[hidden]{display:none!important}
 html,body{margin:0;height:100%;background:var(--bg);color:var(--ink);font:15px/1.4 "Hanken Grotesk",system-ui,sans-serif;overflow:hidden}
-#map{position:fixed;inset:0;background:var(--bg)}
+#map{position:fixed!important;inset:0;background:var(--bg)} /* Google sets position:relative inline */
 #trains{position:absolute;left:0;top:0;pointer-events:none;z-index:450}
-#panel{position:fixed;top:14px;left:14px;z-index:1000;width:250px;max-height:calc(100% - 28px);overflow:auto;
-  background:var(--panel);border:1px solid var(--edge);border-radius:12px;padding:14px 14px 10px;box-shadow:0 6px 24px rgba(0,0,0,.18)}
-#panel h1{margin:0 0 2px;font-size:19px;font-weight:800;letter-spacing:-.01em}
-#status{font-size:13px;color:var(--mute);margin-bottom:10px}
+#panel{position:fixed;z-index:1000;top:12px;left:12px;width:360px;max-height:calc(100% - 24px);overflow:auto;
+  background:var(--panel);border:1px solid var(--edge);border-radius:14px;box-shadow:0 6px 24px rgba(0,0,0,.2);padding:14px}
+h1{margin:0 0 10px;font-size:18px;font-weight:800;display:flex;align-items:center;gap:6px;white-space:nowrap}
+h1 .sp{flex:1}
+form{display:grid;gap:8px}
+.field{display:flex;align-items:center;gap:8px;background:var(--soft);border-radius:10px;padding:0 10px}
+.field label{font-size:12px;color:var(--mute);min-width:34px;white-space:nowrap}
+.field input{flex:1;border:0;background:transparent;color:var(--ink);font:inherit;padding:11px 0;min-width:0;outline:none}
+.row2{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.field input[type=time]{min-width:0;width:100%}
+button{font:inherit;font-size:14px;padding:9px 12px;border-radius:10px;border:1px solid var(--edge);background:var(--panel);color:var(--ink);cursor:pointer}
+button.primary{background:var(--acc);border-color:var(--acc);color:#fff;font-weight:600}
+body.dark button.primary{color:#0e0f12}
+button:focus-visible,input:focus-visible{outline:2px solid var(--acc);outline-offset:2px}
+.field input:focus-visible{outline:none}
+.field:focus-within{box-shadow:0 0 0 2px var(--acc) inset}
+.icon{padding:7px 9px;font-size:13px;display:inline-flex;align-items:center;gap:4px;white-space:nowrap;line-height:1}
+.icon.on{background:var(--soft)}
+#options,#chainOut{display:grid;gap:8px;margin-top:12px}
+.tabs{display:flex;border:1px solid var(--edge);border-radius:10px;overflow:hidden;margin-bottom:10px}
+.tabs button{flex:1;border:0;border-radius:0;padding:8px;font-size:13px}
+.tabs button+button{border-left:1px solid var(--edge)}
+.tabs button.sel{background:var(--ink);color:var(--bg);font-weight:600}
+#chain{display:grid;gap:0}
+.cstop{display:flex;gap:6px;align-items:center}
+.cstop .field{flex:1}
+.cstop .x{padding:6px 9px;color:var(--mute)}
+.cmode{display:flex;flex-wrap:wrap;align-items:center;gap:5px;margin:4px 0 4px 14px;padding:4px 0 4px 12px;border-left:3px dotted var(--edge)}
+.cmode button{padding:5px;border-radius:8px;line-height:0}
+.cmode button.sel{background:var(--soft);border-color:var(--acc);box-shadow:0 0 0 1px var(--acc) inset}
+.cmode .lbl{font-size:12px;color:var(--mute);flex-basis:100%;order:-1;margin:0 0 1px 2px}
+.mapmenu{background:var(--soft);border-radius:12px;padding:6px 12px;margin-bottom:10px;display:grid}
+.mm-row{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:8px 0;font-size:14px;cursor:pointer}
+.mm-row+.mm-row{border-top:1px solid var(--edge)}
+.mm-row small{display:block;color:var(--mute);font-size:12px;margin-top:1px}
+.seg2{display:flex;border:1px solid var(--edge);border-radius:8px;overflow:hidden;flex:none}
+.seg2 button{border:0;border-radius:0;padding:6px 10px;font-size:13px;background:var(--panel)}
+.seg2 button+button{border-left:1px solid var(--edge)}
+.seg2 button.sel{background:var(--ink);color:var(--bg);font-weight:600}
+.switch{appearance:none;-webkit-appearance:none;flex:none;width:40px;height:24px;border-radius:12px;background:#c4c7cc;position:relative;cursor:pointer;transition:background .15s;margin:0}
+.switch::after{content:"";position:absolute;top:3px;left:3px;width:18px;height:18px;border-radius:50%;background:#fff;transition:left .15s;box-shadow:0 1px 2px rgba(0,0,0,.3)}
+.switch:checked{background:var(--acc)} .switch:checked::after{left:19px}
+body.dark .switch{background:#5f6368}
+body.dark .switch:checked{background:var(--acc)}
+.icon[aria-expanded="true"]{background:var(--soft)}
+.mm-modes{display:grid;cursor:default}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip2{display:inline-flex;align-items:center;gap:5px;font-size:13px;padding:5px 9px 5px 6px;border-radius:99px;border:1px solid var(--edge);background:var(--panel)}
+.chip2[aria-pressed="false"]{opacity:.45}
+.chip2[aria-pressed="false"] .sym{filter:grayscale(1)}
+.chip2:disabled{opacity:.35;cursor:default}
+.chip2 small{font-size:11px;color:var(--mute)}
+.aclist{list-style:none;margin:4px 0 6px;padding:4px;background:var(--panel);border:1px solid var(--edge);border-radius:10px;box-shadow:0 6px 18px rgba(0,0,0,.14)}
+.aclist li{display:flex;gap:10px;align-items:flex-start;padding:8px;border-radius:8px;cursor:pointer}
+.aclist li.on,.aclist li:hover{background:var(--soft)}
+.aclist .pin{flex:none;margin-top:2px;color:var(--mute)}
+.aclist b{display:block;font-weight:600;font-size:14px}
+.aclist small{display:block;color:var(--mute);font-size:12px}
+.aclist .gattr{justify-content:flex-end;cursor:default;padding:2px 6px;font-size:11px;color:var(--mute)}
+.aclist .gattr:hover{background:none}
+.note{background:var(--soft);border-radius:10px;padding:8px 10px;font-size:13px;margin-bottom:10px}
+.opt{text-align:left;display:grid;gap:6px;padding:10px 12px}
+.opt.sel{border-color:var(--acc);box-shadow:0 0 0 1px var(--acc) inset}
+.opt-top{display:flex;justify-content:space-between}
+.pills{display:flex;flex-wrap:wrap;gap:4px;align-items:center}
+.pill{font-size:12px;font-weight:600;padding:2px 7px 2px 5px;border-radius:6px;white-space:nowrap;background:var(--soft);
+  display:inline-flex;align-items:center;gap:4px;box-shadow:inset 0 -2px 0 var(--c)}
+.pill.walk{font-weight:400;box-shadow:none}
+.sym{flex:none;vertical-align:-3px}
+.li-h .sym{align-self:center}
+.tt-h{display:flex;align-items:center;gap:6px;font-size:15px;margin-bottom:2px}
+.tt-m{color:var(--mute);font-size:12px}
+.tt-you{color:var(--acc);font-weight:600;font-size:12px}
+.sep{color:var(--mute);font-size:12px}
+.muted{color:var(--mute);font-size:13px}
+.warn{color:#b06000;font-size:12px}
+body.dark .warn{color:#fdd663}
+.bad{color:var(--bad)} .good{color:var(--good)}
+.amb-h{font-weight:600;margin-top:4px}
+.amb{text-align:left;display:flex;justify-content:space-between;gap:8px}
+.amb small{color:var(--mute)}
+#eta{display:grid;gap:4px;margin-bottom:10px}
+.eta-big{font-size:22px}
+.chip{justify-self:start;font-size:13px;font-weight:600;padding:2px 9px;border-radius:99px;background:var(--soft)}
+.chip.bad{background:var(--bad);color:#fff} .chip.good{background:var(--good);color:#fff}
+body.dark .chip.bad,body.dark .chip.good{color:#111}
+#banner{background:#fff4e5;color:#3b2600;border-radius:12px;padding:10px 12px;display:grid;gap:8px;margin-bottom:10px;border:1px solid #f5c26b}
+body.dark #banner{background:#3b2a10;color:#ffe2b0;border-color:#7a5a20}
+#steps{list-style:none;margin:0 0 10px;padding:0;display:grid;gap:2px}
+#steps li{border-left:4px solid var(--c);padding:6px 0 6px 10px;display:grid;gap:2px}
+#steps li.done{opacity:.45}
+.gmaps{display:inline-block;color:var(--acc);font-weight:600;font-size:14px;margin:0 0 12px;text-decoration:none}
+.gmaps:hover{text-decoration:underline}
+#steps li.cur{background:var(--soft);border-radius:0 8px 8px 0}
+.li-h{display:flex;gap:6px;align-items:baseline}
+.li-h span{flex:1;font-weight:600}
+.li-h small,.li-d{color:var(--mute);font-size:12.5px}
+.li-live{font-size:13px}
+#err{color:var(--bad);font-size:12px;margin-top:6px}
+#tip{position:fixed;z-index:1001;pointer-events:none;background:var(--panel);border:1px solid var(--edge);border-radius:10px;padding:8px 10px;font-size:13px;display:none;max-width:250px;box-shadow:0 4px 14px rgba(0,0,0,.2);display:none}
+#tip div{margin:1px 0}
+#simnote{display:none;font-size:12px;background:#e8f0fe;color:#174ea6;border-radius:8px;padding:6px 8px;margin-bottom:8px}
+body.sim #simnote{display:block}
+body.dark #simnote{background:#1f2a44;color:#c6dafc}
+@media (max-width:700px){
+  #panel{top:auto;bottom:0;left:0;right:0;width:auto;max-height:52%;border-radius:16px 16px 0 0;padding:12px 14px calc(12px + env(safe-area-inset-bottom))}
+}
+
+@media (min-width:701px){#panel{width:336px}}
+#status{font-size:13px;color:var(--mute);margin:-4px 0 10px}
 #status b{color:var(--ink)}
-.row{display:flex;align-items:center;gap:8px;padding:3px 0;cursor:pointer;user-select:none;font-size:14px}
+.search{position:relative;margin-bottom:10px}
+#sres{list-style:none;margin:4px 0 0;padding:4px;background:var(--panel);border:1px solid var(--edge);border-radius:10px;box-shadow:0 6px 18px rgba(0,0,0,.14)}
+#sres li{display:flex;gap:10px;align-items:center;padding:7px 8px;border-radius:8px;cursor:pointer}
+#sres li.on,#sres li:hover{background:var(--soft)}
+#sres li.none{cursor:default;color:var(--mute);font-size:13px}
+#sres b{display:block;font-weight:600;font-size:14px}
+#sres small{display:block;color:var(--mute);font-size:12px}
+.dots{display:flex;gap:2px;flex:none;width:34px;flex-wrap:wrap}
+.dots i{width:9px;height:9px;border-radius:50%;display:block}
+#station{background:var(--soft);border-radius:12px;padding:10px 12px;margin-bottom:10px}
+.st-h{display:flex;align-items:center;justify-content:space-between;font-size:16px}
+.st-h .x{padding:4px 8px;font-size:12px}
+.st-lines{display:flex;flex-wrap:wrap;gap:4px;margin:6px 0 4px}
+.deps{list-style:none;margin:6px 0 0;padding:0;display:grid;gap:6px}
+.deps li{display:flex;align-items:center;gap:8px;font-size:13.5px}
+.deps .sw{width:4px;align-self:stretch;border-radius:2px;flex:none}
+.deps .to{flex:1;min-width:0}
+.deps small{display:block;color:var(--mute);font-size:11.5px}
+.deps b{white-space:nowrap;font-variant-numeric:tabular-nums}
+#mModes{margin:0 0 8px}
+#legend{display:grid;gap:0}
+.row{display:flex;align-items:center;gap:8px;padding:4px 2px;border:0;background:none;border-radius:6px;font-size:14px;text-align:left;width:100%}
+.row:hover{background:var(--soft)}
 .row .sw{width:22px;height:6px;border-radius:3px;flex:none}
-.row .n{margin-left:auto;color:var(--mute);font-variant-numeric:tabular-nums;font-size:13px}
-.row.off{opacity:.35}
-.seg{display:flex;margin:0 0 10px;border:1px solid var(--edge);border-radius:8px;overflow:hidden}
-.seg button{flex:auto;border:0;border-radius:0;padding:6px 8px;font-size:12px;white-space:nowrap}
-.seg button+button{border-left:1px solid var(--edge)}
-.seg button.sel{background:var(--ink);color:var(--bg);font-weight:600}
-.btns{display:flex;gap:6px;margin-top:10px;flex-wrap:wrap}
-button{font:inherit;font-size:13px;padding:6px 10px;border-radius:8px;border:1px solid var(--edge);background:transparent;color:var(--ink);cursor:pointer}
-button:focus-visible,.row:focus-visible{outline:2px solid #0098D4;outline-offset:2px}
-#tip{position:fixed;z-index:1001;pointer-events:none;background:var(--panel);border:1px solid var(--edge);border-radius:8px;padding:7px 9px;font-size:13px;display:none;max-width:240px}
-#tip b{display:block;font-size:14px}
-#err{color:#E32017;font-size:12px;margin-top:6px}
-body.kiosk #panel{display:none}
-body.kiosk .leaflet-control-zoom{display:none}
-#clock{position:fixed;right:16px;bottom:22px;z-index:1000;font-weight:800;font-size:28px;font-variant-numeric:tabular-nums;color:var(--ink);text-shadow:0 0 8px var(--bg);display:none}
-body.kiosk #clock{display:block}
-.leaflet-container{background:var(--bg)}
-@media (max-width:600px){#panel{width:200px;font-size:13px}}
+.row .nm{flex:1}
+.row .n{color:var(--mute);font-variant-numeric:tabular-nums;font-size:13px}
+.row.off{opacity:.38}
+#clock{position:fixed;right:16px;bottom:30px;z-index:1000;font-weight:800;font-size:30px;font-variant-numeric:tabular-nums;color:var(--ink);text-shadow:0 0 8px var(--bg);display:none}
+body.kiosk #panel{display:none} body.kiosk #clock{display:block}
+body.kiosk #map{bottom:0!important}
 </style>
 </head>
 <body>
 <div id="map"></div>
 <div id="panel">
-  <h1>London live trains</h1>
+  <h1>London live trains <span class="sp"></span>
+    <button id="bMap" class="icon" title="Map style" aria-label="Map style" aria-expanded="false"><svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l9 5-9 5-9-5 9-5zm-9 9l9 5 9-5M3 16l9 5 9-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg></button>
+    <button id="bFit" class="icon" title="Re-centre" aria-label="Re-centre the map">⌖</button>
+    <button id="bKiosk" class="icon" title="Full-screen TV mode (K)" aria-label="Full-screen TV mode">⛶</button>
+    <button id="bTheme" class="icon" title="Dark / light (D)" aria-label="Switch dark or light map">🌓</button>
+  </h1>
   <div id="status">Loading lines…</div>
-  <div id="show" class="seg" role="group" aria-label="Services shown">
-    <button data-v="tfl">TfL</button><button data-v="rail">National Rail</button><button data-v="both">Both</button>
+  <div class="search">
+    <div class="field"><label for="q">Find</label><input id="q" placeholder="Search a station" autocomplete="off" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="sres" enterkeyhint="search"></div>
+    <ul id="sres" role="listbox" hidden></ul>
   </div>
+  <div id="station" hidden></div>
+  <div id="mapMenu" class="mapmenu" hidden>
+    <div class="mm-row"><span>Map style</span>
+      <div class="seg2" role="group" aria-label="Map style"><button data-ms="google">Google Maps</button><button data-ms="original">Original</button></div></div>
+    <label class="mm-row"><span>Hide places &amp; labels<small>Shops, landmarks, stations and area names. Street names stay.</small></span><input type="checkbox" id="mQuiet" class="switch"></label>
+    <label class="mm-row"><span>Dark map</span><input type="checkbox" id="mDark" class="switch"></label>
+  </div>
+  <div class="chips" id="mModes" aria-label="Show transport types"></div>
   <div id="legend"></div>
-  <div class="btns">
-    <button id="bTheme">Dark / light</button>
-    <button id="bKiosk">Kiosk (K)</button>
-    <button id="bFit">Re-centre</button>
-  </div>
   <div id="err"></div>
 </div>
 <div id="tip"></div>
 <div id="clock"></div>
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
-{
+(async () => {
 const Q = new URLSearchParams(location.search);
 const API = 'https://api.tfl.gov.uk';
 const KEY = Q.get('app_key') ? 'app_key=' + encodeURIComponent(Q.get('app_key')) : '';
@@ -74,7 +201,7 @@ const REFRESH = Math.max(15, +(Q.get('refresh') || 30)) * 1000;
 const FPS = Math.min(60, Math.max(5, +(Q.get('fps') || 30)));
 const DEBUG = Q.get('debug') === '1';
 const VIEW = (Q.get('view') || '').split(',').map(Number);
-const HOME = VIEW.length === 3 && VIEW.every(isFinite) ? [[VIEW[0], VIEW[1]], VIEW[2]] : [[51.512, -0.11], 11.5];
+const HOME = VIEW.length === 3 && VIEW.every(isFinite) ? [[VIEW[0], VIEW[1]], VIEW[2]] : [[51.512, -0.11], 11];
 
 // Line catalogue: TfL line id -> name, colour, mode.
 // Tube/DLR/Elizabeth: TfL print colours. Overground: TfL digital colour standard (2024 line names).
@@ -101,16 +228,20 @@ const LINES = [
   ['tram','Trams','#5FB526','tram'],
 ];
 // Typical dwell (s) at a station and fallback cruise speed (m/s) when no segment time has been learned yet.
-const DWELL = {tube:25, dlr:20, elizabeth:40, overground:35, tram:20};
-const SPEED = {tube:12, dlr:10, elizabeth:17, overground:13, tram:7};
+const DWELL = {tube:25, dlr:20, elizabeth:40, overground:35, tram:20, bus:15};
+const SPEED = {tube:12, dlr:10, elizabeth:17, overground:13, tram:7, bus:6};
 const modesWanted = (Q.get('modes') || 'tube,elizabeth,dlr,overground,tram').split(',');
 const linesWanted = Q.get('lines') ? Q.get('lines').split(',') : null;
 const ACTIVE = LINES.filter(l => modesWanted.includes(l[3]) && (!linesWanted || linesWanted.includes(l[0])))
   .map(([id,name,colour,mode]) => ({id,name,colour,mode,group:mode==='rail'?'rail':'tfl',on:true,count:0,polys:[],routes:[],stops:{},seg:{}}));
 const BY = Object.fromEntries(ACTIVE.map(l => [l.id, l]));
 // Which services to show: 'tfl' (Underground, Overground, Elizabeth, DLR, trams), 'rail' (National Rail) or 'both'
-let SHOW = Q.get('show') || (() => { try{ return localStorage.getItem('show') }catch(e){ return null } })() || 'tfl';
-const shown = l => SHOW === 'both' || SHOW === l.group;
+// Background trains can be switched off; lines used by the current journey are always shown ("pinned")
+let TRAINS_ON = (() => { try{ return localStorage.getItem('trainsOn') !== '0' }catch(e){ return true } })();
+// which kinds of transport to show in the background (each can be switched off in the Map menu)
+const MODE_GROUPS = [['tube','Tube'], ['overground','Overground'], ['elizabeth','Elizabeth line'], ['dlr','DLR'], ['tram','Trams'], ['rail','National Rail']];
+let MODES_OFF = new Set((() => { try{ return JSON.parse(localStorage.getItem('modesOff')) || []; }catch(e){ return []; } })());
+const shown = l => l.pinned || (TRAINS_ON && l.mode !== 'bus' && !MODES_OFF.has(l.mode));
 
 // ---------- helpers ----------
 const $ = id => document.getElementById(id);
@@ -134,34 +265,81 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
 const cleanName = n => n.replace(/ (Underground|DLR|Rail) Station$/,'').replace(/ Station$/,'');
 const normName = n => cleanName(n||'').replace(/\s*\(London\)/,'').toLowerCase().trim();
 
-// ---------- map ----------
-let dark = Q.get('theme') === 'dark' || (Q.get('theme') !== 'light' && matchMedia('(prefers-color-scheme: dark)').matches);
-const map = L.map('map', {zoomControl:true, preferCanvas:true, zoomSnap:0.25, attributionControl:true})
-  .setView(HOME[0], HOME[1]);
-// Basemap. CARTO now needs a (free) key — without one every tile is watermarked — so the
-// default is Esri's keyless Light/Dark Gray Canvas. ?carto_key=KEY switches to CARTO Voyager/Dark Matter.
-const CARTO_KEY = Q.get('carto_key');
-function makeTiles(d){
-  if(CARTO_KEY) return L.tileLayer(`https://{s}.basemaps.cartocdn.com/rastertiles/${d?'dark_all':'voyager'}/{z}/{x}/{y}{r}.png?key=${encodeURIComponent(CARTO_KEY)}`,
-    {maxZoom:19, subdomains:'abcd', attribution:'© OpenStreetMap contributors © CARTO · Live data: TfL'});
-  const esri = n => `https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_${d?'Dark':'Light'}_Gray_${n}/MapServer/tile/{z}/{y}/{x}`;
-  return L.layerGroup([
-    L.tileLayer(esri('Base'), {maxZoom:19, maxNativeZoom:16, attribution:'Esri, HERE, Garmin, © OpenStreetMap contributors · Live data: TfL'}),
-    L.tileLayer(esri('Reference'), {maxZoom:19, maxNativeZoom:16, opacity:0.8})]);
+const GKEY = Q.get('gkey') || 'AIzaSyBoPbaWi2vyme87RJceKPGo-lCRNRff1FY';
+let gReady = null;
+function loadGoogle(){
+  return gReady ||= new Promise((res, rej) => {
+    window.__gInit = () => res();
+    const s = document.createElement('script');
+    s.src = `https://maps.googleapis.com/maps/api/js?key=${GKEY}&loading=async&callback=__gInit`;
+    s.onerror = () => { gReady = null; rej(new Error('Could not load Google')); };
+    document.head.appendChild(s);
+  });
 }
-let tiles = makeTiles(dark).addTo(map);
-const ink = c => c==='#000000'&&dark ? '#d9d9d9' : c;
-const lineStyle = l => ({color:ink(l.colour), weight:3, opacity:!shown(l)?0:l.on?0.45:0.08, interactive:false});
-function applyTheme(){ document.body.classList.toggle('dark', dark); map.removeLayer(tiles); tiles = makeTiles(dark).addTo(map); for(const l of ACTIVE) l.layer && l.layer.eachLayer(p => p.setStyle(lineStyle(l))); }
-applyTheme();
-if(Q.get('kiosk')==='1') document.body.classList.add('kiosk');
 
-// train canvas overlay (in the map container, above tiles, redrawn each frame)
+// ---------- map (Google Maps) ----------
+const savedTheme = (() => { try{ return localStorage.getItem('theme'); }catch(e){ return null; } })();
+let dark = Q.get('theme') ? Q.get('theme') === 'dark' : savedTheme ? savedTheme === 'dark' : matchMedia('(prefers-color-scheme: dark)').matches;
+try{ await loadGoogle(); }catch(e){ document.body.innerHTML = '<p style="padding:20px;font:16px system-ui">Could not load Google Maps. Check your connection and reload.</p>'; return; }
+await Promise.all(['maps','marker','routes','geometry'].map(n => google.maps.importLibrary(n)));
+const DARK_STYLE = [
+  {elementType:'geometry', stylers:[{color:'#1d2026'}]}, {elementType:'labels.text.fill', stylers:[{color:'#9aa0a6'}]},
+  {elementType:'labels.text.stroke', stylers:[{color:'#1d2026'}]}, {featureType:'road', elementType:'geometry', stylers:[{color:'#2c3038'}]},
+  {featureType:'road', elementType:'geometry.stroke', stylers:[{color:'#1d2026'}]}, {featureType:'road.highway', elementType:'geometry', stylers:[{color:'#3b404a'}]},
+  {featureType:'water', elementType:'geometry', stylers:[{color:'#0e1626'}]}, {featureType:'poi', elementType:'geometry', stylers:[{color:'#22262d'}]},
+  {featureType:'poi.park', elementType:'geometry', stylers:[{color:'#1b2a22'}]}, {featureType:'transit', elementType:'geometry', stylers:[{color:'#2a2e36'}]}];
+// Map looks: Google's own colours, or the plain grey "original" look; optionally without the clutter
+const GREY_LIGHT = [
+  {elementType:'geometry', stylers:[{color:'#f1f2f3'}]}, {elementType:'labels.text.fill', stylers:[{color:'#6e7276'}]},
+  {elementType:'labels.text.stroke', stylers:[{color:'#ffffff'}]}, {elementType:'labels.icon', stylers:[{saturation:-100}, {lightness:35}]},
+  {featureType:'road', elementType:'geometry', stylers:[{color:'#ffffff'}]}, {featureType:'road.highway', elementType:'geometry', stylers:[{color:'#e4e6e8'}]},
+  {featureType:'water', elementType:'geometry', stylers:[{color:'#d5dade'}]}, {featureType:'poi', elementType:'geometry', stylers:[{color:'#e9eaeb'}]},
+  {featureType:'poi.park', elementType:'geometry', stylers:[{color:'#e1e6df'}]}, {featureType:'transit', elementType:'geometry', stylers:[{color:'#e2e3e5'}]}];
+const GREY_DARK = [
+  {elementType:'geometry', stylers:[{color:'#1b1c1f'}]}, {elementType:'labels.text.fill', stylers:[{color:'#8a8d91'}]},
+  {elementType:'labels.text.stroke', stylers:[{color:'#1b1c1f'}]}, {elementType:'labels.icon', stylers:[{saturation:-100}, {lightness:-40}]},
+  {featureType:'road', elementType:'geometry', stylers:[{color:'#2a2c30'}]}, {featureType:'road.highway', elementType:'geometry', stylers:[{color:'#34363b'}]},
+  {featureType:'water', elementType:'geometry', stylers:[{color:'#0f1012'}]}, {featureType:'poi', elementType:'geometry', stylers:[{color:'#202124'}]},
+  {featureType:'poi.park', elementType:'geometry', stylers:[{color:'#1f2421'}]}, {featureType:'transit', elementType:'geometry', stylers:[{color:'#26282c'}]}];
+const QUIET = ['poi', 'transit', 'administrative', 'landscape', 'water'].map(f => ({featureType:f, elementType:'labels', stylers:[{visibility:'off'}]}))
+  .concat([{featureType:'poi', stylers:[{visibility:'off'}]}, {featureType:'poi.park', elementType:'geometry', stylers:[{visibility:'on'}]},
+           {featureType:'road', elementType:'labels.icon', stylers:[{visibility:'off'}]}]); // street names stay
+const pref = (k, d) => { try{ return localStorage.getItem(k) ?? d; }catch(e){ return d; } };
+let MAP_STYLE = pref('mapStyle', 'google'), QUIET_ON = pref('mapQuiet', '0') === '1';
+function mapStyles(){
+  const base = MAP_STYLE === 'original' ? (dark ? GREY_DARK : GREY_LIGHT) : (dark ? DARK_STYLE : []);
+  const s = base.concat(QUIET_ON ? QUIET : []);
+  return s.length ? s : null;
+}
+const map = new google.maps.Map(document.getElementById('map'), {
+  center:{lat:HOME[0][0], lng:HOME[0][1]}, zoom:Math.round(HOME[1]), disableDefaultUI:true, zoomControl:false,
+  clickableIcons:false, gestureHandling:'greedy', styles:mapStyles()});
+const LL = p => ({lat:p[0], lng:p[1]});
+// Small layer helpers so the rest of the code reads like before
+class Group{ constructor(){ this.items = []; } addLayer(x){ x.setMap(map); this.items.push(x); return this; }
+  eachLayer(f){ this.items.forEach(f); } clearLayers(){ this.items.forEach(x => x.setMap(null)); this.items = []; } }
+const gStyle = s => ({strokeColor:s.color, strokeWeight:s.weight, strokeOpacity:s.opacity, clickable:false, zIndex:s.z||1});
+function gLine(pts, s){ const p = new google.maps.Polyline(Object.assign({path:pts.map(LL)}, gStyle(s))); p.setStyle = st => p.setOptions(gStyle(st)); return p; }
+const ink = c => c==='#000000'&&dark ? '#d9d9d9' : c;
+const lineStyle = l => ({color:ink(l.colour), weight:3, opacity:!shown(l)?0:l.on===false?0.07:l.pinned?0.6:(window.LINE_OPACITY||0.3)});
+function applyTheme(){ document.body.classList.toggle('dark', dark); map.setOptions({styles:mapStyles()}); for(const l of ACTIVE) l.layer && l.layer.eachLayer(p => p.setStyle(lineStyle(l))); }
+applyTheme();
+// Screen positions (fractional pixels, so movement is smooth) via an empty overlay's projection
+const ov = new google.maps.OverlayView(); ov.onAdd = ov.draw = ov.onRemove = () => {}; ov.setMap(map);
+const mapSize = () => { const d = map.getDiv(); return {x:d.clientWidth, y:d.clientHeight}; };
+const toScreen = p => ov.getProjection().fromLatLngToContainerPixel(new google.maps.LatLng(p[0], p[1]));
+
+// train canvas overlay (on top of the map, redrawn each frame)
 const cv = document.createElement('canvas'); cv.id='trains';
-map.getContainer().appendChild(cv);
+map.getDiv().appendChild(cv);
 const ctx = cv.getContext('2d');
-function sizeCanvas(){ const s=map.getSize(), dpr=Math.min(2,devicePixelRatio||1); cv.width=s.x*dpr; cv.height=s.y*dpr; cv.style.width=s.x+'px'; cv.style.height=s.y+'px'; ctx.setTransform(dpr,0,0,dpr,0,0); }
-map.on('resize', sizeCanvas); sizeCanvas();
+function sizeCanvas(){ const s=mapSize(), dpr=Math.min(2,devicePixelRatio||1); cv.width=s.x*dpr; cv.height=s.y*dpr; cv.style.width=s.x+'px'; cv.style.height=s.y+'px'; ctx.setTransform(dpr,0,0,dpr,0,0); }
+new ResizeObserver(sizeCanvas).observe(map.getDiv()); sizeCanvas();
+// On phones the panel is a bottom sheet: the map ends where it starts, so Google's logo, your
+// position and the map centre are never hidden behind it.
+const phone = () => innerWidth <= 700;
+function fitMapToSheet(){ $('map').style.bottom = phone() ? ($('panel').offsetHeight - 2) + 'px' : '0px'; }
+new ResizeObserver(fitMapToSheet).observe($('panel')); addEventListener('resize', fitMapToSheet); fitMapToSheet();
 
 // ---------- load line geometry ----------
 // Both directions are loaded: some stations only appear in the inbound sequence
@@ -187,7 +365,7 @@ async function loadLine(l){
   l.alias = {};
   l.seg = store.get('segt:'+l.id) || {};
   l.curves = l.polys.map(roundCorners);
-  l.layer = L.layerGroup(l.curves.map(p => L.polyline(p, lineStyle(l)))).addTo(map);
+  l.layer = new Group(); for(const p of l.curves) l.layer.addLayer(gLine(p, lineStyle(l)));
   l.pathCache = {}; l.snapCache = {};
 }
 
@@ -254,7 +432,7 @@ function trackPath(l, a, b){
   let pts = best;
   if(!pts){ // no drawn line joins these stations: draw one, so the train still sits on a line
     pts = [snapStop(l,a), snapStop(l,b)];
-    l.layer && l.layer.addLayer(L.polyline(pts, lineStyle(l)));
+    l.layer && l.layer.addLayer(gLine(pts, lineStyle(l)));
   }
   const cum=[0]; for(let i=1;i<pts.length;i++) cum.push(cum[i-1]+dist(pts[i-1],pts[i]));
   return l.pathCache[key] = {pts, cum, len:cum[cum.length-1]};
@@ -315,14 +493,14 @@ let failStreak = 0, anonSeq = 0;
 async function refresh(){
   // retry any line whose geometry failed to load at boot (e.g. network blip when the TV woke up)
   for(const l of ACTIVE) if(!l.layer){ try{ await loadLine(l); }catch(e){} }
-  const ids = ACTIVE.filter(l => shown(l) && l.group==='tfl').map(l=>l.id);
+  const ids = ACTIVE.filter(l => shown(l) && l.layer).map(l=>l.id);
   const chunks = []; for(let i=0;i<ids.length;i+=8) chunks.push(ids.slice(i,i+8));
   const res = await Promise.allSettled(chunks.map(c => get(`/Line/${c.join(',')}/Arrivals`)));
   let preds = []; const failed = new Set(); let err = null;
   res.forEach((r,i) => { if(r.status==='fulfilled') preds = preds.concat(r.value); else { err = r.reason; chunks[i].forEach(id => failed.add(id)); } });
   if(err){
     failStreak++;
-    $('err').textContent = 'Live data error: ' + err.message + (err.status===429 ? (KEY ? ' — rate limited, or the app_key is invalid' : ' — rate limited; add ?app_key= (free from api-portal.tfl.gov.uk)') : '') + ' (retrying)';
+    $('err').textContent = 'Live train data error: ' + err.message + (err.status===429 ? (KEY ? ' — rate limited, or the app_key is invalid' : ' — rate limited; add ?app_key= (free from api-portal.tfl.gov.uk)') : '') + ' (retrying)';
     if(failed.size === ids.length) return false;
   } else { failStreak = 0; $('err').textContent = ''; }
 
@@ -429,9 +607,7 @@ async function refresh(){
   }
   for(const l of ACTIVE){ l.count = 0; if(!failed.has(l.id)) store.set('segt:'+l.id, l.seg, 30*864e5); }
   for(const t of trains.values()) if(t0 - t.seen < REFRESH*1.5) BY[t.line].count++;
-  const total = ACTIVE.reduce((s,l)=>s+(shown(l)?l.count:0),0);
-  $('status').innerHTML = `<b>${total}</b> trains · updated ${new Date(t0).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit',second:'2-digit'})}`;
-  renderLegend();
+  window.onTrainsUpdate && onTrainsUpdate(ACTIVE.reduce((s,l)=>s+(shown(l)?l.count:0),0));
   return !err;
 }
 
@@ -458,6 +634,7 @@ function placeTrain(t){
 
 // ---------- drawing ----------
 let hover = null, lastDraw = 0;
+const HL = new Set(); // keys of highlighted trains (the user's vehicle)
 const TAU = 2; // seconds: corrections after a refresh glide rather than jump
 function draw(ts){
   requestAnimationFrame(draw);
@@ -465,14 +642,11 @@ function draw(ts){
   const dt = Math.min(1, (ts - lastDraw)/1000); lastDraw = ts;
   const t0 = DEBUG ? performance.now() : 0;
   const k = 1 - Math.exp(-dt/TAU), ka = 1 - Math.exp(-dt/0.4);
-  const s = map.getSize(); ctx.clearRect(0,0,s.x,s.y);
+  if(!ov.getProjection()) return;
+  const s = mapSize(); ctx.clearRect(0,0,s.x,s.y);
   // train size: a long thin rectangle, roughly tube-train proportions (not to scale)
   const z = map.getZoom(), hl = Math.max(7, Math.min(16, (z-9)*3)), hw = Math.max(2.2, hl/3.6);
-  const wall = Date.now(), cosLat = Math.cos(map.getCenter().lat*rad);
-  // Leaflet's latLngToContainerPoint rounds to whole pixels, which makes slow trains move in
-  // 1-pixel hops. Project without rounding so they glide (canvas draws at sub-pixel positions).
-  const zz = map.getZoom(), origin = map.project(map.getCenter(), zz).subtract(map.getSize().divideBy(2));
-  const toScreen = ll => map.project(ll, zz).subtract(origin);
+  const wall = Date.now(), cosLat = Math.cos(map.getCenter().lat()*rad);
   const drawn = [], byLine = new Map();
   for(const t of trains.values()){
     const l = BY[t.line]; if(!l.on || !shown(l) || wall - t.seen > REFRESH*1.5) continue;
@@ -494,18 +668,36 @@ function draw(ts){
     const cs = Math.cos(t.ang), sn = Math.sin(t.ang);
     const ux = cs*hl, uy = sn*hl, vx = -sn*hw, vy = cs*hw; // half-length and half-width vectors
     const r = [c.x+ux+vx, c.y+uy+vy, c.x+ux-vx, c.y+uy-vy, c.x-ux-vx, c.y-uy-vy, c.x-ux+vx, c.y-uy+vy];
-    const item = [t, c.x, c.y, c.x, c.y, r]; drawn.push(item);
+    const item = [t, c.x, c.y, c.x, c.y, r, cs, sn]; drawn.push(item);
     if(!byLine.has(l)) byLine.set(l, []); byLine.get(l).push(item);
   }
   const rect = r => { ctx.moveTo(r[0],r[1]); ctx.lineTo(r[2],r[3]); ctx.lineTo(r[4],r[5]); ctx.lineTo(r[6],r[7]); ctx.closePath(); };
   // batched: one path for all outlines, then one per line colour (far fewer canvas calls on a TV stick)
   ctx.lineJoin = 'round';
+  const dim = !!window.DIM_TRAINS;
+  ctx.globalAlpha = dim ? 0.35 : 1;
   ctx.strokeStyle = dark ? 'rgba(0,0,0,.9)' : 'rgba(255,255,255,.95)'; ctx.lineWidth = 3;
   ctx.beginPath(); for(const d of drawn) rect(d[5]); ctx.stroke();
   ctx.lineWidth = 1;
   for(const [l, items] of byLine){
+    ctx.globalAlpha = dim && !l.pinned ? 0.3 : 1;
     ctx.fillStyle = ctx.strokeStyle = l.colour==='#000000'&&dark ? '#e6e6e6' : l.colour;
     ctx.beginPath(); for(const d of items) rect(d[5]); ctx.fill(); ctx.stroke(); // stroke rounds the corners
+  }
+  ctx.globalAlpha = 1;
+  // the user's own train/bus: drawn larger, on top, with a ring
+  for(const d of drawn) if(HL.has(d[0].key)){
+    const [t, x, y, , , , cs, sn] = d, k = 1.7, ux=cs*hl*k, uy=sn*hl*k, vx=-sn*hw*k, vy=cs*hw*k;
+    const r = [x+ux+vx, y+uy+vy, x+ux-vx, y+uy-vy, x-ux-vx, y-uy-vy, x-ux+vx, y-uy+vy];
+    ctx.beginPath(); ctx.arc(x, y, hl*k+6, 0, 7); ctx.fillStyle = dark ? 'rgba(255,255,255,.18)' : 'rgba(0,0,0,.12)'; ctx.fill();
+    ctx.beginPath(); rect(r); ctx.lineWidth = 4; ctx.strokeStyle = dark ? '#fff' : '#111'; ctx.stroke();
+    ctx.fillStyle = BY[t.line].colour; ctx.fill();
+  }
+  // you: blue dot with accuracy halo, on top of everything
+  if(me){
+    const c = toScreen(me), mpp = 156543.03*Math.cos(me[0]*rad)/2**map.getZoom();
+    ctx.beginPath(); ctx.arc(c.x, c.y, Math.max(10, meAcc/mpp), 0, 7); ctx.fillStyle = 'rgba(26,115,232,.15)'; ctx.fill();
+    ctx.beginPath(); ctx.arc(c.x, c.y, 8, 0, 7); ctx.fillStyle = '#1a73e8'; ctx.fill(); ctx.lineWidth = 3; ctx.strokeStyle = '#fff'; ctx.stroke();
   }
   const h = hover && drawn.find(d => d[0]===hover);
   if(h){ ctx.strokeStyle=dark?'#fff':'#000'; ctx.lineWidth=1.5; ctx.beginPath(); ctx.arc(h[1],h[2],hl+4,0,7); ctx.stroke(); }
@@ -515,8 +707,22 @@ function draw(ts){
 requestAnimationFrame(draw);
 
 // hover / tap info
+// Transport symbols in the line's own colour: a roundel (ring + bar) for TfL modes,
+// the double arrow for National Rail, a walking figure for walks.
+function symbol(kind, c, s = 16){
+  if(dark) c = c==='#000000' ? '#d9d9d9' : c==='#5f6368' ? '#b0b4ba' : c; // keep dark symbols visible in dark mode
+  const o = `<svg class="sym" width="${s}" height="${s}" viewBox="0 0 24 24" aria-hidden="true">`;
+  if(kind==='walk') return o + `<circle cx="13.5" cy="3.8" r="2.3" fill="${c}"/><path d="M11 8.2l3.2-1 2.4 3.6 3 1.2M12.6 8.6l-1.7 6.6 3.7 3.4.9 4.6M10.9 15.2l-2.6 3.3-3.3 1.2" fill="none" stroke="${c}" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+  if(kind==='tubeLogo') return o + `<circle cx="12" cy="12" r="7" fill="none" stroke="#DC241F" stroke-width="3.6"/><rect x="1" y="9.6" width="22" height="4.8" rx=".6" fill="#0019A8"/></svg>`;
+  if(kind==='cycle') return o + `<g fill="none" stroke="${c}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="5.5" cy="16" r="3.8"/><circle cx="18.5" cy="16" r="3.8"/><path d="M5.5 16l4-7h6l3 7M9.5 9L12 16h3.5M8 6.5h3M15.5 9l-1-3h2.5"/></g></svg>`;
+  if(kind==='drive') return o + `<path d="M5 11l1.8-4.6A2 2 0 018.7 5h6.6a2 2 0 011.9 1.4L19 11v6.5a1 1 0 01-1 1h-1.5a1 1 0 01-1-1V16h-7v1.5a1 1 0 01-1 1H6a1 1 0 01-1-1z" fill="${c}"/><circle cx="8" cy="13" r="1.3" fill="#fff"/><circle cx="16" cy="13" r="1.3" fill="#fff"/><path d="M7.2 10.5l1.2-3h7.2l1.2 3z" fill="#fff" opacity=".85"/></svg>`;
+  if(kind==='any') return o + `<rect x="3" y="3" width="18" height="18" rx="5" fill="${c}"/><path d="M8 16.5l-1.5 2.5M16 16.5l1.5 2.5M8.5 7h7a1.5 1.5 0 011.5 1.5V14a2 2 0 01-2 2H9a2 2 0 01-2-2V8.5A1.5 1.5 0 018.5 7zM7 11.5h10" fill="none" stroke="#fff" stroke-width="1.6" stroke-linecap="round"/></svg>`;
+  if(kind==='gen') return o + `<rect x="3" y="3" width="18" height="18" rx="5" fill="${c}"/><path d="M8 16.5l-1.5 2.5M16 16.5l1.5 2.5M8.5 7h7a1.5 1.5 0 011.5 1.5V14a2 2 0 01-2 2H9a2 2 0 01-2-2V8.5A1.5 1.5 0 018.5 7zM7 11.5h10" fill="none" stroke="#fff" stroke-width="1.6" stroke-linecap="round"/></svg>`;
+  if(kind==='rail') return o + `<path d="M2 7.5h15L7 16.5h15M12.5 3l4.5 4.5M11.5 21L7 16.5" fill="none" stroke="${c}" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+  return o + `<circle cx="12" cy="12" r="7" fill="none" stroke="${c}" stroke-width="3.6"/><rect x="1" y="9.6" width="22" height="4.8" rx=".6" fill="${c}"/></svg>`;
+}
 function nearest(x,y){
-  let best=null, bd=18;
+  let best=null, bd = matchMedia('(pointer:coarse)').matches ? 30 : 18; // fingers are less precise
   for(const [t,hx,hy,tx,ty] of draw.hit||[]){
     const mx=(hx+tx)/2, my=(hy+ty)/2, d=Math.hypot(mx-x,my-y);
     if(d<bd){bd=d;best=t}
@@ -525,72 +731,185 @@ function nearest(x,y){
 }
 const esc = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'})[c]);
 function showTip(e){
-  const r = map.getContainer().getBoundingClientRect();
+  const r = map.getDiv().getBoundingClientRect();
   const t = nearest(e.clientX-r.left, e.clientY-r.top); hover = t;
   const tip = $('tip');
   if(!t){ tip.style.display='none'; return; }
   const l = BY[t.line], secs = Math.max(0, Math.round(((t.curArr??t.arr)-now())/1000));
-  tip.innerHTML = `<b style="color:${l.colour==='#000000'&&dark?'#fff':l.colour}">${l.name}</b>${t.towards?`Towards ${esc(t.towards)}<br>`:''}Next: ${esc(l.stops[t.cur||t.next]?.n||'?')} · ${secs<30?'due':Math.round(secs/60)+' min'}${t.loc?`<br><span style="color:var(--mute)">${esc(t.loc)}</span>`:''}`;
+  // TfL has no train names; tube trains have a set number and buses a registration (rail ids are trip codes)
+  const vid = t.anon ? '' : t.key.slice(t.line.length + 1);
+  const num = !vid ? '' : l.mode==='bus' ? `Bus ${vid}` : l.mode==='tube' ? `Train ${vid}` : '';
+  tip.innerHTML = `<div class="tt-h">${symbol(l.mode, l.colour, 20)}<b>${esc(l.name)}${l.mode==='bus'?' bus':l.mode==='tube'?' line':''}</b></div>
+    ${HL.has(t.key) ? '<div class="tt-you">Your train</div>' : ''}
+    ${t.towards ? `<div>To <b>${esc(t.towards)}</b></div>` : ''}
+    <div>Next stop: ${esc(l.stops[t.cur||t.next]?.n||'?')} · ${secs<30?'due':Math.round(secs/60)+' min'}</div>
+    ${t.loc ? `<div class="tt-m">${esc(t.loc)}</div>` : ''}
+    ${num ? `<div class="tt-m">${esc(num)}</div>` : ''}`;
   tip.style.display='block';
-  tip.style.left = Math.min(innerWidth-250, e.clientX+14)+'px'; tip.style.top = Math.min(innerHeight-90, e.clientY+14)+'px';
+  tip.style.left = Math.max(8, Math.min(innerWidth-258, e.clientX+14))+'px'; tip.style.top = Math.max(8, Math.min(innerHeight-150, e.clientY+14))+'px';
 }
-map.getContainer().addEventListener('mousemove', showTip);
-map.getContainer().addEventListener('click', showTip);
+map.getDiv().addEventListener('mousemove', showTip);
+map.getDiv().addEventListener('click', showTip);
 
-// ---------- UI ----------
+window.LINE_OPACITY = 0.45;
+// ====================================================================================
+// Live trains page: legend, transport switches, station search, map options, kiosk
+// ====================================================================================
+let me = null, meAcc = 0; // (no location on this page; the engine draws "you" only if set)
+const SHOW_LOC = false;
+
+// ---------- status + legend ----------
+window.onTrainsUpdate = n => {
+  $('status').innerHTML = `<b>${n}</b> trains · updated ${new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit', second:'2-digit'})}`;
+  renderLegend();
+};
 function renderLegend(){
-  for(const b of document.querySelectorAll('#show button')) b.classList.toggle('sel', b.dataset.v===SHOW);
-  const none = SHOW!=='tfl' && !ACTIVE.some(l => l.group==='rail')
-    ? '<div class="row" style="cursor:default;color:var(--mute)">National Rail live data isn\'t connected yet.</div>' : '';
-  $('legend').innerHTML = none + ACTIVE.filter(shown).map(l => `<div class="row ${l.on?'':'off'}" tabindex="0" data-id="${l.id}"><span class="sw" style="background:${l.colour}"></span>${l.name}<span class="n">${l.count||''}</span></div>`).join('');
+  const rows = ACTIVE.filter(l => l.mode !== 'bus' && !MODES_OFF.has(l.mode));
+  $('legend').innerHTML = rows.map(l => `<button type="button" class="row ${l.on ? '' : 'off'}" data-id="${l.id}" aria-pressed="${l.on}">
+    <span class="sw" style="background:${ink(l.colour)}"></span><span class="nm">${esc(l.name)}</span><span class="n">${l.count || ''}</span></button>`).join('');
 }
 $('legend').addEventListener('click', e => {
-  const row = e.target.closest('.row'); if(!row) return;
-  const l = BY[row.dataset.id]; l.on = !l.on;
+  const r = e.target.closest('.row'); if(!r) return;
+  const l = BY[r.dataset.id]; l.on = !l.on;
   l.layer && l.layer.eachLayer(p => p.setStyle(lineStyle(l))); renderLegend();
 });
-$('legend').addEventListener('keydown', e => { if(e.key==='Enter') e.target.click(); });
-function setShow(v){
-  SHOW = v; try{ localStorage.setItem('show', v) }catch(e){}
-  for(const l of ACTIVE) l.layer && l.layer.eachLayer(p => p.setStyle(lineStyle(l)));
-  renderLegend(); refresh().catch(()=>{});
-}
-$('show').addEventListener('click', e => { const b = e.target.closest('button'); if(b) setShow(b.dataset.v); });
-$('bTheme').onclick = () => { dark=!dark; applyTheme(); };
-$('bKiosk').onclick = () => document.body.classList.toggle('kiosk');
-$('bFit').onclick = () => map.setView(HOME[0], HOME[1]);
-addEventListener('keydown', e => {
-  if(e.key==='k'||e.key==='K') document.body.classList.toggle('kiosk');
-  if(e.key==='d'||e.key==='D') { dark=!dark; applyTheme(); }
-  if(e.key==='t'||e.key==='T') setShow({tfl:'rail', rail:'both', both:'tfl'}[SHOW]);
-});
-const tick = () => { $('clock').textContent = new Date().toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'}); };
-tick(); setInterval(tick, 1000);
 
-if(DEBUG) window.LLT = {trains, ACTIVE, BY, placeTrain, segTime, refresh, map, draw};
+// ---------- transport switches ----------
+const GROUP_SYM = {tube:['tubeLogo','#DC241F'], overground:['tube','#FA7B05'], elizabeth:['tube','#6950A1'], dlr:['tube','#00A4A7'], tram:['tube','#5FB526'], rail:['rail','#1D5BA0']};
+function renderModeChips(){
+  $('mModes').innerHTML = MODE_GROUPS.map(([m, name]) => {
+    const has = ACTIVE.some(l => l.mode === m);
+    return `<button type="button" class="chip2" data-mode="${m}" aria-pressed="${has && !MODES_OFF.has(m)}" ${has ? '' : 'disabled title="Coming soon"'}>${symbol(GROUP_SYM[m][0], GROUP_SYM[m][1], 16)}${name}${has ? '' : ' <small>soon</small>'}</button>`;
+  }).join('');
+}
+$('mModes').addEventListener('click', e => { const b = e.target.closest('[data-mode]'); if(!b || b.disabled) return;
+  const m = b.dataset.mode; MODES_OFF.has(m) ? MODES_OFF.delete(m) : MODES_OFF.add(m);
+  try{ localStorage.setItem('modesOff', JSON.stringify([...MODES_OFF])); }catch(x){}
+  for(const l of ACTIVE) l.layer && l.layer.eachLayer(p => p.setStyle(lineStyle(l)));
+  renderModeChips(); renderLegend(); refresh().catch(()=>{}); });
+
+// ---------- map options ----------
+function syncMapMenu(){
+  for(const b of document.querySelectorAll('[data-ms]')) b.classList.toggle('sel', b.dataset.ms === MAP_STYLE);
+  $('mQuiet').checked = QUIET_ON; $('mDark').checked = dark;
+}
+$('bMap').onclick = () => { const m = $('mapMenu'); m.hidden = !m.hidden; $('bMap').setAttribute('aria-expanded', !m.hidden); syncMapMenu(); };
+$('mapMenu').addEventListener('click', e => { const b = e.target.closest('[data-ms]'); if(!b) return;
+  MAP_STYLE = b.dataset.ms; try{ localStorage.setItem('mapStyle', MAP_STYLE); }catch(x){} map.setOptions({styles:mapStyles()}); syncMapMenu(); });
+$('mQuiet').onchange = () => { QUIET_ON = $('mQuiet').checked; try{ localStorage.setItem('mapQuiet', QUIET_ON ? '1' : '0'); }catch(x){} map.setOptions({styles:mapStyles()}); };
+$('mDark').onchange = () => { if($('mDark').checked !== dark) toggleDark(); };
+function toggleDark(){ dark = !dark; try{ localStorage.setItem('theme', dark ? 'dark' : 'light'); }catch(x){} applyTheme(); syncMapMenu(); renderModeChips(); renderLegend(); }
+$('bTheme').onclick = toggleDark;
+
+// ---------- station search ----------
+// Every station on the loaded lines, merged by name (one entry per station, with the lines serving it)
+let STATIONS = null;
+function stationIndex(){
+  const by = new Map();
+  for(const l of ACTIVE){ if(l.mode === 'bus' || !l.stops) continue;
+    for(const [id, s] of Object.entries(l.stops)){
+      const name = s.n.replace(/\s*\((?:[^)]*line|H&C|Circle Line|[^)]*Underground)[^)]*\)\s*/i, ' ').replace(/-Underground$/i, '').replace(/\s+/g, ' ').trim();
+      const key = name.toLowerCase().replace(/&/g, 'and').replace(/[^a-z0-9]+/g, ' ').trim();
+      let st = by.get(key);
+      if(st && dist(st.p, s.p) > 600) st = by.get(key + '#' + id) || null; // same name, different place
+      if(!st){ st = {name, p:s.p, lines:new Set(), ids:new Set(), key}; by.set(by.has(key) ? key + '#' + id : key, st); }
+      st.lines.add(l.id); st.ids.add(id);
+    }
+  }
+  return [...by.values()];
+}
+const SR = {items:[], sel:-1};
+function searchStations(text){
+  if(!STATIONS || STATIONS.length < 50) STATIONS = stationIndex();
+  const q = text.toLowerCase().replace(/&/g, 'and').replace(/[^a-z0-9]+/g, ' ').trim(); if(!q) return [];
+  const score = s => s.key.startsWith(q) ? 0 : s.key.split(' ').some(w => w.startsWith(q)) ? 1 : s.key.includes(q) ? 2 : 9;
+  return STATIONS.map(s => [score(s), s]).filter(x => x[0] < 9).sort((a, b) => a[0]-b[0] || b[1].lines.size-a[1].lines.size || a[1].name.localeCompare(b[1].name)).slice(0, 7).map(x => x[1]);
+}
+function renderResults(){
+  const ul = $('sres');
+  ul.innerHTML = SR.items.map((s, i) => `<li role="option" data-i="${i}" class="${i===SR.sel?'on':''}" aria-selected="${i===SR.sel}">
+    <span class="dots">${[...s.lines].slice(0, 6).map(id => `<i style="background:${ink(BY[id].colour)}"></i>`).join('')}</span>
+    <span><b>${esc(s.name)}</b><small>${[...s.lines].map(id => esc(BY[id].name)).join(', ')}</small></span></li>`).join('')
+    || ($('q').value.trim() ? '<li class="none">No station found</li>' : '');
+  ul.hidden = !ul.innerHTML; $('q').setAttribute('aria-expanded', String(!ul.hidden));
+}
+$('q').addEventListener('input', () => { SR.items = searchStations($('q').value); SR.sel = SR.items.length ? 0 : -1; renderResults(); });
+$('q').addEventListener('keydown', e => {
+  const n = SR.items.length;
+  if(e.key === 'ArrowDown' && n){ e.preventDefault(); SR.sel = (SR.sel + 1) % n; renderResults(); }
+  else if(e.key === 'ArrowUp' && n){ e.preventDefault(); SR.sel = (SR.sel - 1 + n) % n; renderResults(); }
+  else if(e.key === 'Enter' && SR.sel >= 0){ e.preventDefault(); goStation(SR.items[SR.sel]); }
+  else if(e.key === 'Escape'){ $('q').value = ''; SR.items = []; renderResults(); clearFocus(); }
+});
+$('sres').addEventListener('mousedown', e => e.preventDefault());
+$('q').addEventListener('blur', () => setTimeout(() => { $('sres').hidden = true; }, 150));
+$('sres').addEventListener('click', e => { const li = e.target.closest('li[data-i]'); if(li) goStation(SR.items[+li.dataset.i]); });
+
+// the chosen station: zoom in, mark it, list its next trains
+let focusMarker = null, focusTimer = 0;
+function clearFocus(){ if(focusMarker){ focusMarker.setMap(null); focusMarker = null; } $('station').hidden = true; clearInterval(focusTimer); }
+async function goStation(st){
+  clearFocus();
+  $('q').value = st.name; SR.items = []; $('sres').hidden = true; $('q').setAttribute('aria-expanded', 'false'); $('q').blur();
+  map.panTo(LL(st.p)); map.setZoom(15);
+  const col = BY[[...st.lines][0]].colour;
+  focusMarker = new google.maps.Marker({position:LL(st.p), map, zIndex:50, clickable:false,
+    icon:{path:google.maps.SymbolPath.CIRCLE, scale:14, fillColor:'#fff', fillOpacity:.25, strokeColor:ink(col), strokeWeight:4}});
+  const box = $('station'); box.hidden = false;
+  const head = `<div class="st-h"><b>${esc(st.name)}</b><button type="button" class="x" id="stClose" aria-label="Close">✕</button></div>
+    <div class="st-lines">${[...st.lines].map(id => `<span class="pill" style="--c:${BY[id].colour}">${symbol(BY[id].mode==='tube'?'tube':BY[id].mode, BY[id].colour, 14)} ${esc(BY[id].name)}</span>`).join('')}</div>`;
+  box.innerHTML = head + '<div class="muted">Loading next trains…</div>';
+  const load = async () => {
+    const all = (await Promise.all([...st.ids].slice(0, 4).map(id => get(`/StopPoint/${id}/Arrivals`).catch(() => [])))).flat()
+      .filter(a => st.lines.has(a.lineId));
+    const seen = new Set(), rows = all.sort((a, b) => a.timeToStation - b.timeToStation)
+      .filter(a => { const k = a.vehicleId + a.lineId + a.platformName; if(seen.has(k)) return false; seen.add(k); return true; }).slice(0, 8);
+    if(box.hidden) return;
+    box.innerHTML = head + (rows.length ? `<ol class="deps">${rows.map(a => { const l = BY[a.lineId], m = Math.round(a.timeToStation/60);
+      return `<li><span class="sw" style="background:${ink(l.colour)}"></span><span class="to">${esc(cleanName(a.towards || a.destinationName || '') || l.name)}<small>${esc(l.name)}${a.platformName ? ' · ' + esc(a.platformName) : ''}</small></span><b>${m < 1 ? 'due' : m + ' min'}</b></li>`; }).join('')}</ol>` : '<div class="muted">No trains listed right now.</div>');
+  };
+  load(); focusTimer = setInterval(load, 30000);
+}
+$('station').addEventListener('click', e => { if(e.target.closest('#stClose')){ clearFocus(); $('q').value = ''; } });
+
+// ---------- kiosk, clock, re-centre, keys ----------
+if(Q.get('kiosk') === '1') document.body.classList.add('kiosk');
+$('bKiosk').onclick = () => document.body.classList.toggle('kiosk');
+$('bFit').onclick = () => { map.panTo(LL(HOME[0])); map.setZoom(Math.round(HOME[1])); };
+addEventListener('keydown', e => {
+  if(e.target.tagName === 'INPUT') return;
+  if(e.key === 'k' || e.key === 'K') document.body.classList.toggle('kiosk');
+  if(e.key === 'd' || e.key === 'D') toggleDark();
+  if(e.key === '/'){ e.preventDefault(); $('q').focus(); }
+});
+const tick = () => { $('clock').textContent = new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}); };
+tick(); setInterval(tick, 1000);
+map.addListener('dragstart', () => { $('tip').style.display = 'none'; hover = null; });
+map.addListener('zoom_changed', () => { $('tip').style.display = 'none'; hover = null; });
+renderModeChips(); renderLegend(); syncMapMenu();
+if(DEBUG) window.LLT = {trains, ACTIVE, BY, placeTrain, segTime, refresh, map, draw, goStation, searchStations};
 
 // ---------- boot ----------
 (async () => {
-  renderLegend();
   let ok = 0;
-  // load a few lines at a time: fast, but well under TfL's anonymous rate limit
   const queue = ACTIVE.slice();
   await Promise.all([0,1,2].map(async () => {
     for(let l; (l = queue.shift()); ){
       const cached = !!store.get('seq2:'+l.id);
       try{ await loadLine(l); ok++; $('status').textContent = `Loading lines… ${ok}/${ACTIVE.length}`; }
-      catch(e){ $('err').textContent = 'Could not load '+l.name+': '+e.message; }
+      catch(e){ $('err').textContent = 'Could not load ' + l.name + ': ' + e.message; }
       if(!cached) await sleep(200);
     }
   }));
-  // refresh loop with backoff on errors (e.g. 429 rate limiting)
+  STATIONS = null; renderModeChips(); renderLegend();
   for(;;){
     let good = false;
-    try{ good = await refresh(); }catch(e){ $('err').textContent = 'Error: '+e.message; console.error(e); }
+    try{ good = await refresh(); }catch(e){ $('err').textContent = 'Error: ' + e.message; console.error(e); }
     await sleep(good ? REFRESH : Math.min(REFRESH*8, REFRESH*2**Math.min(3, failStreak)));
   }
 })();
-}
+})();
+
 </script>
 </body>
 </html>

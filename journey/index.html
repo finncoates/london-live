@@ -32,6 +32,8 @@ button{font:inherit;font-size:14px;padding:9px 12px;border-radius:10px;border:1p
 button.primary{background:var(--acc);border-color:var(--acc);color:#fff;font-weight:600}
 body.dark button.primary{color:#0e0f12}
 button:focus-visible,input:focus-visible{outline:2px solid var(--acc);outline-offset:2px}
+.field input:focus-visible{outline:none}
+.field:focus-within{box-shadow:0 0 0 2px var(--acc) inset}
 .icon{padding:7px 9px;font-size:13px;display:inline-flex;align-items:center;gap:4px;white-space:nowrap;line-height:1}
 .icon.on{background:var(--soft)}
 #options,#chainOut{display:grid;gap:8px;margin-top:12px}
@@ -61,6 +63,21 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--acc);outline-of
 body.dark .switch{background:#5f6368}
 body.dark .switch:checked{background:var(--acc)}
 .icon[aria-expanded="true"]{background:var(--soft)}
+.mm-modes{display:grid;cursor:default}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip2{display:inline-flex;align-items:center;gap:5px;font-size:13px;padding:5px 9px 5px 6px;border-radius:99px;border:1px solid var(--edge);background:var(--panel)}
+.chip2[aria-pressed="false"]{opacity:.45}
+.chip2[aria-pressed="false"] .sym{filter:grayscale(1)}
+.chip2:disabled{opacity:.35;cursor:default}
+.chip2 small{font-size:11px;color:var(--mute)}
+.aclist{list-style:none;margin:4px 0 6px;padding:4px;background:var(--panel);border:1px solid var(--edge);border-radius:10px;box-shadow:0 6px 18px rgba(0,0,0,.14)}
+.aclist li{display:flex;gap:10px;align-items:flex-start;padding:8px;border-radius:8px;cursor:pointer}
+.aclist li.on,.aclist li:hover{background:var(--soft)}
+.aclist .pin{flex:none;margin-top:2px;color:var(--mute)}
+.aclist b{display:block;font-weight:600;font-size:14px}
+.aclist small{display:block;color:var(--mute);font-size:12px}
+.aclist .gattr{justify-content:flex-end;cursor:default;padding:2px 6px;font-size:11px;color:var(--mute)}
+.aclist .gattr:hover{background:none}
 .note{background:var(--soft);border-radius:10px;padding:8px 10px;font-size:13px;margin-bottom:10px}
 .opt{text-align:left;display:grid;gap:6px;padding:10px 12px}
 .opt.sel{border-color:var(--acc);box-shadow:0 0 0 1px var(--acc) inset}
@@ -124,6 +141,7 @@ body.dark #simnote{background:#1f2a44;color:#c6dafc}
       <div class="seg2" role="group" aria-label="Map style"><button data-ms="google">Google Maps</button><button data-ms="original">Original</button></div></div>
     <label class="mm-row"><span>Hide places &amp; labels<small>Shops, landmarks, stations and area names. Street names stay.</small></span><input type="checkbox" id="mQuiet" class="switch"></label>
     <label class="mm-row"><span>Dark map</span><input type="checkbox" id="mDark" class="switch"></label>
+    <div class="mm-row mm-modes"><span>Live trains on the map</span><div class="chips" id="mModes"></div></div>
   </div>
   <div id="simnote">Test mode: drag the blue pin to pretend you're moving.</div>
   <div class="tabs" id="tabs" role="tablist"><button data-t="search" class="sel" role="tab">Quick route</button><button data-t="build" role="tab">Build my route</button></div>
@@ -138,8 +156,8 @@ body.dark #simnote{background:#1f2a44;color:#c6dafc}
   </section>
   <section class="view" data-view="search">
     <form id="fSearch" autocomplete="off">
-      <div class="field"><label for="from">From</label><input id="from" placeholder="My location"></div>
-      <div class="field"><label for="to">To</label><input id="to" placeholder="Place, station or postcode" enterkeyhint="search"></div>
+      <div class="field"><label for="from">From</label><input id="from" placeholder="My location" role="combobox" aria-autocomplete="list" aria-expanded="false"></div>
+      <div class="field"><label for="to">To</label><input id="to" placeholder="Place, station or postcode" enterkeyhint="search" role="combobox" aria-autocomplete="list" aria-expanded="false"></div>
       <div class="row2">
         <div class="field" style="flex:1"><label for="when">Leave</label><input id="when" type="time" title="Leave at (empty = now)"></div>
         <button type="button" id="bSwap" title="Swap from and to" aria-label="Swap from and to">⇅</button>
@@ -205,7 +223,10 @@ const BY = Object.fromEntries(ACTIVE.map(l => [l.id, l]));
 // Which services to show: 'tfl' (Underground, Overground, Elizabeth, DLR, trams), 'rail' (National Rail) or 'both'
 // Background trains can be switched off; lines used by the current journey are always shown ("pinned")
 let TRAINS_ON = (() => { try{ return localStorage.getItem('trainsOn') !== '0' }catch(e){ return true } })();
-const shown = l => l.pinned || (TRAINS_ON && l.mode !== 'bus');
+// which kinds of transport to show in the background (each can be switched off in the Map menu)
+const MODE_GROUPS = [['tube','Tube'], ['overground','Overground'], ['elizabeth','Elizabeth line'], ['dlr','DLR'], ['tram','Trams'], ['rail','National Rail']];
+let MODES_OFF = new Set((() => { try{ return JSON.parse(localStorage.getItem('modesOff')) || []; }catch(e){ return []; } })());
+const shown = l => l.pinned || (TRAINS_ON && l.mode !== 'bus' && !MODES_OFF.has(l.mode));
 
 // ---------- helpers ----------
 const $ = id => document.getElementById(id);
@@ -285,7 +306,7 @@ class Group{ constructor(){ this.items = []; } addLayer(x){ x.setMap(map); this.
 const gStyle = s => ({strokeColor:s.color, strokeWeight:s.weight, strokeOpacity:s.opacity, clickable:false, zIndex:s.z||1});
 function gLine(pts, s){ const p = new google.maps.Polyline(Object.assign({path:pts.map(LL)}, gStyle(s))); p.setStyle = st => p.setOptions(gStyle(st)); return p; }
 const ink = c => c==='#000000'&&dark ? '#d9d9d9' : c;
-const lineStyle = l => ({color:ink(l.colour), weight:3, opacity:!shown(l)?0:l.pinned?0.6:0.3});
+const lineStyle = l => ({color:ink(l.colour), weight:3, opacity:!shown(l)?0:l.on===false?0.07:l.pinned?0.6:(window.LINE_OPACITY||0.3)});
 function applyTheme(){ document.body.classList.toggle('dark', dark); map.setOptions({styles:mapStyles()}); for(const l of ACTIVE) l.layer && l.layer.eachLayer(p => p.setStyle(lineStyle(l))); }
 applyTheme();
 // Screen positions (fractional pixels, so movement is smooth) via an empty overlay's projection
@@ -794,6 +815,8 @@ async function planJourneys(from, to, when){
 // Google's directions work almost anywhere, but give timetable times only (no live boards or
 // vehicle positions), and its terms only allow drawing them on a Google map, so Google journeys
 // are shown as a step list with an "Open in Google Maps" link rather than drawn on this map.
+// a place is "lat,lon", "place_id:…" (picked from the suggestions) or free text
+const toLoc = s => isCoord(s) ? {lat:+s.split(',')[0], lng:+s.split(',')[1]} : s.startsWith('place_id:') ? {placeId:s.slice(9)} : s;
 const isCoord = s => /^-?\d+(\.\d+)?,-?\d+(\.\d+)?$/.test(s);
 const inLondon = s => { if(!isCoord(s)) return true; const [a, b] = s.split(',').map(Number); return a>51.28 && a<51.70 && b>-0.52 && b<0.34; };
 const shortAddr = s => { const parts = (s||'').replace(/,?\s*(UK|United Kingdom)$/i, '').split(',').map(x => x.replace(/\b[A-Z]{1,2}\d[A-Z\d]?\s*\d[A-Z]{2}\b/, '').trim()).filter(Boolean);
@@ -802,7 +825,7 @@ const stripHtml = s => (s||'').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').tri
 async function planGoogle(from, to, when){
   await loadGoogle();
   const {DirectionsService} = await google.maps.importLibrary('routes');
-  const loc = s => isCoord(s) ? {lat:+s.split(',')[0], lng:+s.split(',')[1]} : s;
+  const loc = toLoc;
   let res;
   try{
     const inUK = me && me[0] > 49.8 && me[0] < 61 && me[1] > -8.7 && me[1] < 1.9;
@@ -882,7 +905,7 @@ const CM = Object.fromEntries(CMODES.map(m => [m.id, m]));
 const SELF = {walk:{verb:'Walk', colour:'#7a7f87'}, cycle:{verb:'Cycle', colour:'#1e8e3e'}, drive:{verb:'Drive', colour:'#5f6368'}};
 async function planSegment(from, to, modeId, t, toLabel){
   const m = CM[modeId], {DirectionsService} = await google.maps.importLibrary('routes');
-  const loc = s => isCoord(s) ? {lat:+s.split(',')[0], lng:+s.split(',')[1]} : s;
+  const loc = toLoc;
   const inUK = me && inUKP(me);
   let res;
   try{
@@ -1292,7 +1315,8 @@ async function search(){
     }
     catch(e){
       if(/No public transport|not found/i.test(e.message) || !inLondon(J.from.q)) throw e;
-      r = await planJourneys(J.from.q, J.to.q, when);
+      const tq = x => x.q.startsWith('place_id:') ? x.label : x.q;
+      r = await planJourneys(tq(J.from), tq(J.to), when);
       if(r.ambiguous) return renderAmbiguous(r.ambiguous);
     }
     J.options = r.journeys.slice(0, 4); J.sel = 0; J.optEl = 'options';
@@ -1339,6 +1363,56 @@ function renderActive(force){
   $('gmaps').href = gmapsLink(J.plan);
 }
 
+// ----- place suggestions while typing (Google Places autocomplete) -----
+const AC = {list:document.createElement('ul'), input:null, items:[], sel:-1, token:null, timer:0, seq:0};
+AC.list.className = 'aclist'; AC.list.setAttribute('role', 'listbox'); AC.list.hidden = true;
+const PIN = '<svg class="pin" width="16" height="16" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 22s7-6.4 7-12a7 7 0 10-14 0c0 5.6 7 12 7 12z" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="10" r="2.5" fill="currentColor"/></svg>';
+function acClose(){ AC.list.hidden = true; AC.items = []; AC.sel = -1; if(AC.input) AC.input.setAttribute('aria-expanded', 'false'); }
+function acRender(){
+  AC.list.innerHTML = AC.items.map((s, i) => `<li role="option" data-i="${i}" class="${i===AC.sel?'on':''}" aria-selected="${i===AC.sel}">${PIN}<span><b>${esc(s.main)}</b><small>${esc(s.sub)}</small></span></li>`).join('')
+    + '<li class="gattr" aria-hidden="true">Powered by Google</li>';
+  AC.list.hidden = !AC.items.length; AC.input.setAttribute('aria-expanded', String(!AC.list.hidden));
+}
+async function acFetch(input){
+  const text = input.value.trim(), seq = ++AC.seq;
+  if(text.length < 2){ acClose(); return; }
+  try{
+    const {AutocompleteSuggestion, AutocompleteSessionToken} = await google.maps.importLibrary('places');
+    AC.token ||= new AutocompleteSessionToken();
+    const c = me || [51.5072, -0.1276]; // near you, or central London
+    const {suggestions} = await AutocompleteSuggestion.fetchAutocompleteSuggestions({input:text, sessionToken:AC.token,
+      locationBias:{center:{lat:c[0], lng:c[1]}, radius:50000}});
+    if(seq !== AC.seq || document.activeElement !== input) return; // typed on, or left the box
+    AC.input = input; AC.sel = -1;
+    AC.items = suggestions.filter(s => s.placePrediction).slice(0, 5).map(s => { const p = s.placePrediction;
+      return {main:p.mainText?.text || p.text.text, sub:p.secondaryText?.text || '', id:p.placeId}; });
+    input.closest('.field').after(AC.list); acRender();
+  }catch(e){ acClose(); }
+}
+function acPick(i){
+  const s = AC.items[i], input = AC.input; if(!s || !input) return;
+  input.value = s.main; AC.token = null; acClose();
+  const place = {label:s.main, q:'place_id:' + s.id};
+  if(input.id === 'to') J.to = place;
+  else if(input.id === 'from') J.from = place;
+  else if(input.dataset.i != null){ CH.stops[+input.dataset.i] = s.main; (CH.pids ||= {})[s.main] = place.q; saveChain(); }
+  input.dispatchEvent(new Event('picked', {bubbles:true}));
+}
+const acTarget = el => el && el.tagName === 'INPUT' && (el.id === 'from' || el.id === 'to' || el.closest('#chain'));
+$('panel').addEventListener('input', e => { if(!acTarget(e.target)) return; AC.input = e.target; clearTimeout(AC.timer); AC.timer = setTimeout(() => acFetch(e.target), 220); });
+$('panel').addEventListener('keydown', e => {
+  if(!acTarget(e.target) || AC.list.hidden) return;
+  if(e.key === 'ArrowDown' || e.key === 'ArrowUp'){ e.preventDefault(); const n = AC.items.length;
+    AC.sel = e.key === 'ArrowDown' ? (AC.sel + 1 >= n ? -1 : AC.sel + 1) : (AC.sel - 1 < -1 ? n - 1 : AC.sel - 1); acRender(); }
+  else if(e.key === 'Enter' && AC.sel >= 0){ e.preventDefault(); acPick(AC.sel); }
+  else if(e.key === 'Escape'){ acClose(); }
+});
+$('panel').addEventListener('focusout', e => { if(acTarget(e.target)) setTimeout(() => { if(!acTarget(document.activeElement)) acClose(); }, 150); });
+AC.list.addEventListener('mousedown', e => e.preventDefault()); // keep focus in the box while choosing
+AC.list.addEventListener('click', e => { const li = e.target.closest('li[data-i]'); if(li) acPick(+li.dataset.i); });
+// picking a destination goes straight to the routes (like Google Maps)
+$('panel').addEventListener('picked', e => { if(e.target.id === 'to') search(); else if(e.target.id === 'from' && $('to').value.trim()) search(); });
+
 // ----- route builder -----
 let CH = (() => { try{ return JSON.parse(localStorage.getItem('chain')) }catch(e){ return null } })() || {stops:['', ''], modes:['any']};
 const saveChain = () => { try{ localStorage.setItem('chain', JSON.stringify(CH)); }catch(e){} };
@@ -1365,7 +1439,8 @@ async function planBuilt(){
   const labels = CH.stops.map(s => s.trim());
   if(labels.slice(1).some(s => !s)){ $('chainOut').innerHTML = '<div class="muted">Fill in every stop (or remove the empty ones).</div>'; return; }
   if(!labels[0] && !me) return waitForGps($('chainOut'), planBuilt, $('cs0'));
-  const qs = [labels[0] || `${me[0].toFixed(5)},${me[1].toFixed(5)}`, ...labels.slice(1)];
+  const pid = l => (CH.pids && CH.pids[l]) || l; // a suggestion you picked, else the text
+  const qs = [labels[0] ? pid(labels[0]) : `${me[0].toFixed(5)},${me[1].toFixed(5)}`, ...labels.slice(1).map(pid)];
   let when = Date.now();
   if($('whenB').value) when = leaveAt($('whenB').value);
   $('chainOut').innerHTML = '<div class="muted">Planning each step…</div>';
@@ -1405,7 +1480,19 @@ $('bTrains').onclick = () => {
 };
 $('bTrains').classList.toggle('on', TRAINS_ON);
 $('tsym').innerHTML = symbol('tube', '#DC241F', 16);
-function syncMapMenu(){
+const GROUP_SYM = {tube:['tubeLogo','#DC241F'], overground:['tube','#FA7B05'], elizabeth:['tube','#6950A1'], dlr:['tube','#00A4A7'], tram:['tube','#5FB526'], rail:['rail','#1D5BA0']};
+function renderModeChips(){
+  $('mModes').innerHTML = MODE_GROUPS.map(([m, name]) => {
+    const has = ACTIVE.some(l => l.mode === m); // e.g. National Rail: not connected yet
+    return `<button type="button" class="chip2" data-mode="${m}" aria-pressed="${has && !MODES_OFF.has(m)}" ${has ? '' : 'disabled title="Coming soon"'}>${symbol(GROUP_SYM[m][0], GROUP_SYM[m][1], 16)}${name}${has ? '' : ' <small>soon</small>'}</button>`;
+  }).join('');
+}
+$('mModes').addEventListener('click', e => { const b = e.target.closest('[data-mode]'); if(!b || b.disabled) return;
+  const m = b.dataset.mode; MODES_OFF.has(m) ? MODES_OFF.delete(m) : MODES_OFF.add(m);
+  try{ localStorage.setItem('modesOff', JSON.stringify([...MODES_OFF])); }catch(x){}
+  for(const l of ACTIVE) l.layer && l.layer.eachLayer(p => p.setStyle(lineStyle(l)));
+  renderModeChips(); refresh().catch(()=>{}); });
+function syncMapMenu(){ renderModeChips();
   for(const b of document.querySelectorAll('[data-ms]')) b.classList.toggle('sel', b.dataset.ms === MAP_STYLE);
   $('mQuiet').checked = QUIET_ON; $('mDark').checked = dark;
 }

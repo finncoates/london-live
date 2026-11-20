@@ -61,6 +61,17 @@ Findings and fixes:
 - London Trams added (TfL, live, vehicle ids present). Cable car has no live data in TfL.
 - TfL / National Rail / Both switch (`?show=tfl|rail|both`, T key cycles, remembered in localStorage).
 
+## v5 — Google Maps, display options, station search (Nov 2026)
+- The live map now runs on **Google Maps** (same key/engine as London Journey in `journey/`; the train engine,
+  map styles and canvas overlay are shared code — this page = Journey's engine section + its own UI at the bottom).
+  The Esri/Leaflet version is in git history (before this commit) if the Fire TV struggles with Google Maps.
+- Map button: Google Maps / Original (grey) style, hide places & labels (street names stay), dark map — remembered.
+- Transport switches (Tube, Overground, Elizabeth line, DLR, Trams; National Rail "soon"), plus per-line legend toggles.
+- Station search (`/` key): suggestions from the loaded TfL stations; picking one zooms in, rings the station and
+  lists its next trains (TfL StopPoint arrivals, refreshed every 30 s).
+- Kiosk (K or ?kiosk=1) hides the panel and shows a clock; D toggles dark/light.
+- The Google key is restricted to finncoates.github.io/*: test locally by serving the file at the real URL in Playwright.
+
 ## National Rail — plan (waiting on access)
 - TfL has National Rail line *geometry* (`/Line/{operator}/Route/Sequence`) but **no live arrivals**.
 - Live data: Rail Data Marketplace (raildata.org.uk), Darwin boards. User subscribed (Nov 2026) to
