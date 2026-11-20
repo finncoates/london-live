@@ -458,6 +458,10 @@ function draw(ts){
   // train size: a long thin rectangle, roughly tube-train proportions (not to scale)
   const z = map.getZoom(), hl = Math.max(7, Math.min(16, (z-9)*3)), hw = Math.max(2.2, hl/3.6);
   const wall = Date.now(), cosLat = Math.cos(map.getCenter().lat*rad);
+  // Leaflet's latLngToContainerPoint rounds to whole pixels, which makes slow trains move in
+  // 1-pixel hops. Project without rounding so they glide (canvas draws at sub-pixel positions).
+  const zz = map.getZoom(), origin = map.project(map.getCenter(), zz).subtract(map.getSize().divideBy(2));
+  const toScreen = ll => map.project(ll, zz).subtract(origin);
   const drawn = [], byLine = new Map();
   for(const t of trains.values()){
     const l = BY[t.line]; if(!l.on || wall - t.seen > REFRESH*1.5) continue;
@@ -474,7 +478,7 @@ function draw(ts){
     let dA = Math.atan2(Math.sin(ang-(t.ang??ang)), Math.cos(ang-(t.ang??ang)));
     if(dA > Math.PI/2) dA -= Math.PI; else if(dA < -Math.PI/2) dA += Math.PI;
     t.ang = (t.ang??ang) + dA*ka;
-    const c = map.latLngToContainerPoint(t.d);
+    const c = toScreen(t.d);
     if(c.x<-40||c.y<-40||c.x>s.x+40||c.y>s.y+40) continue;
     const cs = Math.cos(t.ang), sn = Math.sin(t.ang);
     const ux = cs*hl, uy = sn*hl, vx = -sn*hw, vy = cs*hw; // half-length and half-width vectors
