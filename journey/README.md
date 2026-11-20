@@ -50,3 +50,21 @@ dark map. Choices are saved in localStorage (`mapStyle`, `mapQuiet`, `theme`).
 - Bus positions come from arrival predictions (no GPS feed from TfL), so they're approximate.
 - Possible next steps: notifications when the screen is off, step-free/accessibility options,
   "leave by" reminders before the trip.
+
+## Added 20–21 Nov 2026 (overnight)
+- **Line status** (`refreshStatus`, every 2 min): warnings on route options/steps, "N lines with problems" box.
+- **Saved places + recents** (`PL`, `RC`, `renderQuick`): Home/Work/favourites chips, save bar above routes,
+  suggestions when focusing an empty box. Stored in localStorage (`places`, `recents`).
+- **Near you** (`renderNearby`): live departures for the 2 nearest stations + 3 nearest bus stops, every 30 s;
+  tap a station on the map (Google `click`, so not after a drag) for its departures and "Route here".
+- **Alerts** (`checkAlerts`, every second): time to leave, get off at the next stop (uses the live train's next
+  stop when known), arrived. Vibrates and shows a notification if allowed. **Share ETA** button.
+- **Installable**: `manifest.webmanifest`, icons, `sw.js` (network-first shell cache + notifications).
+- **Preferences** (`PREF`): fastest / fewer changes / less walking (Google routingPreference) / step-free
+  (TfL `accessibilityPreference`; if TfL finds no step-free rail route, a bus-only Google route).
+- **Arrive by** (`whenMode`, `ARRIVE`): search only; re-planning while travelling always departs now.
+- **Customise** (`customise`): turns a planned route into a Build-my-route chain.
+- **Fares** from Google (`route.fare.text`).
+- Map drawing: lines are a canvas (`drawLines`, `renderOff` off-screen cache, `buildPaths` per zoom),
+  shared track side by side (`buildLanes`, `laneOffset`), non-stop express edges hidden (`l.skip`),
+  projection from the Google overlay once per frame (`viewNow`/`scr`), follows in-between zoom levels.
