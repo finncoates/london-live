@@ -118,7 +118,8 @@ body.dark .st1{background:#4a3b0f;color:#ffd96b} body.dark .st2{background:#5a1f
 .deps2 .ln{flex:none;min-width:34px;font-weight:700;font-size:12px;padding:1px 6px;border-radius:5px;color:#fff;text-align:center}
 .deps2 .to{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .deps2 .to small{color:var(--mute);font-size:11.5px;margin-left:4px}
-.deps2 b{white-space:nowrap;font-variant-numeric:tabular-nums;font-size:13px}
+.deps2 b{white-space:nowrap;font-variant-numeric:tabular-nums;font-size:13px;flex:none}
+.deps2 .to{flex:1 1 0}
 .nb-more{font-size:12px;color:var(--acc);background:none;border:0;padding:0;margin-top:4px}
 .alert{background:var(--acc);color:#fff;border-radius:12px;padding:11px 13px;margin-bottom:10px;font-size:15px;display:flex;gap:10px;align-items:center}
 .alert b{font-size:17px;display:block}
@@ -1831,6 +1832,9 @@ function stationIdx(){
 }
 const walkMin = m => Math.max(1, Math.round(m/1.25/60));
 const minsTxt = s => { const m = Math.round(s/60); return m < 1 ? 'due' : m + ' min'; };
+// "due, 3, 7 min" — compact, like a station board
+const timesTxt = ts => { const m = ts.slice(0, 3).map(s => Math.round(s/60)); const parts = m.map(x => x < 1 ? 'due' : String(x));
+  return m.some(x => x >= 1) ? parts.join(', ') + ' min' : 'due'; };
 // group arrivals into "line + direction" rows with the next few times
 function depRows(arr, lineOf, max){
   const g = new Map();
@@ -1871,13 +1875,13 @@ async function renderNearby(){
   const card = (key, head, rows) => { const open = nb.open.has(key);
     return `<div class="card"><div class="card-h" data-card="${esc(key)}">${head}</div>${rows.length ? `<ol class="deps2">${rows.slice(0, open ? 8 : 3).join('')}</ol>` : '<div class="muted" style="margin-top:4px">No departures listed right now</div>'}${rows.length > 3 ? `<button type="button" class="nb-more" data-card="${esc(key)}">${open ? 'Fewer' : 'More departures'}</button>` : ''}</div>`; };
   const stHtml = d.st.map(({s, arr}) => {
-    const rows = depRows(arr, a => a.lineId, 8).map(({a, t}) => `<li>${lineChip(a.lineId, BY[a.lineId] ? BY[a.lineId].name.replace(/ & .*$/, '') : a.lineName)}<span class="to">${esc(cleanName(a.destinationName || a.towards || ''))}<small>${esc((a.platformName || '').replace(/ - Platform.*$/i, ''))}</small></span><b>${t.slice(0, 3).map(minsTxt).join(', ')}</b></li>`);
+    const rows = depRows(arr, a => a.lineId, 8).map(({a, t}) => `<li>${lineChip(a.lineId, BY[a.lineId] ? BY[a.lineId].name.replace(/ & .*$/, '') : a.lineName)}<span class="to">${esc(cleanName(a.destinationName || a.towards || ''))}<small>${esc((a.platformName || '').replace(/ - Platform.*$/i, ''))}</small></span><b>${timesTxt(t)}</b></li>`);
     const far = s.d < 30 ? '' : (s.d < 1000 ? Math.round(s.d/10)*10 + ' m · ' : (s.d/1000).toFixed(1) + ' km · ') + walkMin(s.d) + ' min walk';
     return card('st:' + s.name, `<span class="dots">${[...s.lines].slice(0, 5).map(id => `<i style="background:${ink(BY[id].colour)}"></i>`).join('')}</span><span class="nm">${esc(s.name)}</span><small>${far}</small>`, rows);
   });
   const busHtml = d.bus.map(({s, arr}) => {
     const towards = (s.additionalProperties || []).find(x => x.key === 'Towards')?.value;
-    const rows = depRows(arr, a => a.lineName, 8).map(({a, t}) => `<li>${lineChip(null, a.lineName)}<span class="to">${esc(a.destinationName || '')}</span><b>${t.slice(0, 3).map(minsTxt).join(', ')}</b></li>`);
+    const rows = depRows(arr, a => a.lineName, 8).map(({a, t}) => `<li>${lineChip(null, a.lineName)}<span class="to">${esc(a.destinationName || '')}</span><b>${timesTxt(t)}</b></li>`);
     return card('bus:' + s.naptanId, `<span class="stopl">${esc(s.stopLetter && s.stopLetter.length <= 3 && !/^->/.test(s.stopLetter) ? s.stopLetter : 'Bus')}</span><span class="nm">${esc(s.commonName)}${towards ? `<small style="display:block;font-weight:400">towards ${esc(towards)}</small>` : ''}</span><small>${Math.round(s.distance || dist([s.lat, s.lon], p))} m</small>`, rows);
   });
   el.innerHTML = `<div class="nb-h"><b>${nb.focus ? esc(nb.focus.name) : 'Near you'}</b>${nb.focus ? '<span><button type="button" id="nbGo">Route here</button> · <button type="button" id="nbBack">← Near you</button></span>' : '<small class="muted">live · every 30 s</small>'}</div>` + stHtml.join('') + busHtml.join('')
