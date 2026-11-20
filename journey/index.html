@@ -100,6 +100,21 @@ body.dark .st1{background:#4a3b0f;color:#ffd96b} body.dark .st2{background:#5a1f
 .savebar button{font-size:12.5px;padding:5px 9px;border-radius:99px}
 .savebar button.on{background:var(--acc);color:#fff;border-color:var(--acc)}
 .aclist .ic{flex:none;width:16px;text-align:center;font-size:14px;margin-top:1px}
+.nb-h{display:flex;justify-content:space-between;align-items:baseline;margin:14px 0 6px}
+.nb-h b{font-size:15px} .nb-h button{font-size:12.5px;color:var(--acc);background:none;border:0;padding:0;cursor:pointer}
+.card{background:var(--soft);border-radius:12px;padding:9px 11px;margin-bottom:8px}
+.card-h{display:flex;align-items:center;gap:8px;cursor:pointer}
+.card-h .nm{font-weight:700;font-size:14.5px;flex:1;min-width:0}
+.card-h small{color:var(--mute);font-size:12px;white-space:nowrap}
+.card .dots{display:flex;gap:2px} .card .dots i{width:8px;height:8px;border-radius:50%;display:block}
+.stopl{display:inline-grid;place-items:center;min-width:22px;height:22px;padding:0 4px;border-radius:6px;background:#DC241F;color:#fff;font-size:12px;font-weight:700}
+.deps2{list-style:none;margin:6px 0 0;padding:0;display:grid;gap:5px}
+.deps2 li{display:flex;align-items:center;gap:8px;font-size:13.5px}
+.deps2 .ln{flex:none;min-width:34px;font-weight:700;font-size:12px;padding:1px 6px;border-radius:5px;color:#fff;text-align:center}
+.deps2 .to{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.deps2 .to small{color:var(--mute);font-size:11.5px;margin-left:4px}
+.deps2 b{white-space:nowrap;font-variant-numeric:tabular-nums;font-size:13px}
+.nb-more{font-size:12px;color:var(--acc);background:none;border:0;padding:0;margin-top:4px}
 .note{background:var(--soft);border-radius:10px;padding:8px 10px;font-size:13px;margin-bottom:10px}
 .opt{text-align:left;display:grid;gap:6px;padding:10px 12px}
 .opt.sel{border-color:var(--acc);box-shadow:0 0 0 1px var(--acc) inset}
@@ -189,6 +204,7 @@ body.dark #simnote{background:#1f2a44;color:#c6dafc}
     </form>
     <div id="quick" class="quick"></div>
     <div id="options"></div>
+    <div id="nearby"></div>
     <div id="sbox"></div>
   </section>
   <section class="view" data-view="active" hidden>
@@ -1554,7 +1570,7 @@ const icon = (L, s = 18) => L.walk ? symbol(L.kind==='cycle' ? 'cycle' : L.kind=
 const pill = L => L.walk ? `<span class="pill walk">${icon(L, 14)} ${mins(L.arr-L.dep)}</span>`
   : `<span class="pill" style="--c:${L.colour}">${icon(L, 15)} ${esc(L.kind==='bus' ? L.lineName : (L.lineName||L.mode).replace(/ line$/i,''))}</span>`;
 
-function showView(v){ $('panel').scrollTop = 0; $('tabs').hidden = v === 'active';
+function showView(v){ $('panel').scrollTop = 0; setTimeout(() => typeof renderNearby === 'function' && renderNearby(), 0); $('tabs').hidden = v === 'active';
   if(v !== 'active') for(const b of $('tabs').children){ b.classList.toggle('sel', b.dataset.t === v); b.setAttribute('aria-selected', b.dataset.t === v); } for(const el of document.querySelectorAll('.view')) el.hidden = el.dataset.view !== v; document.body.dataset.view = v; }
 
 // worst status among the lines a journey uses (TfL lines only)
@@ -1612,7 +1628,7 @@ async function search(){
   } else if(!J.from || J.from.label !== fromTxt) J.from = {label:fromTxt, q:fromTxt};
   let when = Date.now();
   if($('when').value) when = leaveAt($('when').value);
-  $('options').innerHTML = '<div class="muted">Finding routes…</div>';
+  $('options').innerHTML = '<div class="muted">Finding routes…</div>'; $('nearby').innerHTML = ''; nb.focus = null;
   let r = null;
   try{
     // Google plans everything (all transport, anywhere); TfL's planner is the backup if Google fails
@@ -1689,6 +1705,95 @@ function renderStatusBox(){
 }
 $('sbox').addEventListener('click', e => { if(e.target.closest('#sbT')){ sboxOpen = !sboxOpen; renderStatusBox(); } });
 window.onStatus = () => { renderStatusBox(); if(J.options && J.options.length && !J.active) renderOptions(); if(J.active) renderActive(true); };
+
+// ----- near you: live departures from the nearest stations and bus stops -----
+let STIDX = null;
+function stationIdx(){
+  if(STIDX && STIDX.n === ACTIVE.filter(l => l.stops && Object.keys(l.stops).length).length) return STIDX.list;
+  const by = new Map();
+  for(const l of ACTIVE){ if(l.mode === 'bus' || !l.stops) continue;
+    for(const [id, s] of Object.entries(l.stops)){
+      const name = s.n.replace(/\s*\((?:[^)]*line|H&C|Circle Line|[^)]*Underground)[^)]*\)\s*/i, ' ').replace(/-Underground$/i, '').replace(/\s+/g, ' ').trim();
+      const key = name.toLowerCase().replace(/['’.]/g, '').replace(/&/g, 'and').replace(/[^a-z0-9]+/g, ' ').trim();
+      let st = by.get(key); if(st && dist(st.p, s.p) > 600) st = null;
+      if(!st){ st = {name, p:s.p, lines:new Set(), ids:new Set()}; by.set(by.has(key) ? key + '#' + id : key, st); }
+      st.lines.add(l.id); st.ids.add(id);
+    } }
+  STIDX = {n:ACTIVE.filter(l => l.stops && Object.keys(l.stops).length).length, list:[...by.values()]}; return STIDX.list;
+}
+const walkMin = m => Math.max(1, Math.round(m/1.25/60));
+const minsTxt = s => { const m = Math.round(s/60); return m < 1 ? 'due' : m + ' min'; };
+// group arrivals into "line + direction" rows with the next few times
+function depRows(arr, lineOf, max){
+  const g = new Map();
+  for(const a of arr){ const k = (lineOf(a) || a.lineId) + '|' + (a.platformName || a.direction || a.destinationName);
+    if(!g.has(k)) g.set(k, {a, t:[]}); g.get(k).t.push(a.timeToStation); }
+  return [...g.values()].map(x => (x.t.sort((p, q) => p - q), x)).sort((p, q) => p.t[0] - q.t[0]).slice(0, max);
+}
+const nb = {open:new Set(), focus:null, timer:0, busStops:null, busAt:null, busy:false};
+async function nearbyData(p){
+  const stations = nb.focus ? [{...nb.focus, d:me ? dist(nb.focus.p, me) : 0}]
+    : stationIdx().map(s => ({...s, d:dist(s.p, p)})).filter(s => s.d < 1500).sort((a, b) => a.d - b.d).slice(0, 2);
+  if(!nb.focus && (!nb.busStops || !nb.busAt || dist(nb.busAt, p) > 150)){
+    try{ const r = await get(`/StopPoint/?lat=${p[0].toFixed(5)}&lon=${p[1].toFixed(5)}&stopTypes=NaptanPublicBusCoachTram&radius=400&modes=bus`);
+      nb.busStops = (r.stopPoints || []).filter(s => s.lines && s.lines.length).slice(0, 3); nb.busAt = p; }catch(e){ nb.busStops = []; }
+  }
+  const st = await Promise.all(stations.map(async s => ({s, arr:(await Promise.all([...s.ids].slice(0, 4).map(stopArrivals))).flat().filter(a => s.lines.has(a.lineId))})));
+  const bus = nb.focus ? [] : await Promise.all((nb.busStops || []).map(async s => ({s, arr:await stopArrivals(s.naptanId)})));
+  return {st, bus};
+}
+const darkText = c => ['#FFC80A','#F589A6','#76D0BD','#838D93','#FAA61A','#5FB526','#5BBD72'].includes(c);
+async function renderNearby(){
+  const el = $('nearby'); if(!el) return;
+  clearTimeout(nb.timer);
+  const searchVisible = !!$('panel').querySelector('[data-view=search]:not([hidden])');
+  const hasRoutes = J.optEl === 'options' && J.options && J.options.length;
+  if(J.active || hasRoutes || !searchVisible){ el.innerHTML = ''; return; }
+  const p = nb.focus ? nb.focus.p : me;
+  if(!p){ el.innerHTML = ''; nb.timer = setTimeout(renderNearby, 4000); return; }
+  if(nb.busy) return; nb.busy = true;
+  if(!el.innerHTML) el.innerHTML = '<div class="nb-h"><b>Near you</b></div><div class="muted">Loading live departures…</div>';
+  let d; try{ d = await nearbyData(p); }catch(e){ nb.busy = false; nb.timer = setTimeout(renderNearby, 30000); return; }
+  nb.busy = false;
+  if(J.active || (J.optEl === 'options' && J.options && J.options.length)) return;
+  const lineChip = (id, txt) => { const c = BY[id] ? BY[id].colour : '#DC241F';
+    return `<span class="ln" style="background:${ink(c)};color:${darkText(c) ? '#111' : '#fff'}">${esc(txt)}</span>`; };
+  const card = (key, head, rows) => { const open = nb.open.has(key);
+    return `<div class="card"><div class="card-h" data-card="${esc(key)}">${head}</div>${rows.length ? `<ol class="deps2">${rows.slice(0, open ? 8 : 3).join('')}</ol>` : '<div class="muted" style="margin-top:4px">No departures listed right now</div>'}${rows.length > 3 ? `<button type="button" class="nb-more" data-card="${esc(key)}">${open ? 'Fewer' : 'More departures'}</button>` : ''}</div>`; };
+  const stHtml = d.st.map(({s, arr}) => {
+    const rows = depRows(arr, a => a.lineId, 8).map(({a, t}) => `<li>${lineChip(a.lineId, BY[a.lineId] ? BY[a.lineId].name.replace(/ & .*$/, '') : a.lineName)}<span class="to">${esc(cleanName(a.destinationName || a.towards || ''))}<small>${esc((a.platformName || '').replace(/ - Platform.*$/i, ''))}</small></span><b>${t.slice(0, 3).map(minsTxt).join(', ')}</b></li>`);
+    const far = s.d < 30 ? '' : (s.d < 1000 ? Math.round(s.d/10)*10 + ' m · ' : (s.d/1000).toFixed(1) + ' km · ') + walkMin(s.d) + ' min walk';
+    return card('st:' + s.name, `<span class="dots">${[...s.lines].slice(0, 5).map(id => `<i style="background:${ink(BY[id].colour)}"></i>`).join('')}</span><span class="nm">${esc(s.name)}</span><small>${far}</small>`, rows);
+  });
+  const busHtml = d.bus.map(({s, arr}) => {
+    const towards = (s.additionalProperties || []).find(x => x.key === 'Towards')?.value;
+    const rows = depRows(arr, a => a.lineName, 8).map(({a, t}) => `<li>${lineChip(null, a.lineName)}<span class="to">${esc(a.destinationName || '')}</span><b>${t.slice(0, 3).map(minsTxt).join(', ')}</b></li>`);
+    return card('bus:' + s.naptanId, `<span class="stopl">${esc(s.stopLetter && s.stopLetter.length <= 3 && !/^->/.test(s.stopLetter) ? s.stopLetter : 'Bus')}</span><span class="nm">${esc(s.commonName)}${towards ? `<small style="display:block;font-weight:400">towards ${esc(towards)}</small>` : ''}</span><small>${Math.round(s.distance || dist([s.lat, s.lon], p))} m</small>`, rows);
+  });
+  el.innerHTML = `<div class="nb-h"><b>${nb.focus ? esc(nb.focus.name) : 'Near you'}</b>${nb.focus ? '<span><button type="button" id="nbGo">Route here</button> · <button type="button" id="nbBack">← Near you</button></span>' : '<small class="muted">live · every 30 s</small>'}</div>` + stHtml.join('') + busHtml.join('')
+    + (!stHtml.length && !busHtml.length ? '<div class="muted">No stations or bus stops close by.</div>' : '');
+  nb.timer = setTimeout(renderNearby, 30000);
+}
+$('nearby').addEventListener('click', e => {
+  if(e.target.closest('#nbBack')){ nb.focus = null; $('nearby').innerHTML = ''; renderNearby(); return; }
+  if(e.target.closest('#nbGo') && nb.focus){ const s = nb.focus; J.to = {label:s.name, q:s.p.map(x => x.toFixed(5)).join(',')}; $('to').value = s.name; search(); return; }
+  const c = e.target.closest('[data-card]'); if(!c) return;
+  const k = c.dataset.card; nb.open.has(k) ? nb.open.delete(k) : nb.open.add(k); renderNearby();
+});
+// tap a station on the map: its live departures
+function stationAt(x, y){
+  if(!PV) return null; let best = null, bd = matchMedia('(pointer:coarse)').matches ? 26 : 16;
+  for(const s of stationIdx()){ const c = scr(s.p), d = Math.hypot(c.x - x, c.y - y); if(d < bd){ bd = d; best = s; } }
+  return best;
+}
+map.getDiv().addEventListener('click', e => {
+  if(J.active) return;
+  const r = map.getDiv().getBoundingClientRect(), x = e.clientX - r.left, y = e.clientY - r.top;
+  if(nearest(x, y)) return; // a train: its info card is shown instead
+  const s = stationAt(x, y); if(!s) return;
+  nb.focus = s; J.options = []; $('options').innerHTML = ''; $('nearby').innerHTML = ''; drawJourney(null, routeLayer);
+  showView('search'); renderNearby(); map.panTo(LL(s.p));
+});
 
 // ----- saved places (Home, Work, favourites) and recent destinations -----
 const PL = {get(){ try{ return JSON.parse(localStorage.getItem('places')) || {}; }catch(e){ return {}; } },
@@ -1907,21 +2012,25 @@ $('bTheme').onclick = () => { dark = !dark; try{ localStorage.setItem('theme', d
 window.onTrainsUpdate = n => { $('tcount').textContent = n ? n : ''; };
 try{ const t = JSON.parse(localStorage.getItem('lastTo')); if(t){ J.to = t; $('to').value = t.label; } }catch(e){}
 renderQuick();
+// clearing the To box brings "near you" back
+$('to').addEventListener('input', () => { if(!$('to').value.trim() && J.optEl === 'options' && J.options && J.options.length){ J.options = []; $('options').innerHTML = ''; drawJourney(null, routeLayer); renderNearby(); } });
+const nbFirst = setInterval(() => { if(me){ clearInterval(nbFirst); renderNearby(); } }, 1000);
 if(SIM) document.body.classList.add('sim');
-if(DEBUG) window.APP = {map, draw, J, planJourneys, projectPlan, monitor, replan, setMe, startJourney, liveDepartures, ACTIVE, BY, trains, HL};
+if(DEBUG) window.APP = {scr: p => scr(p), stationIdx, renderNearby, nb, map, draw, J, planJourneys, projectPlan, monitor, replan, setMe, startJourney, liveDepartures, ACTIVE, BY, trains, HL};
 showView('search');
 restoreState();
 
 // ---------- boot: live trains in the background ----------
 (async () => {
   const queue = ACTIVE.slice();
-  await Promise.all([0,1,2].map(async () => {
+  await Promise.all([0,1,2,3,4].map(async () => { // first visit only: line shapes are cached for a week
     for(let l; (l = queue.shift()); ){
       const cached = !!store.get('seq2:'+l.id);
       try{ await loadLine(l); }catch(e){ console.warn('Could not load', l.name, e.message); }
-      if(!cached) await sleep(200);
+      if(!cached) await sleep(80);
     }
   }));
+  STIDX = null; if(me && !J.active) renderNearby(); // all stations known now
   for(;;){
     let good = false;
     try{ good = await refresh(); }catch(e){ console.error(e); }
