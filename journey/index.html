@@ -125,6 +125,7 @@ body.dark .st1{background:#4a3b0f;color:#ffd96b} body.dark .st2{background:#5a1f
 .alert .ai{font-size:24px;line-height:1}
 body.dark .alert{color:#0e0f12}
 .toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);z-index:2000;background:#202124;color:#fff;padding:9px 14px;border-radius:10px;font-size:14px;box-shadow:0 4px 14px rgba(0,0,0,.25)}
+.fare{color:var(--mute);font-size:12.5px}
 .note{background:var(--soft);border-radius:10px;padding:8px 10px;font-size:13px;margin-bottom:10px}
 .opt{text-align:left;display:grid;gap:6px;padding:10px 12px}
 .opt.sel{border-color:var(--acc);box-shadow:0 0 0 1px var(--acc) inset}
@@ -1143,7 +1144,7 @@ function parseGoogle(route){
       t += dur;
     }
   }
-  return {dep:legs[0]?.dep ?? t, arr:lg.arrival_time ? +lg.arrival_time.value : t, legs, src:'google'};
+  return {dep:legs[0]?.dep ?? t, arr:lg.arrival_time ? +lg.arrival_time.value : t, legs, src:'google', fare:route.fare?.text || null};
 }
 // London legs of a Google journey: match them to TfL lines so they get roundels, live
 // countdowns and the moving-train view. Buses are matched by route number.
@@ -1650,7 +1651,7 @@ function routeWarn(j){
 function renderOptions(el = $(J.optEl || 'options')){
   el.innerHTML = saveBar() + J.options.map((j, i) => `
     <button class="opt ${i===J.sel?'sel':''}" data-i="${i}">
-      <div class="opt-top"><b>${hhmm(j.dep)} → ${hhmm(j.arr)}</b><span>${mins(j.arr-j.dep)} min</span></div>
+      <div class="opt-top"><b>${hhmm(j.dep)} → ${hhmm(j.arr)}</b><span>${j.fare ? `<small class="fare">${esc(j.fare)}</small> · ` : ''}${mins(j.arr-j.dep)} min</span></div>
       <div class="pills">${j.legs.map(pill).join('<span class="sep">›</span>')}</div>
       ${routeWarn(j)}
 
