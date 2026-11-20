@@ -189,27 +189,27 @@ const VIEW = (Q.get('view') || '').split(',').map(Number);
 const HOME = VIEW.length === 3 && VIEW.every(isFinite) ? [[VIEW[0], VIEW[1]], VIEW[2]] : [[51.512, -0.11], 11.5];
 
 // Line catalogue: TfL line id -> name, colour, mode.
-// Tube/DLR/Elizabeth: TfL print colours. Overground: TfL digital colour standard (2024 line names).
+// Colours: TfL Colour Standard, Issue 11 (Aug 2026), RGB values for screens.
 const LINES = [
-  ['bakerloo','Bakerloo','#B36305','tube'],
-  ['central','Central','#E32017','tube'],
-  ['circle','Circle','#FFD300','tube'],
-  ['district','District','#00782A','tube'],
-  ['hammersmith-city','Hammersmith & City','#F3A9BB','tube'],
-  ['jubilee','Jubilee','#A0A5A9','tube'],
-  ['metropolitan','Metropolitan','#9B0056','tube'],
+  ['bakerloo','Bakerloo','#B26300','tube'],
+  ['central','Central','#DC241F','tube'],
+  ['circle','Circle','#FFC80A','tube'],
+  ['district','District','#007D32','tube'],
+  ['hammersmith-city','Hammersmith & City','#F589A6','tube'],
+  ['jubilee','Jubilee','#838D93','tube'],
+  ['metropolitan','Metropolitan','#9B0058','tube'],
   ['northern','Northern','#000000','tube'],
-  ['piccadilly','Piccadilly','#003688','tube'],
-  ['victoria','Victoria','#0098D4','tube'],
-  ['waterloo-city','Waterloo & City','#95CDBA','tube'],
-  ['elizabeth','Elizabeth','#6950A1','elizabeth'],
-  ['dlr','DLR','#00A4A7','dlr'],
-  ['liberty','Liberty','#61686B','overground'],
-  ['lioness','Lioness','#FFA600','overground'],
-  ['mildmay','Mildmay','#006FE6','overground'],
-  ['suffragette','Suffragette','#18A95D','overground'],
-  ['weaver','Weaver','#9B0058','overground'],
-  ['windrush','Windrush','#DC241F','overground'],
+  ['piccadilly','Piccadilly','#0019A8','tube'],
+  ['victoria','Victoria','#039BE5','tube'],
+  ['waterloo-city','Waterloo & City','#76D0BD','tube'],
+  ['elizabeth','Elizabeth','#60399E','elizabeth'],
+  ['dlr','DLR','#00AFAD','dlr'],
+  ['liberty','Liberty','#5D6061','overground'],
+  ['lioness','Lioness','#FAA61A','overground'],
+  ['mildmay','Mildmay','#0077AD','overground'],
+  ['suffragette','Suffragette','#5BBD72','overground'],
+  ['weaver','Weaver','#823A62','overground'],
+  ['windrush','Windrush','#ED1B00','overground'],
   ['tram','Trams','#5FB526','tram'],
 ];
 // Typical dwell (s) at a station and fallback cruise speed (m/s) when no segment time has been learned yet.
@@ -304,9 +304,15 @@ const LL = p => ({lat:p[0], lng:p[1]});
 class Group{ constructor(){ this.items = []; } addLayer(x){ x.setMap(map); this.items.push(x); return this; }
   eachLayer(f){ this.items.forEach(f); } clearLayers(){ this.items.forEach(x => x.setMap(null)); this.items = []; } }
 const gStyle = s => ({strokeColor:s.color, strokeWeight:s.weight, strokeOpacity:s.opacity, clickable:false, zIndex:s.z||1});
-function gLine(pts, s){ const p = new google.maps.Polyline(Object.assign({path:pts.map(LL)}, gStyle(s))); p.setStyle = st => p.setOptions(gStyle(st)); return p; }
+// a polyline that restyles itself from its own style function (so callers can just say "restyle")
+function gLine(pts, styleFn){ const p = new google.maps.Polyline(Object.assign({path:pts.map(LL)}, gStyle(styleFn()))); p.setStyle = () => p.setOptions(gStyle(styleFn())); return p; }
+// TfL draws the DLR, Elizabeth line, Overground and trams as parallel lines: colour, white, colour (thirds)
+const PARALLEL = new Set(['dlr', 'elizabeth', 'overground', 'tram']);
+const MAP_BG = () => dark ? (MAP_STYLE === 'original' ? '#1b1c1f' : '#1d2026') : '#ffffff';
 const ink = c => c==='#000000'&&dark ? '#d9d9d9' : c;
-const lineStyle = l => ({color:ink(l.colour), weight:3, opacity:!shown(l)?0:l.on===false?0.07:l.pinned?0.6:(window.LINE_OPACITY||0.3)});
+const LINE_W = 4.5;
+const lineCentre = l => ({color:MAP_BG(), weight:LINE_W/3, opacity:lineStyle(l).opacity ? 1 : 0, z:2});
+const lineStyle = l => ({color:ink(l.colour), weight:LINE_W, opacity:!shown(l)?0:l.on===false?0.07:l.pinned?0.75:window.DIM_TRAINS?0.12:(window.LINE_OPACITY||0.3)});
 function applyTheme(){ document.body.classList.toggle('dark', dark); map.setOptions({styles:mapStyles()}); for(const l of ACTIVE) l.layer && l.layer.eachLayer(p => p.setStyle(lineStyle(l))); }
 applyTheme();
 // Screen positions (fractional pixels, so movement is smooth) via an empty overlay's projection
@@ -350,7 +356,9 @@ async function loadLine(l){
   l.alias = {};
   l.seg = store.get('segt:'+l.id) || {};
   l.curves = l.polys.map(roundCorners);
-  l.layer = new Group(); for(const p of l.curves) l.layer.addLayer(gLine(p, lineStyle(l)));
+  l.layer = new Group();
+  for(const p of l.curves){ l.layer.addLayer(gLine(p, () => lineStyle(l)));
+    if(PARALLEL.has(l.mode)) l.layer.addLayer(gLine(p, () => lineCentre(l))); }
   l.pathCache = {}; l.snapCache = {};
 }
 
@@ -417,7 +425,7 @@ function trackPath(l, a, b){
   let pts = best;
   if(!pts){ // no drawn line joins these stations: draw one, so the train still sits on a line
     pts = [snapStop(l,a), snapStop(l,b)];
-    l.layer && l.layer.addLayer(gLine(pts, lineStyle(l)));
+    if(l.layer){ l.layer.addLayer(gLine(pts, () => lineStyle(l))); if(PARALLEL.has(l.mode)) l.layer.addLayer(gLine(pts, () => lineCentre(l))); }
   }
   const cum=[0]; for(let i=1;i<pts.length;i++) cum.push(cum[i-1]+dist(pts[i-1],pts[i]));
   return l.pathCache[key] = {pts, cum, len:cum[cum.length-1]};
@@ -668,6 +676,12 @@ function draw(ts){
     ctx.globalAlpha = dim && !l.pinned ? 0.3 : 1;
     ctx.fillStyle = ctx.strokeStyle = l.colour==='#000000'&&dark ? '#e6e6e6' : l.colour;
     ctx.beginPath(); for(const d of items) rect(d[5]); ctx.fill(); ctx.stroke(); // stroke rounds the corners
+    if(PARALLEL.has(l.mode)){ // centre stripe, like the line itself
+      ctx.fillStyle = MAP_BG(); ctx.beginPath();
+      for(const [, x, y, , , , cs, sn] of items){ const ux=cs*hl*0.72, uy=sn*hl*0.72, vx=-sn*hw/3, vy=cs*hw/3;
+        ctx.moveTo(x+ux+vx, y+uy+vy); ctx.lineTo(x+ux-vx, y+uy-vy); ctx.lineTo(x-ux-vx, y-uy-vy); ctx.lineTo(x-ux+vx, y-uy+vy); ctx.closePath(); }
+      ctx.fill();
+    }
   }
   ctx.globalAlpha = 1;
   // the user's own train/bus: drawn larger, on top, with a ring
@@ -1015,6 +1029,7 @@ const SIM = Q.get('sim') === '1';
 const routeLayer = new Group(), altLayer = new Group();
 const CIRCLE = google.maps.SymbolPath.CIRCLE;
 function drawJourney(j, layer, ghost){
+  if(layer === routeLayer && !J.active) previewFocus(j);
   layer.clearLayers(); if(!j) return;
   for(const g of j.legs){
     const path = g.path.map(LL);
@@ -1033,11 +1048,21 @@ function drawJourney(j, layer, ghost){
         icons:[{icon:{path:'M 0,-1 0,1', strokeColor:g.colour, strokeOpacity:.7, strokeWeight:4, scale:3}, offset:'0', repeat:'14px'}]}));
     } else {
       layer.addLayer(new google.maps.Polyline({path, strokeColor:dark?'#000':'#fff', strokeWeight:10, strokeOpacity:.9, clickable:false, zIndex:7}));
-      layer.addLayer(new google.maps.Polyline({path, strokeColor:g.colour, strokeWeight:6, strokeOpacity:1, clickable:false, zIndex:8}));
+      layer.addLayer(new google.maps.Polyline({path, strokeColor:g.colour, strokeWeight:7, strokeOpacity:1, clickable:false, zIndex:8}));
+      if(PARALLEL.has(g.kind)) layer.addLayer(new google.maps.Polyline({path, strokeColor:MAP_BG(), strokeWeight:7/3, strokeOpacity:1, clickable:false, zIndex:8}));
     }
     for(const s of [g.from, g.to]) layer.addLayer(new google.maps.Marker({position:LL(s.p), clickable:false, zIndex:9,
       icon:{path:CIRCLE, scale:ghost?3:5, fillColor:'#fff', fillOpacity:1, strokeColor:g.colour, strokeWeight:3}}));
   }
+}
+// Looking at a route (before starting): bring its lines forward, fade the rest
+function previewFocus(j){
+  if(J.active) return;
+  unpinAll();
+  if(j) for(const L of j.legs){ const id = L.line || L.tflLine; const l = id && BY[id];
+    if(l && l.mode !== 'bus'){ l.pinned = true; l.layer && l.layer.eachLayer(p => p.setStyle()); } }
+  window.DIM_TRAINS = !!j;
+  for(const l of ACTIVE) l.layer && l.layer.eachLayer(p => p.setStyle());
 }
 function fitJourney(j){
   if(!j) return; const b = new google.maps.LatLngBounds();
@@ -1237,7 +1262,7 @@ async function switchRoute(){
 function keepRoute(){ if(J.suggestion){ J.dismissed = J.suggestion.sig; J.suggestion = null; altLayer.clearLayers(); renderActive(); } }
 function endJourney(){
   J.active = false; J.plan = null; J.suggestion = null; J.gen = (J.gen||0) + 1; HL.clear(); unpinAll(); window.DIM_TRAINS = false;
-  routeLayer.clearLayers(); altLayer.clearLayers();
+  routeLayer.clearLayers(); altLayer.clearLayers(); previewFocus(null);
   try{ J.wake && J.wake.release(); }catch(e){} J.wake = null;
   try{ localStorage.removeItem('journey'); }catch(e){}
   showView(J.optEl === 'chainOut' ? 'build' : 'search');
@@ -1452,7 +1477,7 @@ async function planBuilt(){
   }catch(e){ $('chainOut').innerHTML = `<div class="muted">${esc(e.message)}</div>`; }
 }
 $('bPlanChain').onclick = planBuilt;
-$('tabs').addEventListener('click', e => { const b = e.target.closest('button'); if(b){ showView(b.dataset.t); if(b.dataset.t === 'build') renderChain(); } });
+$('tabs').addEventListener('click', e => { const b = e.target.closest('button'); if(b){ showView(b.dataset.t); drawJourney(null, routeLayer); if(b.dataset.t === 'build') renderChain(); } });
 $('chainOut').addEventListener('click', e => { if(e.target.closest('#go')) startJourney(J.options[0]); });
 
 // wire up
@@ -1480,7 +1505,7 @@ $('bTrains').onclick = () => {
 };
 $('bTrains').classList.toggle('on', TRAINS_ON);
 $('tsym').innerHTML = symbol('tube', '#DC241F', 16);
-const GROUP_SYM = {tube:['tubeLogo','#DC241F'], overground:['tube','#FA7B05'], elizabeth:['tube','#6950A1'], dlr:['tube','#00A4A7'], tram:['tube','#5FB526'], rail:['rail','#1D5BA0']};
+const GROUP_SYM = {tube:['tubeLogo','#DC241F'], overground:['tube','#FA7B05'], elizabeth:['tube','#60399E'], dlr:['tube','#00AFAD'], tram:['tube','#5FB526'], rail:['rail','#1D5BA0']};
 function renderModeChips(){
   $('mModes').innerHTML = MODE_GROUPS.map(([m, name]) => {
     const has = ACTIVE.some(l => l.mode === m); // e.g. National Rail: not connected yet
@@ -1498,7 +1523,7 @@ function syncMapMenu(){ renderModeChips();
 }
 $('bMap').onclick = () => { const m = $('mapMenu'); m.hidden = !m.hidden; $('bMap').setAttribute('aria-expanded', !m.hidden); syncMapMenu(); };
 $('mapMenu').addEventListener('click', e => { const b = e.target.closest('[data-ms]'); if(!b) return;
-  MAP_STYLE = b.dataset.ms; try{ localStorage.setItem('mapStyle', MAP_STYLE); }catch(x){} map.setOptions({styles:mapStyles()}); syncMapMenu(); });
+  MAP_STYLE = b.dataset.ms; try{ localStorage.setItem('mapStyle', MAP_STYLE); }catch(x){} applyTheme(); syncMapMenu(); });
 $('mQuiet').onchange = () => { QUIET_ON = $('mQuiet').checked; try{ localStorage.setItem('mapQuiet', QUIET_ON ? '1' : '0'); }catch(x){} map.setOptions({styles:mapStyles()}); };
 $('mDark').onchange = () => { if($('mDark').checked !== dark) $('bTheme').click(); };
 $('bTheme').onclick = () => { dark = !dark; try{ localStorage.setItem('theme', dark ? 'dark' : 'light'); }catch(x){} applyTheme(); syncMapMenu(); if(!$('chain').closest('[hidden]')) renderChain();
