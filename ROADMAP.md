@@ -81,9 +81,12 @@ little value on a map), crowding (TfL crowding API is patchy), weather, social f
 | Beyond London (framework, switch on with free keys): relay now also serves **buses with GPS across England** (Bus Open Data), **Edinburgh buses + trams** (no key) and **Manchester Metrolink**; map draws GPS vehicles gliding between updates, tap for route/destination/operator; tested with fake feeds (`node rail/test-worker.mjs`) and `?rail=demo` | Live map + relay |
 | National Rail anywhere in Britain: 2,610 stations; outside London the 25 stations nearest the view are polled; demo trains in Manchester, Leeds, Edinburgh/Glasgow, Birmingham | both |
 | Lines back to a simple style: one smooth solid line per route (pieces joined so every bend is rounded), TfL colours and double lines kept, no dashed "problem" lines; side-by-side layout is an option in the Map menu | both |
+| **Finland: every train in the country live** (GPS from Digitraffic, open data, no key, straight from the browser): type, route, speed; Helsinki commuter trains purple, long-distance green, freight grey | Live map |
+| Region-aware panel: outside London the title, counts and notes describe what's live there; London legend/status/TfL chips hidden | Live map |
 | Map menu → Go to: London, Manchester, Birmingham, Leeds, Liverpool, Newcastle, Edinburgh, Glasgow, Bristol, Cardiff | Live map |
 
 ## Next ideas (not built yet)
 - Switch on live National Rail (waiting on the key; `rail/SETUP.md`) and buses beyond London (free BODS key, instant).
+- Other countries checked 21 Nov: Switzerland (transport.opendata.ch, departure boards only, CORS ok); Germany (v6.db.transport.rest radar = live positions, keyless) didn't connect from the sandbox; Helsinki HSL live vehicles via MQTT (mqtt.hsl.fi) to try.
 - Research notes (21 Nov): no GB rail source gives GPS train positions; RealTimeTrains API (free, personal use) is the best alternative to Darwin; Tyne & Wear Metro only via an unofficial API; Glasgow Subway / Sheffield / Nottingham / Blackpool trams have no public live feed.
 - Optional OSM track geometry so lines follow real curves.

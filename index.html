@@ -160,6 +160,7 @@ body.dark #simnote{background:#1f2a44;color:#c6dafc}
 .deps b{white-space:nowrap;font-variant-numeric:tabular-nums}
 #mModes{margin:0 0 8px}
 #legend{display:grid;gap:0}
+body.away #legend, body.away #lgAll, body.away #sbox, body.away #mModes [data-mode=tube], body.away #mModes [data-mode=overground], body.away #mModes [data-mode=elizabeth], body.away #mModes [data-mode=dlr], body.away #mModes [data-mode=tram]{display:none} /* London-only parts, hidden elsewhere */
 .lgall{display:flex;justify-content:flex-end;gap:14px;margin:2px 0 4px}.lgall button{background:none;border:0;padding:4px 2px;color:var(--mute);font-size:12.5px;font-weight:600;cursor:pointer}.lgall button:hover{color:var(--ink)}
 .row{display:flex;align-items:center;gap:8px;padding:4px 2px;border:0;background:none;border-radius:6px;font-size:14px;text-align:left;width:100%}
 .row:hover{background:var(--soft)}
@@ -210,7 +211,7 @@ body.kiosk #map{bottom:0!important}
 <body>
 <div id="map"></div>
 <div id="panel">
-  <h1>London live trains <span class="sp"></span>
+  <h1><span id="ttl">London live trains</span> <span class="sp"></span>
     <button id="bMap" class="icon" title="Map style" aria-label="Map style" aria-expanded="false"><svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l9 5-9 5-9-5 9-5zm-9 9l9 5 9-5M3 16l9 5 9-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg></button>
     <button id="bFit" class="icon" title="Re-centre" aria-label="Re-centre the map">⌖</button>
     <button id="bKiosk" class="icon" title="Full-screen TV mode (K)" aria-label="Full-screen TV mode">⛶</button>
@@ -1271,7 +1272,11 @@ const SHOW_LOC = false;
 
 // ---------- status + legend ----------
 window.onTrainsUpdate = n => {
-  let nb = ACTIVE.reduce((s, l) => s + (l.mode === 'bus' && shown(l) ? l.count : 0), 0); n -= nb; if(typeof GPS !== 'undefined') nb += GPS.list.size;
+  if(document.body.classList.contains('away')){ // somewhere else: count what's live here
+    const gl = typeof GPS !== 'undefined' ? [...GPS.list.values()] : [], gt = gl.filter(g => g.v.train).length, rt = [...trains.values()].filter(t => t.rail && BY[t.line] && shown(BY[t.line])).length;
+    $('status').innerHTML = (gt + rt || gl.length) ? `<b>${gt + rt}</b> trains${gl.length - gt ? ` · <b>${gl.length - gt}</b> buses` : ''} · updated ${new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit', second:'2-digit'})}` : 'Nothing live here yet';
+    renderLegend(); return; }
+  let nb = ACTIVE.reduce((s, l) => s + (l.mode === 'bus' && shown(l) ? l.count : 0), 0); n -= nb; if(typeof GPS !== 'undefined'){ const gt = [...GPS.list.values()].filter(g => g.v.train).length; nb += GPS.list.size - gt; n += gt; }
   $('status').innerHTML = `<b>${n}</b> trains${nb ? ` · <b>${nb}</b> buses` : ''} · updated ${new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit', second:'2-digit'})}`;
   renderLegend();
 };
@@ -1354,10 +1359,38 @@ async function updateBuses(force){
 const GPS = {list:new Map(), busy:false, note:'', direct:null};
 const EDI = [55.86, -3.45, 56.01, -3.0];
 const inEdinburgh = p => p[0] > EDI[0] && p[0] < EDI[2] && p[1] > EDI[1] && p[1] < EDI[3];
+// ---- Finland: every train in the country with GPS (Digitraffic, open data, no key, works from the browser) ----
+const inFinland = p => p[0] > 59.6 && p[0] < 70.2 && p[1] > 19.4 && p[1] < 31.8;
+const FI = {info:new Map(), at:0};
+async function finlandInfo(){ // train type, line and route for every running train (one call, every 5 min)
+  if(Date.now() - FI.at < 300000) return; FI.at = Date.now();
+  const q = '{ currentlyRunningTrains { trainNumber commuterLineid trainType { name trainCategory { name } } timeTableRows(where:{trainStopping:{equals:true}}) { station { name } } } }';
+  try{ const r = await fetch('https://rata.digitraffic.fi/api/v2/graphql/graphql', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({query:q})});
+    for(const t of (await r.json()).data.currentlyRunningTrains || []){ const rows = t.timeTableRows || [], nm = x => (x && x.station.name || '').replace(/ asema$/, '');
+      FI.info.set(t.trainNumber, {type:t.trainType.name, cat:t.trainType.trainCategory.name, line:t.commuterLineid, from:nm(rows[0]), to:nm(rows[rows.length - 1])}); } }
+  catch(e){ FI.at = Date.now() - 240000; console.warn('finland info', e.message); }
+}
+async function finlandTrains(){
+  finlandInfo();
+  const r = await fetch('https://rata.digitraffic.fi/api/v1/train-locations/latest/'); if(!r.ok) throw new Error('Finnish rail data: HTTP ' + r.status);
+  return {vehicles:(await r.json()).map(v => { const i = FI.info.get(v.trainNumber) || {};
+    const pax = i.cat === 'Long-distance' || i.cat === 'Commuter';
+    return {id:'fi:' + v.trainNumber, line:i.line || (i.type ? i.type + ' ' + v.trainNumber : 'Train ' + v.trainNumber), op:i.line ? 'HSL commuter train' : i.cat || 'VR',
+      dest:i.to || '', from:i.from || '', lat:v.location.coordinates[1], lon:v.location.coordinates[0], brg:null, speed:v.speed, t:Date.parse(v.timestamp), train:true,
+      col:i.line ? '#8C4799' : pax ? '#3DAE2B' : '#7A7F87', freight:!pax && !!i.cat}; })};
+}
 async function refreshGps(){
   const c = map.getCenter(), p = [c.lat(), c.lng()], z = map.getZoom();
+  if(inFinland(p) && TRAINS_ON && z >= 5){ // whole-country view works: only a few hundred trains
+    if(GPS.busy) return; GPS.busy = true;
+    try{ gpsMerge(await finlandTrains()); const n = GPS.list.size; BUS.note = `${n} trains moving in Finland (live GPS)`; }
+    catch(e){ BUS.note = e.message; }
+    GPS.busy = false; renderBusNote(); return;
+  }
+  for(const [k] of GPS.list) if(k.startsWith('fi:')) GPS.list.delete(k);
+  if(regionOf(p) === 'world'){ GPS.list.clear(); BUS.note = z >= 8 ? 'No live data for this area yet. Live now: London and Finland; with the relay: National Rail and buses across Britain.' : ''; renderBusNote(); return; }
   const on = !MODES_OFF.has('bus') && TRAINS_ON && !inLondonView(p);
-  if(!on || z < 13){ GPS.list.clear(); if(!inLondonView(p)){ BUS.note = on ? 'Zoom in to see buses' : ''; renderBusNote(); } return; }
+  if(!on || z < 13){ GPS.list.clear(); if(!inLondonView(p)){ BUS.note = !RAIL.relay ? 'Live trains and buses here are coming soon: they switch on once the data keys are set up. (Preview with made-up data: add ?rail=demo to the address.)' : on ? 'Zoom in to see buses' : 'Turn on Buses to see live buses here'; renderBusNote(); } return; }
   if(GPS.busy) return; GPS.busy = true;
   try{
     let res;
@@ -1365,29 +1398,32 @@ async function refreshGps(){
     else if(inEdinburgh(p) && GPS.direct !== false && !RAIL.relay){ // keyless and maybe usable straight from the browser
       try{ const r = await fetch('https://tfe-opendata.com/api/v1/vehicle_locations'); res = {vehicles:(await r.json()).vehicles.filter(v => v.latitude && v.service_name).map(v => ({id:'tfe:' + v.vehicle_id, line:String(v.service_name),
         op:'Lothian', dest:v.destination || '', lat:+v.latitude, lon:+v.longitude, brg:v.heading ?? null, t:v.last_gps_fix*1000, tram:v.vehicle_type === 'tram'}))}; GPS.direct = true; }
-      catch(e){ GPS.direct = false; throw new Error('Edinburgh live data needs the relay (rail/SETUP.md)'); }
+      catch(e){ GPS.direct = false; throw new Error('Edinburgh\'s live bus data isn\'t answering right now.'); }
     }
-    else if(!RAIL.relay) throw new Error(inEdinburgh(p) ? 'Edinburgh buses and trams need the relay here (rail/SETUP.md)' : 'Live buses outside London need the relay (rail/SETUP.md)');
+    else if(!RAIL.relay) throw new Error('Live buses here are coming soon: they switch on once the data keys are set up.');
     else if(inEdinburgh(p)) res = await railGet('/vehicles?src=tfe');
     else { const b = map.getBounds(), sw = b.getSouthWest(), ne = b.getNorthEast();
       const w = Math.min(0.5, ne.lng() - sw.lng())/2, h = Math.min(0.34, ne.lat() - sw.lat())/2;
       res = await railGet(`/vehicles?src=bods&bbox=${(p[1]-w).toFixed(3)},${(p[0]-h).toFixed(3)},${(p[1]+w).toFixed(3)},${(p[0]+h).toFixed(3)}`); }
+    gpsMerge(res);
+    BUS.note = `${GPS.list.size} buses${[...GPS.list.values()].some(g => g.v.tram) ? ' and trams' : ''} here (GPS)${RAIL.relay === 'demo' ? ' · demo data' : ''}`;
+  }catch(e){ BUS.note = e.message.replace(/^HTTP 503.*|.*BODS_KEY.*/, 'Live buses here are coming soon: they switch on once the bus data key is set up.'); }
+  GPS.busy = false; renderBusNote();
+}
+function gpsMerge(res){
     const now = Date.now();
     for(const v of res.vehicles || []){ let g = GPS.list.get(v.id);
       if(!g){ g = {from:[v.lat, v.lon], to:[v.lat, v.lon], t0:now}; GPS.list.set(v.id, g); }
       else if(g.to[0] !== v.lat || g.to[1] !== v.lon){ g.from = gpsPos(g, now); g.to = [v.lat, v.lon]; g.t0 = now; }
       g.v = v; g.seen = now; }
     for(const [k, g] of GPS.list) if(now - g.seen > 90000) GPS.list.delete(k);
-    BUS.note = `${GPS.list.size} buses${[...GPS.list.values()].some(g => g.v.tram) ? ' and trams' : ''} here (GPS)${RAIL.relay === 'demo' ? ' · demo data' : ''}`;
-  }catch(e){ BUS.note = e.message.replace(/^HTTP 503.*|.*BODS_KEY.*/, 'Buses here need the relay\'s Bus Open Data key (rail/SETUP.md)'); }
-  GPS.busy = false; renderBusNote();
 }
 // glide from the last position to the new one over the update interval
 const gpsPos = (g, now) => { const k = Math.min(1, (now - g.t0)/15000), e = k*(2 - k); return [g.from[0] + (g.to[0] - g.from[0])*e, g.from[1] + (g.to[1] - g.from[1])*e]; };
 const OP_COL = ['#E4002B', '#0057B8', '#00843D', '#F4A300', '#6D2077', '#00A3AD', '#D0006F', '#5B6770'];
 const opCol = op => { let h = 0; for(const ch of op || '') h = (h*31 + ch.charCodeAt(0)) >>> 0; return OP_COL[h % OP_COL.length]; };
 function drawGps(ctx, s, hl0, hw0, mpp){
-  draw.ghit = []; if(!GPS.list.size || !SHOW_ICONS) return;
+  draw.ghit = []; if(!GPS.list.size || !SHOW_ICONS || !TRAINS_ON) return;
   const now = Date.now(), cosLat = Math.cos(map.getCenter().lat()*rad), label = PV.z >= 15.5;
   ctx.lineWidth = 1; ctx.font = '700 10.5px system-ui, sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
   for(const g of GPS.list.values()){
@@ -1395,10 +1431,10 @@ function drawGps(ctx, s, hl0, hw0, mpp){
     let ang = g.v.brg != null ? (g.v.brg - 90)*rad : g.ang ?? 0;
     if(g.v.brg == null && (g.to[0] !== g.from[0] || g.to[1] !== g.from[1])) ang = Math.atan2(-(g.to[0] - g.from[0]), (g.to[1] - g.from[1])*cosLat);
     g.ang = ang;
-    const tram = g.v.tram, hl = Math.max(tram ? hl0*0.8 : Math.max(5, hl0*0.5), (tram ? 22 : 5.5)/mpp), hw = Math.max(2.4, hw0*0.9, 1.3/mpp);
+    const tram = g.v.tram, tr = g.v.train, hl = Math.max(tr ? hl0*(g.v.freight ? 0.8 : 1) : tram ? hl0*0.8 : Math.max(5, hl0*0.5), (tr ? 150 : tram ? 22 : 5.5)/mpp), hw = Math.max(tr ? hw0 : 2.4, hw0*0.9, (tr ? 1.5 : 1.3)/mpp);
     const cs = Math.cos(ang), sn = Math.sin(ang), ux = cs*hl, uy = sn*hl, vx = -sn*hw, vy = cs*hw;
     ctx.beginPath(); ctx.moveTo(c.x+ux+vx, c.y+uy+vy); ctx.lineTo(c.x+ux-vx, c.y+uy-vy); ctx.lineTo(c.x-ux-vx, c.y-uy-vy); ctx.lineTo(c.x-ux+vx, c.y-uy+vy); ctx.closePath();
-    ctx.fillStyle = tram ? '#7A1F3D' : opCol(g.v.op); ctx.strokeStyle = dark ? 'rgba(0,0,0,.9)' : 'rgba(255,255,255,.95)'; ctx.lineWidth = 2.5; ctx.stroke(); ctx.fill();
+    ctx.fillStyle = g.v.col || (tram ? '#7A1F3D' : opCol(g.v.op)); ctx.strokeStyle = dark ? 'rgba(0,0,0,.9)' : 'rgba(255,255,255,.95)'; ctx.lineWidth = 2.5; ctx.stroke(); ctx.fill();
     if(label){ ctx.lineWidth = 3; ctx.strokeText(g.v.line, c.x, c.y - hw - 9); ctx.fillStyle = dark ? '#eee' : '#222'; ctx.fillText(g.v.line, c.x, c.y - hw - 9); }
     draw.ghit.push([g, c.x, c.y]);
   }
@@ -1409,8 +1445,10 @@ function gpsTip(e, r, tip){
   let best = null, bd = rad0; for(const [g, gx, gy] of draw.ghit || []){ const d = Math.hypot(gx - x, gy - y); if(d < bd){ bd = d; best = g; } }
   if(!best) return false;
   const v = best.v, age = v.t ? Math.max(0, Math.round((Date.now() - v.t)/1000)) : null;
-  tip.innerHTML = `<div class="tt-h">${symbol(v.tram ? 'tram' : 'bus', v.tram ? '#7A1F3D' : opCol(v.op), 20)}<b>${esc(v.line)} ${v.tram ? 'tram' : 'bus'}</b></div>
-    ${v.dest ? `<div>To <b>${esc(v.dest)}</b></div>` : ''}<div class="tt-m">${esc(v.op || '')}${age != null ? ` · position ${age < 90 ? age + ' s' : Math.round(age/60) + ' min'} ago` : ''}</div>`;
+  const kind = v.train ? (v.freight ? 'freight train' : 'train') : v.tram ? 'tram' : 'bus', col = v.col || (v.tram ? '#7A1F3D' : opCol(v.op));
+  tip.innerHTML = `<div class="tt-h">${symbol(v.train ? 'rail' : 'tube', col, 20)}<b>${esc(v.line)} ${v.train && /\d/.test(v.line) ? '' : kind}</b></div>
+    ${v.dest ? `<div>${v.from ? esc(v.from) + ' → ' : 'To '}<b>${esc(v.dest)}</b></div>` : ''}${v.speed != null ? `<div>${Math.round(v.speed)} km/h</div>` : ''}
+    <div class="tt-m">${esc(v.op || '')}${age != null ? ` · position ${age < 90 ? age + ' s' : Math.round(age/60) + ' min'} ago` : ''}</div>`;
   tip.style.display = 'block';
   tip.style.left = Math.max(8, Math.min(innerWidth - 258, e.clientX + 14)) + 'px'; tip.style.top = Math.max(8, Math.min(innerHeight - 150, e.clientY + 14)) + 'px';
   return true;
@@ -1424,13 +1462,22 @@ function gpsDemo(p){
   return {vehicles:out};
 }
 setInterval(refreshGps, 15000);
-map.addListener('idle', () => { const c = map.getCenter(); if(!inLondonView([c.lat(), c.lng()])) refreshGps(); });
+map.addListener('idle', () => { const c = map.getCenter(), p = [c.lat(), c.lng()]; if(!inLondonView(p)) refreshGps(); else if(GPS.list.size){ GPS.list.clear(); } });
 // quick jumps around the country
 const PLACES = [['London', 51.507, -0.128, 12], ['Manchester', 53.480, -2.243, 13], ['Birmingham', 52.479, -1.899, 13], ['Leeds', 53.797, -1.546, 13],
-  ['Liverpool', 53.405, -2.982, 13], ['Newcastle', 54.972, -1.614, 13], ['Edinburgh', 55.951, -3.196, 13], ['Glasgow', 55.861, -4.251, 13], ['Bristol', 51.454, -2.592, 13], ['Cardiff', 51.479, -3.177, 13]];
+  ['Liverpool', 53.405, -2.982, 13], ['Newcastle', 54.972, -1.614, 13], ['Edinburgh', 55.951, -3.196, 13], ['Glasgow', 55.861, -4.251, 13], ['Bristol', 51.454, -2.592, 13], ['Cardiff', 51.479, -3.177, 13], ['Helsinki', 60.190, 24.940, 11], ['Finland', 63.5, 26.0, 6]];
 $('places').innerHTML = PLACES.map(([n], i) => `<button type="button" data-pl="${i}">${n}</button>`).join('');
 $('places').addEventListener('click', e => { const b = e.target.closest('[data-pl]'); if(!b) return; const [, lat, lon, z] = PLACES[+b.dataset.pl];
   map.panTo({lat, lng:lon}); map.setZoom(z); $('mapMenu').hidden = true; $('bMap').setAttribute('aria-expanded', 'false'); });
+// which part of the world the map shows: London keeps the full TfL panel, elsewhere it's trimmed to what's live there
+function regionOf(p){ return inLondonView(p) ? 'london' : inFinland(p) ? 'finland' : inEdinburgh(p) ? 'edinburgh' : p[0] > 49.8 && p[0] < 60.9 && p[1] > -8.7 && p[1] < 1.9 ? 'uk' : 'world'; }
+function applyRegion(){
+  const c = map.getCenter(), r = regionOf([c.lat(), c.lng()]), away = r !== 'london' && map.getZoom() >= 5;
+  document.body.classList.toggle('away', away);
+  $('ttl').textContent = !away ? 'London live trains' : {finland:'Finland live trains', edinburgh:'Edinburgh live map', uk:'UK live map', world:'Live map', london:'London live trains'}[r];
+  if(typeof onTrainsUpdate === 'function') onTrainsUpdate(ACTIVE.reduce((s, l) => s + (shown(l) ? l.count : 0), 0));
+}
+map.addListener('idle', applyRegion);
 function renderBusNote(){ let el = $('busNote'); if(!el) return; el.textContent = BUS.note; el.hidden = !BUS.note; }
 map.addListener('idle', () => updateBuses());
 
