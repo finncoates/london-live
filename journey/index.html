@@ -245,7 +245,10 @@ const Q = new URLSearchParams(location.search);
 const API = 'https://api.tfl.gov.uk';
 const KEY = Q.get('app_key') ? 'app_key=' + encodeURIComponent(Q.get('app_key')) : '';
 const REFRESH = Math.max(15, +(Q.get('refresh') || 30)) * 1000;
-const FPS = Math.min(60, Math.max(5, +(Q.get('fps') || 30)));
+let FPS = Math.min(60, Math.max(5, +(Q.get('fps') || 30)));
+// Low-power mode (slow devices such as a TV stick): fewer frames, no outlines. Automatic unless ?quality=high;
+// ?quality=low forces it.
+let LOW = Q.get('quality') === 'low'; if(LOW) FPS = Math.min(FPS, 15);
 const DEBUG = Q.get('debug') === '1';
 const VIEW = (Q.get('view') || '').split(',').map(Number);
 const HOME = VIEW.length === 3 && VIEW.every(isFinite) ? [[VIEW[0], VIEW[1]], VIEW[2]] : [[51.512, -0.11], 11.5];
@@ -897,7 +900,7 @@ function draw(ts){
   requestAnimationFrame(draw);
   if(ts - lastDraw < 1000/FPS - 2) return;
   const dt = Math.min(1, (ts - lastDraw)/1000); lastDraw = ts;
-  const t0 = DEBUG ? performance.now() : 0;
+  const t0 = performance.now();
   const k = 1 - Math.exp(-dt/TAU), ka = 1 - Math.exp(-dt/0.4);
   if(!ov.getProjection()) return;
   viewNow(); drawLines();
@@ -942,18 +945,20 @@ function draw(ts){
   // batched: one path for all outlines, then one per line colour (far fewer canvas calls on a TV stick)
   ctx.lineJoin = 'round';
   const dim = !!window.DIM_TRAINS, FADE = 0.1; // trains not on your route fade right back
+  if(!LOW){
   ctx.strokeStyle = dark ? 'rgba(0,0,0,.9)' : 'rgba(255,255,255,.95)'; ctx.lineWidth = 3;
   for(const front of dim ? [false, true] : [true]){ // outlines: faded ones first, then yours
     ctx.globalAlpha = front ? 1 : FADE; ctx.beginPath();
     for(const d of drawn) if(!dim || onRoute(d[0]) === front) rect(d[5]);
     ctx.stroke();
-  }
+  }  }
+
   ctx.lineWidth = 1;
   for(const front of dim ? [false, true] : [true]) for(const [l, all] of byLine){
     const items = dim ? all.filter(d => onRoute(d[0]) === front) : all; if(!items.length) continue;
     ctx.globalAlpha = front ? 1 : FADE;
     ctx.fillStyle = ctx.strokeStyle = l.colour==='#000000'&&dark ? '#e6e6e6' : l.colour;
-    ctx.beginPath(); for(const d of items) rect(d[5]); ctx.fill(); ctx.stroke(); // stroke rounds the corners
+    ctx.beginPath(); for(const d of items) rect(d[5]); ctx.fill(); if(!LOW) ctx.stroke(); // stroke rounds the corners
     if(PARALLEL.has(l.mode)){ // centre stripe, like the line itself
       ctx.fillStyle = MAP_BG(); ctx.beginPath();
       for(const [, x, y, , , , cs, sn, hl, hw] of items){ const ux=cs*(hl-hw*1.2), uy=sn*(hl-hw*1.2), vx=-sn*hw/3, vy=cs*hw/3;
@@ -979,7 +984,9 @@ function draw(ts){
   const h = hover && drawn.find(d => d[0]===hover);
   if(h){ ctx.strokeStyle=dark?'#fff':'#000'; ctx.lineWidth=1.5; ctx.beginPath(); ctx.arc(h[1],h[2],h[8]+4,0,7); ctx.stroke(); }
   draw.hit = drawn;
-  if(DEBUG) draw.ms = (draw.ms||0)*0.9 + (performance.now()-t0)*0.1;
+  draw.ms = (draw.ms||0)*0.9 + (performance.now()-t0)*0.1;
+  if(!LOW && Q.get('quality') !== 'high' && ts > 20000 && draw.ms > 14 && (draw.slow = (draw.slow||0) + 1) > FPS*4){ LOW = true; FPS = Math.min(FPS, 15); console.info('low-power mode on'); }
+  else if(draw.ms <= 14) draw.slow = 0;
 }
 requestAnimationFrame(draw);
 
