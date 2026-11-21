@@ -7,7 +7,7 @@ const RAIL = {
   stations:null, byCrs:{}, state:'off', msg:'', last:0, boards:new Map(),
 };
 // Stations polled for live trains: the London termini and big interchanges (≤ 40, the relay's limit)
-const RAIL_HUBS = 'VIC,CLJ,WAT,LBG,CHX,CST,BFR,STP,KGX,EUS,MYB,PAD,LST,FST,SRA,ECR,WIM,RMD,SUR,LEW,ZFD,WFJ,HHY,TOT,ENF,BKG,SVS,EAL,HRW,SNF,DFD,BXY,GTW,WOK,STA,FPK,WCY,OLD,AFK,RDG'.split(',');
+const RAIL_HUBS = 'VIC,CLJ,WAT,LBG,CHX,CST,BFR,STP,KGX,EUS,MYB,PAD,LST,FST,SRA,ECR,WIM,RMD,SUR,LEW,ZFD,WFJ,HHY,TOM,ENF,BKG,SVS,EAL,HRW,SNF,DFD,BXY,GTW,WOK,SAC,FPK,WCY,OLD,SUO,RDG'.split(',');
 // Operator colours (brand-like, approximate)
 const RAIL_COL = {SN:'#5C9F3B', TL:'#E9438D', SW:'#24398C', SE:'#1D82D4', GW:'#0A493E', CC:'#B7007C', LE:'#D70428', GN:'#5A2C83',
   CH:'#00A7DF', GR:'#CE0E2D', VT:'#004354', EM:'#713563', HX:'#532E63', GX:'#EB1E2D', XC:'#660F21', GC:'#1D1D1B', LD:'#2B6EF5',
@@ -38,7 +38,8 @@ function railLine(code, name){
   return l;
 }
 async function refreshRail(){
-  if(!railOn() || (typeof shown === 'function' && MODES_OFF.has('rail'))) return;
+  const onRailLeg = typeof J !== 'undefined' && J.active && J.plan && J.plan.legs.some(L => L.kind === 'rail');
+  if(!railOn() || (MODES_OFF.has('rail') && !onRailLeg)) return; // switched off — unless you're on a train
   try{
     await railStations();
     const res = await railGet('/trains?crs=' + RAIL_HUBS.join(','));
@@ -115,9 +116,9 @@ function railDemo(path){
     ['South Western Railway','SW',[['WAT',0],['VXH',3],['CLJ',7],['WIM',13],['SUR',20],['WOK',33]]],['Southeastern','SE',[['CHX',0],['WAE',2],['LBG',6],['LEW',14],['DFD',33]]],
     ['c2c','CC',[['FST',0],['LHS',4],['WHM',8],['BKG',13],['UPM',21]]],['Greater Anglia','LE',[['LST',0],['SRA',7],['RMF',18],['SNF',29]]],
     ['Great Western Railway','GW',[['PAD',0],['EAL',8],['SLO',18],['RDG',26]]],['Chiltern Railways','CH',[['MYB',0],['WCX',8],['HRW',16]]]];
-  const now = Date.now(), trains = [];
-  R.forEach(([op, code, st], ri) => { for(let k = -5; k <= 2; k++){ const s = now + (k*10 - ri*2)*60000, delay = (k + ri) % 3 === 0 ? 3 : 0;
-    trains.push({id:'demo' + code + k, op, opCode:code, dest:(RAIL.byCrs[st.at(-1)[0]] || {}).n, reason:delay ? 'Demo: delayed by a signalling problem' : null,
+  const now = Date.now(), base = Math.floor(now/600000)*600000, trains = [];
+  R.forEach(([op, code, st], ri) => { for(let k = -5; k <= 2; k++){ const s = base + (k*10 - ri*2)*60000, slot = Math.round(s/600000), delay = (slot + ri) % 3 === 0 ? 3 : 0;
+    trains.push({id:'demo' + code + slot, op, opCode:code, dest:(RAIL.byCrs[st.at(-1)[0]] || {}).n, reason:delay ? 'Demo: delayed by a signalling problem' : null,
       calls:st.map(([c, m]) => [c, s + (m + delay)*60000, s + (m + delay)*60000 < now ? 1 : 0])}); } });
   if(path.startsWith('/trains')) return {trains};
   const crs = (path.match(/crs=([A-Z]{3})/) || [])[1];

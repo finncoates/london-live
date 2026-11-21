@@ -31,7 +31,7 @@ export function boards(now = Date.now(), every = 12){
         return {locationName:n, crs:c, st:hhmm(st), et:done ? null : (s.delay ? hhmm(st + s.delay*60000) : 'On time'), at:done ? (s.delay ? hhmm(st + s.delay*60000) : 'On time') : null}; };
       (byCrs[crs] ||= []).push({
         std:hhmm(t), etd:s.delay ? hhmm(t + s.delay*60000) : 'On time', platform:String(1 + (i % 9)),
-        operator:s.op, operatorCode:s.code, serviceID:s.id, isCancelled:false,
+        operator:s.op, operatorCode:s.code, serviceID:s.id + crs, isCancelled:false, // like Darwin: a different id on every board
         delayReason:s.delay ? 'This train has been delayed by a signalling problem' : null,
         origin:[{locationName:s.stops[0][1], crs:s.stops[0][0]}], destination:[{locationName:s.stops.at(-1)[1], crs:s.stops.at(-1)[0]}],
         previousCallingPoints:i ? [{callingPoint:s.stops.slice(0, i).map(cp)}] : undefined,

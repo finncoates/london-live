@@ -18,7 +18,7 @@
 
 const DEFAULT_BOARD_URL = 'https://api1.raildata.org.uk/1010-live-departure-board-dep1_2/LDBWS/api/20220120/GetDepBoardWithDetails/{crs}?numRows=10';
 const DEFAULT_ORIGINS = 'https://finncoates.github.io';
-const BOARD_TTL = 45;      // seconds a station board is cached
+const BOARD_TTL = 80;      // seconds a station board is cached (the maps poll every 60 s)
 const MAX_STATIONS = 40;   // per /trains call (Cloudflare free plan: 50 outbound requests per call)
 
 export default {
@@ -56,7 +56,7 @@ async function getBoard(crs, env, ctx){
   const cacheKey = new Request('https://cache.local/board/' + encodeURIComponent(target));
   const cache = typeof caches !== 'undefined' ? caches.default : null;
   if(cache){ const hit = await cache.match(cacheKey); if(hit) return hit.json(); }
-  const r = await fetch(target, {headers:{[env.KEY_HEADER || 'x-apikey']:env.RDM_KEY, accept:'application/json'}});
+  const r = await fetch(target, {headers:{[env.KEY_HEADER || 'x-apikey']:env.RDM_KEY, accept:'application/json'}, signal:AbortSignal.timeout(8000)});
   if(!r.ok) throw new Error(`board ${crs}: HTTP ${r.status}`);
   const data = await r.json();
   if(cache && ctx) ctx.waitUntil(cache.put(cacheKey, new Response(JSON.stringify(data), {headers:{'cache-control':`max-age=${BOARD_TTL}`}})));
@@ -69,7 +69,7 @@ const pick = (o, ...ks) => { for(const k of ks) if(o && o[k] != null && o[k] !==
 // calling points come as [{callingPoint:[...]}] (public) or [...] (staff)
 function callingPoints(list){
   const out = [];
-  for(const group of arr(list)){
+  for(const group of arr(list).slice(0, 1)){ // dividing/joining trains have extra groups: keep the main one
     if(group && Array.isArray(group.callingPoint)) out.push(...group.callingPoint);
     else if(group && group.callingPoint) out.push(group.callingPoint);
     else if(group && (group.crs || group.locationName)) out.push(group);
@@ -93,8 +93,11 @@ function normaliseBoard(raw, crs){
     const prev = callingPoints(s.previousCallingPoints).map(cp => stop(cp, 'arr'));
     const here = stop({crs:raw.crs || crs, locationName:raw.locationName, std:s.std, etd:s.etd, atd:s.atd, sta:s.sta, eta:s.eta, ata:s.ata, isCancelled:s.isCancelled}, 'dep');
     const next = callingPoints(s.subsequentCallingPoints).map(cp => stop(cp, 'arr'));
+    const calls = [...prev, here, ...next];
+    // serviceID differs from board to board; the RID (staff version) or origin + its time is the same everywhere
+    const key = s.rid || ((s.operatorCode || '') + ':' + (calls[0].crs || '') + ':' + (calls[0].st || '') + ':' + (arr(s.destination)[0]?.crs || ''));
     return {
-      id:s.serviceID || s.serviceId || s.rid || null,
+      id:key, boardId:s.serviceID || s.serviceId || null,
       operator:s.operator || null, opCode:s.operatorCode || null,
       platform:s.platform || null,
       std:here.st, etd:pick(s, 'etd', 'eta') || null,
@@ -103,7 +106,7 @@ function normaliseBoard(raw, crs){
       origin:arr(s.origin).map(o => o.locationName).join(' & ') || null,
       destination:arr(s.destination).map(o => o.locationName).join(' & ') || null,
       destCrs:arr(s.destination)[0]?.crs || null,
-      calls:[...prev, here, ...next].map(c => ({...c, ms:toMs(c.t, gen)})),
+      calls:calls.map(c => ({...c, ms:toMs(c.t, gen)})),
     };
   });
   return {crs:raw.crs || crs, name:raw.locationName || crs, generatedAt:gen, messages:arr(raw.nrccMessages).map(m => stripTags(m.value || m.Value || m)).filter(Boolean), services};
@@ -112,7 +115,7 @@ function normaliseBoard(raw, crs){
 function mergeTrains(boards){
   const by = new Map();
   for(const b of boards) for(const s of b.services){
-    const key = s.id || (s.opCode + s.calls.map(c => c.crs + c.st).join(''));
+    const key = s.id;
     const cur = by.get(key);
     if(!cur || s.calls.filter(c => c.actual).length > cur.calls.filter(c => c.actual).length) by.set(key, s);
   }

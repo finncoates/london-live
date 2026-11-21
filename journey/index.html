@@ -1059,7 +1059,7 @@ const RAIL = {
   stations:null, byCrs:{}, state:'off', msg:'', last:0, boards:new Map(),
 };
 // Stations polled for live trains: the London termini and big interchanges (≤ 40, the relay's limit)
-const RAIL_HUBS = 'VIC,CLJ,WAT,LBG,CHX,CST,BFR,STP,KGX,EUS,MYB,PAD,LST,FST,SRA,ECR,WIM,RMD,SUR,LEW,ZFD,WFJ,HHY,TOT,ENF,BKG,SVS,EAL,HRW,SNF,DFD,BXY,GTW,WOK,STA,FPK,WCY,OLD,AFK,RDG'.split(',');
+const RAIL_HUBS = 'VIC,CLJ,WAT,LBG,CHX,CST,BFR,STP,KGX,EUS,MYB,PAD,LST,FST,SRA,ECR,WIM,RMD,SUR,LEW,ZFD,WFJ,HHY,TOM,ENF,BKG,SVS,EAL,HRW,SNF,DFD,BXY,GTW,WOK,SAC,FPK,WCY,OLD,SUO,RDG'.split(',');
 // Operator colours (brand-like, approximate)
 const RAIL_COL = {SN:'#5C9F3B', TL:'#E9438D', SW:'#24398C', SE:'#1D82D4', GW:'#0A493E', CC:'#B7007C', LE:'#D70428', GN:'#5A2C83',
   CH:'#00A7DF', GR:'#CE0E2D', VT:'#004354', EM:'#713563', HX:'#532E63', GX:'#EB1E2D', XC:'#660F21', GC:'#1D1D1B', LD:'#2B6EF5',
@@ -1090,7 +1090,8 @@ function railLine(code, name){
   return l;
 }
 async function refreshRail(){
-  if(!railOn() || (typeof shown === 'function' && MODES_OFF.has('rail'))) return;
+  const onRailLeg = typeof J !== 'undefined' && J.active && J.plan && J.plan.legs.some(L => L.kind === 'rail');
+  if(!railOn() || (MODES_OFF.has('rail') && !onRailLeg)) return; // switched off — unless you're on a train
   try{
     await railStations();
     const res = await railGet('/trains?crs=' + RAIL_HUBS.join(','));
@@ -1167,9 +1168,9 @@ function railDemo(path){
     ['South Western Railway','SW',[['WAT',0],['VXH',3],['CLJ',7],['WIM',13],['SUR',20],['WOK',33]]],['Southeastern','SE',[['CHX',0],['WAE',2],['LBG',6],['LEW',14],['DFD',33]]],
     ['c2c','CC',[['FST',0],['LHS',4],['WHM',8],['BKG',13],['UPM',21]]],['Greater Anglia','LE',[['LST',0],['SRA',7],['RMF',18],['SNF',29]]],
     ['Great Western Railway','GW',[['PAD',0],['EAL',8],['SLO',18],['RDG',26]]],['Chiltern Railways','CH',[['MYB',0],['WCX',8],['HRW',16]]]];
-  const now = Date.now(), trains = [];
-  R.forEach(([op, code, st], ri) => { for(let k = -5; k <= 2; k++){ const s = now + (k*10 - ri*2)*60000, delay = (k + ri) % 3 === 0 ? 3 : 0;
-    trains.push({id:'demo' + code + k, op, opCode:code, dest:(RAIL.byCrs[st.at(-1)[0]] || {}).n, reason:delay ? 'Demo: delayed by a signalling problem' : null,
+  const now = Date.now(), base = Math.floor(now/600000)*600000, trains = [];
+  R.forEach(([op, code, st], ri) => { for(let k = -5; k <= 2; k++){ const s = base + (k*10 - ri*2)*60000, slot = Math.round(s/600000), delay = (slot + ri) % 3 === 0 ? 3 : 0;
+    trains.push({id:'demo' + code + slot, op, opCode:code, dest:(RAIL.byCrs[st.at(-1)[0]] || {}).n, reason:delay ? 'Demo: delayed by a signalling problem' : null,
       calls:st.map(([c, m]) => [c, s + (m + delay)*60000, s + (m + delay)*60000 < now ? 1 : 0])}); } });
   if(path.startsWith('/trains')) return {trains};
   const crs = (path.match(/crs=([A-Z]{3})/) || [])[1];
@@ -1244,17 +1245,20 @@ function parseJourney(j){
 // same services from the same places (stop ids aren't used: they're only filled in once a journey starts)
 const signature = legs => legs.filter(L => !L.walk).map(L => (L.lineName||L.line||L.mode) + '@' + L.from.p.map(x => x.toFixed(3))).join('|');
 
-let TFL_MODES = null; // optional TfL mode filter (step-free steps in Build my route)
+let TFL_MODES = null;
+const ARRIVE_G = () => ARRIVE, PREF_G = () => PREF; // optional TfL mode filter (step-free steps in Build my route)
 // "Arrive by" (search only; re-planning while travelling always departs now)
 let ARRIVE = false;
 // route preference: fastest | fewer (changes) | walk (less walking) | stepfree (TfL, London only)
 let PREF = (() => { try{ return localStorage.getItem('pref') || 'fastest'; }catch(e){ return 'fastest'; } })();
-async function planJourneys(from, to, when){
+async function planJourneys(from, to, when, o = {}){
+  const PREF_ = o.pref ?? PREF, MODES_ = o.modes !== undefined ? o.modes : TFL_MODES, ARR_ = o.arrive ?? ARRIVE;
+  { const PREF = PREF_, TFL_MODES = MODES_, ARRIVE = ARR_; // (shadow the globals for the rest of this function)
   const p = ldnParts(when || Date.now());
   const jp = PREF === 'fewer' ? 'leastinterchange' : PREF === 'walk' ? 'leastwalking' : 'leasttime';
   const acc = PREF === 'stepfree' ? '&accessibilityPreference=NoSolidStairs,NoEscalators,StepFreeToPlatform' : '';
   const qs = `?${TFL_MODES ? 'mode=' + TFL_MODES + ',walking&' : ''}timeIs=${ARRIVE ? 'Arriving' : 'Departing'}&journeyPreference=${jp}${acc}&date=${p.year}${p.month}${p.day}&time=${p.hour}${p.minute}`;
-  const url = API + `/Journey/JourneyResults/${encodeURIComponent(from)}/to/${encodeURIComponent(to)}` + qs + (KEY?'&'+KEY:'');
+  var url = API + `/Journey/JourneyResults/${encodeURIComponent(from)}/to/${encodeURIComponent(to)}` + qs + (KEY?'&'+KEY:''); }
   const r = await fetch(url);
   if(r.status === 300){ const d = await r.json(); return {ambiguous:d}; }
   if(!r.ok) throw new Error(r.status === 404 ? 'No route found' : 'Journey planner error ' + r.status);
@@ -1273,7 +1277,8 @@ const inLondon = s => { if(!isCoord(s)) return true; const [a, b] = s.split(',')
 const shortAddr = s => { const parts = (s||'').replace(/,?\s*(UK|United Kingdom)$/i, '').split(',').map(x => x.replace(/\b[A-Z]{1,2}\d[A-Z\d]?\s*\d[A-Z]{2}\b/, '').trim()).filter(Boolean);
   return parts.slice(0, parts[0] && /^\d/.test(parts[0]) ? 2 : 1).join(', ') || s; };
 const stripHtml = s => (s||'').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
-async function planGoogle(from, to, when){
+async function planGoogle(from, to, when, o = {}){
+  const ARRIVE = o.arrive ?? ARRIVE_G(), PREF = o.pref ?? PREF_G(); // read now, not after the awaits below
   await loadGoogle();
   const {DirectionsService} = await google.maps.importLibrary('routes');
   const loc = toLoc;
@@ -1413,14 +1418,13 @@ async function planStepFree(from, to, modeId, t, toLabel){
   const g = await planSegment(from, to, modeId, t, toLabel); // also gives us exact start/end points
   const a = g.legs[0].from.p, b = g.legs[g.legs.length-1].to.p;
   if(!inLondonP(a) || !inLondonP(b)) return {...g, note:'Step-free planning is only available in London'};
-  const savedP = PREF, savedM = TFL_MODES; PREF = 'stepfree'; TFL_MODES = TFL_MODE_OF[modeId] || null;
-  try{
-    const r = await planJourneys(a.map(x => x.toFixed(5)).join(','), b.map(x => x.toFixed(5)).join(','), t).catch(() => null);
+  {
+    const r = await planJourneys(a.map(x => x.toFixed(5)).join(','), b.map(x => x.toFixed(5)).join(','), t, {pref:'stepfree', modes:TFL_MODE_OF[modeId] || null, arrive:false}).catch(() => null);
     const j = r && r.journeys && r.journeys[0];
     if(j){ const last = j.legs[j.legs.length-1]; if(last.walk && toLabel){ last.to.name = toLabel; last.summary = 'Walk to ' + toLabel; }
       for(const L of j.legs) if(!L.walk && BY[L.line]) L.tflLine = L.line;
       return {legs:j.legs, arr:j.arr, endQ:g.endQ, stepfree:true}; }
-  } finally { PREF = savedP; TFL_MODES = savedM; }
+  }
   if(modeId === 'bus') return {...g, stepfree:true};
   const bus = await planSegment(from, to, 'bus', t, toLabel).catch(() => null);
   return bus ? {...bus, stepfree:true, note:'No step-free ' + CM[modeId].name.toLowerCase() + ' route, so this step uses buses'} : {...g, note:'No step-free route found for this step'};
@@ -1453,6 +1457,7 @@ async function stopArrivals(id){
   arrCache.set(id, {t:Date.now(), d}); return d;
 }
 // National Rail leg: trains from the boarding station that call at the alighting station later
+const hm = s => { const [a, b] = (s || '0:0').split(':').map(Number); return a*60 + b; };
 async function railDepartures(L){
   if(!railOn()) return null;
   await railStations();
@@ -1464,8 +1469,9 @@ async function railDepartures(L){
     if(s.cancelled) continue;
     const i = s.calls.findIndex(c => c.crs === L.fromCrs), j = s.calls.findIndex((c, k) => k > i && c.crs === L.toCrs);
     if(i < 0 || j < 0) continue;
-    const a = s.calls[i], d = s.calls[j];
-    out.push({vid:s.id, at:a.ms, atDest:d.ms, towards:s.destination || '', platform:s.platform, sched:a.st, late:a.st && a.t && a.t !== a.st ? a.t : null, reason:s.reason, op:s.operator});
+    const a = s.calls[i], d = s.calls[j]; if(a.cancelled || d.cancelled) continue;
+    const sched = a.st && a.ms != null ? a.ms + (hm(a.st) - hm(a.t || a.st))*60000 : a.ms; // this train's timetabled time
+    out.push({vid:s.id, at:a.ms, atDest:d.ms, schedMs:sched, towards:s.destination || '', platform:s.platform, sched:a.st, late:a.st && a.t && a.t !== a.st ? a.t : null, reason:s.reason, op:s.operator});
   }
   return out.sort((x, y) => x.at - y.at);
 }
@@ -1646,7 +1652,7 @@ async function projectPlan(){
         const brd = L.toCrs && await railBoard(L.toCrs).catch(() => null), sv = brd && (brd.services || []).find(s => s.id === J.vehicle.vid);
         const c = sv && sv.calls.find(c => c.crs === L.toCrs); if(c && c.ms) a = c.ms; else { const v = ds && ds.find(d => d.vid === J.vehicle.vid); if(v) a = v.atDest; } }
       else if(J.vehicle){ const b = await stopArrivals(L.to.id); const v = b.find(p => p.vehicleId===J.vehicle.vid && p.lineId===L.line); if(v) a = Date.parse(v.expectedArrival); }
-      t = a ?? Math.max(t, L.arr); L.eta = t; L.board = L.board ?? L.dep; continue;
+      t = a ?? (L.kind === 'rail' && L.pick ? L.pick.atDest : null) ?? Math.max(t, L.arr); L.eta = t; L.board = L.board ?? L.dep; continue;
     }
     const ready = t + (L.kind==='tube' || L.kind==='elizabeth' ? 60000 : 30000); // getting to the platform/stop
     const deps = liveChecks < 2 ? await liveDepartures(L) : null; if(deps) liveChecks++;
@@ -1795,7 +1801,8 @@ $('bShare').onclick = async () => {
 async function highlightVehicle(gen){
   HL.clear();
   const L = J.plan.legs.slice(J.idx).find(L => !L.walk);
-  if(L && L.kind === 'rail' && J.vehicle){ HL.add('nr:' + J.vehicle.vid); return; }
+  if(L && L.kind === 'rail' && J.vehicle){ HL.add('nr:' + J.vehicle.vid);
+    const t = trains.get('nr:' + J.vehicle.vid), l = t && BY[t.line]; if(l) l.pinned = true; return; }
   if(!L || !L.line || !J.vehicle || !LIVE_KINDS.has(L.kind)) return;
   if(!BY[L.line] || L.kind==='bus'){ await addLine(L.line, L.lineName, L.colour, L.kind); if(gen !== J.gen || !J.active) return; }
   else if(!BY[L.line].pinned){ BY[L.line].pinned = true; BY[L.line].layer && BY[L.line].layer.eachLayer(p => p.setStyle(lineStyle(BY[L.line]))); }
@@ -1942,8 +1949,7 @@ async function search(){
       if(r.ambiguous) return renderAmbiguous(r.ambiguous);
       for(const j of r.journeys) for(const L of j.legs) if(!L.walk && BY[L.line]){ L.tflLine = L.line; }
       if(!r.journeys.length){ // no step-free rail route: every London bus is step-free
-        const saved = PREF; PREF = 'busonly';
-        try{ r = await planGoogle(J.from.q, J.to.q, when); }finally{ PREF = saved; }
+        r = await planGoogle(J.from.q, J.to.q, when, {pref:'busonly'});
         r.journeys.forEach(j => j.note = 'No step-free train route found, so this uses buses (all step-free).');
       }
     } else try{
@@ -1978,7 +1984,7 @@ function legRow(L, i){
     if(cur && J.riding) live = `On board · arriving ${esc(L.to.name)} <b>${hhmm(L.eta||L.arr)}</b>`;
     else if(L.kind === 'rail' && L.pick){
       const p = L.pick, n = Date.now();
-      live = `${p.late ? `<span class="bad">Expected <b>${hhmm(p.at)}</b> (${Math.max(1, mins(p.at - L.dep))} min late)</span>` : `On time · <b>${hhmm(p.at)}</b>`}${p.platform ? ` · Platform <b>${esc(p.platform)}</b>` : ''} · ${Math.max(0, mins(p.at - n))} min`
+      live = `${p.late ? `<span class="bad">Expected <b>${hhmm(p.at)}</b> (${Math.max(1, mins(p.at - (p.schedMs ?? L.dep)))} min late)</span>` : `On time · <b>${hhmm(p.at)}</b>`}${p.platform ? ` · Platform <b>${esc(p.platform)}</b>` : ''} · ${Math.max(0, mins(p.at - n))} min`
         + (p.late && p.reason ? `<br><span class="muted">${esc(p.reason)}</span>` : '');
     }
     else if(L.live && L.live.length){
@@ -2044,26 +2050,33 @@ $('reminders').addEventListener('click', e => {
   if(b.dataset.rs === 'del'){ RM.set(list.filter(x => x !== r)); renderReminders(); return; }
   RM.set(list.filter(x => x !== r)); J.to = r.to; $('to').value = r.to.label; startJourney(r.plan); renderReminders();
 });
+// Each reminder is updated by id (re-reading storage after any wait), so a Remove/Start/new reminder made
+// meanwhile is never undone, and only one check runs at a time.
+let remBusy = false;
+function updateReminder(id, fn){ const list = RM.get(), r = list.find(x => x.id === id); if(!r) return null; fn(r); RM.set(list); return r; }
 async function checkReminders(){
-  const list = RM.get(), n = Date.now(); let changed = false;
-  for(const r of list){
-    const left = r.dep - n;
-    // re-check with live times
-    for(const at of [25, 10]) if(left < at*60000 && left > 0 && !r.checked.includes(at)){
-      r.checked.push(at); changed = true;
-      try{
-        const from = r.from ? r.from.q : me ? `${me[0].toFixed(5)},${me[1].toFixed(5)}` : null; if(!from) continue;
-        ARRIVE = !!r.arriveBy; const res = await planGoogle(from, r.to.q, r.arriveBy || r.dep); ARRIVE = false;
-        const sig = signature(r.plan.legs), same = res.journeys.find(j => signature(j.legs) === sig), best = same || res.journeys[0];
-        if(best){ if(Math.abs(best.dep - r.dep) > 120000) r.note = `Times changed: now leave at ${hhmm(best.dep)} (was ${hhmm(r.dep)}).`;
-          if(!same) r.note = `Your planned route isn't available — new route leaves at ${hhmm(best.dep)}.`;
-          Object.assign(r, {dep:best.dep, arr:best.arr, plan:best}); if(r.note) notify('Trip update: ' + r.to.label, r.note); }
-      }catch(e){ ARRIVE = false; }
+  if(remBusy) return; remBusy = true;
+  try{
+    for(const r0 of RM.get()){
+      const left = r0.dep - Date.now();
+      for(const at of [25, 10]) if(left < at*60000 && left > 0 && !r0.checked.includes(at)){
+        if(!updateReminder(r0.id, r => r.checked.push(at))) break;
+        const from = r0.from ? r0.from.q : me ? `${me[0].toFixed(5)},${me[1].toFixed(5)}` : null; if(!from) continue;
+        let res; try{ res = await planGoogle(from, r0.to.q, r0.arriveBy || r0.dep, {arrive:!!r0.arriveBy}); }catch(e){ continue; }
+        const sig = signature(r0.plan.legs), same = res.journeys.find(j => signature(j.legs) === sig), best = same || res.journeys[0];
+        if(!best) continue;
+        const r = updateReminder(r0.id, r => {
+          r.note = !same ? `Your planned route isn't available — new route leaves at ${hhmm(best.dep)}.`
+            : Math.abs(best.dep - r.dep) > 120000 ? `Times changed: now leave at ${hhmm(best.dep)} (was ${hhmm(r.dep)}).` : r.note;
+          Object.assign(r, {dep:best.dep, arr:best.arr, plan:best}); });
+        if(r && r.note && (!same || Math.abs(best.dep - r0.dep) > 120000)) notify('Trip update: ' + r.to.label, r.note);
+        Object.assign(r0, {dep:best.dep});
+      }
+      const left2 = r0.dep - Date.now();
+      if(left2 < 5*60000 && left2 > 0 && !r0.fired.includes(5) && updateReminder(r0.id, r => r.fired.push(5))){ notify(`Leave in 5 min for ${r0.to.label}`, `Leave at ${hhmm(r0.dep)}`); toast(`Leave in 5 min for ${r0.to.label}`); }
+      if(left2 <= 0 && left2 > -10*60000 && !r0.fired.includes(0) && updateReminder(r0.id, r => r.fired.push(0))){ notify(`Time to go: ${r0.to.label}`, 'Tap to start your journey'); toast(`Time to go: ${r0.to.label}`); }
     }
-    if(left < 5*60000 && left > 0 && !r.fired.includes(5)){ r.fired.push(5); changed = true; notify(`Leave in 5 min for ${r.to.label}`, `Leave at ${hhmm(r.dep)}`); toast(`Leave in 5 min for ${r.to.label}`); }
-    if(left <= 0 && left > -10*60000 && !r.fired.includes(0)){ r.fired.push(0); changed = true; notify(`Time to go: ${r.to.label}`, 'Tap to start your journey'); toast(`Time to go: ${r.to.label}`); }
-  }
-  if(changed) RM.set(list);
+  } finally { remBusy = false; }
   renderReminders();
 }
 setInterval(checkReminders, 30000); setTimeout(checkReminders, 3000);
@@ -2379,7 +2392,7 @@ $('tsym').innerHTML = symbol('tube', '#DC241F', 16);
 const GROUP_SYM = {tube:['tubeLogo','#DC241F'], overground:['tube','#FA7B05'], elizabeth:['tube','#60399E'], dlr:['tube','#00AFAD'], tram:['tube','#5FB526'], rail:['rail','#1D5BA0']};
 function renderModeChips(){
   $('mModes').innerHTML = MODE_GROUPS.map(([m, name]) => {
-    const has = ACTIVE.some(l => l.mode === m); // e.g. National Rail: not connected yet
+    const has = ACTIVE.some(l => l.mode === m) || (m === 'rail' && typeof railOn === 'function' && railOn()); // e.g. National Rail: not connected yet
     return `<button type="button" class="chip2" data-mode="${m}" aria-pressed="${has && !MODES_OFF.has(m)}" ${has ? '' : 'disabled title="Coming soon"'}>${symbol(GROUP_SYM[m][0], GROUP_SYM[m][1], 16)}${name}${has ? '' : ' <small>soon</small>'}</button>`;
   }).join('');
 }
@@ -2415,7 +2428,7 @@ async function renderCommute(force){
   if(me){ const near = p => p.q && isCoord(p.q) && dist(p.q.split(',').map(Number), me) < 400; if(near(s.work)) toWork = false; else if(near(s.home)) toWork = true; }
   const from = toWork ? s.home : s.work, to = toWork ? s.work : s.home, key = from.q + '>' + to.q;
   if(force || key !== CMT.key || Date.now() - CMT.at > 5*60000){
-    try{ const r = await planGoogle(from.q, to.q, Date.now()); CMT.j = r.journeys[0] || null; }catch(e){ CMT.j = null; }
+    try{ const r = await planGoogle(from.q, to.q, Date.now(), {arrive:false}); CMT.j = r.journeys[0] || null; }catch(e){ CMT.j = null; }
     CMT.at = Date.now(); CMT.key = key;
   }
   const j = CMT.j;
