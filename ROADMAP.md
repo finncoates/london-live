@@ -56,11 +56,11 @@ little value on a map), crowding (TfL crowding API is patchy), weather, social f
 | Commute card (Home ⇄ Work, leaving now, problems on the way) | Journey |
 | Follow a train (tap it) and TV tour mode (`?tour=1`, T key) | Live map |
 | 12 findings from a second independent review fixed | both |
+| Line problems on the map (severe = dashed, closed = faded + dashed); "live data delayed / no internet" notice | both |
+| TV auto mode (`?auto=1`): overview → train tour → departure boards | Live map |
+| Lift-out-of-service warnings for stations on your route | Journey |
+| Fixes from user-style review: no false "late" at start, destination name kept after reroute, nearest bus stop | Journey |
 
 ## Next ideas (not built yet)
 - Switch on live National Rail (waiting on the key; `rail/SETUP.md`).
-- Show line problems on the map itself (affected lines pulse / dashed).
-- TV "auto" mode: rotate between overview, tour and a departure board.
-- Step-free: warn about lifts out of service at stations on the route (TfL lift status).
-- Clear on-screen messages when TfL or Google is unreachable.
 - Optional OSM track geometry so lines follow real curves.
