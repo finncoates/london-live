@@ -82,6 +82,7 @@ little value on a map), crowding (TfL crowding API is patchy), weather, social f
 | National Rail anywhere in Britain: 2,610 stations; outside London the 25 stations nearest the view are polled; demo trains in Manchester, Leeds, Edinburgh/Glasgow, Birmingham | both |
 | Lines back to a simple style: one smooth solid line per route (pieces joined so every bend is rounded), TfL colours and double lines kept, no dashed "problem" lines; side-by-side layout is an option in the Map menu | both |
 | **Finland: every train in the country live** (GPS from Digitraffic, open data, no key, straight from the browser): type, route, speed; Helsinki commuter trains purple, long-distance green, freight grey | Live map |
+| **Helsinki: every tram, metro, bus and ferry live each second** (HSL open MQTT feed, no key): HSL colours, route + destination, speed, on time/late; zoom 12+ (only the map tiles on screen are followed) | Live map |
 | Region-aware panel: outside London the title, counts and notes describe what's live there; London legend/status/TfL chips hidden | Live map |
 | Map menu → Go to: London, Manchester, Birmingham, Leeds, Liverpool, Newcastle, Edinburgh, Glasgow, Bristol, Cardiff | Live map |
 
