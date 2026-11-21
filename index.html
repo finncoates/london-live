@@ -743,6 +743,17 @@ setTimeout(refreshStatus, 1500); setInterval(refreshStatus, 120000);
 let trains = new Map(); // key -> train state
 let skew = 0; // server time - local time (ms), only used if the local clock is clearly wrong
 const now = () => Date.now() + skew;
+let LAST_OK = Date.now(); // last time live TfL data arrived
+// "live data delayed" notice (also in TV mode) when updates stop
+setInterval(() => {
+  let el = document.getElementById('stale');
+  if(!el){ el = document.createElement('div'); el.id = 'stale'; el.setAttribute('role', 'status');
+    el.style.cssText = 'position:fixed;top:12px;left:50%;transform:translateX(-50%);z-index:1500;background:#b3261e;color:#fff;padding:7px 14px;border-radius:99px;font:600 14px system-ui,sans-serif;box-shadow:0 3px 10px rgba(0,0,0,.25);display:none';
+    document.body.appendChild(el); }
+  const age = Date.now() - LAST_OK, off = !navigator.onLine;
+  el.style.display = off || age > 150000 ? 'block' : 'none';
+  if(el.style.display === 'block') el.textContent = off ? 'No internet connection · trains paused' : `Live data delayed · last update ${Math.round(age/60000)} min ago · retrying`;
+}, 5000);
 let failStreak = 0, anonSeq = 0;
 
 async function refresh(){
@@ -758,6 +769,7 @@ async function refresh(){
     $('err').textContent = 'Live train data error: ' + err.message + (err.status===429 ? (KEY ? ' — rate limited, or the app_key is invalid' : ' — rate limited; add ?app_key= (free from api-portal.tfl.gov.uk)') : '') + ' (retrying)';
     if(failed.size === ids.length) return false;
   } else { failStreak = 0; $('err').textContent = ''; }
+  if(preds.length) LAST_OK = Date.now();
 
   const t0 = Date.now();
   const stamps = preds.map(p=>Date.parse(p.timestamp)).filter(Boolean);
