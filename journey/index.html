@@ -1718,7 +1718,7 @@ async function replan(why){
   // same services, but the plan's times are out of date (e.g. you'll now get a later bus): just update
   if(!s && bestSig === remainingSig && legs.slice(J.idx).some(L => L.missed)){
     const nx = full.legs.find(L => !L.walk && !(full.prefixed && L === full.legs[0]));
-    await adoptPlan(full);
+    await adoptPlan(full, true);
     J.note = nx ? `Updated: you'll now catch the <b>${hhmm(nx.dep)}</b> ${esc(svcName(nx))}.` : 'Times updated.';
     J.noteAt = Date.now(); return;
   }
@@ -1844,9 +1844,10 @@ async function startJourney(j, keep){
     monitor(); refresh().catch(()=>{});
   } finally { J.starting = false; }
 }
-async function adoptPlan(j){
+async function adoptPlan(j, keepBase){
   const keepRiding = J.riding && j.prefixed;
-  Object.assign(J, {plan:j, idx:0, riding:keepRiding, suggestion:null, dismissed:null, baseArr:null, gen:(J.gen||0) + 1});
+  // a quiet time update keeps the "expected when you set off" baseline, so lateness stays honest
+  Object.assign(J, {plan:j, idx:0, riding:keepRiding, suggestion:null, dismissed:null, baseArr:keepBase ? J.baseArr : null, gen:(J.gen||0) + 1});
   if(!keepRiding) J.vehicle = null;
   if(j.chain) J.to = {label:j.chain[j.chain.length-1].label || J.to.label, q:j.chain[j.chain.length-1].q};
   drawJourney(J.plan, routeLayer); altLayer.clearLayers();
