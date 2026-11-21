@@ -230,6 +230,7 @@ body.kiosk #map{bottom:0!important}
     <label class="mm-row"><span>Show trains<small>The moving train shapes. The lines stay.</small></span><input type="checkbox" id="mIcons" class="switch"></label>
   </div>
   <div class="chips" id="mModes" aria-label="Show transport types"></div>
+  <div id="busNote" class="muted" hidden style="font-size:12px;margin:-2px 0 6px"></div>
   <div id="sbox"></div>
   <div class="lgall" id="lgAll"><button type="button" data-all="1">Show all lines</button><button type="button" data-all="0">Hide all</button></div>
   <div id="legend"></div>
@@ -289,9 +290,11 @@ const BY = Object.fromEntries(ACTIVE.map(l => [l.id, l]));
 // Background trains can be switched off; lines used by the current journey are always shown ("pinned")
 let TRAINS_ON = (() => { try{ return localStorage.getItem('trainsOn') !== '0' }catch(e){ return true } })();
 // which kinds of transport to show in the background (each can be switched off in the Map menu)
-const MODE_GROUPS = [['tube','Tube'], ['overground','Overground'], ['elizabeth','Elizabeth line'], ['dlr','DLR'], ['tram','Trams'], ['rail','National Rail']];
+const MODE_GROUPS = [['tube','Tube'], ['overground','Overground'], ['elizabeth','Elizabeth line'], ['dlr','DLR'], ['tram','Trams'], ['bus','Buses'], ['rail','National Rail']];
 let MODES_OFF = new Set((() => { try{ return JSON.parse(localStorage.getItem('modesOff')) || []; }catch(e){ return []; } })());
-const shown = l => l.pinned || (TRAINS_ON && l.mode !== 'bus' && !MODES_OFF.has(l.mode));
+try{ if(!localStorage.getItem('busInit')){ MODES_OFF.add('bus'); localStorage.setItem('modesOff', JSON.stringify([...MODES_OFF])); localStorage.setItem('busInit', '1'); } }catch(e){ MODES_OFF.add('bus'); } // buses start off
+if(Q.get('buses') === '1') MODES_OFF.delete('bus');
+const shown = l => l.pinned || (TRAINS_ON && !MODES_OFF.has(l.mode) && (l.mode !== 'bus' || l.near)); // buses: only routes near the view (live map)
 
 // ---------- helpers ----------
 const $ = id => document.getElementById(id);
@@ -455,7 +458,8 @@ function buildLanes(){
 const lineW = (z = map.getZoom()) => { z = Math.round(z); return z <= 10 ? 2.5 : z <= 11 ? 3.2 : z <= 12 ? 4 : z <= 13 ? 5 : z <= 15 ? 6 : 7; };
 // sideways offset (px) of line l on an edge: lines sharing it are spread out, centred on the track
 function laneOffset(e, id){
-  const vis = e.lines.filter(x => { const m = BY[x]; return m && lineStyle(m).opacity > 0; });
+  const me = BY[id]; if(me && me.mode === 'bus' && !me.pinned) return 0; // background buses share roads: no lanes
+  const vis = e.lines.filter(x => { const m = BY[x]; return m && lineStyle(m).opacity > 0 && (m.mode !== 'bus' || m.pinned); });
   const i = vis.indexOf(id); if(i < 0 || vis.length < 2) return 0;
   return (i - (vis.length - 1)/2) * lineW() * (PV ? PV.k : 1);
 }
@@ -525,7 +529,8 @@ function renderOff(zi, T, k){
     // service problems shown on the line itself: severe delays dashed, closed/suspended dashed and faded
     const lv = STATUS.get(l.id)?.lv || 0;
     g.setLineDash(lv >= 2 ? [W*1.6, W*1.3] : []);
-    g.globalAlpha = op * (lv >= 3 ? 0.4 : 1); g.strokeStyle = ink(l.colour); g.lineWidth = W; g.stroke(path);
+    const bg = l.mode === 'bus' && !l.pinned; // background bus routes: thin and light
+    g.globalAlpha = op * (lv >= 3 ? 0.4 : bg ? 0.45 : 1); g.strokeStyle = ink(l.colour); g.lineWidth = bg ? Math.max(1.5, W*0.4) : W; g.stroke(path);
     if(PARALLEL.has(l.mode)){ g.globalAlpha = 1; g.strokeStyle = MAP_BG(); g.lineWidth = W/3; g.stroke(path); }
   }
   g.setLineDash([]);
@@ -603,7 +608,7 @@ new ResizeObserver(fitMapToSheet).observe($('panel')); addEventListener('resize'
 // Both directions are loaded: some stations only appear in the inbound sequence
 // (e.g. Mildmay's Clapham Junction platform), and inbound routes give inbound stop order.
 async function loadLine(l){
-  let d = store.get('seq2:'+l.id);
+  let d = l.mode === 'bus' ? null : store.get('seq2:'+l.id); // bus routes are big: not kept in local storage
   if(!d){
     const [o, i] = await Promise.all([
       get(`/Line/${l.id}/Route/Sequence/outbound`),
@@ -615,7 +620,7 @@ async function loadLine(l){
       for(const seq of j.stopPointSequences||[]) for(const s of seq.stopPoint)
         if(!d.stops[s.id]) d.stops[s.id] = {n:cleanName(s.name), p:[r5(s.lat),r5(s.lon)]};
     }
-    store.set('seq2:'+l.id, d, 7*864e5);
+    if(l.mode !== 'bus') store.set('seq2:'+l.id, d, 7*864e5);
   }
   Object.assign(l, d);
   l.adj = new Set(); for(const r of l.routes) for(let k=1;k<r.ids.length;k++) l.adj.add(r.ids[k-1]+'>'+r.ids[k]);
@@ -978,7 +983,7 @@ function draw(ts){
     const c = scr(t.d), lane = trainLane(t, l); if(lane){ c.x += lane.x; c.y += lane.y; }
     if(c.x<-40||c.y<-40||c.x>s.x+40||c.y>s.y+40) continue;
     const cs = Math.cos(t.ang), sn = Math.sin(t.ang);
-    [hl, hw] = size(l);
+    [hl, hw] = size(l); if(l.mode === 'bus' && hl <= hl0){ hl = Math.max(5, hl0*0.5); hw = Math.max(2.4, hw0*0.9); } // buses: short and stubby
     const ux = cs*hl, uy = sn*hl, vx = -sn*hw, vy = cs*hw; // half-length and half-width vectors
     const r = [c.x+ux+vx, c.y+uy+vy, c.x+ux-vx, c.y+uy-vy, c.x-ux-vx, c.y-uy-vy, c.x-ux+vx, c.y-uy+vy];
     const item = [t, c.x, c.y, c.x, c.y, r, cs, sn, hl, hw]; drawn.push(item);
@@ -1009,6 +1014,11 @@ function draw(ts){
     }
   }
   ctx.globalAlpha = 1;
+  // route numbers on buses when zoomed in
+  if(PV.z >= 15.5 && SHOW_ICONS){ ctx.font = '700 10.5px system-ui, sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.lineWidth = 3;
+    for(const [l, items] of byLine) if(l.mode === 'bus') for(const [, x, y, , , , , , , hw] of items){ const ty = y - hw - 9, txt = l.name.toUpperCase();
+      ctx.strokeStyle = dark ? 'rgba(0,0,0,.85)' : 'rgba(255,255,255,.95)'; ctx.strokeText(txt, x, ty); ctx.fillStyle = dark ? '#ff8a80' : '#b3140f'; ctx.fillText(txt, x, ty); }
+    ctx.textAlign = 'start'; }
   // the user's own train/bus: drawn larger, on top, with a ring
   for(const d of drawn) if(HL.has(d[0].key)){
     const [t, x, y, , , , cs, sn, hl, hw] = d, k = hl > hl0 ? 1.15 : 1.7, ux=cs*hl*k, uy=sn*hl*k, vx=-sn*hw*k, vy=cs*hw*k;
@@ -1220,7 +1230,8 @@ const SHOW_LOC = false;
 
 // ---------- status + legend ----------
 window.onTrainsUpdate = n => {
-  $('status').innerHTML = `<b>${n}</b> trains · updated ${new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit', second:'2-digit'})}`;
+  const nb = ACTIVE.reduce((s, l) => s + (l.mode === 'bus' && shown(l) ? l.count : 0), 0); n -= nb;
+  $('status').innerHTML = `<b>${n}</b> trains${nb ? ` · <b>${nb}</b> buses` : ''} · updated ${new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit', second:'2-digit'})}`;
   renderLegend();
 };
 function renderLegend(){
@@ -1250,10 +1261,10 @@ $('legend').addEventListener('click', e => {
 });
 
 // ---------- transport switches ----------
-const GROUP_SYM = {tube:['tubeLogo','#DC241F'], overground:['tube','#FA7B05'], elizabeth:['tube','#60399E'], dlr:['tube','#00AFAD'], tram:['tube','#5FB526'], rail:['rail','#1D5BA0']};
+const GROUP_SYM = {bus:['tube','#DC241F'], tube:['tubeLogo','#DC241F'], overground:['tube','#FA7B05'], elizabeth:['tube','#60399E'], dlr:['tube','#00AFAD'], tram:['tube','#5FB526'], rail:['rail','#1D5BA0']};
 function renderModeChips(){
   $('mModes').innerHTML = MODE_GROUPS.map(([m, name]) => {
-    const has = ACTIVE.some(l => l.mode === m) || (m === 'rail' && typeof railOn === 'function' && railOn());
+    const has = m === 'bus' || ACTIVE.some(l => l.mode === m) || (m === 'rail' && typeof railOn === 'function' && railOn());
     return `<button type="button" class="chip2" data-mode="${m}" aria-pressed="${has && !MODES_OFF.has(m)}" ${has ? '' : 'disabled title="Coming soon"'}>${symbol(GROUP_SYM[m][0], GROUP_SYM[m][1], 16)}${name}${has ? '' : ' <small>soon</small>'}</button>`;
   }).join('');
 }
@@ -1261,7 +1272,43 @@ $('mModes').addEventListener('click', e => { const b = e.target.closest('[data-m
   const m = b.dataset.mode; MODES_OFF.has(m) ? MODES_OFF.delete(m) : MODES_OFF.add(m);
   try{ localStorage.setItem('modesOff', JSON.stringify([...MODES_OFF])); }catch(x){}
   for(const l of ACTIVE) l.layer && l.layer.eachLayer(p => p.setStyle(lineStyle(l)));
-  renderModeChips(); renderLegend(); refresh().catch(()=>{}); });
+  renderModeChips(); renderLegend(); if(m === 'bus') updateBuses(true); else refresh().catch(()=>{}); });
+
+// ---------- live buses: the routes serving the stops around the view (zoom 14+) ----------
+// TfL has no bus GPS feed; positions come from arrival predictions, like the trains.
+const BUS = {at:null, z:0, busy:false, ids:[], note:''};
+async function updateBuses(force){
+  const z = map.getZoom(), on = !MODES_OFF.has('bus') && TRAINS_ON;
+  if(!on || z < 14){
+    const had = BUS.ids.length; if(had){ for(const l of ACTIVE) if(l.mode === 'bus') l.near = false; BUS.ids = []; BUS.at = null; LANES = null; linesSig = ''; }
+    BUS.note = on ? 'Zoom in to see buses' : ''; renderBusNote(); if(force || had) window.onTrainsUpdate(ACTIVE.reduce((s, l) => s + (shown(l) ? l.count : 0), 0)); return;
+  }
+  const c = map.getCenter(), p = [c.lat(), c.lng()];
+  if(!force && BUS.at && dist(BUS.at, p) < 350 && Math.round(z) === BUS.z) return;
+  if(BUS.busy) return; BUS.busy = true; BUS.note = 'Finding buses…'; renderBusNote();
+  try{
+    const r = z >= 16 ? 350 : z >= 15 ? 600 : 900;
+    const res = await get(`/StopPoint?lat=${p[0].toFixed(5)}&lon=${p[1].toFixed(5)}&radius=${r}&stopTypes=NaptanPublicBusCoachTram&modes=bus&returnLines=true`);
+    const h = +new Intl.DateTimeFormat('en-GB', {timeZone:'Europe/London', hour:'numeric', hourCycle:'h23'}).format(new Date()), night = h < 5 || h >= 23;
+    const n = new Map(), names = {};
+    for(const st of res.stopPoints || []) for(const ln of st.lines || []){ if(!night && /^n\d/i.test(ln.id)) continue; n.set(ln.id, (n.get(ln.id) || 0) + 1); names[ln.id] = ln.name; }
+    const pick = [...n].sort((a, b) => b[1] - a[1]).slice(0, 12).map(x => x[0]);
+    await Promise.all(pick.map(async id => {
+      let l = BY[id]; if(l && l.mode !== 'bus') return;
+      if(!l){ l = {id, name:names[id] || id, colour:'#DC241F', mode:'bus', group:'bus', on:true, count:0, polys:[], routes:[], stops:{}, seg:{}}; ACTIVE.push(l); BY[id] = l; }
+      if(!l.layer) try{ await loadLine(l); }catch(e){ ACTIVE.splice(ACTIVE.indexOf(l), 1); delete BY[id]; }
+    }));
+    const set = new Set(pick.filter(id => BY[id] && BY[id].layer));
+    for(const l of ACTIVE) if(l.mode === 'bus') l.near = set.has(l.id);
+    // keep memory in check: forget routes far behind you
+    const extra = ACTIVE.filter(l => l.mode === 'bus' && !l.near && !l.pinned); if(extra.length > 24) for(const l of extra.slice(0, extra.length - 24)){ ACTIVE.splice(ACTIVE.indexOf(l), 1); delete BY[l.id]; for(const [k, t] of trains) if(t.line === l.id) trains.delete(k); }
+    BUS.ids = [...set]; BUS.at = p; BUS.z = Math.round(z); LANES = null; linesSig = '';
+    BUS.note = set.size ? `Buses: ${set.size} routes near here` : 'No bus routes here';
+  }catch(e){ BUS.note = 'Buses: ' + e.message; console.warn('buses', e); }
+  BUS.busy = false; renderBusNote(); refresh().catch(()=>{});
+}
+function renderBusNote(){ let el = $('busNote'); if(!el) return; el.textContent = BUS.note; el.hidden = !BUS.note; }
+map.addListener('idle', () => updateBuses());
 
 // ---------- map options ----------
 function syncMapMenu(){

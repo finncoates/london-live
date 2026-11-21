@@ -307,7 +307,7 @@ let TRAINS_ON = (() => { try{ return localStorage.getItem('trainsOn') !== '0' }c
 // which kinds of transport to show in the background (each can be switched off in the Map menu)
 const MODE_GROUPS = [['tube','Tube'], ['overground','Overground'], ['elizabeth','Elizabeth line'], ['dlr','DLR'], ['tram','Trams'], ['rail','National Rail']];
 let MODES_OFF = new Set((() => { try{ return JSON.parse(localStorage.getItem('modesOff')) || []; }catch(e){ return []; } })());
-const shown = l => l.pinned || (TRAINS_ON && l.mode !== 'bus' && !MODES_OFF.has(l.mode));
+const shown = l => l.pinned || (TRAINS_ON && !MODES_OFF.has(l.mode) && (l.mode !== 'bus' || l.near)); // buses: only routes near the view (live map)
 
 // ---------- helpers ----------
 const $ = id => document.getElementById(id);
@@ -471,7 +471,8 @@ function buildLanes(){
 const lineW = (z = map.getZoom()) => { z = Math.round(z); return z <= 10 ? 2.5 : z <= 11 ? 3.2 : z <= 12 ? 4 : z <= 13 ? 5 : z <= 15 ? 6 : 7; };
 // sideways offset (px) of line l on an edge: lines sharing it are spread out, centred on the track
 function laneOffset(e, id){
-  const vis = e.lines.filter(x => { const m = BY[x]; return m && lineStyle(m).opacity > 0; });
+  const me = BY[id]; if(me && me.mode === 'bus' && !me.pinned) return 0; // background buses share roads: no lanes
+  const vis = e.lines.filter(x => { const m = BY[x]; return m && lineStyle(m).opacity > 0 && (m.mode !== 'bus' || m.pinned); });
   const i = vis.indexOf(id); if(i < 0 || vis.length < 2) return 0;
   return (i - (vis.length - 1)/2) * lineW() * (PV ? PV.k : 1);
 }
@@ -541,7 +542,8 @@ function renderOff(zi, T, k){
     // service problems shown on the line itself: severe delays dashed, closed/suspended dashed and faded
     const lv = STATUS.get(l.id)?.lv || 0;
     g.setLineDash(lv >= 2 ? [W*1.6, W*1.3] : []);
-    g.globalAlpha = op * (lv >= 3 ? 0.4 : 1); g.strokeStyle = ink(l.colour); g.lineWidth = W; g.stroke(path);
+    const bg = l.mode === 'bus' && !l.pinned; // background bus routes: thin and light
+    g.globalAlpha = op * (lv >= 3 ? 0.4 : bg ? 0.45 : 1); g.strokeStyle = ink(l.colour); g.lineWidth = bg ? Math.max(1.5, W*0.4) : W; g.stroke(path);
     if(PARALLEL.has(l.mode)){ g.globalAlpha = 1; g.strokeStyle = MAP_BG(); g.lineWidth = W/3; g.stroke(path); }
   }
   g.setLineDash([]);
@@ -619,7 +621,7 @@ new ResizeObserver(fitMapToSheet).observe($('panel')); addEventListener('resize'
 // Both directions are loaded: some stations only appear in the inbound sequence
 // (e.g. Mildmay's Clapham Junction platform), and inbound routes give inbound stop order.
 async function loadLine(l){
-  let d = store.get('seq2:'+l.id);
+  let d = l.mode === 'bus' ? null : store.get('seq2:'+l.id); // bus routes are big: not kept in local storage
   if(!d){
     const [o, i] = await Promise.all([
       get(`/Line/${l.id}/Route/Sequence/outbound`),
@@ -631,7 +633,7 @@ async function loadLine(l){
       for(const seq of j.stopPointSequences||[]) for(const s of seq.stopPoint)
         if(!d.stops[s.id]) d.stops[s.id] = {n:cleanName(s.name), p:[r5(s.lat),r5(s.lon)]};
     }
-    store.set('seq2:'+l.id, d, 7*864e5);
+    if(l.mode !== 'bus') store.set('seq2:'+l.id, d, 7*864e5);
   }
   Object.assign(l, d);
   l.adj = new Set(); for(const r of l.routes) for(let k=1;k<r.ids.length;k++) l.adj.add(r.ids[k-1]+'>'+r.ids[k]);
@@ -994,7 +996,7 @@ function draw(ts){
     const c = scr(t.d), lane = trainLane(t, l); if(lane){ c.x += lane.x; c.y += lane.y; }
     if(c.x<-40||c.y<-40||c.x>s.x+40||c.y>s.y+40) continue;
     const cs = Math.cos(t.ang), sn = Math.sin(t.ang);
-    [hl, hw] = size(l);
+    [hl, hw] = size(l); if(l.mode === 'bus' && hl <= hl0){ hl = Math.max(5, hl0*0.5); hw = Math.max(2.4, hw0*0.9); } // buses: short and stubby
     const ux = cs*hl, uy = sn*hl, vx = -sn*hw, vy = cs*hw; // half-length and half-width vectors
     const r = [c.x+ux+vx, c.y+uy+vy, c.x+ux-vx, c.y+uy-vy, c.x-ux-vx, c.y-uy-vy, c.x-ux+vx, c.y-uy+vy];
     const item = [t, c.x, c.y, c.x, c.y, r, cs, sn, hl, hw]; drawn.push(item);
@@ -1029,6 +1031,11 @@ function draw(ts){
     }
   }
   ctx.globalAlpha = 1;
+  // route numbers on buses when zoomed in
+  if(PV.z >= 15.5 && SHOW_ICONS){ ctx.font = '700 10.5px system-ui, sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.lineWidth = 3;
+    for(const [l, items] of byLine) if(l.mode === 'bus') for(const [, x, y, , , , , , , hw] of items){ const ty = y - hw - 9, txt = l.name.toUpperCase();
+      ctx.strokeStyle = dark ? 'rgba(0,0,0,.85)' : 'rgba(255,255,255,.95)'; ctx.strokeText(txt, x, ty); ctx.fillStyle = dark ? '#ff8a80' : '#b3140f'; ctx.fillText(txt, x, ty); }
+    ctx.textAlign = 'start'; }
   // the user's own train/bus: drawn larger, on top, with a ring
   for(const d of drawn) if(HL.has(d[0].key)){
     const [t, x, y, , , , cs, sn, hl, hw] = d, k = hl > hl0 ? 1.15 : 1.7, ux=cs*hl*k, uy=sn*hl*k, vx=-sn*hw*k, vy=cs*hw*k;

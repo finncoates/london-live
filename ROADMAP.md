@@ -74,6 +74,11 @@ little value on a map), crowding (TfL crowding API is patchy), weather, social f
 | "Plan a trip here" on station cards opens London Journey with that station as the destination (`journey/?to=Name&ll=lat,lng`) | both |
 | Stations whose platforms are far apart (Paddington) get a dot on each line, one name | both |
 
+## Built 21–22 Nov (overnight)
+| Feature | Where |
+|---|---|
+| Live buses: "Buses" switch; zoom in (14+) and the ~12 busiest routes around the view load, thin route lines, buses moving from TfL predictions, route numbers from zoom 15.5; `?buses=1` | Live map |
+
 ## Next ideas (not built yet)
 - Switch on live National Rail (waiting on the key; `rail/SETUP.md`).
 - Optional OSM track geometry so lines follow real curves.
