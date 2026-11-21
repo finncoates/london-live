@@ -504,10 +504,11 @@ function stationDots(){
       const name = s.n.replace(/\s*\((?:[^)]*line|H&C|Circle Line|[^)]*Underground)[^)]*\)\s*/i, ' ').replace(/-Underground$/i, '').replace(/\s+/g, ' ').trim();
       const k = name.toLowerCase().replace(/^london /, '').replace(/ \(london\)$/, '').replace(/['’.]/g, '').replace(/&/g, 'and').replace(/[^a-z0-9]+/g, ' ').trim();
       const list = by.get(k) || []; let d = list.find(x => dist(x.p, s.p) < 400);
-      if(!d){ d = {name, p:s.p, lines:new Set()}; list.push(d); by.set(k, list); }
+      if(!d){ d = {name, p:s.p, lines:new Set(), pts:[]}; list.push(d); by.set(k, list); }
       d.lines.add(l.id);
+      if(!d.pts.some(q => dist(q, s.p) < 120)) d.pts.push(s.p); // platforms far apart (Paddington): a dot on each, one name
     } }
-  SDOTS = [...by.values()].flat().map(d => ({name:d.name, p:d.p, n:d.lines.size})); sdotSig = sig; return SDOTS;
+  SDOTS = [...by.values()].flat().flatMap(d => d.pts.map((p, i) => ({name:i ? '' : d.name, p, n:d.lines.size}))); sdotSig = sig; return SDOTS;
 }
 function renderOff(zi, T, k){
   const s = mapSize(), m = 0.3, odpr = LDPR();
@@ -536,7 +537,7 @@ function renderOff(zi, T, k){
       const w = world(s.p, zi); if(w[0] < box.x || w[1] < box.y || w[0] > box.x + box.w || w[1] > box.y + box.h) continue;
       const big = s.n > 1, rr = big ? r*1.35 : r;
       g.beginPath(); g.arc(w[0], w[1], rr, 0, 7); g.fillStyle = dark ? '#1b1c1f' : '#fff'; g.fill(); g.strokeStyle = dark ? '#e6e6e6' : '#1b1c1f'; g.stroke();
-      if(names){ g.lineWidth = 3; g.strokeStyle = dark ? 'rgba(0,0,0,.85)' : 'rgba(255,255,255,.95)'; g.strokeText(s.name, w[0] + rr + 4, w[1]);
+      if(names && s.name){ g.lineWidth = 3; g.strokeStyle = dark ? 'rgba(0,0,0,.85)' : 'rgba(255,255,255,.95)'; g.strokeText(s.name, w[0] + rr + 4, w[1]);
         g.fillStyle = dark ? '#eee' : '#1b1c1f'; g.fillText(s.name, w[0] + rr + 4, w[1]); g.lineWidth = Math.max(1.5, W*0.3); }
     }
   }

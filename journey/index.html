@@ -33,6 +33,7 @@ form{display:grid;gap:8px}
 .field label{font-size:12px;color:var(--mute);min-width:34px;white-space:nowrap}
 .field input{flex:1;border:0;background:transparent;color:var(--ink);font:inherit;padding:11px 0;min-width:0;outline:none}
 .row2{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.lv{font-size:12px;font-weight:600;color:var(--mute);margin-right:auto;margin-left:8px}.lv.now{color:var(--good)}
 .shift{display:flex;justify-content:space-between;margin-top:8px}.shift button{background:none;border:0;color:var(--acc);font-weight:600;font-size:14px;padding:8px 4px;cursor:pointer}
 .field input[type=time]{min-width:0;width:100%}
 button{font:inherit;font-size:14px;padding:9px 12px;border-radius:10px;border:1px solid var(--edge);background:var(--panel);color:var(--ink);cursor:pointer}
@@ -520,10 +521,11 @@ function stationDots(){
       const name = s.n.replace(/\s*\((?:[^)]*line|H&C|Circle Line|[^)]*Underground)[^)]*\)\s*/i, ' ').replace(/-Underground$/i, '').replace(/\s+/g, ' ').trim();
       const k = name.toLowerCase().replace(/^london /, '').replace(/ \(london\)$/, '').replace(/['’.]/g, '').replace(/&/g, 'and').replace(/[^a-z0-9]+/g, ' ').trim();
       const list = by.get(k) || []; let d = list.find(x => dist(x.p, s.p) < 400);
-      if(!d){ d = {name, p:s.p, lines:new Set()}; list.push(d); by.set(k, list); }
+      if(!d){ d = {name, p:s.p, lines:new Set(), pts:[]}; list.push(d); by.set(k, list); }
       d.lines.add(l.id);
+      if(!d.pts.some(q => dist(q, s.p) < 120)) d.pts.push(s.p); // platforms far apart (Paddington): a dot on each, one name
     } }
-  SDOTS = [...by.values()].flat().map(d => ({name:d.name, p:d.p, n:d.lines.size})); sdotSig = sig; return SDOTS;
+  SDOTS = [...by.values()].flat().flatMap(d => d.pts.map((p, i) => ({name:i ? '' : d.name, p, n:d.lines.size}))); sdotSig = sig; return SDOTS;
 }
 function renderOff(zi, T, k){
   const s = mapSize(), m = 0.3, odpr = LDPR();
@@ -552,7 +554,7 @@ function renderOff(zi, T, k){
       const w = world(s.p, zi); if(w[0] < box.x || w[1] < box.y || w[0] > box.x + box.w || w[1] > box.y + box.h) continue;
       const big = s.n > 1, rr = big ? r*1.35 : r;
       g.beginPath(); g.arc(w[0], w[1], rr, 0, 7); g.fillStyle = dark ? '#1b1c1f' : '#fff'; g.fill(); g.strokeStyle = dark ? '#e6e6e6' : '#1b1c1f'; g.stroke();
-      if(names){ g.lineWidth = 3; g.strokeStyle = dark ? 'rgba(0,0,0,.85)' : 'rgba(255,255,255,.95)'; g.strokeText(s.name, w[0] + rr + 4, w[1]);
+      if(names && s.name){ g.lineWidth = 3; g.strokeStyle = dark ? 'rgba(0,0,0,.85)' : 'rgba(255,255,255,.95)'; g.strokeText(s.name, w[0] + rr + 4, w[1]);
         g.fillStyle = dark ? '#eee' : '#1b1c1f'; g.fillText(s.name, w[0] + rr + 4, w[1]); g.lineWidth = Math.max(1.5, W*0.3); }
     }
   }
@@ -1954,10 +1956,16 @@ function routeWarn0(j){
   if(!worst) return j.legs.some(L => L.disrupted) ? '<div class="warn">⚠ Disruption on this route</div>' : '';
   return `<div class="warn"${worst.s.planned ? ` title="${esc(worst.s.reasons[0] || '')}"` : ''}>⚠ ${esc(worst.s.text)} on the ${esc(worst.name)}${/line$|^dlr$|^trams?$/i.test(worst.name) ? '' : ' line'}${worst.s.planned ? ' at that time (planned works)' : ''}</div>`;
 }
+// "Leave in 4 min" for routes starting within the hour
+function leaveIn(j){ const m = Math.floor((j.dep - Date.now())/60000); if(m > 59 || m < -1) return '';
+  return `<small class="lv ${m <= 2 ? 'now' : ''}">${m <= 0 ? 'Leave now' : 'Leave in ' + m + ' min'}</small>`; }
+setInterval(() => { if(!J.active && J.options && J.options.length && document.visibilityState === 'visible') for(const el of document.querySelectorAll('.opt')) {
+  const j = J.options[+el.dataset.i], o = el.querySelector('.lv'), h = j ? leaveIn(j) : '';
+  if(o) h ? o.outerHTML = h : o.remove(); else if(h) el.querySelector('.opt-top b').insertAdjacentHTML('afterend', h); } }, 30000);
 function renderOptions(el = $(J.optEl || 'options')){
   el.innerHTML = saveBar() + J.options.map((j, i) => `
     <button class="opt ${i===J.sel?'sel':''}" data-i="${i}">
-      <div class="opt-top"><b>${hhmm(j.dep)} → ${hhmm(j.arr)}</b><span>${j.fare ? `<small class="fare">${esc(j.fare)}</small> · ` : ''}${mins(j.arr-j.dep)} min</span></div>
+      <div class="opt-top"><b>${hhmm(j.dep)} → ${hhmm(j.arr)}</b>${leaveIn(j)}<span>${j.fare ? `<small class="fare">${esc(j.fare)}</small> · ` : ''}${mins(j.arr-j.dep)} min</span></div>
       <div class="pills">${j.legs.map(pill).join('<span class="sep">›</span>')}</div>
       ${routeWarn(j)}${j.note ? `<div class="muted" style="font-size:12px">${esc(j.note)}</div>` : ''}
 
