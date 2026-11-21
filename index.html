@@ -11,7 +11,7 @@
 /* London Live Trains — every Tube, DLR, Overground, Elizabeth line and tram train, live on Google Maps.
    (Shares its train engine and map code with London Journey: ../journey/index.html)
    URL options: ?kiosk=1  ?theme=dark|light  ?lines=victoria,central  ?modes=tube,dlr,...  ?view=lat,lon,zoom
-   ?board=Oxford Circus (TV departure board)  ?tour=1 (follow a different train every minute; T key)  ?refresh=30  ?fps=30  ?app_key=TFLKEY  ?debug=1  ·  Keys: K kiosk, D dark/light, / search
+   ?auto=1 (TV: overview, tour and departure boards in turn)  ?board=Oxford Circus (TV departure board)  ?tour=1 (follow a different train every minute; T key)  ?refresh=30  ?fps=30  ?app_key=TFLKEY  ?debug=1  ·  Keys: K kiosk, D dark/light, / search
    Old notes from the Journey page follow, unchanged:
    Journeys: Google directions (all transport, anywhere). Live London data: TfL Unified API. Map: Google Maps.
    URL options: ?sim=1 (test mode: drag the blue marker)  ?theme=dark|light  ?app_key=TFLKEY  ?debug=1 */
@@ -1367,6 +1367,22 @@ setInterval(() => {
 }, 1000);
 if(FW.tour) setTimeout(() => { FW.tourAt = 0; }, 15000);
 
+// ---------- TV auto mode (?auto=1): overview → tour → departure board, on repeat ----------
+const AUTO = {on:Q.get('auto') === '1', step:-1, at:0, boards:(Q.get('board') ? [Q.get('board')] : ["King's Cross", 'Waterloo', 'Oxford Circus', 'Stratford', 'London Bridge', 'Victoria'])};
+const AUTO_STEPS = [['overview', 120], ['tour', 180], ['board', 60]];
+function autoNext(){
+  AUTO.step = (AUTO.step + 1) % AUTO_STEPS.length; AUTO.at = Date.now();
+  const [kind] = AUTO_STEPS[AUTO.step];
+  stopFollow(); closeBoard();
+  if(kind === 'overview'){ map.panTo(LL(HOME[0])); map.setZoom(Math.round(HOME[1])); }
+  else if(kind === 'tour'){ FW.tour = true; FW.tourAt = 0; }
+  else { const name = AUTO.boards[AUTO.n = ((AUTO.n ?? -1) + 1) % AUTO.boards.length], st = findStation(name);
+    if(st){ openBoard(st); map.panTo(LL(st.p)); map.setZoom(14); } else autoNext(); }
+}
+if(AUTO.on){ document.body.classList.add('kiosk');
+  setInterval(() => { if(!ACTIVE.every(l => l.layer)) return; // wait until all lines are loaded
+    if(AUTO.step < 0 || Date.now() - AUTO.at > AUTO_STEPS[AUTO.step][1]*1000) autoNext(); }, 2000); }
+
 // ---------- kiosk, clock, re-centre, keys ----------
 if(Q.get('kiosk') === '1') document.body.classList.add('kiosk');
 $('bKiosk').onclick = () => document.body.classList.toggle('kiosk');
@@ -1384,7 +1400,7 @@ tick(); setInterval(tick, 1000);
 map.addListener('dragstart', () => { $('tip').style.display = 'none'; hover = null; });
 map.addListener('zoom_changed', () => { $('tip').style.display = 'none'; hover = null; });
 renderModeChips(); renderLegend(); syncMapMenu();
-if(DEBUG) window.LLT = {trains, ACTIVE, BY, placeTrain, segTime, refresh, map, draw, goStation, searchStations};
+if(DEBUG) window.LLT = {AUTO, autoNext: () => autoNext(), trains, ACTIVE, BY, placeTrain, segTime, refresh, map, draw, goStation, searchStations};
 
 // ---------- boot ----------
 (async () => {
