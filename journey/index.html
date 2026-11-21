@@ -512,10 +512,10 @@ let OFF = null;
 // one dot per station on the lines that are showing (same name within 500 m = one station)
 let SDOTS = null, sdotSig = '';
 function stationDots(){
-  const sig = lpathSig + ACTIVE.length;
+  const sig = lpathSig + ACTIVE.length + ACTIVE.map(l => l.on === false ? 0 : 1).join('');
   if(SDOTS && sig === sdotSig) return SDOTS;
   const by = new Map();
-  for(const l of ACTIVE){ if(l.mode === 'bus' || !l.stops || !(lineStyle(l).opacity > 0)) continue;
+  for(const l of ACTIVE){ if(l.mode === 'bus' || !l.stops || l.on === false || !(lineStyle(l).opacity > 0)) continue; // hidden lines: no dots
     for(const s of Object.values(l.stops)){
       const name = s.n.replace(/\s*\((?:[^)]*line|H&C|Circle Line|[^)]*Underground)[^)]*\)\s*/i, ' ').replace(/-Underground$/i, '').replace(/^London /, '').replace(/\s+/g, ' ').trim();
       const k = name.toLowerCase(); let d = by.get(k);
@@ -2281,7 +2281,7 @@ $('nearby').addEventListener('click', e => {
 // tap a station on the map: its live departures
 function stationAt(x, y, r){
   if(!PV) return null; let best = null, bd = r || (matchMedia('(pointer:coarse)').matches ? 26 : 16);
-  for(const s of stationIdx()){ if(![...s.lines].some(id => BY[id] && shown(BY[id]))) continue;
+  for(const s of stationIdx()){ if(![...s.lines].some(id => BY[id] && BY[id].on !== false && shown(BY[id]))) continue;
     const c = scr(s.p), d = Math.hypot(c.x - x, c.y - y); if(d < bd){ bd = d; best = s; } }
   return best;
 }

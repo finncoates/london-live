@@ -66,6 +66,8 @@ little value on a map), crowding (TfL crowding API is patchy), weather, social f
 | Planned works for later trips: routes and reminders an hour or more ahead show TfL's planned closures/reduced service for that time, not today's live problems | Journey |
 | Earlier / Later buttons under route options (moves the time by 15 min) | Journey |
 | Station taps on both maps no longer also pop up a train's info card | both |
+| Legend: Show all / Hide all (hide all, then tap a line = just that line); hidden lines lose their station dots | Live map |
+| Bookmarkable stations: `?station=Bank` opens its next trains; the address updates when you open a station | Live map |
 
 ## Next ideas (not built yet)
 - Switch on live National Rail (waiting on the key; `rail/SETUP.md`).

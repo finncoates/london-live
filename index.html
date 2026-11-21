@@ -11,7 +11,7 @@
 /* London Live Trains — every Tube, DLR, Overground, Elizabeth line and tram train, live on Google Maps.
    (Shares its train engine and map code with London Journey: ../journey/index.html)
    URL options: ?kiosk=1  ?theme=dark|light  ?lines=victoria,central  ?modes=tube,dlr,...  ?view=lat,lon,zoom
-   ?auto=1 (TV: overview, tour and departure boards in turn)  ?board=Oxford Circus (TV departure board)  ?tour=1 (follow a different train every minute; T key)  ?refresh=30  ?fps=30  ?app_key=TFLKEY  ?debug=1  ·  Keys: K kiosk, D dark/light, / search
+   ?auto=1 (TV: overview, tour and departure boards in turn)  ?board=Oxford Circus (TV departure board)  ?station=Oxford Circus (open a station's next trains)  ?tour=1 (follow a different train every minute; T key)  ?refresh=30  ?fps=30  ?app_key=TFLKEY  ?debug=1  ·  Keys: K kiosk, D dark/light, / search
    Old notes from the Journey page follow, unchanged:
    Journeys: Google directions (all transport, anywhere). Live London data: TfL Unified API. Map: Google Maps.
    URL options: ?sim=1 (test mode: drag the blue marker)  ?theme=dark|light  ?app_key=TFLKEY  ?debug=1 */
@@ -158,6 +158,7 @@ body.dark #simnote{background:#1f2a44;color:#c6dafc}
 .deps b{white-space:nowrap;font-variant-numeric:tabular-nums}
 #mModes{margin:0 0 8px}
 #legend{display:grid;gap:0}
+.lgall{display:flex;justify-content:flex-end;gap:14px;margin:2px 0 4px}.lgall button{background:none;border:0;padding:4px 2px;color:var(--mute);font-size:12.5px;font-weight:600;cursor:pointer}.lgall button:hover{color:var(--ink)}
 .row{display:flex;align-items:center;gap:8px;padding:4px 2px;border:0;background:none;border-radius:6px;font-size:14px;text-align:left;width:100%}
 .row:hover{background:var(--soft)}
 .row .sw{width:22px;height:6px;border-radius:3px;flex:none}
@@ -228,6 +229,7 @@ body.kiosk #map{bottom:0!important}
   </div>
   <div class="chips" id="mModes" aria-label="Show transport types"></div>
   <div id="sbox"></div>
+  <div class="lgall" id="lgAll"><button type="button" data-all="1">Show all lines</button><button type="button" data-all="0">Hide all</button></div>
   <div id="legend"></div>
   <div id="err"></div>
 </div>
@@ -493,10 +495,10 @@ let OFF = null;
 // one dot per station on the lines that are showing (same name within 500 m = one station)
 let SDOTS = null, sdotSig = '';
 function stationDots(){
-  const sig = lpathSig + ACTIVE.length;
+  const sig = lpathSig + ACTIVE.length + ACTIVE.map(l => l.on === false ? 0 : 1).join('');
   if(SDOTS && sig === sdotSig) return SDOTS;
   const by = new Map();
-  for(const l of ACTIVE){ if(l.mode === 'bus' || !l.stops || !(lineStyle(l).opacity > 0)) continue;
+  for(const l of ACTIVE){ if(l.mode === 'bus' || !l.stops || l.on === false || !(lineStyle(l).opacity > 0)) continue; // hidden lines: no dots
     for(const s of Object.values(l.stops)){
       const name = s.n.replace(/\s*\((?:[^)]*line|H&C|Circle Line|[^)]*Underground)[^)]*\)\s*/i, ' ').replace(/-Underground$/i, '').replace(/^London /, '').replace(/\s+/g, ' ').trim();
       const k = name.toLowerCase(); let d = by.get(k);
@@ -1235,6 +1237,9 @@ function renderStatusBox(){
 }
 $('sbox').addEventListener('click', e => { if(e.target.closest('#sbT')){ sboxOpen = !sboxOpen; renderStatusBox(); } });
 window.onStatus = renderLegend;
+// show / hide every line at once (hide all, then tap one = just that line)
+$('lgAll').addEventListener('click', e => { const b = e.target.closest('[data-all]'); if(!b) return; const on = b.dataset.all === '1';
+  for(const l of ACTIVE) if(l.mode !== 'bus'){ l.on = on; l.layer && l.layer.eachLayer(p => p.setStyle(lineStyle(l))); } renderLegend(); });
 $('legend').addEventListener('click', e => {
   const r = e.target.closest('.row'); if(!r) return;
   const l = BY[r.dataset.id]; l.on = !l.on;
@@ -1308,17 +1313,20 @@ $('q').addEventListener('keydown', e => {
   if(e.key === 'ArrowDown' && n){ e.preventDefault(); SR.sel = (SR.sel + 1) % n; renderResults(); }
   else if(e.key === 'ArrowUp' && n){ e.preventDefault(); SR.sel = (SR.sel - 1 + n) % n; renderResults(); }
   else if(e.key === 'Enter' && SR.sel >= 0){ e.preventDefault(); goStation(SR.items[SR.sel]); }
-  else if(e.key === 'Escape'){ $('q').value = ''; SR.items = []; renderResults(); clearFocus(); }
+  else if(e.key === 'Escape'){ $('q').value = ''; SR.items = []; renderResults(); clearFocus(); setStationUrl(null); }
 });
 $('sres').addEventListener('mousedown', e => e.preventDefault());
 $('q').addEventListener('blur', () => setTimeout(() => { $('sres').hidden = true; }, 150));
 $('sres').addEventListener('click', e => { const li = e.target.closest('li[data-i]'); if(li) goStation(SR.items[+li.dataset.i]); });
 
+// keep the open station in the address, so it can be bookmarked or shared
+function setStationUrl(name){ try{ const u = new URL(location.href); name ? u.searchParams.set('station', name) : u.searchParams.delete('station'); history.replaceState(null, '', u); }catch(e){} }
 // the chosen station: zoom in, mark it, list its next trains
 let focusMarker = null, focusTimer = 0;
 function clearFocus(){ if(focusMarker){ focusMarker.setMap(null); focusMarker = null; } $('station').hidden = true; clearInterval(focusTimer); }
 async function goStation(st){
   clearFocus(); FOCUS_ST = st; $('tip').style.display = 'none';
+  setStationUrl(st.name);
   $('q').value = st.name; SR.items = []; $('sres').hidden = true; $('q').setAttribute('aria-expanded', 'false'); $('q').blur();
   map.panTo(LL(st.p)); map.setZoom(15);
   const col = BY[[...st.lines][0]].colour;
@@ -1341,7 +1349,7 @@ async function goStation(st){
   load(); focusTimer = setInterval(load, 30000);
 }
 $('station').addEventListener('click', e => {
-  if(e.target.closest('#stClose')){ clearFocus(); $('q').value = ''; }
+  if(e.target.closest('#stClose')){ clearFocus(); $('q').value = ''; setStationUrl(null); }
   if(e.target.closest('#stBoard') && FOCUS_ST){ openBoard(FOCUS_ST); }
 });
 // ---------- departure board ----------
@@ -1394,7 +1402,7 @@ function stationAt(x, y, r){
   if(map.getZoom() < 13) return null;
   if(!STATIONS || STATIONS.length < 50) STATIONS = stationIndex();
   let best = null, bd = r || (matchMedia('(pointer:coarse)').matches ? 22 : 14);
-  for(const st of STATIONS){ if(![...st.lines].some(id => BY[id] && lineStyle(BY[id]).opacity > 0)) continue;
+  for(const st of STATIONS){ if(![...st.lines].some(id => BY[id] && BY[id].on !== false && lineStyle(BY[id]).opacity > 0)) continue;
     const q = scr(st.p), d = Math.hypot(q.x - x, q.y - y); if(d < bd){ bd = d; best = st; } }
   return best;
 }
@@ -1458,6 +1466,7 @@ if(DEBUG) window.LLT = {AUTO, autoNext: () => autoNext(), trains, ACTIVE, BY, pl
   }));
   STATIONS = null; renderModeChips(); renderLegend();
   if(Q.get('board')){ const st = findStation(Q.get('board')); if(st){ openBoard(st); map.panTo(LL(st.p)); map.setZoom(14); } }
+  else if(Q.get('station')){ const st = findStation(Q.get('station')); if(st) goStation(st); } // bookmarkable: ?station=Oxford Circus
   for(;;){
     let good = false;
     try{ good = await refresh(); }catch(e){ $('err').textContent = 'Error: ' + e.message; console.error(e); }
