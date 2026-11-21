@@ -150,6 +150,7 @@ body.dark #simnote{background:#1f2a44;color:#c6dafc}
 .st-h{display:flex;align-items:center;justify-content:space-between;font-size:16px}
 .st-h .x{padding:4px 8px;font-size:12px}
 .st-lines{display:flex;flex-wrap:wrap;gap:4px;margin:6px 0 4px}
+.st-warn{font-size:12px;line-height:1.35;padding:5px 8px;border-radius:8px;margin:4px 0}.st-warn b{font-weight:700}
 .deps{list-style:none;margin:6px 0 0;padding:0;display:grid;gap:6px}
 .deps li{display:flex;align-items:center;gap:8px;font-size:13.5px}
 .deps .sw{width:4px;align-self:stretch;border-radius:2px;flex:none}
@@ -1333,11 +1334,15 @@ async function goStation(st){
   focusMarker = new google.maps.Marker({position:LL(st.p), map, zIndex:50, clickable:false,
     icon:{path:google.maps.SymbolPath.CIRCLE, scale:14, fillColor:'#fff', fillOpacity:.25, strokeColor:ink(col), strokeWeight:4}});
   const box = $('station'); box.hidden = false;
-  const head = `<div class="st-h"><b>${esc(st.name)}</b><button type="button" class="x" id="stClose" aria-label="Close">✕</button></div>
+  const head0 = () => `<div class="st-h"><b>${esc(st.name)}</b><button type="button" class="x" id="stClose" aria-label="Close">✕</button></div>
     <div class="st-actions"><button type="button" id="stBoard">Show as TV board</button></div>
-    <div class="st-lines">${[...st.lines].map(id => `<span class="pill" style="--c:${BY[id].colour}">${symbol(BY[id].mode==='tube'?'tube':BY[id].mode, BY[id].colour, 14)} ${esc(BY[id].name)}</span>`).join('')}</div>`;
+    <div class="st-lines">${[...st.lines].map(id => `<span class="pill" style="--c:${BY[id].colour}">${symbol(BY[id].mode==='tube'?'tube':BY[id].mode, BY[id].colour, 14)} ${esc(BY[id].name)}</span>`).join('')}</div>`
+    + [...st.lines].map(id => { const x = lineStatus(id); if(!x || !x.lv) return ''; const why = (x.reasons[0] || '').replace(/\s*(Good service|Valid tickets).*$/i, '');
+      return `<div class="st-warn st${x.lv}" title="${esc(why)}"><b>${esc(BY[id].name)}: ${esc(x.text)}</b>${why ? ' · ' + esc(why.length > 90 ? why.slice(0, 90).replace(/\s+\S*$/, '') + '…' : why) : ''}</div>`; }).join(''); // problems on this station's lines (rebuilt on each refresh: status may arrive later)
+  let head = head0();
   box.innerHTML = head + '<div class="muted">Loading next trains…</div>';
   const load = async () => {
+    head = head0();
     const all = (await Promise.all([...st.ids].slice(0, 5).map(id => /^[A-Z]{3}$/.test(id) ? railArrivals(id) : get(`/StopPoint/${id}/Arrivals`).catch(() => [])))).flat()
       .filter(a => st.lines.has(a.lineId) || a.rail);
     const seen = new Set(), rows = all.sort((a, b) => a.timeToStation - b.timeToStation)
