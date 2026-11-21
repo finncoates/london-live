@@ -1381,7 +1381,7 @@ async function enrichLeg(L){
   const l = L.tflBus ? await addLine(L.tflBus, L.lineName, '#DC241F', 'bus') : BY[L.tflLine];
   if(!l || !l.layer) return; // not loaded yet: tried again on the next check
   // the right stops in the right direction: a route that calls at a stop near each end, in order
-  const near = (p, max) => Object.keys(l.stops).filter(id => dist(l.stops[id].p, p) < max);
+  const near = (p, max) => Object.keys(l.stops).filter(id => dist(l.stops[id].p, p) < max).sort((a, b) => dist(l.stops[a].p, p) - dist(l.stops[b].p, p)); // nearest first
   const A = near(L.from.p, 300), B = near(L.to.p, 300);
   for(const r of l.routes) for(const a of A){ const ia = r.ids.indexOf(a); if(ia < 0) continue;
     for(const b of B){ if(r.ids.indexOf(b) > ia){ L.line = l.id; L.from.id = a; L.to.id = b; return; } } }
@@ -1849,6 +1849,7 @@ async function adoptPlan(j, keepBase){
   // a quiet time update keeps the "expected when you set off" baseline, so lateness stays honest
   Object.assign(J, {plan:j, idx:0, riding:keepRiding, suggestion:null, dismissed:null, baseArr:keepBase ? J.baseArr : null, gen:(J.gen||0) + 1});
   if(!keepRiding) J.vehicle = null;
+  { const last = j.legs[j.legs.length-1]; if(last && last.walk && last.kind === 'walk' && !j.chain && J.to && J.to.label){ last.summary = 'Walk to ' + J.to.label; last.to.name = J.to.label; } }
   if(j.chain) J.to = {label:j.chain[j.chain.length-1].label || J.to.label, q:j.chain[j.chain.length-1].q};
   drawJourney(J.plan, routeLayer); altLayer.clearLayers();
   await Promise.all(J.plan.legs.map(L => enrichLeg(L).catch(() => {})));
