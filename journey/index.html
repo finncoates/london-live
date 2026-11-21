@@ -132,6 +132,12 @@ body.dark .alert{color:#0e0f12}
 .prefs button{flex:none;font-size:12.5px;padding:5px 10px;border-radius:99px}
 .prefs button.sel{background:var(--ink);color:var(--bg);border-color:var(--ink);font-weight:600}
 .wm{border:0;background:none;padding:0 6px 0 0;font-size:12px;color:var(--acc);font-weight:600;white-space:nowrap;min-width:44px;text-align:left}
+.rem{background:var(--soft);border-radius:12px;padding:10px 12px;margin-top:10px;display:grid;gap:4px}
+.rem-h{display:flex;justify-content:space-between;align-items:baseline;gap:8px}
+.rem-h b{font-size:15px} .rem-h small{color:var(--mute);font-size:12px;white-space:nowrap}
+.rem .big{font-size:20px;font-weight:700}
+.rem .big.soon{color:var(--bad)}
+.rem .row2 button{font-size:13px;padding:6px 10px}
 .note{background:var(--soft);border-radius:10px;padding:8px 10px;font-size:13px;margin-bottom:10px}
 .opt{text-align:left;display:grid;gap:6px;padding:10px 12px}
 .opt.sel{border-color:var(--acc);box-shadow:0 0 0 1px var(--acc) inset}
@@ -222,6 +228,7 @@ body.dark #simnote{background:#1f2a44;color:#c6dafc}
     <div class="prefs" id="prefs" role="group" aria-label="Route preference">
       <button type="button" data-pref="fastest">Fastest</button><button type="button" data-pref="fewer">Fewer changes</button><button type="button" data-pref="walk">Less walking</button><button type="button" data-pref="stepfree">♿ Step-free</button>
     </div>
+    <div id="reminders"></div>
     <div id="quick" class="quick"></div>
     <div id="options"></div>
     <div id="sbox"></div>
@@ -1837,7 +1844,7 @@ function renderOptions(el = $(J.optEl || 'options')){
       <div class="pills">${j.legs.map(pill).join('<span class="sep">›</span>')}</div>
       ${routeWarn(j)}${j.note ? `<div class="muted" style="font-size:12px">${esc(j.note)}</div>` : ''}
 
-    </button>`).join('') + (J.options.length ? `<div class="row2"><button id="go" class="primary" style="flex:1">Start journey</button>${J.optEl === 'options' ? '<button type="button" id="custom" title="Change the steps of this route in Build my route">Customise</button>' : ''}</div>` : '');
+    </button>`).join('') + (J.options.length ? `<div class="row2"><button id="go" class="primary" style="flex:1">Start journey</button>${J.optEl === 'options' ? '<button type="button" id="custom" title="Change the steps of this route in Build my route">Customise</button>' : ''}${J.options[J.sel] && J.options[J.sel].dep > Date.now() + 10*60000 ? '<button type="button" id="remind" title="Remind me when to leave">🔔 Remind me</button>' : ''}</div>` : '');
 }
 // Copy a planned route into "Build my route": one stop per change, one mode per vehicle
 function customise(j){
@@ -1980,6 +1987,59 @@ function renderActive(force){
   setHTML($('steps'), J.plan.legs.map(legRow).join(''));
   $('gmaps').href = gmapsLink(J.plan);
 }
+
+// ----- "leave by" reminders for planned trips -----
+// Saved in localStorage; while the page is open (on screen or in a background tab) they are re-checked with
+// live times 25 and 10 minutes before leaving, and you're alerted 5 minutes before and when it's time to go.
+const RM = {get(){ try{ return JSON.parse(localStorage.getItem('reminders')) || []; }catch(e){ return []; } },
+  set(v){ try{ localStorage.setItem('reminders', JSON.stringify(v)); }catch(e){} }};
+function addReminder(j){
+  const r = {id:Date.now().toString(36), to:{...J.to}, from:J.from && J.from.label ? {...J.from} : null,
+    arriveBy:whenMode === 'arrive' && $('when').value ? j.arr : null, dep:j.dep, arr:j.arr, plan:j, checked:[], fired:[], note:null};
+  RM.set([...RM.get().filter(x => x.dep > Date.now() - 3600e3), r].sort((a, b) => a.dep - b.dep));
+  try{ if('Notification' in window && Notification.permission === 'default') Notification.requestPermission(); }catch(e){}
+  toast(`Reminder set: leave at ${hhmm(j.dep)}`); renderReminders();
+}
+function renderReminders(){
+  const el = $('reminders'); if(!el) return; const n = Date.now();
+  const list = RM.get().filter(r => r.arr > n);
+  el.innerHTML = list.map(r => { const left = r.dep - n, soon = left < 10*60000;
+    const inTxt = left <= 0 ? 'now' : left < 3600e3 ? `in ${Math.ceil(left/60000)} min` : `in ${Math.floor(left/3600e3)} h ${Math.round(left%3600e3/60000)} min`;
+    return `<div class="rem" data-id="${r.id}"><div class="rem-h"><b>🔔 ${esc(r.to.label)}</b><small>${r.arriveBy ? 'arrive by ' + hhmm(r.arriveBy) : 'arrive ' + hhmm(r.arr)}</small></div>
+      <div class="big ${soon ? 'soon' : ''}">Leave ${hhmm(r.dep)} · ${inTxt}</div>
+      <div class="pills">${r.plan.legs.map(pill).join('<span class="sep">›</span>')}</div>
+      ${r.note ? `<div class="warn">${esc(r.note)}</div>` : ''}
+      <div class="row2"><button type="button" class="primary" data-rs="start">Start</button><button type="button" data-rs="del">Remove</button><span class="muted" style="font-size:11.5px">Alerts work while this page is open</span></div></div>`; }).join('');
+}
+$('reminders').addEventListener('click', e => {
+  const b = e.target.closest('[data-rs]'), box = e.target.closest('.rem'); if(!b || !box) return;
+  const list = RM.get(), r = list.find(x => x.id === box.dataset.id); if(!r) return;
+  if(b.dataset.rs === 'del'){ RM.set(list.filter(x => x !== r)); renderReminders(); return; }
+  RM.set(list.filter(x => x !== r)); J.to = r.to; $('to').value = r.to.label; startJourney(r.plan); renderReminders();
+});
+async function checkReminders(){
+  const list = RM.get(), n = Date.now(); let changed = false;
+  for(const r of list){
+    const left = r.dep - n;
+    // re-check with live times
+    for(const at of [25, 10]) if(left < at*60000 && left > 0 && !r.checked.includes(at)){
+      r.checked.push(at); changed = true;
+      try{
+        const from = r.from ? r.from.q : me ? `${me[0].toFixed(5)},${me[1].toFixed(5)}` : null; if(!from) continue;
+        ARRIVE = !!r.arriveBy; const res = await planGoogle(from, r.to.q, r.arriveBy || r.dep); ARRIVE = false;
+        const sig = signature(r.plan.legs), same = res.journeys.find(j => signature(j.legs) === sig), best = same || res.journeys[0];
+        if(best){ if(Math.abs(best.dep - r.dep) > 120000) r.note = `Times changed: now leave at ${hhmm(best.dep)} (was ${hhmm(r.dep)}).`;
+          if(!same) r.note = `Your planned route isn't available — new route leaves at ${hhmm(best.dep)}.`;
+          Object.assign(r, {dep:best.dep, arr:best.arr, plan:best}); if(r.note) notify('Trip update: ' + r.to.label, r.note); }
+      }catch(e){ ARRIVE = false; }
+    }
+    if(left < 5*60000 && left > 0 && !r.fired.includes(5)){ r.fired.push(5); changed = true; notify(`Leave in 5 min for ${r.to.label}`, `Leave at ${hhmm(r.dep)}`); toast(`Leave in 5 min for ${r.to.label}`); }
+    if(left <= 0 && left > -10*60000 && !r.fired.includes(0)){ r.fired.push(0); changed = true; notify(`Time to go: ${r.to.label}`, 'Tap to start your journey'); toast(`Time to go: ${r.to.label}`); }
+  }
+  if(changed) RM.set(list);
+  renderReminders();
+}
+setInterval(checkReminders, 30000); setTimeout(checkReminders, 3000);
 
 // ----- route preference -----
 function renderPrefs(){ for(const b of $('prefs').children) b.classList.toggle('sel', b.dataset.pref === PREF); }
@@ -2269,6 +2329,7 @@ $('options').addEventListener('click', e => {
   else if(a){ const end = a.dataset.end === 'From' ? 'from' : 'to'; J[end] = {label:a.dataset.label, q:a.dataset.q}; $(end).value = a.dataset.label; search(); }
   else if(e.target.id === 'go') startJourney(J.options[J.sel]);
   else if(e.target.id === 'custom') customise(J.options[J.sel]);
+  else if(e.target.id === 'remind') addReminder(J.options[J.sel]);
 });
 $('banner').addEventListener('click', e => { if(e.target.id==='bSwitch') switchRoute(); if(e.target.id==='bKeep') keepRoute(); });
 $('bEnd').onclick = endJourney;
