@@ -138,6 +138,7 @@ body.dark .alert{color:#0e0f12}
 .rem .big{font-size:20px;font-weight:700}
 .rem .big.soon{color:var(--bad)}
 .rem .row2 button{font-size:13px;padding:6px 10px}
+.cmode .sfb{font-size:15px;line-height:1;padding:5px 7px;margin-left:auto}
 .note{background:var(--soft);border-radius:10px;padding:8px 10px;font-size:13px;margin-bottom:10px}
 .opt{text-align:left;display:grid;gap:6px;padding:10px 12px}
 .opt.sel{border-color:var(--acc);box-shadow:0 0 0 1px var(--acc) inset}
@@ -1238,6 +1239,7 @@ function parseJourney(j){
 // same services from the same places (stop ids aren't used: they're only filled in once a journey starts)
 const signature = legs => legs.filter(L => !L.walk).map(L => (L.lineName||L.line||L.mode) + '@' + L.from.p.map(x => x.toFixed(3))).join('|');
 
+let TFL_MODES = null; // optional TfL mode filter (step-free steps in Build my route)
 // "Arrive by" (search only; re-planning while travelling always departs now)
 let ARRIVE = false;
 // route preference: fastest | fewer (changes) | walk (less walking) | stepfree (TfL, London only)
@@ -1246,7 +1248,7 @@ async function planJourneys(from, to, when){
   const p = ldnParts(when || Date.now());
   const jp = PREF === 'fewer' ? 'leastinterchange' : PREF === 'walk' ? 'leastwalking' : 'leasttime';
   const acc = PREF === 'stepfree' ? '&accessibilityPreference=NoSolidStairs,NoEscalators,StepFreeToPlatform' : '';
-  const qs = `?timeIs=${ARRIVE ? 'Arriving' : 'Departing'}&journeyPreference=${jp}${acc}&date=${p.year}${p.month}${p.day}&time=${p.hour}${p.minute}`;
+  const qs = `?${TFL_MODES ? 'mode=' + TFL_MODES + ',walking&' : ''}timeIs=${ARRIVE ? 'Arriving' : 'Departing'}&journeyPreference=${jp}${acc}&date=${p.year}${p.month}${p.day}&time=${p.hour}${p.minute}`;
   const url = API + `/Journey/JourneyResults/${encodeURIComponent(from)}/to/${encodeURIComponent(to)}` + qs + (KEY?'&'+KEY:'');
   const r = await fetch(url);
   if(r.status === 300){ const d = await r.json(); return {ambiguous:d}; }
@@ -1400,18 +1402,38 @@ async function planSegment(from, to, modeId, t, toLabel){
   if(last.walk && /^Walk/.test(last.summary)) last.summary = `Walk to ${name}`;
   return {legs:j.legs, arr:j.arr, endQ};
 }
-async function planChain(qs, labels, modes, when){
+// A step-free step (London): TfL's step-free planner for that kind of transport, else buses (all step-free)
+const TFL_MODE_OF = {train:'national-rail,overground,elizabeth-line', tube:'tube,dlr', bus:'bus', tram:'tram', any:null};
+async function planStepFree(from, to, modeId, t, toLabel){
+  const g = await planSegment(from, to, modeId, t, toLabel); // also gives us exact start/end points
+  const a = g.legs[0].from.p, b = g.legs[g.legs.length-1].to.p;
+  if(!inLondonP(a) || !inLondonP(b)) return {...g, note:'Step-free planning is only available in London'};
+  const savedP = PREF, savedM = TFL_MODES; PREF = 'stepfree'; TFL_MODES = TFL_MODE_OF[modeId] || null;
+  try{
+    const r = await planJourneys(a.map(x => x.toFixed(5)).join(','), b.map(x => x.toFixed(5)).join(','), t).catch(() => null);
+    const j = r && r.journeys && r.journeys[0];
+    if(j){ const last = j.legs[j.legs.length-1]; if(last.walk && toLabel){ last.to.name = toLabel; last.summary = 'Walk to ' + toLabel; }
+      for(const L of j.legs) if(!L.walk && BY[L.line]) L.tflLine = L.line;
+      return {legs:j.legs, arr:j.arr, endQ:g.endQ, stepfree:true}; }
+  } finally { PREF = savedP; TFL_MODES = savedM; }
+  if(modeId === 'bus') return {...g, stepfree:true};
+  const bus = await planSegment(from, to, 'bus', t, toLabel).catch(() => null);
+  return bus ? {...bus, stepfree:true, note:'No step-free ' + CM[modeId].name.toLowerCase() + ' route, so this step uses buses'} : {...g, note:'No step-free route found for this step'};
+}
+async function planChain(qs, labels, modes, when, sf = []){
   await loadGoogle();
-  const legs = [], chain = []; let t = when || Date.now(), from = qs[0];
+  const legs = [], chain = [], notes = []; let t = when || Date.now(), from = qs[0];
   for(let i=0; i<modes.length; i++){
-    const seg = await planSegment(from, qs[i+1], modes[i], t, labels[i+1]);
+    const transit = CM[modes[i]].g === 'TRANSIT';
+    const seg = transit && sf[i] ? await planStepFree(from, qs[i+1], modes[i], t, labels[i+1]) : await planSegment(from, qs[i+1], modes[i], t, labels[i+1]);
+    if(seg.note) notes.push(`Step ${i+1}: ${seg.note}`);
     for(const L of seg.legs) L.seg = i;
     legs.push(...seg.legs);
-    chain.push({mode:modes[i], label:labels[i+1] || '', q:seg.endQ});
+    chain.push({mode:modes[i], label:labels[i+1] || '', q:seg.endQ, sf:!!sf[i]});
     t = seg.arr + (i < modes.length-1 && !(modes[i]==='walk' && modes[i+1]==='walk') ? 60000 : 0); // a minute to change
     from = seg.endQ;
   }
-  return {dep:legs[0].dep, arr:legs[legs.length-1].arr, legs, src:'google', chain};
+  return {dep:legs[0].dep, arr:legs[legs.length-1].arr, legs, src:'google', chain, note:notes.join(' · ') || null};
 }
 
 const planFor = j => j && j.src === 'google' ? planGoogle : planJourneys;
@@ -1648,7 +1670,7 @@ async function replan(why){
   let best;
   if(J.plan.chain){ // built route: re-plan the rest with the same modes, from here
     const rest = J.plan.chain.slice(L.seg || 0);
-    try{ best = await planChain([from, ...rest.map(c => c.q)], ['', ...rest.map(c => c.label)], rest.map(c => c.mode), when); }catch(e){ return; }
+    try{ best = await planChain([from, ...rest.map(c => c.q)], ['', ...rest.map(c => c.label)], rest.map(c => c.mode), when, rest.map(c => c.sf)); }catch(e){ return; }
   } else {
     let res; try{ res = await planFor(J.plan)(from, J.to.q, when); }catch(e){ return; }
     if(!res.journeys || !res.journeys.length) return;
@@ -1835,7 +1857,7 @@ function routeWarn(j){
   for(const L of j.legs){ const id = L.line || L.tflLine; const s = id && lineStatus(id);
     if(s && s.lv && (!worst || s.lv > worst.s.lv)) worst = {s, name:BY[id] ? BY[id].name : L.lineName}; }
   if(!worst) return j.legs.some(L => L.disrupted) ? '<div class="warn">⚠ Disruption on this route</div>' : '';
-  return `<div class="warn">⚠ ${esc(worst.s.text)} on the ${esc(worst.name)}${/line$/i.test(worst.name) ? '' : ' line'}</div>`;
+  return `<div class="warn">⚠ ${esc(worst.s.text)} on the ${esc(worst.name)}${/line$|^dlr$|^trams?$/i.test(worst.name) ? '' : ' line'}</div>`;
 }
 function renderOptions(el = $(J.optEl || 'options')){
   el.innerHTML = saveBar() + J.options.map((j, i) => `
@@ -2288,15 +2310,16 @@ function renderChain(){
     const lab = i === 0 ? 'From' : i === n-1 ? 'To' : 'Stop ' + i;
     rows.push(`<div class="cstop"><div class="field"><label for="cs${i}">${lab}</label><input id="cs${i}" data-i="${i}" value="${esc(s)}" placeholder="${i===0 ? 'My location' : 'Place, station or postcode'}"></div>${i > 0 && n > 2 ? `<button type="button" class="x" data-del="${i}" title="Remove this stop">✕</button>` : ''}</div>`);
     if(i < n-1){ const m = CH.modes[i];
-      rows.push(`<div class="cmode">${CMODES.map(x => `<button type="button" data-m="${i}" data-v="${x.id}" class="${x.id===m ? 'sel' : ''}" title="${x.name}" aria-label="${x.name}">${symbol(x.sym[0], x.sym[1], 20)}</button>`).join('')}<span class="lbl">Step ${i+1} by ${CM[m].name.toLowerCase()}</span></div>`); }
+      rows.push(`<div class="cmode">${CMODES.map(x => `<button type="button" data-m="${i}" data-v="${x.id}" class="${x.id===m ? 'sel' : ''}" title="${x.name}" aria-label="${x.name}">${symbol(x.sym[0], x.sym[1], 20)}</button>`).join('')}<span class="lbl">Step ${i+1} by ${CM[m].name.toLowerCase()}${CM[m].g === 'TRANSIT' && (CH.sf || [])[i] ? ', step-free' : ''}</span>${CM[m].g === 'TRANSIT' ? `<button type="button" class="sfb ${(CH.sf || [])[i] ? 'sel' : ''}" data-sf="${i}" title="Step-free for this step" aria-pressed="${!!(CH.sf || [])[i]}">♿</button>` : ''}</div>`); }
   });
   $('chain').innerHTML = rows.join('');
 }
 $('chain').addEventListener('input', e => { const i = e.target.dataset.i; if(i != null){ CH.stops[+i] = e.target.value; saveChain(); } });
 $('chain').addEventListener('click', e => {
   const b = e.target.closest('button'); if(!b) return;
-  if(b.dataset.m != null){ CH.modes[+b.dataset.m] = b.dataset.v; }
-  else if(b.dataset.del != null){ const i = +b.dataset.del; CH.stops.splice(i, 1); CH.modes.splice(Math.min(i, CH.modes.length-1), 1); }
+  if(b.dataset.sf != null){ CH.sf ||= []; CH.sf[+b.dataset.sf] = !CH.sf[+b.dataset.sf]; }
+  else if(b.dataset.m != null){ CH.modes[+b.dataset.m] = b.dataset.v; }
+  else if(b.dataset.del != null){ const i = +b.dataset.del; CH.stops.splice(i, 1); const k = Math.min(i, CH.modes.length-1); CH.modes.splice(k, 1); if(CH.sf) CH.sf.splice(k, 1); }
   saveChain(); renderChain();
 });
 $('bAddStop').onclick = () => { CH.stops.push(''); CH.modes.push('any'); saveChain(); renderChain(); $('chain').querySelector(`input[data-i="${CH.stops.length-1}"]`).focus(); };
@@ -2311,7 +2334,7 @@ async function planBuilt(){
   if($('whenB').value) when = leaveAt($('whenB').value);
   $('chainOut').innerHTML = '<div class="muted">Planning each step…</div>';
   try{
-    const j = await planChain(qs, labels, CH.modes, when);
+    const j = await planChain(qs, labels, CH.modes, when, CH.sf || []);
     J.to = {label:labels[labels.length-1], q:j.chain[j.chain.length-1].q};
     J.options = [j]; J.sel = 0; J.optEl = 'chainOut';
     renderOptions($('chainOut')); drawJourney(j, routeLayer); fitJourney(j);
