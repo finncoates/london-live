@@ -1054,6 +1054,7 @@ function nearest(x,y){
 const esc = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'})[c]);
 function showTip(e){
   const r = map.getDiv().getBoundingClientRect();
+  if(e.type === 'click' && map.getZoom() >= 13 && stationAt(e.clientX-r.left, e.clientY-r.top, matchMedia('(pointer:coarse)').matches ? 12 : 8)){ $('tip').style.display = 'none'; hover = null; return; } // a station tap
   const t = nearest(e.clientX-r.left, e.clientY-r.top); hover = t;
   const tip = $('tip');
   if(!t){ tip.style.display='none'; return; }

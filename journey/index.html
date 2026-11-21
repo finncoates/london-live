@@ -33,6 +33,7 @@ form{display:grid;gap:8px}
 .field label{font-size:12px;color:var(--mute);min-width:34px;white-space:nowrap}
 .field input{flex:1;border:0;background:transparent;color:var(--ink);font:inherit;padding:11px 0;min-width:0;outline:none}
 .row2{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.shift{display:flex;justify-content:space-between;margin-top:8px}.shift button{background:none;border:0;color:var(--acc);font-weight:600;font-size:14px;padding:8px 4px;cursor:pointer}
 .field input[type=time]{min-width:0;width:100%}
 button{font:inherit;font-size:14px;padding:9px 12px;border-radius:10px;border:1px solid var(--edge);background:var(--panel);color:var(--ink);cursor:pointer}
 button.primary{background:var(--acc);border-color:var(--acc);color:#fff;font-weight:600}
@@ -1076,6 +1077,7 @@ function nearest(x,y){
 const esc = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'})[c]);
 function showTip(e){
   const r = map.getDiv().getBoundingClientRect();
+  if(e.type === 'click' && !J.active && map.getZoom() >= 13 && stationAt(e.clientX-r.left, e.clientY-r.top, matchMedia('(pointer:coarse)').matches ? 12 : 8)){ $('tip').style.display = 'none'; hover = null; return; } // a station tap
   const t = nearest(e.clientX-r.left, e.clientY-r.top); hover = t;
   const tip = $('tip');
   if(!t){ tip.style.display='none'; return; }
@@ -1956,7 +1958,8 @@ function renderOptions(el = $(J.optEl || 'options')){
       <div class="pills">${j.legs.map(pill).join('<span class="sep">›</span>')}</div>
       ${routeWarn(j)}${j.note ? `<div class="muted" style="font-size:12px">${esc(j.note)}</div>` : ''}
 
-    </button>`).join('') + (J.options.length ? `<div class="row2"><button id="go" class="primary" style="flex:1">Start journey</button>${J.optEl === 'options' ? '<button type="button" id="custom" title="Change the steps of this route in Build my route">Customise</button>' : ''}${J.options[J.sel] && J.options[J.sel].dep > Date.now() + 10*60000 ? '<button type="button" id="remind" title="Remind me when to leave">🔔 Remind me</button>' : ''}</div>` : '');
+    </button>`).join('') + (J.options.length ? `<div class="row2"><button id="go" class="primary" style="flex:1">Start journey</button>${J.optEl === 'options' ? '<button type="button" id="custom" title="Change the steps of this route in Build my route">Customise</button>' : ''}${J.options[J.sel] && J.options[J.sel].dep > Date.now() + 10*60000 ? '<button type="button" id="remind" title="Remind me when to leave">🔔 Remind me</button>' : ''}</div>`
+    + (J.optEl === 'options' ? `<div class="shift"><button type="button" data-shift="-15">‹ Earlier</button><button type="button" data-shift="15">Later ›</button></div>` : '') : '');
 }
 // Copy a planned route into "Build my route": one stop per change, one mode per vehicle
 function customise(j){
@@ -2276,8 +2279,8 @@ $('nearby').addEventListener('click', e => {
   const k = c.dataset.card; nb.open.has(k) ? nb.open.delete(k) : nb.open.add(k); renderNearby();
 });
 // tap a station on the map: its live departures
-function stationAt(x, y){
-  if(!PV) return null; let best = null, bd = matchMedia('(pointer:coarse)').matches ? 26 : 16;
+function stationAt(x, y, r){
+  if(!PV) return null; let best = null, bd = r || (matchMedia('(pointer:coarse)').matches ? 26 : 16);
   for(const s of stationIdx()){ if(![...s.lines].some(id => BY[id] && shown(BY[id]))) continue;
     const c = scr(s.p), d = Math.hypot(c.x - x, c.y - y); if(d < bd){ bd = d; best = s; } }
   return best;
@@ -2285,8 +2288,10 @@ function stationAt(x, y){
 map.addListener('click', ev => { // Google's click: not fired after dragging the map
   if(J.active || !ev.pixel) return;
   const x = ev.pixel.x, y = ev.pixel.y;
-  if(nearest(x, y)) return; // a train: its info card is shown instead
-  const s = stationAt(x, y); if(!s) return;
+  const onDot = map.getZoom() >= 13 && stationAt(x, y, matchMedia('(pointer:coarse)').matches ? 12 : 8); // right on a dot: the station, even with a train there
+  if(!onDot && nearest(x, y)) return; // a train: its info card is shown instead
+  const s = onDot || stationAt(x, y); if(!s) return;
+  if(onDot){ $('tip').style.display = 'none'; hover = null; }
   nb.focus = s; J.options = []; $('options').innerHTML = ''; $('nearby').innerHTML = ''; drawJourney(null, routeLayer);
   showView('search'); renderNearby(); map.panTo(LL(s.p));
 });
@@ -2466,7 +2471,17 @@ $('options').addEventListener('click', e => {
   else if(e.target.id === 'go') startJourney(J.options[J.sel]);
   else if(e.target.id === 'custom') customise(J.options[J.sel]);
   else if(e.target.id === 'remind') addReminder(J.options[J.sel]);
+  else if(e.target.dataset.shift) shiftTime(+e.target.dataset.shift);
 });
+// Earlier / Later: move the leave (or arrive-by) time by 15 min and search again
+function shiftTime(min){
+  const v = $('when').value, f = J.options[0];
+  const base = v ? leaveAt(v) : whenMode === 'arrive' && f ? f.arr : Date.now();
+  const t = new Date(Math.round((base + min*60000)/300000)*300000); // on a 5-minute mark
+  if(whenMode === 'leave' && +t <= Date.now() + 60000) $('when').value = ''; // earlier than now = now
+  else $('when').value = String(t.getHours()).padStart(2, '0') + ':' + String(t.getMinutes()).padStart(2, '0');
+  search();
+}
 $('banner').addEventListener('click', e => { if(e.target.id==='bSwitch') switchRoute(); if(e.target.id==='bKeep') keepRoute(); });
 $('bEnd').onclick = endJourney;
 // plan the way back: from where this trip ends to where it started

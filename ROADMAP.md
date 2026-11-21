@@ -64,6 +64,8 @@ little value on a map), crowding (TfL crowding API is patchy), weather, social f
 | Return trip: one tap plans the way back to where you started | Journey |
 | Tap a station dot on the live map → its next trains (a tap right on the dot wins over a train waiting there) | Live map |
 | Planned works for later trips: routes and reminders an hour or more ahead show TfL's planned closures/reduced service for that time, not today's live problems | Journey |
+| Earlier / Later buttons under route options (moves the time by 15 min) | Journey |
+| Station taps on both maps no longer also pop up a train's info card | both |
 
 ## Next ideas (not built yet)
 - Switch on live National Rail (waiting on the key; `rail/SETUP.md`).
