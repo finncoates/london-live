@@ -203,6 +203,7 @@ body.kiosk #map{bottom:0!important}
 @media (max-width:700px){#board{left:12px;right:12px;width:auto;top:12px;padding:14px;max-height:calc(100% - 24px);z-index:1100}#board h2{font-size:22px}#board li{font-size:18px}#board li b{font-size:19px}}
 .st-actions{display:flex;gap:6px;margin:6px 0 2px}
 .st-actions button{font-size:12.5px;padding:5px 10px}
+.st-actions a.btn{font-size:12.5px;padding:5px 10px;border-radius:10px;border:1px solid var(--edge);background:var(--panel);color:var(--ink);text-decoration:none;display:inline-flex;align-items:center}
 </style>
 </head>
 <body>
@@ -1238,7 +1239,7 @@ function renderStatusBox(){
       + (sboxOpen ? `<div class="muted" style="font-size:12px;margin:-4px 0 8px">On the map: dashed = severe delays, faded and dashed = closed.</div><div class="sbl">${bad.map(l => { const s = lineStatus(l.id); return `<div class="sbi"><div class="sbh"><span class="sw" style="background:${ink(l.colour)}"></span><b>${esc(l.name)}</b>${statusBadge(l.id)}</div>${s.reasons.map(r => `<p>${esc(r)}</p>`).join('')}</div>`; }).join('')}</div>` : '');
 }
 $('sbox').addEventListener('click', e => { if(e.target.closest('#sbT')){ sboxOpen = !sboxOpen; renderStatusBox(); } });
-window.onStatus = renderLegend;
+window.onStatus = () => { renderLegend(); if(focusLoad && !$('station').hidden) focusLoad(); }; // the open station card shows line problems too
 // show / hide every line at once (hide all, then tap one = just that line)
 $('lgAll').addEventListener('click', e => { const b = e.target.closest('[data-all]'); if(!b) return; const on = b.dataset.all === '1';
   for(const l of ACTIVE) if(l.mode !== 'bus'){ l.on = on; l.layer && l.layer.eachLayer(p => p.setStyle(lineStyle(l))); } renderLegend(); });
@@ -1324,7 +1325,7 @@ $('sres').addEventListener('click', e => { const li = e.target.closest('li[data-
 // keep the open station in the address, so it can be bookmarked or shared
 function setStationUrl(name){ try{ const u = new URL(location.href); name ? u.searchParams.set('station', name) : u.searchParams.delete('station'); history.replaceState(null, '', u); }catch(e){} }
 // the chosen station: zoom in, mark it, list its next trains
-let focusMarker = null, focusTimer = 0;
+let focusMarker = null, focusTimer = 0, focusLoad = null;
 function clearFocus(){ if(focusMarker){ focusMarker.setMap(null); focusMarker = null; } $('station').hidden = true; clearInterval(focusTimer); }
 async function goStation(st){
   clearFocus(); FOCUS_ST = st; $('tip').style.display = 'none';
@@ -1336,7 +1337,7 @@ async function goStation(st){
     icon:{path:google.maps.SymbolPath.CIRCLE, scale:14, fillColor:'#fff', fillOpacity:.25, strokeColor:ink(col), strokeWeight:4}});
   const box = $('station'); box.hidden = false;
   const head0 = () => `<div class="st-h"><b>${esc(st.name)}</b><button type="button" class="x" id="stClose" aria-label="Close">✕</button></div>
-    <div class="st-actions"><button type="button" id="stBoard">Show as TV board</button></div>
+    <div class="st-actions"><button type="button" id="stBoard">Show as TV board</button><a class="btn" id="stPlan" href="journey/?to=${encodeURIComponent(st.name)}&ll=${st.p[0].toFixed(5)},${st.p[1].toFixed(5)}">Plan a trip here</a></div>
     <div class="st-lines">${[...st.lines].map(id => `<span class="pill" style="--c:${BY[id].colour}">${symbol(BY[id].mode==='tube'?'tube':BY[id].mode, BY[id].colour, 14)} ${esc(BY[id].name)}</span>`).join('')}</div>`
     + [...st.lines].map(id => { const x = lineStatus(id); if(!x || !x.lv) return ''; const why = (x.reasons[0] || '').replace(/\s*(Good service|Valid tickets).*$/i, '');
       return `<div class="st-warn st${x.lv}" title="${esc(why)}"><b>${esc(BY[id].name)}: ${esc(x.text)}</b>${why ? ' · ' + esc(why.length > 90 ? why.slice(0, 90).replace(/\s+\S*$/, '') + '…' : why) : ''}</div>`; }).join(''); // problems on this station's lines (rebuilt on each refresh: status may arrive later)
@@ -1352,7 +1353,7 @@ async function goStation(st){
     box.innerHTML = head + (rows.length ? `<ol class="deps">${rows.map(a => { const l = BY[a.lineId], m = Math.round(a.timeToStation/60);
       return `<li><span class="sw" style="background:${ink(l.colour)}"></span><span class="to">${esc(cleanName(a.towards || a.destinationName || '') || l.name)}<small>${esc(l.name)}${a.platformName ? ' · ' + esc(a.platformName) : ''}</small></span><b>${m < 1 ? 'due' : m + ' min'}</b></li>`; }).join('')}</ol>` : '<div class="muted">No trains listed right now.</div>');
   };
-  load(); focusTimer = setInterval(load, 30000);
+  load(); focusTimer = setInterval(load, 30000); focusLoad = load;
 }
 $('station').addEventListener('click', e => {
   if(e.target.closest('#stClose')){ clearFocus(); $('q').value = ''; setStationUrl(null); }

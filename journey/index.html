@@ -2553,6 +2553,11 @@ $('bTheme').onclick = () => { dark = !dark; try{ localStorage.setItem('theme', d
   if(J.suggestion) drawJourney(J.suggestion.journey, altLayer, true); };
 window.onTrainsUpdate = n => { $('tcount').textContent = n ? n : ''; };
 try{ const t = JSON.parse(localStorage.getItem('lastTo')); if(t){ J.to = t; $('to').value = t.label; } }catch(e){}
+// opened from the live map ("Plan a trip here"): ?to=Name&ll=lat,lng → plan from where you are
+if(Q.get('to') && !J.active){ const name = Q.get('to').slice(0, 80), ll = (Q.get('ll') || '').match(/^-?\d+(\.\d+)?,-?\d+(\.\d+)?$/);
+  J.to = {label:name, q:ll ? ll[0] : name}; $('to').value = name; $('from').value = '';
+  try{ const u = new URL(location.href); u.searchParams.delete('to'); u.searchParams.delete('ll'); history.replaceState(null, '', u); }catch(e){} // a reload shouldn't search again
+  setTimeout(() => { if(!J.active){ showView('search'); search(); } }, 1500); } // (a restored journey in progress wins)
 renderQuick();
 // ----- commute card: Home ⇄ Work, leaving now, with line problems on the way -----
 const CMT = {at:0, key:'', j:null};

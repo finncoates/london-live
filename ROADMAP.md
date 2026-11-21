@@ -71,6 +71,7 @@ little value on a map), crowding (TfL crowding API is patchy), weather, social f
 | Station card shows problems on that station's lines (short reason; full text on hover) | Live map |
 | 8 findings from a third independent review fixed (planned-works refresh/fallback, Return trip start after swap/reminder, Earlier/Later limits, "London" kept in station labels, station grouping) | both |
 | "Leave in 4 min" / "Leave now" on route options (live, every 30 s); routes that have already left are faded and marked "Missed" | Journey |
+| "Plan a trip here" on station cards opens London Journey with that station as the destination (`journey/?to=Name&ll=lat,lng`) | both |
 | Stations whose platforms are far apart (Paddington) get a dot on each line, one name | both |
 
 ## Next ideas (not built yet)
