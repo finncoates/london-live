@@ -139,6 +139,10 @@ body.dark .alert{color:#0e0f12}
 .rem .big.soon{color:var(--bad)}
 .rem .row2 button{font-size:13px;padding:6px 10px}
 .cmode .sfb{font-size:15px;line-height:1;padding:5px 7px;margin-left:auto}
+.commute{display:block;width:100%;text-align:left;background:var(--soft);border:0;border-radius:12px;padding:10px 12px;margin:0 0 10px}
+.commute .ct{display:flex;justify-content:space-between;align-items:baseline;font-size:13px;color:var(--mute)}
+.commute .cb{font-size:18px;font-weight:700;margin:2px 0 4px}
+.commute .cb small{font-size:13px;font-weight:400;color:var(--mute)}
 .note{background:var(--soft);border-radius:10px;padding:8px 10px;font-size:13px;margin-bottom:10px}
 .opt{text-align:left;display:grid;gap:6px;padding:10px 12px}
 .opt.sel{border-color:var(--acc);box-shadow:0 0 0 1px var(--acc) inset}
@@ -217,6 +221,7 @@ body.dark #simnote{background:#1f2a44;color:#c6dafc}
     <div id="chainOut"></div>
   </section>
   <section class="view" data-view="search">
+    <div id="commute"></div>
     <form id="fSearch" autocomplete="off">
       <div class="field"><label for="from">From</label><input id="from" placeholder="My location" role="combobox" aria-autocomplete="list" aria-expanded="false"></div>
       <div class="field"><label for="to">To</label><input id="to" placeholder="Place, station or postcode" enterkeyhint="search" role="combobox" aria-autocomplete="list" aria-expanded="false"></div>
@@ -2216,7 +2221,7 @@ function cancelPendingSave(){ if(J.pendingSave){ J.pendingSave = null; $('to').p
 function savePlace(kind, p){
   const s = PL.get(), v = {label:p.label, q:p.q};
   if(kind === 'fav'){ s.favs = (s.favs || []).filter(f => !samePlace(f, v)); s.favs.push(v); } else s[kind] = v;
-  PL.set(s); renderQuick(); if(J.options && J.options.length) renderOptions();
+  PL.set(s); renderQuick(); renderCommute(true); if(J.options && J.options.length) renderOptions();
 }
 $('quick').addEventListener('click', e => {
   const b = e.target.closest('button'); if(!b) return;
@@ -2400,6 +2405,30 @@ $('bTheme').onclick = () => { dark = !dark; try{ localStorage.setItem('theme', d
 window.onTrainsUpdate = n => { $('tcount').textContent = n ? n : ''; };
 try{ const t = JSON.parse(localStorage.getItem('lastTo')); if(t){ J.to = t; $('to').value = t.label; } }catch(e){}
 renderQuick();
+// ----- commute card: Home ⇄ Work, leaving now, with line problems on the way -----
+const CMT = {at:0, key:'', j:null};
+async function renderCommute(force){
+  const el = $('commute'); if(!el) return;
+  const s = PL.get(); if(!s.home || !s.work || J.active){ el.innerHTML = ''; return; }
+  // mornings: towards work; from midday: towards home (or the other way if you're already there)
+  let toWork = new Date().getHours() < 12;
+  if(me){ const near = p => p.q && isCoord(p.q) && dist(p.q.split(',').map(Number), me) < 400; if(near(s.work)) toWork = false; else if(near(s.home)) toWork = true; }
+  const from = toWork ? s.home : s.work, to = toWork ? s.work : s.home, key = from.q + '>' + to.q;
+  if(force || key !== CMT.key || Date.now() - CMT.at > 5*60000){
+    try{ const r = await planGoogle(from.q, to.q, Date.now()); CMT.j = r.journeys[0] || null; }catch(e){ CMT.j = null; }
+    CMT.at = Date.now(); CMT.key = key;
+  }
+  const j = CMT.j;
+  el.innerHTML = j ? `<button type="button" class="commute" id="cmtGo"><div class="ct"><span>${toWork ? '🏠 → 💼 To work' : '💼 → 🏠 Home'}</span><span>leave now</span></div>
+    <div class="cb">Arrive ${hhmm(j.arr)} <small>· ${mins(j.arr - j.dep)} min</small></div>
+    <div class="pills">${j.legs.map(pill).join('<span class="sep">›</span>')}</div>${routeWarn(j)}</button>` : '';
+  el.dataset.to = toWork ? 'work' : 'home';
+}
+$('commute').addEventListener('click', e => { if(!e.target.closest('#cmtGo')) return;
+  const s = PL.get(), toWork = $('commute').dataset.to === 'work';
+  J.from = {...(toWork ? s.home : s.work)}; J.to = {...(toWork ? s.work : s.home)};
+  $('from').value = J.from.label; $('to').value = J.to.label; search(); });
+setTimeout(renderCommute, 2500); setInterval(renderCommute, 60000);
 // clearing the To box brings "near you" back
 $('to').addEventListener('input', () => { if(!$('to').value.trim() && J.optEl === 'options' && J.options && J.options.length){ J.options = []; $('options').innerHTML = ''; drawJourney(null, routeLayer); renderNearby(); } });
 const nbFirst = setInterval(() => { if(me){ clearInterval(nbFirst); renderNearby(); } }, 1000);
