@@ -80,6 +80,7 @@ little value on a map), crowding (TfL crowding API is patchy), weather, social f
 | Live buses: "Buses" switch; zoom in (14+) and the ~12 busiest routes around the view load, thin route lines, buses moving from TfL predictions, route numbers from zoom 15.5; `?buses=1` | Live map |
 | Beyond London (framework, switch on with free keys): relay now also serves **buses with GPS across England** (Bus Open Data), **Edinburgh buses + trams** (no key) and **Manchester Metrolink**; map draws GPS vehicles gliding between updates, tap for route/destination/operator; tested with fake feeds (`node rail/test-worker.mjs`) and `?rail=demo` | Live map + relay |
 | National Rail anywhere in Britain: 2,610 stations; outside London the 25 stations nearest the view are polled; demo trains in Manchester, Leeds, Edinburgh/Glasgow, Birmingham | both |
+| Lines back to a simple style: one smooth solid line per route (pieces joined so every bend is rounded), TfL colours and double lines kept, no dashed "problem" lines; side-by-side layout is an option in the Map menu | both |
 | Map menu → Go to: London, Manchester, Birmingham, Leeds, Liverpool, Newcastle, Edinburgh, Glasgow, Bristol, Cardiff | Live map |
 
 ## Next ideas (not built yet)
