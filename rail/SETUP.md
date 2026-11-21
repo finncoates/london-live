@@ -1,4 +1,4 @@
-# Switching on live National Rail
+# Switching on live National Rail (and buses/trams around Great Britain)
 
 Everything is built and tested with demo data. When your Rail Data Marketplace (RDM) access is approved,
 it takes about 10 minutes. Nothing here costs money.
@@ -35,9 +35,19 @@ Send Claude the worker address. Claude sets it in both apps (`RAIL_DEFAULT_RELAY
 on every device. To try it before that: on either map open the **Map** menu → **National Rail** → **Relay…**,
 paste the address, OK.
 
+## Optional — buses and trams around the country (same relay, 5 min)
+The same worker also serves live vehicles outside London. Add any of these as more **Secrets** on the worker
+(Settings → Variables and secrets → Add), then **Deploy**:
+- `BODS_KEY` — buses with GPS positions everywhere in England. Free and instant: register at
+  https://data.bus-data.dft.gov.uk (Account → API key).
+- `TFGM_KEY` — Manchester Metrolink departures. Free: https://developer.tfgm.com → subscribe to the Metrolink product.
+- Edinburgh buses and trams (Lothian / Edinburgh Trams) need no key: they work as soon as the relay is connected.
+Check `…/health`: it lists which ones are switched on (`"bods":true`, `"metrolink":true`).
+On the live map, turn on **Buses** and zoom into a town (Map menu → **Go to** jumps to the big cities).
+
 ## What you get
-- Live map: National Rail trains moving on every operator's network (colour per operator), a National Rail
-  switch, rail stations in the station search and on TV boards (platforms, delays).
+- Live map: National Rail trains moving on every operator's network (colour per operator) — in London and, wherever you
+  look on the map, around the 25 nearest stations anywhere in Britain — a National Rail switch, rail stations in the station search and on TV boards (platforms, delays).
 - London Journey: train legs show the expected time, delay, reason and platform; missed trains and
   delays trigger re-planning; your train is highlighted on the map.
 

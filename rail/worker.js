@@ -1,10 +1,16 @@
-// London Live — National Rail relay (Cloudflare Worker)
+// London Live — relay (Cloudflare Worker): National Rail + live vehicles around Great Britain
 //
-// Holds the Rail Data Marketplace key (as a secret) so it never appears in the public web pages,
-// calls the Darwin "Live Departure Board" web service, and returns small JSON the maps can use.
+// Holds the API keys (as secrets) so they never appear in the public web pages, calls the
+// upstream services and returns small JSON the maps can use:
+//   - National Rail: Darwin "Live Departure Board" (Rail Data Marketplace key)
+//   - Buses in England: Bus Open Data Service live locations (free key)
+//   - Edinburgh buses and trams: Transport for Edinburgh open data (no key)
+//   - Manchester Metrolink: TfGM departures (free key)
 //
 // Settings (Cloudflare dashboard → Worker → Settings → Variables and secrets):
-//   RDM_KEY        (secret, required)  your Rail Data Marketplace consumer key
+//   RDM_KEY        (secret, for National Rail)  your Rail Data Marketplace consumer key
+//   BODS_KEY       (secret, for buses in England) from https://data.bus-data.dft.gov.uk (free, instant)
+//   TFGM_KEY       (secret, for Manchester Metrolink) from https://developer.tfgm.com (free)
 //   BOARD_URL      (optional) the board endpoint from the product's Specification page, with {crs}
 //                  default: Live Departure Board (GetDepBoardWithDetails, up to 10 trains per station)
 //   KEY_HEADER     (optional) header the key goes in; default "x-apikey"
@@ -15,6 +21,9 @@
 //   GET /board?crs=VIC          → one station's departures, with calling points and delays
 //   GET /trains?crs=VIC,CLJ,... → every train seen on those boards, merged, with times at each stop
 //                                 (what the live map needs to place trains)
+//   GET /vehicles?src=bods&bbox=minLon,minLat,maxLon,maxLat → live bus positions (England)
+//   GET /vehicles?src=tfe       → Edinburgh buses and trams
+//   GET /metrolink              → Manchester Metrolink departures by stop
 
 const DEFAULT_BOARD_URL = 'https://api1.raildata.org.uk/1010-live-departure-board-dep1_2/LDBWS/api/20220120/GetDepBoardWithDetails/{crs}?numRows=10';
 const DEFAULT_ORIGINS = 'https://finncoates.github.io';
@@ -29,7 +38,10 @@ export default {
     if(request.method !== 'GET') return json({error:'GET only'}, 405, cors);
     try{
       if(url.pathname === '/' || url.pathname === '/health')
-        return json({ok:true, configured:!!env.RDM_KEY, boardUrl:(env.BOARD_URL || DEFAULT_BOARD_URL).replace(/\?.*$/, '')}, 200, cors);
+        return json({ok:true, configured:!!env.RDM_KEY, rail:!!env.RDM_KEY, bods:!!env.BODS_KEY, tfe:true, metrolink:!!env.TFGM_KEY,
+          boardUrl:(env.BOARD_URL || DEFAULT_BOARD_URL).replace(/\?.*$/, '')}, 200, cors);
+      if(url.pathname === '/vehicles') return json(await vehicles(url, env, ctx), 200, cors, 10);
+      if(url.pathname === '/metrolink') return json(await metrolink(env, ctx), 200, cors, 20);
       if(!env.RDM_KEY) return json({error:'RDM_KEY secret is not set on the worker'}, 503, cors);
       if(url.pathname === '/board'){
         const crs = cleanCrs(url.searchParams.get('crs'));
@@ -45,7 +57,7 @@ export default {
       }
       return json({error:'not found'}, 404, cors);
     }catch(e){
-      return json({error:String(e.message || e)}, 502, cors);
+      return json({error:String(e.message || e)}, e.status || 502, cors);
     }
   }
 };
@@ -141,6 +153,69 @@ function toMs(hhmm, genIso){
   return ms;
 }
 
+// ---------- live vehicles (buses/trams with GPS) ----------
+// Everyone viewing the same area shares one upstream call: answers are cached for 15 s.
+async function cached(key, ttl, ctx, fn){
+  const cache = typeof caches !== 'undefined' ? caches.default : null, k = new Request('https://cache.local/' + encodeURIComponent(key));
+  if(cache){ const hit = await cache.match(k); if(hit) return hit.json(); }
+  const data = await fn();
+  if(cache && ctx) ctx.waitUntil(cache.put(k, new Response(JSON.stringify(data), {headers:{'cache-control':`max-age=${ttl}`}})));
+  return data;
+}
+const fail = (msg, status) => Object.assign(new Error(msg), {status});
+async function vehicles(url, env, ctx){
+  const src = url.searchParams.get('src') || 'bods';
+  if(src === 'tfe') return cached('tfe', 15, ctx, async () => {
+    const r = await fetch(env.TFE_URL || 'https://tfe-opendata.com/api/v1/vehicle_locations', {signal:AbortSignal.timeout(8000)});
+    if(!r.ok) throw fail('Edinburgh: HTTP ' + r.status, 502);
+    return {src, vehicles:parseTfe(await r.json())};
+  });
+  if(src !== 'bods') throw fail('src must be bods or tfe', 400);
+  if(!env.BODS_KEY) throw fail('BODS_KEY secret is not set on the worker', 503);
+  // bounding box, rounded so nearby viewers share the cache; at most ~0.5° × 0.35° (a city)
+  const b = (url.searchParams.get('bbox') || '').split(',').map(Number);
+  if(b.length !== 4 || b.some(x => !isFinite(x)) || b[2] <= b[0] || b[3] <= b[1]) throw fail('bbox=minLon,minLat,maxLon,maxLat required', 400);
+  if(b[2] - b[0] > 0.6 || b[3] - b[1] > 0.4) throw fail('area too big: zoom in', 400);
+  const r2 = x => (Math.round(x*50)/50).toFixed(2), bb = [Math.floor(b[0]*50)/50, Math.floor(b[1]*50)/50, Math.ceil(b[2]*50)/50, Math.ceil(b[3]*50)/50].map(r2).join(',');
+  return cached('bods:' + bb, 15, ctx, async () => {
+    const r = await fetch(`https://data.bus-data.dft.gov.uk/api/v1/datafeed/?boundingBox=${bb}&api_key=${encodeURIComponent(env.BODS_KEY)}`, {signal:AbortSignal.timeout(10000)});
+    if(!r.ok) throw fail('Bus Open Data: HTTP ' + r.status, 502);
+    return {src, bbox:bb, vehicles:parseSiriVm(await r.text())};
+  });
+}
+// SIRI-VM XML → [{id, line, op, dest, lat, lon, brg, t}] (no XML library in Workers: simple, tolerant scanning)
+const tag = (x, n) => { const m = x.match(new RegExp(`<(?:\\w+:)?${n}[^>]*>([^<]*)</(?:\\w+:)?${n}>`)); return m ? m[1].trim() : null; };
+function parseSiriVm(xml){
+  const out = [], seen = new Set();
+  for(const m of xml.matchAll(/<(?:\w+:)?VehicleActivity\b[^>]*>([\s\S]*?)<\/(?:\w+:)?VehicleActivity>/g)){
+    const x = m[1], lat = +tag(x, 'Latitude'), lon = +tag(x, 'Longitude'); if(!lat || !lon) continue;
+    const id = (tag(x, 'OperatorRef') || '') + ':' + (tag(x, 'VehicleRef') || tag(x, 'FramedVehicleJourneyRef') || out.length);
+    if(seen.has(id)) continue; seen.add(id);
+    const brg = tag(x, 'Bearing');
+    out.push({id, line:tag(x, 'PublishedLineName') || tag(x, 'LineRef') || '', op:tag(x, 'OperatorRef') || '', dest:unesc(tag(x, 'DestinationName') || ''),
+      lat:Math.round(lat*1e5)/1e5, lon:Math.round(lon*1e5)/1e5, brg:brg == null ? null : +brg, t:Date.parse(tag(x, 'RecordedAtTime') || '') || null});
+  }
+  return out;
+}
+const unesc = s => s.replace(/&amp;/g, '&').replace(/&apos;/g, "'").replace(/&quot;/g, '"').replace(/&lt;/g, '<').replace(/&gt;/g, '>');
+function parseTfe(j){
+  return (j.vehicles || []).filter(v => v.latitude && v.longitude && v.service_name).map(v => ({id:'tfe:' + v.vehicle_id, line:String(v.service_name), op:'TfE',
+    dest:v.destination || '', lat:+v.latitude, lon:+v.longitude, brg:v.heading ?? null, t:v.last_gps_fix ? v.last_gps_fix*1000 : null, tram:v.vehicle_type === 'tram'}));
+}
+// Manchester Metrolink: platform departure boards (no positions) → [{stop, dir, line, trams:[{dest, wait, status}]}]
+async function metrolink(env, ctx){
+  if(!env.TFGM_KEY) throw fail('TFGM_KEY secret is not set on the worker', 503);
+  return cached('metrolink', 20, ctx, async () => {
+    const r = await fetch('https://api.tfgm.com/odata/Metrolinks', {headers:{'Ocp-Apim-Subscription-Key':env.TFGM_KEY}, signal:AbortSignal.timeout(10000)});
+    if(!r.ok) throw fail('TfGM: HTTP ' + r.status, 502);
+    const j = await r.json(), out = [];
+    for(const p of j.value || []){ const trams = [];
+      for(let i = 0; i < 4; i++){ const d = p['Dest' + i]; if(d) trams.push({dest:d, wait:+p['Wait' + i] || 0, status:p['Status' + i] || ''}); }
+      out.push({stop:p.StationLocation, atco:p.AtcoCode, dir:p.Direction, line:p.Line, trams}); }
+    return {updated:new Date().toISOString(), platforms:out};
+  });
+}
+
 // ---------- helpers ----------
 const cleanCrs = s => (s || '').trim().toUpperCase().replace(/[^A-Z]/g, '').slice(0, 3) || null;
 const stripTags = s => String(s || '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
@@ -153,4 +228,4 @@ function corsHeaders(request, env){
 function json(data, status, cors, maxAge){
   return new Response(JSON.stringify(data), {status, headers:{'content-type':'application/json', ...(maxAge ? {'cache-control':`public, max-age=${maxAge}`} : {}), ...cors}});
 }
-export const _test = {normaliseBoard, mergeTrains, toMs, stop};
+export const _test = {normaliseBoard, mergeTrains, toMs, stop, parseSiriVm, parseTfe};
