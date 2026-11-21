@@ -143,6 +143,7 @@ body.dark .alert{color:#0e0f12}
 .commute .ct{display:flex;justify-content:space-between;align-items:baseline;font-size:13px;color:var(--mute)}
 .commute .cb{font-size:18px;font-weight:700;margin:2px 0 4px}
 .commute .cb small{font-size:13px;font-weight:400;color:var(--mute)}
+.lift{font-size:12px} .lift-hi{font-weight:600}
 .note{background:var(--soft);border-radius:10px;padding:8px 10px;font-size:13px;margin-bottom:10px}
 .opt{text-align:left;display:grid;gap:6px;padding:10px 12px}
 .opt.sel{border-color:var(--acc);box-shadow:0 0 0 1px var(--acc) inset}
@@ -1880,7 +1881,8 @@ function showView(v){ $('panel').scrollTop = 0; setTimeout(() => typeof renderNe
   if(v !== 'active') for(const b of $('tabs').children){ b.classList.toggle('sel', b.dataset.t === v); b.setAttribute('aria-selected', b.dataset.t === v); } for(const el of document.querySelectorAll('.view')) el.hidden = el.dataset.view !== v; document.body.dataset.view = v; }
 
 // worst status among the lines a journey uses (TfL lines only)
-function routeWarn(j){
+function routeWarn(j){ return routeWarn0(j) + (PREF === 'stepfree' && j.legs.some(L => liftIssues(L).length) ? '<div class="warn">♿ A lift is out of service on this route</div>' : ''); }
+function routeWarn0(j){
   let worst = null;
   for(const L of j.legs){ const id = L.line || L.tflLine; const s = id && lineStatus(id);
     if(s && s.lv && (!worst || s.lv > worst.s.lv)) worst = {s, name:BY[id] ? BY[id].name : L.lineName}; }
@@ -1988,7 +1990,24 @@ async function search(){
   }catch(e){ ARRIVE = false; $('options').innerHTML = `<div class="muted">${esc(e.message)}</div>`; }
 }
 
+// ----- lifts out of service (TfL), refreshed every 10 minutes -----
+let LIFTS = [];
+async function refreshLifts(){ try{ LIFTS = (await get('/Disruptions/Lifts/v2/')).map(x => ({id:x.stationUniqueId, name:(x.message || '').split(':')[0].trim().toLowerCase(), msg:(x.message || '').replace(/^[^:]+:\s*/, '').replace(/\s*Call us on.*$/i, '').replace(/^No Step Free Access\s*-\s*/i, 'No step-free access: ')})); }catch(e){} }
+setTimeout(refreshLifts, 2000); setInterval(refreshLifts, 600000);
+const stName = s => cleanName(s || '').replace(/\s*\(.*?\)\s*/g, ' ').replace(/ station$/i, '').trim().toLowerCase();
+function liftIssues(L){
+  if(L.walk || !LIFTS.length) return [];
+  const out = [];
+  for(const end of [L.from, L.to]){ const n = stName(end.name);
+    const hit = LIFTS.find(x => (end.id && x.id === end.id) || (n && x.name && (x.name === n || x.name.startsWith(n + ' '))));
+    if(hit && !out.includes(hit)) out.push({...hit, at:end.name}); }
+  return out;
+}
 function legWarn(L){
+  const lifts = liftIssues(L).map(x => `<div class="${PREF === 'stepfree' || (CH.sf || []).some(Boolean) ? 'warn lift-hi' : 'muted lift'}">♿ ${esc(cleanName(x.at))}: ${esc(x.msg)}</div>`).join('');
+  return legWarn0(L) + lifts;
+}
+function legWarn0(L){
   const id = L.line || L.tflLine, s = id && lineStatus(id);
   if(s && s.lv) return `<div class="warn">⚠ ${esc(s.text)}${s.reasons[0] ? ': ' + esc(s.reasons[0].replace(/\s*(Good service|Valid tickets).*$/i, '')) : ''}</div>`;
   return L.disrupted ? '<div class="warn">⚠ Disruption reported on this line</div>' : '';
