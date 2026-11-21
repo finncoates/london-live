@@ -46,9 +46,21 @@ little value on a map), crowding (TfL crowding API is patchy), weather, social f
 | Customise: turn any planned route into an editable Build-my-route chain | Journey |
 | 10 bugs from an independent code review fixed (see git log) | both |
 
+## Built 21 Nov (day)
+| Feature | Where |
+|---|---|
+| National Rail framework, ready for the key: relay (`rail/worker.js`), 660 stations, live NR trains per operator, rail in station search/TV board, live rail legs in Journey (expected time, delay, platform, re-planning), `?rail=demo`, `rail/SETUP.md` | both |
+| Automatic low-power mode for slow devices (Fire TV): 15 fps, no outlines; `?quality=low|high` | both |
+| Leave-by reminders: Remind me, live re-check 25/10 min before, alerts at −5/0, one-tap Start | Journey |
+| Step-free per step in Build my route (TfL step-free per mode, bus fallback) | Journey |
+| Commute card (Home ⇄ Work, leaving now, problems on the way) | Journey |
+| Follow a train (tap it) and TV tour mode (`?tour=1`, T key) | Live map |
+| 12 findings from a second independent review fixed | both |
+
 ## Next ideas (not built yet)
-- Live National Rail (waiting on the Rail Data Marketplace key; plan in HANDOFF.md).
-- "Leave by" reminders for planned trips (needs the page open, or a push server).
-- Build-my-route: apply route preferences (step-free) per step.
+- Switch on live National Rail (waiting on the key; `rail/SETUP.md`).
+- Show line problems on the map itself (affected lines pulse / dashed).
+- TV "auto" mode: rotate between overview, tour and a departure board.
+- Step-free: warn about lifts out of service at stations on the route (TfL lift status).
+- Clear on-screen messages when TfL or Google is unreachable.
 - Optional OSM track geometry so lines follow real curves.
-- Crowding indicator per line (TfL crowding API) — check data quality first.
