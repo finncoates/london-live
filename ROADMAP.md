@@ -60,6 +60,8 @@ little value on a map), crowding (TfL crowding API is patchy), weather, social f
 | TV auto mode (`?auto=1`): overview → train tour → departure boards | Live map |
 | Lift-out-of-service warnings for stations on your route | Journey |
 | Fixes from user-style review: no false "late" at start, destination name kept after reroute, nearest bus stop | Journey |
+| Station dots on the lines when zoomed in (bigger for interchanges); station names too when "Hide places & labels" is on | both |
+| Return trip: one tap plans the way back to where you started | Journey |
 
 ## Next ideas (not built yet)
 - Switch on live National Rail (waiting on the key; `rail/SETUP.md`).

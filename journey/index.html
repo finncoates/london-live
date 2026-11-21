@@ -248,7 +248,7 @@ body.dark #simnote{background:#1f2a44;color:#c6dafc}
     <div id="banner" hidden></div>
     <ol id="steps"></ol>
     <a id="gmaps" class="gmaps" target="_blank" rel="noopener">Open in Google Maps ↗</a>
-    <div class="row2"><button id="bReplan">Check for a better route</button><button id="bShare">Share ETA</button><button id="bEnd">End</button></div>
+    <div class="row2"><button id="bReplan">Check for a better route</button><button id="bShare">Share ETA</button><button id="bBack">Return trip</button><button id="bEnd">End</button></div>
   </section>
   <div id="err"></div>
 </div>
@@ -508,6 +508,22 @@ function buildPaths(z){
 // Lines are rendered once into an off-screen image a bit larger than the screen; while you pan or
 // zoom that image is just moved/scaled (cheap), and only re-rendered when you leave it or the zoom settles.
 let OFF = null;
+// one dot per station on the lines that are showing (same name within 500 m = one station)
+let SDOTS = null, sdotSig = '';
+function stationDots(){
+  const sig = lpathSig + ACTIVE.length;
+  if(SDOTS && sig === sdotSig) return SDOTS;
+  const by = new Map();
+  for(const l of ACTIVE){ if(l.mode === 'bus' || !l.stops || !(lineStyle(l).opacity > 0)) continue;
+    for(const s of Object.values(l.stops)){
+      const name = s.n.replace(/\s*\((?:[^)]*line|H&C|Circle Line|[^)]*Underground)[^)]*\)\s*/i, ' ').replace(/-Underground$/i, '').replace(/^London /, '').replace(/\s+/g, ' ').trim();
+      const k = name.toLowerCase(); let d = by.get(k);
+      if(d && dist(d.p, s.p) > 500){ d = by.get(k + '#' + s.p[0]); }
+      if(!d){ d = {name, p:s.p, lines:new Set()}; by.set(by.has(k) ? k + '#' + s.p[0] : k, d); }
+      d.lines.add(l.id);
+    } }
+  SDOTS = [...by.values()].map(d => ({name:d.name, p:d.p, n:d.lines.size})); sdotSig = sig; return SDOTS;
+}
 function renderOff(zi, T, k){
   const s = mapSize(), m = 0.3, odpr = LDPR();
   // visible area in world px at zoom zi, plus a margin all round
@@ -526,9 +542,22 @@ function renderOff(zi, T, k){
     if(PARALLEL.has(l.mode)){ g.globalAlpha = 1; g.strokeStyle = MAP_BG(); g.lineWidth = W/3; g.stroke(path); }
   }
   g.setLineDash([]);
+  // stations: dots from zoom 13 (bigger for interchanges), names from zoom 14 when the map's own labels are hidden
+  if(zi >= 13){
+    const names = QUIET_ON && zi >= 14, r = Math.max(2.5, W*0.55);
+    g.globalAlpha = 1; g.lineWidth = Math.max(1.5, W*0.3);
+    if(names){ g.font = `600 ${zi >= 15 ? 13 : 11.5}px "Hanken Grotesk", system-ui, sans-serif`; g.textBaseline = 'middle'; }
+    for(const s of stationDots()){
+      const w = world(s.p, zi); if(w[0] < box.x || w[1] < box.y || w[0] > box.x + box.w || w[1] > box.y + box.h) continue;
+      const big = s.n > 1, rr = big ? r*1.35 : r;
+      g.beginPath(); g.arc(w[0], w[1], rr, 0, 7); g.fillStyle = dark ? '#1b1c1f' : '#fff'; g.fill(); g.strokeStyle = dark ? '#e6e6e6' : '#1b1c1f'; g.stroke();
+      if(names){ g.lineWidth = 3; g.strokeStyle = dark ? 'rgba(0,0,0,.85)' : 'rgba(255,255,255,.95)'; g.strokeText(s.name, w[0] + rr + 4, w[1]);
+        g.fillStyle = dark ? '#eee' : '#1b1c1f'; g.fillText(s.name, w[0] + rr + 4, w[1]); g.lineWidth = Math.max(1.5, W*0.3); }
+    }
+  }
   OFF = {canvas:c, zi, box, odpr, sig:offSig()}; linesSig = ''; // force the on-screen copy to update
 }
-const offSig = () => [dark, MAP_STYLE, lpathSig, ...ACTIVE.map(l => lineStyle(l).opacity + ':' + (STATUS.get(l.id)?.lv || 0))].join();
+const offSig = () => [dark, MAP_STYLE, QUIET_ON, lpathSig, ...ACTIVE.map(l => lineStyle(l).opacity + ':' + (STATUS.get(l.id)?.lv || 0))].join();
 function drawLines(){
   if(!ov.getProjection() || !PV) return;
   if(!LANES) buildLanes();
@@ -1836,6 +1865,8 @@ async function startJourney(j, keep){
     if(!keep) for(const L of j.legs) for(const f of RUN_FIELDS) delete L[f];
     Object.assign(J, {plan:j, active:true, idx:0, riding:false, vehicle:null, proj:null, suggestion:null, dismissed:null,
       note:null, noteAt:0, offCount:0, moved:false, baseArr:null, alert:null, fired:new Set(), lastReplan:Date.now(), follow:true, gen:(J.gen||0) + 1});
+    { const p0 = j.legs[0] && j.legs[0].from && j.legs[0].from.p; // where this trip started, for "Return trip"
+      J.origin = J.from && J.from.label && !j.chain ? {...J.from} : p0 ? {label:'Where you started', q:p0.map(x => (+x).toFixed(5)).join(',')} : null; }
     window.DIM_TRAINS = true;
     showView('active'); renderActive(true);
     drawJourney(j, routeLayer); altLayer.clearLayers(); fitJourney(j);
@@ -1866,11 +1897,11 @@ function endJourney(){
   try{ localStorage.removeItem('journey'); }catch(e){}
   showView(J.optEl === 'chainOut' ? 'build' : 'search');
 }
-function saveState(){ try{ localStorage.setItem('journey', JSON.stringify({to:J.to, plan:J.plan, idx:J.idx, riding:J.riding, vehicle:J.vehicle, baseArr:J.baseArr})); }catch(e){} }
+function saveState(){ try{ localStorage.setItem('journey', JSON.stringify({to:J.to, plan:J.plan, idx:J.idx, riding:J.riding, vehicle:J.vehicle, baseArr:J.baseArr, origin:J.origin})); }catch(e){} }
 function restoreState(){
   try{
     const s = JSON.parse(localStorage.getItem('journey')); if(!s || !s.plan || s.plan.arr < Date.now() - 600000) return false;
-    J.to = s.to; startJourney(s.plan, true).then(() => { Object.assign(J, {idx:s.idx, riding:s.riding, vehicle:s.vehicle, baseArr:s.baseArr ?? null}); monitor(); }); return true;
+    J.to = s.to; startJourney(s.plan, true).then(() => { Object.assign(J, {idx:s.idx, riding:s.riding, vehicle:s.vehicle, baseArr:s.baseArr ?? null, origin:s.origin || J.origin}); monitor(); }); return true;
   }catch(e){ return false; }
 }
 
@@ -2288,7 +2319,7 @@ $('quick').addEventListener('click', e => {
 });
 // "save this destination" bar above the route options
 function saveBar(){
-  if(!J.to || !J.to.label || J.optEl !== 'options') return '';
+  if(!J.to || !J.to.label || J.to.label === 'Where you started' || J.optEl !== 'options') return '';
   const s = PL.get(), is = k => k === 'fav' ? (s.favs || []).some(f => samePlace(f, J.to)) : samePlace(s[k], J.to);
   return `<div class="savebar">Save “${esc(J.to.label)}” as <button type="button" data-save="home" class="${is('home') ? 'on' : ''}">🏠 Home</button><button type="button" data-save="work" class="${is('work') ? 'on' : ''}">💼 Work</button><button type="button" data-save="fav" class="${is('fav') ? 'on' : ''}">★ Favourite</button></div>`;
 }
@@ -2411,6 +2442,13 @@ $('options').addEventListener('click', e => {
 });
 $('banner').addEventListener('click', e => { if(e.target.id==='bSwitch') switchRoute(); if(e.target.id==='bKeep') keepRoute(); });
 $('bEnd').onclick = endJourney;
+// plan the way back: from where this trip ends to where it started
+$('bBack').onclick = () => {
+  const back = J.origin, dest = J.to; if(!back || !dest) return;
+  endJourney(); showView('search');
+  J.from = {...dest}; J.to = {...back}; $('from').value = dest.label; $('to').value = back.label; $('when').value = '';
+  search();
+};
 $('bReplan').onclick = () => { J.dismissed = null; J.lastReplan = 0; monitor(); };
 $('bSwap').onclick = () => { const a = $('from').value; $('from').value = $('to').value; $('to').value = a; const f = J.from; J.from = J.to; J.to = f; };
 setInterval(() => { if(geoErr && !me){ $('from').placeholder = 'Type a starting point'; const c = $('cs0'); if(c) c.placeholder = 'Type a starting point'; } }, 2000);
