@@ -1,0 +1,4 @@
+# Optional: deploy from a computer with `npx wrangler deploy` (then `npx wrangler secret put RDM_KEY`).
+name = "london-rail"
+main = "worker.js"
+compatibility_date = "2026-11-01"

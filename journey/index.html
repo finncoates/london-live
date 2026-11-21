@@ -275,8 +275,8 @@ const LINES = [
   ['tram','Trams','#5FB526','tram'],
 ];
 // Typical dwell (s) at a station and fallback cruise speed (m/s) when no segment time has been learned yet.
-const DWELL = {tube:25, dlr:20, elizabeth:40, overground:35, tram:20, bus:15};
-const SPEED = {tube:12, dlr:10, elizabeth:17, overground:13, tram:7, bus:6};
+const DWELL = {tube:25, dlr:20, elizabeth:40, overground:35, tram:20, bus:15, rail:45};
+const SPEED = {tube:12, dlr:10, elizabeth:17, overground:13, tram:7, bus:6, rail:22};
 const modesWanted = (Q.get('modes') || 'tube,elizabeth,dlr,overground,tram').split(',');
 const linesWanted = Q.get('lines') ? Q.get('lines').split(',') : null;
 const ACTIVE = LINES.filter(l => modesWanted.includes(l[3]) && (!linesWanted || linesWanted.includes(l[0])))
@@ -717,7 +717,7 @@ const SEV_LEVEL = s => [1,2,4,16,20].includes(s) ? 3 : [3,5,6,11].includes(s) ? 
 const LEVEL_NAME = ['Good service', 'Minor delays', 'Severe delays', 'Closed'];
 async function refreshStatus(){
   try{
-    const ids = ACTIVE.filter(l => l.mode !== 'bus').map(l => l.id);
+    const ids = ACTIVE.filter(l => l.mode !== 'bus' && !l.rail).map(l => l.id);
     const res = await get(`/Line/${ids.join(',')}/Status`);
     STATUS.clear();
     for(const l of res){
@@ -745,7 +745,7 @@ let failStreak = 0, anonSeq = 0;
 async function refresh(){
   // retry any line whose geometry failed to load at boot (e.g. network blip when the TV woke up)
   for(const l of ACTIVE) if(!l.layer){ try{ await loadLine(l); }catch(e){} }
-  const ids = ACTIVE.filter(l => shown(l) && l.layer).map(l=>l.id);
+  const ids = ACTIVE.filter(l => shown(l) && l.layer && !l.rail).map(l=>l.id);
   const chunks = []; for(let i=0;i<ids.length;i+=8) chunks.push(ids.slice(i,i+8));
   const res = await Promise.allSettled(chunks.map(c => get(`/Line/${c.join(',')}/Arrivals`)));
   let preds = []; const failed = new Set(); let err = null;
@@ -845,6 +845,7 @@ async function refresh(){
   const gone = [];
   for(const [k,t] of trains) if(!keep.has(k)){
     if(failed.has(t.line)){ t.seen = t0; continue; }           // that request failed: keep as is
+    if(t.rail) continue;
     if(t.anon || t0 - t.seen > REFRESH*2.5){ trains.delete(k); gone.push(t); }
   }
   // A train that moved on to a new segment gets a new key: carry its on-screen position over so it glides.
@@ -857,8 +858,8 @@ async function refresh(){
     }
     if(best){ best.taken = true; t.d = best.d; t.ang = best.ang; }
   }
-  for(const l of ACTIVE){ l.count = 0; if(!failed.has(l.id)) store.set('segt:'+l.id, l.seg, 30*864e5); }
-  for(const t of trains.values()) if(t0 - t.seen < REFRESH*1.5) BY[t.line].count++;
+  for(const l of ACTIVE){ if(l.rail) continue; l.count = 0; if(!failed.has(l.id)) store.set('segt:'+l.id, l.seg, 30*864e5); }
+  for(const t of trains.values()) if(!t.rail && t0 - t.seen < REFRESH*1.5) BY[t.line].count++;
   window.onTrainsUpdate && onTrainsUpdate(ACTIVE.reduce((s,l)=>s+(shown(l)?l.count:0),0));
   return !err;
 }
@@ -874,10 +875,11 @@ function placeTrain(t){
   }
   t.cur = next; t.curArr = arr;
   if(!l.stops[next]) return null;
-  if(!prev || !l.stops[prev]) return snapAt(l, next);
+  if(!prev || prev === next || !l.stops[prev]) return snapAt(l, next);
   const path = trackPath(l, prev, next); if(!path) return snapAt(l, next);
   const remain = (arr - n)/1000;
-  let f = Math.min(1, Math.max(0, 1 - remain/segTime(l, prev, next)));
+  const segT = t.rail && t.ahead ? (() => { const i = t.ahead.findIndex(a => a[0] === next && a[1] === arr); return i > 0 ? Math.max(30, (arr - t.ahead[i-1][1])/1000 - DWELL.rail/2) : segTime(l, prev, next); })() : segTime(l, prev, next);
+  let f = Math.min(1, Math.max(0, 1 - remain/segT));
   // trains don't reverse: if a prediction slips, hold position instead of sliding back
   const sk = prev+'>'+next;
   if(t.fk === sk && f < t.f) f = t.f; else { t.fk = sk; t.f = f; }
@@ -910,7 +912,7 @@ function draw(ts){
   const wall = Date.now(), cosLat = Math.cos(map.getCenter().lat()*rad);
   const drawn = [], byLine = new Map();
   for(const t of trains.values()){
-    const l = BY[t.line]; if(!l.on || !shown(l) || wall - t.seen > REFRESH*1.5) continue;
+    const l = BY[t.line]; if(!l.on || !shown(l) || wall - t.seen > (t.rail ? 150000 : REFRESH*1.5)) continue;
     const pos = placeTrain(t); if(!pos) continue;
     // ease the displayed position, then put it back onto the line so it never cuts corners
     if(!t.d || dist(t.d, pos.p) > 3000) t.d = pos.p.slice();
@@ -1026,6 +1028,137 @@ function showTip(e){
 }
 map.getDiv().addEventListener('mousemove', showTip);
 map.getDiv().addEventListener('click', showTip);
+
+// <rail-client>
+// ---------- National Rail (live via the relay in rail/worker.js; see rail/SETUP.md) ----------
+// Trains come from Darwin departure boards at the big London stations. Each operator is a "line"
+// (mode 'rail'); its drawn network is built from the stops its trains actually call at.
+const RAIL_DEFAULT_RELAY = ''; // ← set to the deployed relay address (e.g. https://london-rail.NAME.workers.dev) to switch it on for everyone
+const RAIL = {
+  relay:(Q.get('rail') || (() => { try{ return localStorage.getItem('railRelay'); }catch(e){ return null; } })() || RAIL_DEFAULT_RELAY).replace(/\/+$/, ''),
+  stations:null, byCrs:{}, state:'off', msg:'', last:0, boards:new Map(),
+};
+// Stations polled for live trains: the London termini and big interchanges (≤ 40, the relay's limit)
+const RAIL_HUBS = 'VIC,CLJ,WAT,LBG,CHX,CST,BFR,STP,KGX,EUS,MYB,PAD,LST,FST,SRA,ECR,WIM,RMD,SUR,LEW,ZFD,WFJ,HHY,TOT,ENF,BKG,SVS,EAL,HRW,SNF,DFD,BXY,GTW,WOK,STA,FPK,WCY,OLD,AFK,RDG'.split(',');
+// Operator colours (brand-like, approximate)
+const RAIL_COL = {SN:'#5C9F3B', TL:'#E9438D', SW:'#24398C', SE:'#1D82D4', GW:'#0A493E', CC:'#B7007C', LE:'#D70428', GN:'#5A2C83',
+  CH:'#00A7DF', GR:'#CE0E2D', VT:'#004354', EM:'#713563', HX:'#532E63', GX:'#EB1E2D', XC:'#660F21', GC:'#1D1D1B', LD:'#2B6EF5',
+  HT:'#DE005C', AW:'#E10600', LM:'#00BF6F', XR:'#60399E', LO:'#FA7B05', IL:'#1E90FF'};
+const railOn = () => !!RAIL.relay;
+async function railStations(){
+  if(RAIL.stations) return RAIL.stations;
+  const base = location.pathname.includes('/journey') ? '../rail/' : 'rail/';
+  const list = await (await fetch(base + 'stations.json')).json();
+  RAIL.stations = list; for(const [crs, n, lat, lon] of list) RAIL.byCrs[crs] = {n, p:[lat, lon]};
+  return list;
+}
+const nearestCrs = (p, max = 350) => { let best = null, bd = max; for(const [crs, , lat, lon] of RAIL.stations || []){ const d = dist([lat, lon], p); if(d < bd){ bd = d; best = crs; } } return best; };
+async function railGet(path){
+  if(RAIL.relay === 'demo') return railDemo(path);
+  const r = await fetch(RAIL.relay + path); if(!r.ok) throw new Error((await r.json().catch(() => ({}))).error || 'HTTP ' + r.status);
+  return r.json();
+}
+// one "line" per operator, created on first sight
+function railLine(code, name){
+  const id = 'nr-' + (code || 'XX'); let l = BY[id];
+  if(!l){
+    const polys = []; // straight stop-to-stop lines; also used as the "track" trains follow
+    l = {id, name:name || code, colour:RAIL_COL[code] || '#5B6770', mode:'rail', group:'rail', on:true, count:0, polys, routes:[], stops:{}, seg:{},
+      adj:new Set(), byName:{}, alias:{}, curves:polys, pathCache:{}, snapCache:{}, layer:new Group(), rail:true, edges:new Set()};
+    ACTIVE.push(l); BY[id] = l; if(typeof renderModeChips === 'function') renderModeChips();
+  }
+  return l;
+}
+async function refreshRail(){
+  if(!railOn() || (typeof shown === 'function' && MODES_OFF.has('rail'))) return;
+  try{
+    await railStations();
+    const res = await railGet('/trains?crs=' + RAIL_HUBS.join(','));
+    const t0 = Date.now(), seen = new Set(); let newStops = false;
+    for(const tr of res.trains || []){
+      const l = railLine(tr.opCode, tr.op);
+      const calls = tr.calls.filter(c => RAIL.byCrs[c[0]]); if(calls.length < 2 || calls.at(-1)[1] < t0 - 120000) continue;
+      for(const [crs] of calls) if(!l.stops[crs]){ l.stops[crs] = RAIL.byCrs[crs]; newStops = true; }
+      // draw the network from consecutive stops (once per pair)
+      for(let i = 1; i < calls.length; i++){ const a = calls[i-1][0], b = calls[i][0], k = a < b ? a + b : b + a;
+        if(!l.edges.has(k)){ l.edges.add(k); l.polys.push([RAIL.byCrs[a].p, RAIL.byCrs[b].p]); LANES = null; linesSig = ''; } }
+      const key = 'nr:' + tr.id; let t = trains.get(key);
+      if(!t){ t = {key, rail:true}; trains.set(key, t); }
+      Object.assign(t, {line:l.id, ahead:calls.map(c => [c[0], c[1]]), prev:calls[0][0], next:calls[1][0], arr:calls[1][1],
+        towards:tr.dest || '', loc:tr.reason || '', seen:t0}); seen.add(key);
+    }
+    for(const [k, t] of trains) if(t.rail && !seen.has(k) && t0 - t.seen > 150000) trains.delete(k);
+    for(const l of ACTIVE) if(l.rail) l.count = 0;
+    for(const t of trains.values()) if(t.rail && BY[t.line]) BY[t.line].count++;
+    if(newStops){ if(typeof STATIONS !== 'undefined') STATIONS = null; if(typeof STIDX !== 'undefined') STIDX = null; } // station search/near-you indexes
+    RAIL.state = 'live'; RAIL.msg = `${[...trains.values()].filter(t => t.rail).length} trains`; RAIL.last = t0;
+  }catch(e){ RAIL.state = 'error'; RAIL.msg = e.message; console.warn('rail', e); }
+  if(typeof renderLegend === 'function') renderLegend();
+  if(typeof renderRailStatus === 'function') renderRailStatus();
+}
+// a station's National Rail departures (for station cards / journey legs), cached 30 s
+async function railBoard(crs){
+  const c = RAIL.boards.get(crs); if(c && Date.now() - c.t < 30000) return c.d;
+  const d = await railGet('/board?crs=' + crs); RAIL.boards.set(crs, {t:Date.now(), d}); return d;
+}
+// a station's National Rail departures in the same shape as TfL arrivals (so boards/cards can mix them)
+async function railArrivals(crs){
+  if(!railOn() || !/^[A-Z]{3}$/.test(crs)) return [];
+  try{
+    const b = await railBoard(crs), now = Date.now();
+    return (b.services || []).filter(s => !s.cancelled).map(s => { const here = s.calls.find(c => c.crs === crs) || {}; const l = railLine(s.opCode, s.operator);
+      const late = here.st && here.t && here.t !== here.st;
+      return {lineId:l.id, vehicleId:s.id, timeToStation:Math.max(0, Math.round(((here.ms || now) - now)/1000)), destinationName:s.destination || '',
+        towards:s.destination || '', platformName:s.platform ? 'Platform ' + s.platform : '', rail:true, late, scheduled:here.st, reason:s.reason}; })
+      .filter(a => a.timeToStation < 3600);
+  }catch(e){ return []; }
+}
+if(railOn()){ setTimeout(refreshRail, 2500); setInterval(refreshRail, 60000); }
+
+// settings row in the Map menu: status, relay address, demo
+function renderRailStatus(){
+  const el = document.getElementById('railRow'); if(!el) return;
+  const st = !RAIL.relay ? 'Not connected' : RAIL.relay === 'demo' ? 'Demo data (not real trains)' : RAIL.state === 'live' ? 'Live · ' + RAIL.msg : RAIL.state === 'error' ? 'Problem: ' + RAIL.msg : 'Connecting…';
+  el.querySelector('.rs').textContent = st;
+  el.querySelector('.rs').className = 'rs ' + (RAIL.state === 'error' ? 'bad' : RAIL.state === 'live' && RAIL.relay !== 'demo' ? 'good' : '');
+}
+(function addRailRow(){
+  const menu = document.getElementById('mapMenu'); if(!menu || document.getElementById('railRow')) return;
+  const d = document.createElement('div'); d.className = 'mm-row mm-rail'; d.id = 'railRow';
+  d.innerHTML = `<span>National Rail<small class="rs"></small></span><span class="rbtn"><button type="button" data-r="set">Relay…</button><button type="button" data-r="demo">${RAIL.relay === 'demo' ? 'Stop demo' : 'Demo'}</button></span>`;
+  menu.appendChild(d);
+  d.addEventListener('click', e => {
+    const b = e.target.closest('[data-r]'); if(!b) return;
+    let v = null;
+    if(b.dataset.r === 'demo') v = RAIL.relay === 'demo' ? '' : 'demo';
+    else { v = prompt('National Rail relay address (from rail/SETUP.md), or leave empty to turn off:', RAIL.relay && RAIL.relay !== 'demo' ? RAIL.relay : 'https://'); if(v === null) return; v = v.trim(); if(v === 'https://') v = ''; }
+    try{ v ? localStorage.setItem('railRelay', v) : localStorage.removeItem('railRelay'); }catch(x){}
+    location.reload();
+  });
+  const css = document.createElement('style');
+  css.textContent = '.mm-rail .rs{display:block;color:var(--mute);font-size:12px}.mm-rail .rs.good{color:var(--good,#188038)}.mm-rail .rs.bad{color:var(--bad,#d93025)}.mm-rail .rbtn{display:flex;gap:6px;flex:none}.mm-rail .rbtn button{font-size:12px;padding:5px 9px}';
+  document.head.appendChild(css);
+  renderRailStatus();
+})();
+
+// ---- demo data (?rail=demo): made-up trains on real routes, to preview the feature without a key ----
+function railDemo(path){
+  const R = [['Southern','SN',[['VIC',0],['CLJ',6],['ECR',15],['GTW',30]]],['Thameslink','TL',[['STP',0],['ZFD',4],['BFR',9],['LBG',13],['ECR',26],['GTW',40]]],
+    ['South Western Railway','SW',[['WAT',0],['VXH',3],['CLJ',7],['WIM',13],['SUR',20],['WOK',33]]],['Southeastern','SE',[['CHX',0],['WAE',2],['LBG',6],['LEW',14],['DFD',33]]],
+    ['c2c','CC',[['FST',0],['LHS',4],['WHM',8],['BKG',13],['UPM',21]]],['Greater Anglia','LE',[['LST',0],['SRA',7],['RMF',18],['SNF',29]]],
+    ['Great Western Railway','GW',[['PAD',0],['EAL',8],['SLO',18],['RDG',26]]],['Chiltern Railways','CH',[['MYB',0],['WCX',8],['HRW',16]]]];
+  const now = Date.now(), trains = [];
+  R.forEach(([op, code, st], ri) => { for(let k = -5; k <= 2; k++){ const s = now + (k*10 - ri*2)*60000, delay = (k + ri) % 3 === 0 ? 3 : 0;
+    trains.push({id:'demo' + code + k, op, opCode:code, dest:(RAIL.byCrs[st.at(-1)[0]] || {}).n, reason:delay ? 'Demo: delayed by a signalling problem' : null,
+      calls:st.map(([c, m]) => [c, s + (m + delay)*60000, s + (m + delay)*60000 < now ? 1 : 0])}); } });
+  if(path.startsWith('/trains')) return {trains};
+  const crs = (path.match(/crs=([A-Z]{3})/) || [])[1];
+  return {crs, name:(RAIL.byCrs[crs] || {}).n, services:trains.filter(t => t.calls.some(c => c[0] === crs && c[1] > now - 60000)).map(t => { const i = t.calls.findIndex(c => c[0] === crs);
+    return {id:t.id, operator:t.op, opCode:t.opCode, platform:String(1 + i), destination:t.dest, reason:t.reason, cancelled:false,
+      calls:t.calls.map(c => ({crs:c[0], name:(RAIL.byCrs[c[0]] || {}).n, ms:c[1], actual:!!c[2]}))}; }).sort((a, b) => a.calls.find(c => c.crs === crs).ms - b.calls.find(c => c.crs === crs).ms)};
+}
+// ---------- end National Rail ----------
+// </rail-client>
 
 // ====================================================================================
 // Journey app: plan with TfL Journey Planner, track live, re-plan when things go wrong
@@ -1171,11 +1304,13 @@ function tflLook(L){
   if(!inLondonP(L.from.p) && !inLondonP(L.to.p)){ if(L.kind==='rail' && inUKP(L.from.p)) L.gen = false; return; }
   if(L.kind==='bus'){ L.tflBus = L.lineName.toLowerCase(); L.colour = '#DC241F'; L.gen = false; L.summary = `Bus ${L.lineName} to ${L.to.name}`; return; }
   const n = L.lineName.toLowerCase().replace(/\s+line$/, '').replace(/^london\s+/, '').trim();
-  const l = ACTIVE.find(l => l.mode !== 'bus' && (l.name.toLowerCase() === n || l.id === n.replace(/\s*&\s*/g, '-').replace(/\s+/g, '-')
+  const l = ACTIVE.find(l => l.mode !== 'bus' && !l.rail && (l.name.toLowerCase() === n || l.id === n.replace(/\s*&\s*/g, '-').replace(/\s+/g, '-')
     || (n === 'dlr' && l.id === 'dlr') || (/tram/.test(n) && l.id === 'tram')));
   if(l){ L.tflLine = l.id; L.kind = l.mode; L.colour = l.colour; L.gen = false;
     L.summary = `${l.mode==='dlr' ? 'DLR' : l.mode==='tram' ? 'Tram' : l.name + ' line'} to ${L.to.name}`; }
-  else if(L.kind === 'rail') L.gen = false; // National Rail in London
+  else if(L.kind === 'rail'){ L.gen = false; // National Rail: operator colour if we know it
+    const op = ACTIVE.find(x => x.rail && x.name.toLowerCase() === n); if(op) L.colour = op.colour;
+    L.summary = `${L.lineName.replace(/\s+line$/i, '')} to ${L.to.name}`; }
 }
 // Draw a Tube/rail leg along the very same TfL line geometry that's on the map, station by station
 // (Google's own track shape differs slightly, so the route wouldn't sit on the line otherwise)
@@ -1276,7 +1411,25 @@ async function stopArrivals(id){
   const d = await get(`/StopPoint/${id}/Arrivals`).catch(() => []);
   arrCache.set(id, {t:Date.now(), d}); return d;
 }
+// National Rail leg: trains from the boarding station that call at the alighting station later
+async function railDepartures(L){
+  if(!railOn()) return null;
+  await railStations();
+  L.fromCrs ||= nearestCrs(L.from.p); L.toCrs ||= nearestCrs(L.to.p);
+  if(!L.fromCrs || !L.toCrs) return null;
+  let b; try{ b = await railBoard(L.fromCrs); }catch(e){ return null; }
+  const out = [];
+  for(const s of b.services || []){
+    if(s.cancelled) continue;
+    const i = s.calls.findIndex(c => c.crs === L.fromCrs), j = s.calls.findIndex((c, k) => k > i && c.crs === L.toCrs);
+    if(i < 0 || j < 0) continue;
+    const a = s.calls[i], d = s.calls[j];
+    out.push({vid:s.id, at:a.ms, atDest:d.ms, towards:s.destination || '', platform:s.platform, sched:a.st, late:a.st && a.t && a.t !== a.st ? a.t : null, reason:s.reason, op:s.operator});
+  }
+  return out.sort((x, y) => x.at - y.at);
+}
 async function liveDepartures(L){
+  if(L.kind === 'rail') return railDepartures(L);
   if(!LIVE_KINDS.has(L.kind) || !L.line || !L.from.id || !L.to.id) return null;
   const [a, b] = await Promise.all([stopArrivals(L.from.id), stopArrivals(L.to.id)]);
   const atTo = new Map();
@@ -1448,7 +1601,10 @@ async function projectPlan(){
     }
     if(i===J.idx && J.riding){
       let a = null;
-      if(J.vehicle){ const b = await stopArrivals(L.to.id); const v = b.find(p => p.vehicleId===J.vehicle.vid && p.lineId===L.line); if(v) a = Date.parse(v.expectedArrival); }
+      if(J.vehicle && L.kind === 'rail'){ const ds = await railDepartures({...L}).catch(() => null); // on board: the train's own expected arrival
+        const brd = L.toCrs && await railBoard(L.toCrs).catch(() => null), sv = brd && (brd.services || []).find(s => s.id === J.vehicle.vid);
+        const c = sv && sv.calls.find(c => c.crs === L.toCrs); if(c && c.ms) a = c.ms; else { const v = ds && ds.find(d => d.vid === J.vehicle.vid); if(v) a = v.atDest; } }
+      else if(J.vehicle){ const b = await stopArrivals(L.to.id); const v = b.find(p => p.vehicleId===J.vehicle.vid && p.lineId===L.line); if(v) a = Date.parse(v.expectedArrival); }
       t = a ?? Math.max(t, L.arr); L.eta = t; L.board = L.board ?? L.dep; continue;
     }
     const ready = t + (L.kind==='tube' || L.kind==='elizabeth' ? 60000 : 30000); // getting to the platform/stop
@@ -1457,7 +1613,7 @@ async function projectPlan(){
     const pick = deps && deps.find(d => d.at >= ready);
     if(pick){
       L.pick = pick; L.board = pick.at; t = pick.atDest; L.wait = pick.at - ready;
-      if(i===J.idx || (i===J.idx+1 && legs[J.idx].walk)) J.vehicle = {line:L.line, vid:pick.vid};
+      if(i===J.idx || (i===J.idx+1 && legs[J.idx].walk)) J.vehicle = {line:L.line || (L.kind === 'rail' ? 'nr' : null), vid:pick.vid};
     } else if(L.dep >= (deps ? ready : t - 60000)){ L.pick = null; L.board = L.dep; t = Math.max(t, L.arr); } // timetable only: a minute's leeway
     else { // planned service already gone and no live info: next one, guessed at the same journey time + a typical wait
       L.pick = null; L.missed = true; L.board = ready + (L.kind==='rail' ? 15 : L.kind==='bus' ? 8 : 4)*60000; t = L.board + (L.arr - L.dep);
@@ -1598,6 +1754,7 @@ $('bShare').onclick = async () => {
 async function highlightVehicle(gen){
   HL.clear();
   const L = J.plan.legs.slice(J.idx).find(L => !L.walk);
+  if(L && L.kind === 'rail' && J.vehicle){ HL.add('nr:' + J.vehicle.vid); return; }
   if(!L || !L.line || !J.vehicle || !LIVE_KINDS.has(L.kind)) return;
   if(!BY[L.line] || L.kind==='bus'){ await addLine(L.line, L.lineName, L.colour, L.kind); if(gen !== J.gen || !J.active) return; }
   else if(!BY[L.line].pinned){ BY[L.line].pinned = true; BY[L.line].layer && BY[L.line].layer.eachLayer(p => p.setStyle(lineStyle(BY[L.line]))); }
@@ -1778,11 +1935,16 @@ function legRow(L, i){
   let live = '';
   if(!L.walk && !done){
     if(cur && J.riding) live = `On board · arriving ${esc(L.to.name)} <b>${hhmm(L.eta||L.arr)}</b>`;
+    else if(L.kind === 'rail' && L.pick){
+      const p = L.pick, n = Date.now();
+      live = `${p.late ? `<span class="bad">Expected <b>${hhmm(p.at)}</b> (${Math.max(1, mins(p.at - L.dep))} min late)</span>` : `On time · <b>${hhmm(p.at)}</b>`}${p.platform ? ` · Platform <b>${esc(p.platform)}</b>` : ''} · ${Math.max(0, mins(p.at - n))} min`
+        + (p.late && p.reason ? `<br><span class="muted">${esc(p.reason)}</span>` : '');
+    }
     else if(L.live && L.live.length){
       const n = Date.now(), next = L.live.filter(d => d.at > n - 30000).slice(0, 3).map(d => d===L.pick ? `<b>${Math.max(0, mins(d.at-n))}</b>` : Math.max(0, mins(d.at-n)));
       live = `Next: ${next.join(', ')} min` + (L.pick ? ` · catch the <b>${hhmm(L.pick.at)}</b>` : '');
     } else if(L.missed) live = `<span class="bad">Planned ${hhmm(L.dep)} service missed</span>`;
-    else live = `Departs ${hhmm(L.board ?? L.dep)}` + (LIVE_KINDS.has(L.kind) ? '' : ' (timetable)');
+    else live = `Departs ${hhmm(L.board ?? L.dep)}` + (LIVE_KINDS.has(L.kind) || (L.kind === 'rail' && railOn()) ? '' : ' (timetable)');
   }
   const time = L.walk ? `${mins(L.arr-L.dep)} min` : `${hhmm(L.board ?? L.dep)}–${hhmm(L.eta ?? L.arr)}`;
   return `<li class="${cur?'cur':''} ${done?'done':''}" style="--c:${L.colour}">
@@ -1840,7 +2002,7 @@ function stationIdx(){
   for(const l of ACTIVE){ if(l.mode === 'bus' || !l.stops) continue;
     for(const [id, s] of Object.entries(l.stops)){
       const name = s.n.replace(/\s*\((?:[^)]*line|H&C|Circle Line|[^)]*Underground)[^)]*\)\s*/i, ' ').replace(/-Underground$/i, '').replace(/\s+/g, ' ').trim();
-      const key = name.toLowerCase().replace(/['’.]/g, '').replace(/&/g, 'and').replace(/[^a-z0-9]+/g, ' ').trim();
+      const key = name.toLowerCase().replace(/^london /, '').replace(/ \(london\)$/, '').replace(/['’.]/g, '').replace(/&/g, 'and').replace(/[^a-z0-9]+/g, ' ').trim(); // "London Victoria" = "Victoria"
       let st = by.get(key); if(st && dist(st.p, s.p) > 600) st = null;
       if(!st){ st = {name, p:s.p, lines:new Set(), ids:new Set()}; by.set(by.has(key) ? key + '#' + id : key, st); }
       st.lines.add(l.id); st.ids.add(id);
