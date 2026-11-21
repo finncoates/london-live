@@ -69,6 +69,7 @@ little value on a map), crowding (TfL crowding API is patchy), weather, social f
 | Legend: Show all / Hide all (hide all, then tap a line = just that line); hidden lines lose their station dots | Live map |
 | Bookmarkable stations: `?station=Bank` opens its next trains; the address updates when you open a station | Live map |
 | Station card shows problems on that station's lines (short reason; full text on hover) | Live map |
+| 8 findings from a third independent review fixed (planned-works refresh/fallback, Return trip start after swap/reminder, Earlier/Later limits, "London" kept in station labels, station grouping) | both |
 
 ## Next ideas (not built yet)
 - Switch on live National Rail (waiting on the key; `rail/SETUP.md`).
