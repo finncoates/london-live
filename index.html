@@ -1317,7 +1317,7 @@ $('sres').addEventListener('click', e => { const li = e.target.closest('li[data-
 let focusMarker = null, focusTimer = 0;
 function clearFocus(){ if(focusMarker){ focusMarker.setMap(null); focusMarker = null; } $('station').hidden = true; clearInterval(focusTimer); }
 async function goStation(st){
-  clearFocus(); FOCUS_ST = st;
+  clearFocus(); FOCUS_ST = st; $('tip').style.display = 'none';
   $('q').value = st.name; SR.items = []; $('sres').hidden = true; $('q').setAttribute('aria-expanded', 'false'); $('q').blur();
   map.panTo(LL(st.p)); map.setZoom(15);
   const col = BY[[...st.lines][0]].colour;
@@ -1384,7 +1384,19 @@ function renderFollow(){
 function follow(t, zoom = 14){ HL.clear(); if(t) HL.add(t.key); FW.t = t; if(t && t.d){ map.setZoom(Math.max(map.getZoom(), zoom)); map.panTo(LL(t.d)); } renderFollow(); }
 function stopFollow(){ HL.clear(); FW.t = null; FW.tour = false; $('tourcap').hidden = true; renderFollow(); }
 $('follow').addEventListener('click', e => { if(e.target.closest('#fwStop')) stopFollow(); });
-map.addListener('click', ev => { if(!ev.pixel) return; const t = nearest(ev.pixel.x, ev.pixel.y); if(t) follow(t, map.getZoom()); });
+map.addListener('click', ev => { if(!ev.pixel) return; const {x, y} = ev.pixel, coarse = matchMedia('(pointer:coarse)').matches;
+  const onDot = stationAt(x, y, coarse ? 12 : 8); if(onDot) return goStation(onDot); // right on a dot: the station, even with a train waiting there
+  const t = nearest(x, y); if(t) return follow(t, map.getZoom());
+  const st = stationAt(x, y); if(st) goStation(st); });
+// a station dot under the finger (dots show from zoom 13): open its next trains
+function stationAt(x, y, r){
+  if(map.getZoom() < 13) return null;
+  if(!STATIONS || STATIONS.length < 50) STATIONS = stationIndex();
+  let best = null, bd = r || (matchMedia('(pointer:coarse)').matches ? 22 : 14);
+  for(const st of STATIONS){ if(![...st.lines].some(id => BY[id] && lineStyle(BY[id]).opacity > 0)) continue;
+    const q = scr(st.p), d = Math.hypot(q.x - x, q.y - y); if(d < bd){ bd = d; best = st; } }
+  return best;
+}
 map.addListener('dragstart', () => { if(FW.t && !FW.tour) stopFollow(); });
 // keep the followed train in view (gently), and in tour mode hop to a new train every minute
 setInterval(() => {
@@ -1429,7 +1441,7 @@ tick(); setInterval(tick, 1000);
 map.addListener('dragstart', () => { $('tip').style.display = 'none'; hover = null; });
 map.addListener('zoom_changed', () => { $('tip').style.display = 'none'; hover = null; });
 renderModeChips(); renderLegend(); syncMapMenu();
-if(DEBUG) window.LLT = {AUTO, autoNext: () => autoNext(), trains, ACTIVE, BY, placeTrain, segTime, refresh, map, draw, goStation, searchStations};
+if(DEBUG) window.LLT = {AUTO, autoNext: () => autoNext(), trains, ACTIVE, BY, placeTrain, segTime, refresh, map, draw, goStation, searchStations, scr, stationAt};
 
 // ---------- boot ----------
 (async () => {

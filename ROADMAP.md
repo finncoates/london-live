@@ -62,6 +62,8 @@ little value on a map), crowding (TfL crowding API is patchy), weather, social f
 | Fixes from user-style review: no false "late" at start, destination name kept after reroute, nearest bus stop | Journey |
 | Station dots on the lines when zoomed in (bigger for interchanges); station names too when "Hide places & labels" is on | both |
 | Return trip: one tap plans the way back to where you started | Journey |
+| Tap a station dot on the live map → its next trains (a tap right on the dot wins over a train waiting there) | Live map |
+| Planned works for later trips: routes and reminders an hour or more ahead show TfL's planned closures/reduced service for that time, not today's live problems | Journey |
 
 ## Next ideas (not built yet)
 - Switch on live National Rail (waiting on the key; `rail/SETUP.md`).
