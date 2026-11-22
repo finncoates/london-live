@@ -1657,7 +1657,7 @@ async function bostonVehicles(){
       brg:a.bearing ?? null, t:Date.parse(a.updated_at) || null, train:rt.type === 2, metro:rt.type === 1, tram:rt.type === 0, kind, col:rt.color ? '#' + rt.color : '#FFC72C'}; })};
 }
 // keep only the vehicles of the source being shown (switching country drops the last one's)
-const GPS_SRC = ['fi:', 'hsl:', 'no:', 'us:', 'de:'];
+const GPS_SRC = ['fi:', 'hsl:', 'no:', 'us:', 'de:', 'sch:'];
 function gpsOnly(...keep){ for(const k of [...GPS.list.keys()]){ const src = GPS_SRC.find(x => k.startsWith(x)) || 'uk'; if(!keep.includes(src)) GPS.list.delete(k); } }
 // ---- Berlin & Brandenburg: S-Bahn, U-Bahn, trams, buses, regional trains (VBB "radar": real-time positions, no key) ----
 const inBerlin = p => p[0] > 52.2 && p[0] < 52.8 && p[1] > 12.9 && p[1] < 13.9;
@@ -1672,12 +1672,27 @@ async function berlinVehicles(){
       dest:m.direction || '', lat:m.location.latitude, lon:m.location.longitude, brg:null, t:null, train:pr === 'suburban' || pr === 'regional' || pr === 'express', metro:pr === 'subway', tram:pr === 'tram',
       kind:{suburban:'S-Bahn train', subway:'U-Bahn train', regional:'train', express:'train'}[pr] || pr, col:VBB_COL[pr] || '#A5027D', est:true}; })};
 }
+// ---- trams/trains placed from the timetable where no live feed exists (Manchester Metrolink): clearly labelled "scheduled" ----
+function schedVehicles(){
+  const sets = cityData().filter(d => d.sched); if(!sets.length || !TRAINS_ON){ for(const k of [...GPS.list.keys()]) if(k.startsWith('sch:')) GPS.list.delete(k); return; }
+  const P = Object.fromEntries(new Intl.DateTimeFormat('en-GB', {timeZone:'Europe/London', year:'numeric', month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit', second:'2-digit', hourCycle:'h23'}).formatToParts(new Date()).map(x => [x.type, x.value]));
+  const today = P.year + P.month + P.day, sec = +P.hour*3600 + +P.minute*60 + +P.second, y = new Date(Date.now() - 864e5);
+  const Q2 = Object.fromEntries(new Intl.DateTimeFormat('en-GB', {timeZone:'Europe/London', year:'numeric', month:'2-digit', day:'2-digit'}).formatToParts(y).map(x => [x.type, x.value])), yday = Q2.year + Q2.month + Q2.day;
+  const out = [];
+  for(const d of sets){ const S = d.sched;
+    for(const [day, t] of [[today, sec], [yday, sec + 86400]]){ const li = S.days[day]; if(li == null) continue;
+      for(const [pi, t0] of S.lists[li]){ const pt = S.patterns[pi], el = t - t0; if(el < 0 || el > pt.off[pt.off.length-1]) continue;
+        let i = 1; while(i < pt.off.length - 1 && pt.off[i] < el) i++;
+        const a = pt.stops[i-1], b = pt.stops[i], f = Math.max(0, Math.min(1, (el - pt.off[i-1]) / ((pt.off[i] - pt.off[i-1]) || 1)));
+        out.push({id:'sch:' + pi + ':' + t0, line:pt.line.replace(/ Line$/, ''), op:'Metrolink', dest:pt.dest, lat:a[0] + (b[0]-a[0])*f, lon:a[1] + (b[1]-a[1])*f, brg:null, t:null, tram:true, kind:'tram', col:pt.col, sched:true}); } } }
+  gpsMerge({vehicles:out}, 'sch:');
+}
 // ---- cities whose open feeds don't allow browsers directly: through the relay (no key needed) ----
 const RELAY_CITIES = [['gdansk', [54.25, 18.3, 54.5, 18.85], 'Gdańsk'], ['tallinn', [59.33, 24.5, 59.52, 25.0], 'Tallinn'], ['vilnius', [54.55, 25.0, 54.82, 25.5], 'Vilnius']];
 const relayCity = p => RELAY_CITIES.find(([, b]) => p[0] > b[0] && p[0] < b[2] && p[1] > b[1] && p[1] < b[3]);
 // ---- city line maps (baked from each city's GTFS timetable: cities/*.json) + snapping vehicles onto them ----
 const CITYL = {list:[{name:'Helsinki', box:p => inHelsinki(p), urls:['cities/helsinki.json', 'cities/finland.json']}, {name:'Finland', box:p => inFinland(p), urls:['cities/finland.json']},
-  {name:'Berlin', box:p => inBerlin(p), urls:['cities/berlin.json']}, {name:'Boston', box:p => inBoston(p), urls:['cities/boston.json']}], cur:null, data:new Map()};
+  {name:'Berlin', box:p => inBerlin(p), urls:['cities/berlin.json']}, {name:'Manchester', box:p => p[0] > 53.3 && p[0] < 53.7 && p[1] > -2.55 && p[1] < -1.95, urls:['cities/manchester.json']}, {name:'Boston', box:p => inBoston(p), urls:['cities/boston.json']}], cur:null, data:new Map()};
 const cityData = () => CITYL.cur ? CITYL.cur.urls.map(u => CITYL.data.get(u)).filter(d => d && d.grid) : [];
 const CELL = (la, lo) => Math.floor(la*200) + ',' + Math.floor(lo*100); // ~550 m × 600 m
 async function loadCityLines(p){
@@ -1737,7 +1752,7 @@ function drawLineSet(ctx, d){
       ctx.fillStyle = dark ? '#eee' : '#1b1c1f'; ctx.fillText(stName(st[1]), c.x + rr + 4, c.y); ctx.lineWidth = Math.max(1.5, W*0.3); } }
 }
 const showSt = (d, st) => st[4].some(l => !GPS_OFF.has(l[2])) && !(d.dupRail && st[4].every(l => l[2] === 'train'));
-const stName = n => String(n).replace(/ \((Berlin|Helsinki|Helsingfors)\)$/, '').replace(/ Bhf\b/, '').trim();
+const stName = n => String(n).replace(/ \((Berlin|Helsinki|Helsingfors|Manchester Metrolink)\)$/, '').replace(/ Bhf\b/, '').trim();
 // departures grouped by kind (train, metro, tram, bus…), soonest first, a few of each
 function depGroups(rows, per = 4){
   const g = new Map(); for(const r of rows){ const k = r.cat || 'Departures'; if(!g.has(k)) g.set(k, []); g.get(k).push(r); }
@@ -1830,7 +1845,7 @@ async function refreshGps(){
     catch(e){ BUS.note = e.message; }
     GPS.busy = false; renderBusNote(); return;
   }
-  gpsOnly('uk');
+  gpsOnly('uk', 'sch:'); schedVehicles();
   const rc = relayCity(p);
   if(rc && TRAINS_ON){
     if(!RAIL.relay || RAIL.relay === 'demo'){ GPS.list.clear(); BUS.note = `Live buses and trams in ${rc[2]} are ready: they switch on once the relay is set up (no key needed for ${rc[2]}).`; renderBusNote(); return; }
@@ -1843,7 +1858,7 @@ async function refreshGps(){
   }
   if(regionOf(p) === 'world'){ GPS.list.clear(); BUS.note = z >= 8 ? 'No live data for this area yet. Live now: London, buses across England, Finland, Helsinki, Norway, Berlin, Boston, Tallinn, Gdańsk and Vilnius.' : ''; renderBusNote(); return; }
   const on = !busOff() && TRAINS_ON && !inLondonView(p);
-  if(!on || z < 13){ GPS.list.clear(); if(!inLondonView(p)){ BUS.note = !RAIL.relay ? 'Live trains and buses here are coming soon: they switch on once the data keys are set up. (Preview with made-up data: add ?rail=demo to the address.)' : on ? 'Zoom in to see buses' : 'Turn on Buses to see live buses here'; renderBusNote(); } return; }
+  if(!on || z < 13){ gpsOnly('sch:'); if(!inLondonView(p)){ BUS.note = !RAIL.relay ? 'Live trains and buses here are coming soon: they switch on once the data keys are set up. (Preview with made-up data: add ?rail=demo to the address.)' : on ? 'Zoom in to see buses' : 'Turn on Buses to see live buses here'; renderBusNote(); } return; }
   if(GPS.busy) return; GPS.busy = true;
   try{
     let res;
@@ -1909,7 +1924,7 @@ function gpsTip(e, r, tip){
   const kind = v.train ? (v.freight ? 'freight train' : 'train') : v.kind || (v.tram ? 'tram' : 'bus'), col = v.col || (v.tram ? '#7A1F3D' : opCol(v.op));
   tip.innerHTML = `<div class="tt-h">${symbol(v.train ? 'rail' : 'tube', col, 20)}<b>${esc(v.line)} ${v.train && /\d/.test(v.line) ? '' : kind}</b></div>
     ${v.dest ? `<div>${v.from ? esc(v.from) + ' → ' : 'To '}<b>${esc(v.dest)}</b></div>` : ''}${v.speed != null ? `<div>${Math.round(v.speed)} km/h${v.late != null ? ` · ${v.late <= -90 ? Math.round(-v.late/60) + ' min late' : v.late >= 90 ? Math.round(v.late/60) + ' min early' : 'on time'}` : ''}</div>` : ''}
-    <div class="tt-m">${esc(v.op || '')}${v.est ? ' · position from live timings' : ''}${age != null ? ` · position ${age < 90 ? age + ' s' : Math.round(age/60) + ' min'} ago` : ''}</div>`;
+    <div class="tt-m">${esc(v.op || '')}${v.sched ? ' · position from the timetable (no live feed)' : v.est ? ' · position from live timings' : ''}${age != null ? ` · position ${age < 90 ? age + ' s' : Math.round(age/60) + ' min'} ago` : ''}</div>`;
   tip.style.display = 'block';
   tip.style.left = Math.max(8, Math.min(innerWidth - 258, e.clientX + 14)) + 'px'; tip.style.top = Math.max(8, Math.min(innerHeight - 150, e.clientY + 14)) + 'px';
   return true;
@@ -1932,7 +1947,8 @@ const CATALOG = [
     {name:'United Kingdom', flag:'🇬🇧', cities:[
       {name:'London', at:[51.507, -0.128, 12], live:'now', modes:[['tube','Tube'], ['overground','Overground'], ['elizabeth','Elizabeth line'], ['dlr','DLR'], ['tram','Trams'], ['river','River boats'], ['cable','Cable car'], ['road','Road works'], ['bus','Buses'], ['bike','Santander Cycles & Beryl'], ['rail','National Rail']],
         note:'Every Tube, Overground, Elizabeth line, DLR and tram train live from TfL. Buses: zoom in. Santander Cycles docks with bikes and e-bikes.'},
-      ...[['Manchester', 53.480, -2.243], ['Birmingham', 52.479, -1.899], ['Leeds', 53.797, -1.546], ['Liverpool', 53.405, -2.982], ['Newcastle', 54.972, -1.614], ['Glasgow', 55.861, -4.251], ['Bristol', 51.454, -2.592], ['Cardiff', 51.479, -3.177]]
+      {name:'Manchester', at:[53.480, -2.243, 14], live:'now', modes:[['tram','Metrolink (timetable)'], ['bus','Buses'], ['bike','Bikes & scooters'], ['rail','National Rail (soon)']], note:'Every bus live by GPS. Metrolink trams placed from the timetable (TfGM no longer issues live-data keys).'},
+      ...[['Birmingham', 52.479, -1.899], ['Leeds', 53.797, -1.546], ['Liverpool', 53.405, -2.982], ['Newcastle', 54.972, -1.614], ['Glasgow', 55.861, -4.251], ['Bristol', 51.454, -2.592], ['Cardiff', 51.479, -3.177]]
         .map(([name, a, b]) => ({name, at:[a, b, 14], live:'now', modes:[['bus','Buses'], ['rail','National Rail (soon)'], ...(['Manchester','Leeds','Birmingham','Liverpool','Bristol'].includes(name) ? [['bike','Bikes & scooters (live now)']] : [])], note:'Every bus live by GPS (Bus Open Data): zoom in. National Rail trains switch on once the rail data key arrives.' + (['Manchester','Leeds','Birmingham','Liverpool','Bristol'].includes(name) ? ' Bikes and scooters for hire are live now.' : '')})),
       {name:'Edinburgh', at:[55.951, -3.196, 13], live:'keys', modes:[['bus','Buses & trams'], ['rail','National Rail']], note:'Lothian buses and Edinburgh Trams need no key, just the relay. (Their server was down overnight.)'}]},
     {name:'Finland', flag:'🇫🇮', cities:[
