@@ -91,6 +91,7 @@ little value on a map), crowding (TfL crowding API is patchy), weather, social f
 | **Bikes: Santander Cycles docks live** (TfL): bikes, e-bikes (blue dot) and free docks; tap for details; `?bikes=1`. Lime/Forest/Voi/Dott publish no open data for London | Live map |
 | **City line maps** for Helsinki (metro, trams, local trains, ferries) and Berlin (S-Bahn, U-Bahn, trams, regional, in official colours), baked from GTFS (`cities/`); vehicles snap onto their own line and face along it; Explore switches hide lines and vehicles together (Boston too) | Live map |
 | Fixes from a fifth independent review: line-search card no longer overwritten by an old station card; taps work outside London (UK region); right departures source per city file; failed bus routes not retried every refresh; Explore switches abroad apply at once; faster bent trains and city station dots | Live map |
+| **Tap a departure to follow it**: in a station or bus-stop card, tap any train or bus to find it on the map and follow it (its bus route is loaded if needed) | Live map |
 | **National Rail status** (TfL, no key): "good service on all operators" or the operators with problems and why, under the line status | Live map |
 | **Step-free view** (Map menu): stations with lift access to the platforms shown in blue, others faded (TfL accessibility data, `cities/london-lifts.json`) | Live map |
 | **Next stop + countdown on trains** when zoomed in (zoom 15.5+), labels never overlap | Live map |

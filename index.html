@@ -168,6 +168,7 @@ body.dark #simnote{background:#1f2a44;color:#c6dafc}
 .st-lines{display:flex;flex-wrap:wrap;gap:4px;margin:6px 0 4px}
 .st-crowd{font-size:12.5px;margin:6px 0 2px}.st-crowd .bars{display:flex;align-items:flex-end;gap:1px;height:28px;margin-top:4px}.st-crowd .bars i{flex:1;background:var(--edge);border-radius:2px 2px 0 0;min-width:2px}.st-crowd .bars i.now{background:var(--acc)}
 .st-lift{font-size:12px;padding:5px 8px;border-radius:8px;margin:4px 0;background:#e8f0fe;color:#174ea6}body.dark .st-lift{background:#1e2a44;color:#aecbfa}
+.deps li[data-veh]{cursor:pointer}.deps li[data-veh]:hover{background:var(--soft)}
 .dep-h{font-size:11.5px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--mute);margin:10px 0 2px}
 .st-warn{font-size:12px;line-height:1.35;padding:5px 8px;border-radius:8px;margin:4px 0}.st-warn b{font-weight:700}
 .deps{list-style:none;margin:6px 0 0;padding:0;display:grid;gap:6px}
@@ -2093,7 +2094,7 @@ async function openBusStop(st){
   const load = async () => { let a = []; try{ a = await get(`/StopPoint/${st.id}/Arrivals`); }catch(e){}
     if(box.hidden) return; const now = Date.now();
     const rows = a.sort((x, y) => x.timeToStation - y.timeToStation).slice(0, 10).map(x => { const m = Math.round(x.timeToStation/60);
-      return {when:now + x.timeToStation*1000, cat:'Buses', html:`<li><span class="sw" style="background:#DC241F"></span><span class="to">${esc(x.destinationName || x.towards || '')}<small>Bus ${esc(x.lineName)}</small></span><b>${m < 1 ? 'due' : m + ' min'}</b></li>`}; });
+      return {when:now + x.timeToStation*1000, cat:'Buses', html:`<li data-veh="${esc(x.lineId)}|${esc((x.vehicleId || '').trim())}"><span class="sw" style="background:#DC241F"></span><span class="to">${esc(x.destinationName || x.towards || '')}<small>Bus ${esc(x.lineName)}</small></span><b>${m < 1 ? 'due' : m + ' min'}</b></li>`}; });
     box.innerHTML = head + (rows.length ? `<ol class="deps">${rows.map(r => r.html).join('')}</ol>` : '<div class="muted">No buses listed right now.</div>'); };
   load(); clearInterval(focusTimer); focusTimer = setInterval(load, 30000); focusLoad = load;
 }
@@ -2306,7 +2307,7 @@ async function goStation(st){
       .map(a => { const l = BY[a.lineId], bus = !l && a.modeName === 'bus' || l?.mode === 'bus', m = Math.round(a.timeToStation/60), col = l ? ink(l.colour) : '#DC241F';
         const name = l ? l.name : a.lineName || a.lineId;
         return {when:now + a.timeToStation*1000, cat:bus ? 'Buses' : CAT[l?.mode] || CAT[a.modeName] || 'Trains',
-          html:`<li><span class="sw" style="background:${col}"></span><span class="to">${esc(cleanName(a.towards || a.destinationName || '') || name)}<small>${esc(bus ? 'Bus ' + name + (a.stationName ? ' · ' + a.stationName : '') : name)}${a.platformName && !bus ? ' · ' + esc(a.platformName) : ''}</small></span><b>${m < 1 ? 'due' : m + ' min'}</b></li>`}; });
+          html:`<li data-veh="${esc(a.lineId)}|${esc((a.vehicleId || '').trim())}"><span class="sw" style="background:${col}"></span><span class="to">${esc(cleanName(a.towards || a.destinationName || '') || name)}<small>${esc(bus ? 'Bus ' + name + (a.stationName ? ' · ' + a.stationName : '') : name)}${a.platformName && !bus ? ' · ' + esc(a.platformName) : ''}</small></span><b>${m < 1 ? 'due' : m + ' min'}</b></li>`}; });
     if(box.hidden) return;
     box.innerHTML = head0x() + (rows.length ? depGroups(rows) : '<div class="muted">No departures listed right now.</div>');
   };
@@ -2354,6 +2355,20 @@ function renderFollow(){
   el.innerHTML = `<span class="sw" style="background:${ink(x.colour)}"></span><span class="ft"><b>Following ${esc(x.line)}</b> ${esc(x.to)}<small>${esc(x.next)}</small></span><button type="button" id="fwStop">Stop</button>`;
   if(FW.tour){ const c = $('tourcap'); c.hidden = false; c.innerHTML = `<b style="color:${boardCol ? boardCol(x.colour) : x.colour}">${esc(x.line)}</b>${esc(x.to)}<small>${esc(x.next)}</small>`; }
 }
+// tap a departure in a card: find that train/bus on the map and follow it (a bus route is loaded first if needed)
+async function followVehicle(lineId, vid){
+  if(!vid) return; const key = lineId + ':' + vid; let t = trains.get(key);
+  if(!t){ let l = BY[lineId];
+    if(!l){ try{ const info = await get('/Line/' + encodeURIComponent(lineId)); const m = info[0] || info; if(!m || m.modeName !== 'bus') return;
+        l = {id:m.id, name:m.name, colour:'#DC241F', mode:'bus', group:'bus', on:true, count:0, polys:[], routes:[], stops:{}, seg:{}}; ACTIVE.push(l); BY[l.id] = l;
+        try{ await loadLine(l); }catch(e){ ACTIVE.splice(ACTIVE.indexOf(l), 1); delete BY[l.id]; return; } }catch(e){ return; } }
+    if(l.mode === 'bus'){ l.near = true; if(MODES_OFF.has('bus')){ MODES_OFF.delete('bus'); renderModeChips(); } LANES = null; linesSig = ''; }
+    await refresh().catch(() => {}); t = trains.get(key);
+    if(!t) return; }
+  for(let i = 0; i < 20 && !t.d; i++) await sleep(100); // placed on the next frame
+  follow(t, Math.max(map.getZoom(), 15));
+}
+$('station').addEventListener('click', e => { const li = e.target.closest('li[data-veh]'); if(!li) return; const [lid, vid] = li.dataset.veh.split('|'); followVehicle(lid, vid); });
 function follow(t, zoom = 14){ HL.clear(); if(t) HL.add(t.key); FW.t = t; if(t && t.d){ map.setZoom(Math.max(map.getZoom(), zoom)); map.panTo(LL(t.d)); } renderFollow(); }
 function stopFollow(){ HL.clear(); FW.t = null; FW.tour = false; $('tourcap').hidden = true; renderFollow(); }
 $('follow').addEventListener('click', e => { if(e.target.closest('#fwStop')) stopFollow(); });
