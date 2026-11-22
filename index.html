@@ -1231,6 +1231,10 @@ function symbol(kind, c, s = 16){
   const o = `<svg class="sym" width="${s}" height="${s}" viewBox="0 0 24 24" aria-hidden="true">`;
   if(kind==='walk') return o + `<circle cx="13.5" cy="3.8" r="2.3" fill="${c}"/><path d="M11 8.2l3.2-1 2.4 3.6 3 1.2M12.6 8.6l-1.7 6.6 3.7 3.4.9 4.6M10.9 15.2l-2.6 3.3-3.3 1.2" fill="none" stroke="${c}" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
   if(kind==='tubeLogo') return o + `<circle cx="12" cy="12" r="7" fill="none" stroke="#DC241F" stroke-width="3.6"/><rect x="1" y="9.6" width="22" height="4.8" rx=".6" fill="#0019A8"/></svg>`;
+  if(kind==='metrog') return o + `<rect x="3" y="3" width="18" height="18" rx="4" fill="${c}"/><path d="M7 17V7.5l5 6 5-6V17" fill="none" stroke="#fff" stroke-width="2.2" stroke-linejoin="round"/></svg>`;
+  if(kind==='busg') return o + `<rect x="4" y="3" width="16" height="16" rx="3.5" fill="${c}"/><rect x="6.5" y="6" width="11" height="6" rx="1" fill="#fff"/><circle cx="8" cy="15.5" r="1.3" fill="#fff"/><circle cx="16" cy="15.5" r="1.3" fill="#fff"/><rect x="6" y="19" width="3" height="2.5" rx="1" fill="${c}"/><rect x="15" y="19" width="3" height="2.5" rx="1" fill="${c}"/></svg>`;
+  if(kind==='tramg') return o + `<path d="M8 2.5h8M12 2.5v3" stroke="${c}" stroke-width="1.8" stroke-linecap="round"/><rect x="5" y="5.5" width="14" height="13" rx="3" fill="${c}"/><rect x="7.3" y="8" width="9.4" height="5" rx="1" fill="#fff"/><circle cx="9" cy="15.8" r="1.1" fill="#fff"/><circle cx="15" cy="15.8" r="1.1" fill="#fff"/><path d="M8 18.5l-2 3M16 18.5l2 3" stroke="${c}" stroke-width="1.8" stroke-linecap="round"/></svg>`;
+  if(kind==='ferryg') return o + `<path d="M3 15h18l-2.5 4.5h-13z" fill="${c}"/><rect x="7" y="9" width="10" height="5" rx="1" fill="${c}"/><path d="M12 4v5" stroke="${c}" stroke-width="2"/><path d="M2 21.5c2 0 2-1 4-1s2 1 4 1 2-1 4-1 2 1 4 1 2-1 4-1" fill="none" stroke="${c}" stroke-width="1.3"/></svg>`;
   if(kind==='cycle') return o + `<g fill="none" stroke="${c}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="5.5" cy="16" r="3.8"/><circle cx="18.5" cy="16" r="3.8"/><path d="M5.5 16l4-7h6l3 7M9.5 9L12 16h3.5M8 6.5h3M15.5 9l-1-3h2.5"/></g></svg>`;
   if(kind==='drive') return o + `<path d="M5 11l1.8-4.6A2 2 0 018.7 5h6.6a2 2 0 011.9 1.4L19 11v6.5a1 1 0 01-1 1h-1.5a1 1 0 01-1-1V16h-7v1.5a1 1 0 01-1 1H6a1 1 0 01-1-1z" fill="${c}"/><circle cx="8" cy="13" r="1.3" fill="#fff"/><circle cx="16" cy="13" r="1.3" fill="#fff"/><path d="M7.2 10.5l1.2-3h7.2l1.2 3z" fill="#fff" opacity=".85"/></svg>`;
   if(kind==='any') return o + `<rect x="3" y="3" width="18" height="18" rx="5" fill="${c}"/><path d="M8 16.5l-1.5 2.5M16 16.5l1.5 2.5M8.5 7h7a1.5 1.5 0 011.5 1.5V14a2 2 0 01-2 2H9a2 2 0 01-2-2V8.5A1.5 1.5 0 018.5 7zM7 11.5h10" fill="none" stroke="#fff" stroke-width="1.6" stroke-linecap="round"/></svg>`;
@@ -1254,7 +1258,7 @@ function showTip(e){
   if(e.type === 'click' && map.getZoom() >= 13 && stationAt(e.clientX-r.left, e.clientY-r.top, matchMedia('(pointer:coarse)').matches ? 12 : 8)){ $('tip').style.display = 'none'; hover = null; return; } // a station tap
   const t = nearest(e.clientX-r.left, e.clientY-r.top); hover = t;
   const tip = $('tip');
-  if(!t){ if(typeof gpsTip === 'function' && gpsTip(e, r, tip)) return; if(typeof bikeTip === 'function' && bikeTip(e, r, tip)) return; if(typeof roadTip === 'function' && roadTip(e, r, tip)) return; if(e.type === 'click' && typeof busStopAt === 'function' && busStopAt(e.clientX - r.left, e.clientY - r.top)) return; if(typeof shareTip === 'function' && shareTip(e, r, tip)) return; tip.style.display='none'; return; }
+  if(!t){ if(typeof gpsTip === 'function' && gpsTip(e, r, tip)) return; if(e.type === 'click' && typeof BROUTE !== 'undefined'){ BROUTE.polys = null; BROUTE.key = ''; } if(typeof bikeTip === 'function' && bikeTip(e, r, tip)) return; if(typeof roadTip === 'function' && roadTip(e, r, tip)) return; if(e.type === 'click' && typeof busStopAt === 'function' && busStopAt(e.clientX - r.left, e.clientY - r.top)) return; if(typeof shareTip === 'function' && shareTip(e, r, tip)) return; tip.style.display='none'; return; }
   const l = BY[t.line], secs = Math.max(0, Math.round(((t.curArr??t.arr)-now())/1000));
   // TfL has no train names; tube trains have a set number and buses a registration (rail ids are trip codes)
   const vid = t.anon ? '' : t.key.slice(t.line.length + 1);
@@ -1882,6 +1886,7 @@ function gpsMerge(res, prefix){
     const now = Date.now();
     for(const v of res.vehicles || []){ const sn = snapGps(v); if(sn){ v.lat = sn.lat; v.lon = sn.lon; v.segAng = sn.ang; if(sn.col) v.col = sn.col; }
       let g = GPS.list.get(v.id);
+      if(g && vkind(v) === 'bus'){ const tr = g.trail || (g.trail = [[g.to[0], g.to[1]]]); const last = tr[tr.length - 1]; if(dist(last, [v.lat, v.lon]) > 15){ tr.push([v.lat, v.lon]); if(tr.length > 40) tr.shift(); } } // the road it has driven
       if(!g){ g = {from:[v.lat, v.lon], to:[v.lat, v.lon], t0:now}; GPS.list.set(v.id, g); }
       else if(g.to[0] !== v.lat || g.to[1] !== v.lon){ g.from = gpsPos(g, now); g.to = [v.lat, v.lon]; g.t0 = now; }
       g.v = v; g.seen = now; }
@@ -1889,11 +1894,21 @@ function gpsMerge(res, prefix){
 }
 // glide from the last position to the new one over the update interval
 const gpsPos = (g, now) => { const k = Math.min(1, (now - g.t0)/(g.dur || 15000)), e = k*(2 - k); return [g.from[0] + (g.to[0] - g.from[0])*e, g.from[1] + (g.to[1] - g.from[1])*e]; };
+const OP_NAMES = {NATX:'National Express', NXWM:'National Express West Midlands', FMAN:'First Manchester', FBRI:'First West of England', FLDS:'First Leeds', FCYM:'First Cymru', FGLA:'First Glasgow', SCMN:'Stagecoach', SCGH:'Stagecoach', SCMY:'Stagecoach Merseyside', SCNH:'Stagecoach', SCOX:'Stagecoach', SCEM:'Stagecoach', SCCU:'Stagecoach', SCWW:'Stagecoach', SYRK:'Stagecoach Yorkshire', ARBB:'Arriva', AMSY:'Arriva North West', ANWE:'Arriva North West', AMID:'Arriva Midlands', AYKS:'Arriva Yorkshire', TNXB:'Transdev', TDTR:'Transdev', BNSM:'Bee Network (Stagecoach)', BNML:'Bee Network (Metroline)', BNGN:'Bee Network (Go North West)', BNDB:'Bee Network (Diamond)', BNFM:'Bee Network (First)', CBUS:'Cardiff Bus', NWPT:'Newport Bus', GNEL:'Go North East', GOEA:'Go East Anglia', BLAC:'Blackpool Transport', RBTS:'Reading Buses', BRTB:'Brighton & Hove', NOCT:'Nottingham City Transport', MBTO:'Metro', 'TfE':'Lothian / Edinburgh Trams'};
+const opName = op => OP_NAMES[op] || op;
 const OP_COL = ['#E4002B', '#0057B8', '#00843D', '#F4A300', '#6D2077', '#00A3AD', '#D0006F', '#5B6770'];
 const opCol = op => { let h = 0; for(const ch of op || '') h = (h*31 + ch.charCodeAt(0)) >>> 0; return OP_COL[h % OP_COL.length]; };
 function drawGps(ctx, s, hl0, hw0, mpp){
   draw.ghit = []; if(TRAINS_ON && document.body.classList.contains('away') && map.getCenter()){ const mc = [map.getCenter().lat(), map.getCenter().lng()]; if(CITYL.cur && CITYL.cur.box(mc)) drawCityLines(ctx); } if(!GPS.list.size || !SHOW_ICONS || !TRAINS_ON) return;
   const now = Date.now(), cosLat = Math.cos(map.getCenter().lat()*rad), label = PV.z >= 15.5;
+  // bus routes abroad: where each bus has driven (thin, light, like London's bus routes), and the tapped bus's whole route
+  if(!busOff() && !GPS_OFF.has('bus') && PV.z >= 13){ const W = lineW(), look = lineLook('bus', W); ctx.lineJoin = 'round'; ctx.lineCap = 'round';
+    for(const g of GPS.list.values()){ if(!g.trail || g.trail.length < 2 || vkind(g.v) !== 'bus') continue;
+      ctx.globalAlpha = look.alpha*0.8; ctx.strokeStyle = g.v.col || opCol(g.v.op); ctx.lineWidth = look.w; ctx.beginPath();
+      g.trail.forEach((q, i) => { const c = scr(q); i ? ctx.lineTo(c.x, c.y) : ctx.moveTo(c.x, c.y); }); const c = scr(gpsPos(g, now)); ctx.lineTo(c.x, c.y); ctx.stroke(); }
+    if(BROUTE.polys){ ctx.globalAlpha = 0.9; ctx.strokeStyle = BROUTE.col; ctx.lineWidth = W*0.8;
+      for(const poly of BROUTE.polys){ ctx.beginPath(); poly.forEach((q, i) => { const c = scr(q); i ? ctx.lineTo(c.x, c.y) : ctx.moveTo(c.x, c.y); }); ctx.stroke(); } }
+    ctx.globalAlpha = 1; }
   ctx.lineWidth = 1; ctx.font = '700 10.5px system-ui, sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
   for(const g of GPS.list.values()){
     if(GPS_OFF.has(vkind(g.v))) continue;
@@ -1916,15 +1931,25 @@ function drawGps(ctx, s, hl0, hw0, mpp){
   }
   ctx.globalAlpha = 1; ctx.textAlign = 'start';
 }
+// the tapped bus's route: from the timetable where we have it (Manchester), otherwise the road it has driven
+const BROUTE = {polys:null, key:'', col:'#DC241F'};
+async function showBusRoute(g){
+  const v = g.v, key = v.op + ':' + v.line; if(BROUTE.key === key) return; BROUTE.key = key; BROUTE.col = v.col || opCol(v.op); BROUTE.polys = null;
+  const c = map.getCenter(), mcr = c && Math.abs(c.lat() - 53.48) < 0.3 && Math.abs(c.lng() + 2.24) < 0.4;
+  if(mcr){ try{ const r = await fetch('cities/mcr-bus/' + String(v.line).replace(/[^A-Za-z0-9]+/g, '_') + '.json', {signal:AbortSignal.timeout(8000)}); if(r.ok && BROUTE.key === key) BROUTE.polys = await r.json(); }catch(e){} }
+  if(!BROUTE.polys && g.trail && BROUTE.key === key) BROUTE.polys = [g.trail.slice()];
+}
 function gpsTip(e, r, tip){
   const x = e.clientX - r.left, y = e.clientY - r.top, rad0 = matchMedia('(pointer:coarse)').matches ? 24 : 14;
   let best = null, bd = rad0; for(const [g, gx, gy] of draw.ghit || []){ const d = Math.hypot(gx - x, gy - y); if(d < bd){ bd = d; best = g; } }
   if(!best) return false;
   const v = best.v, age = v.t ? Math.max(0, Math.round((Date.now() - v.t)/1000)) : null;
+  if(e.type === 'click' && vkind(v) === 'bus') showBusRoute(best); else if(e.type === 'click'){ BROUTE.polys = null; BROUTE.key = ''; }
   const kind = v.train ? (v.freight ? 'freight train' : 'train') : v.kind || (v.tram ? 'tram' : 'bus'), col = v.col || (v.tram ? '#7A1F3D' : opCol(v.op));
-  tip.innerHTML = `<div class="tt-h">${symbol(v.train ? 'rail' : 'tube', col, 20)}<b>${esc(v.line)} ${v.train && /\d/.test(v.line) ? '' : kind}</b></div>
+  const ico = v.train ? 'rail' : v.metro ? 'metrog' : vkind(v) === 'tram' ? 'tramg' : vkind(v) === 'ferry' ? 'ferryg' : vkind(v) === 'bus' ? 'busg' : 'tube';
+  tip.innerHTML = `<div class="tt-h">${symbol(ico, col, 20)}<b>${esc(v.line)} ${v.train && /\d/.test(v.line) ? '' : kind}</b></div>
     ${v.dest ? `<div>${v.from ? esc(v.from) + ' → ' : 'To '}<b>${esc(v.dest)}</b></div>` : ''}${v.speed != null ? `<div>${Math.round(v.speed)} km/h${v.late != null ? ` · ${v.late <= -90 ? Math.round(-v.late/60) + ' min late' : v.late >= 90 ? Math.round(v.late/60) + ' min early' : 'on time'}` : ''}</div>` : ''}
-    <div class="tt-m">${esc(v.op || '')}${v.sched ? ' · position from the timetable (no live feed)' : v.est ? ' · position from live timings' : ''}${age != null ? ` · position ${age < 90 ? age + ' s' : Math.round(age/60) + ' min'} ago` : ''}</div>`;
+    <div class="tt-m">${esc(opName(v.op || ''))}${v.sched ? ' · position from the timetable (no live feed)' : v.est ? ' · position from live timings' : ''}${age != null ? ` · position ${age < 90 ? age + ' s' : Math.round(age/60) + ' min'} ago` : ''}</div>`;
   tip.style.display = 'block';
   tip.style.left = Math.max(8, Math.min(innerWidth - 258, e.clientX + 14)) + 'px'; tip.style.top = Math.max(8, Math.min(innerHeight - 150, e.clientY + 14)) + 'px';
   return true;
