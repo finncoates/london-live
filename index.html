@@ -86,6 +86,8 @@ body.dark .switch:checked{background:var(--acc)}
 .icon[aria-expanded="true"]{background:var(--soft)}
 .mm-modes{display:grid;cursor:default}
 .chips{display:flex;flex-wrap:wrap;gap:6px}
+#mModes{display:grid;gap:8px}.mcat-h{font-size:11.5px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--mute);margin:0 0 4px}
+#mModes .mcat:has(.chips:empty){display:none}
 .chip2{display:inline-flex;align-items:center;gap:5px;font-size:13px;padding:5px 9px 5px 6px;border-radius:99px;border:1px solid var(--edge);background:var(--panel)}
 .chip2[aria-pressed="false"]{opacity:.45}
 .chip2[aria-pressed="false"] .sym{filter:grayscale(1)}
@@ -180,7 +182,7 @@ body.dark #simnote{background:#1f2a44;color:#c6dafc}
 #mModes{margin:0 0 8px}
 #legend{display:grid;gap:0}
 body.abroad #mModes [data-mode=rail]{display:none}
-body.away #legend, body.away #lgAll, body.away #sbox, body.abroad #nrbox, body.away #mModes [data-mode=tube], body.away #mModes [data-mode=overground], body.away #mModes [data-mode=elizabeth], body.away #mModes [data-mode=dlr], body.away #mModes [data-mode=tram], body.away #mModes [data-mode=river], body.away #mModes [data-mode=cable], body.away #mModes [data-mode=road]{display:none} /* London-only parts, hidden elsewhere */
+body.away #legend, body.away #lgAll, body.away #sbox, body.abroad #nrbox, body.away #mModes .mcat[data-cat^='Tube'], body.away #mModes .mcat[data-cat='Boats'], body.away #mModes .mcat[data-cat='Road works'], body.abroad #mModes .mcat[data-cat='National Rail'], body.away #mModes [data-mode=tube], body.away #mModes [data-mode=overground], body.away #mModes [data-mode=elizabeth], body.away #mModes [data-mode=dlr], body.away #mModes [data-mode=tram], body.away #mModes [data-mode=river], body.away #mModes [data-mode=cable], body.away #mModes [data-mode=road]{display:none} /* London-only parts, hidden elsewhere */
 .lgall{display:flex;justify-content:flex-end;gap:14px;margin:2px 0 4px}.lgall button{background:none;border:0;padding:4px 2px;color:var(--mute);font-size:12.5px;font-weight:600;cursor:pointer}.lgall button:hover{color:var(--ink)}
 .row{display:flex;align-items:center;gap:8px;padding:4px 2px;border:0;background:none;border-radius:6px;font-size:14px;text-align:left;width:100%}
 .row:hover{background:var(--soft)}
@@ -301,7 +303,7 @@ const LINES = [
   ['lioness','Lioness','#FAA61A','overground'],
   ['mildmay','Mildmay','#0077AD','overground'],
   ['suffragette','Suffragette','#5BBD72','overground'],
-  ['weaver','Weaver','#823A62','overground'],
+  ['weaver','Weaver','#B0306E','overground'], // TfL maroon (#823A62) brightened: too close to the Elizabeth line otherwise
   ['windrush','Windrush','#ED1B00','overground'],
   ['tram','Trams','#5FB526','tram'],
   ['rb1','RB1 river bus','#0066B3','river'], ['rb4','RB4 river bus','#0066B3','river'], ['rb6','RB6 river bus','#0066B3','river'],
@@ -1474,11 +1476,14 @@ $('legend').addEventListener('click', e => {
 // ---------- transport switches ----------
 const GROUP_SYM = {road:['drive','#F29400'], river:['tube','#009FE0'], cable:['tube','#E21836'], bike:['cycle','#EC0000'], bus:['tube','#DC241F'], tube:['tubeLogo','#DC241F'], overground:['tube','#FA7B05'], elizabeth:['tube','#60399E'], dlr:['tube','#00AFAD'], tram:['tube','#5FB526'], rail:['rail','#1D5BA0']};
 function renderModeChips(){
-  $('mModes').innerHTML = MODE_GROUPS.map(([m, name]) => {
+  const CATS = [['National Rail', ['rail']], ['Tube, Overground, DLR & trams', ['tube', 'overground', 'elizabeth', 'dlr', 'tram', 'cable']], ['Buses', ['bus']],
+    ['Bikes & scooters', ['bike']], ['Boats', ['river']], ['Road works', ['road']]];
+  const names = Object.fromEntries(MODE_GROUPS);
+  $('mModes').innerHTML = CATS.map(([cat, ms]) => `<div class="mcat" data-cat="${esc(cat)}"><div class="mcat-h">${esc(cat)}</div><div class="chips">${ms.filter(m => names[m]).map(m => [m, names[m]]).map(([m, name]) => {
     const has = m === 'bus' || m === 'bike' || m === 'road' || ACTIVE.some(l => l.mode === m) || (m === 'rail' && typeof railOn === 'function' && railOn());
     const off = m === 'bus' && document.body.classList.contains('away') ? GPS_OFF.has('bus') : MODES_OFF.has(m);
     return `<button type="button" class="chip2" data-mode="${m}" aria-pressed="${has && !off}" ${has ? '' : 'disabled title="Coming soon"'}>${symbol(GROUP_SYM[m][0], GROUP_SYM[m][1], 16)}${name}${has ? '' : ' <small>soon</small>'}</button>`;
-  }).join('');
+  }).join('')}</div></div>`).join('');
 }
 $('mModes').addEventListener('click', e => { const b = e.target.closest('[data-mode]'); if(!b || b.disabled) return;
   const m = b.dataset.mode;
