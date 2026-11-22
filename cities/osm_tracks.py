@@ -1,8 +1,8 @@
 import json, math, heapq, urllib.request, collections, sys, os
 ways = json.load(open('rails.json'))
 LINES = {'tube': 'bakerloo,central,circle,district,hammersmith-city,jubilee,metropolitan,northern,piccadilly,victoria,waterloo-city',
-         'overground': 'liberty,lioness,mildmay,suffragette,weaver,windrush', 'elizabeth': 'elizabeth', 'dlr': 'dlr', 'tram': 'tram'}
-ALLOW = {'tube': {'subway', 'rail'}, 'overground': {'rail'}, 'elizabeth': {'rail', 'subway'}, 'dlr': {'light_rail', 'rail'}, 'tram': {'tram', 'light_rail'}}
+         'overground': 'liberty,lioness,mildmay,suffragette,weaver,windrush', 'elizabeth': 'elizabeth', 'dlr': 'dlr', 'tram': 'tram', 'river': 'rb1,rb4,rb6,woolwich-ferry'}
+ALLOW = {'tube': {'subway', 'rail'}, 'overground': {'rail'}, 'elizabeth': {'rail', 'subway'}, 'dlr': {'light_rail', 'rail'}, 'tram': {'tram', 'light_rail'}, 'river': {'river'}}
 def d(a, b): return math.hypot((a[0]-b[0])*111320, (a[1]-b[1])*111320*math.cos(math.radians(a[0])))
 def graph(types):
     adj = collections.defaultdict(list); pos = {}
@@ -69,14 +69,14 @@ for mode, ids in LINES.items():
                 if min(d(q[k-1], q[k]), d(q[k], q[k+1])) > 15: m = max(m, t)
             return math.degrees(m)
         under = mode == 'tube' and lid != 'metropolitan'
-        LIM = {'ratio':1.3 if under else 1.7, 'turn':75 if under else (170 if mode == 'tram' else 140), 'end':250 if under else 300}
+        LIM = {'ratio':1.3 if under else (3.0 if mode == 'river' else 1.7), 'turn':75 if under else (179 if mode in ('tram', 'river') else 140), 'end':250 if under else (500 if mode == 'river' else 300)}
         for a, b in pairs:
             if a not in stops or b not in stops: continue
             pa, pb = stops[a], stops[b]; straight = d(pa, pb); good = None
             for (adj, pos, grid) in ([SUBG, (adj0, pos0, grid0)] if mode == 'tube' else [(adj0, pos0, grid0)]):
-                for r in (250, 500):
+                for r in ((400, 700) if mode == 'river' else (250, 500)):
                     A, B = near(grid, pos, pa, r), near(grid, pos, pb, r)
-                    res = route(adj, pos, A, B, straight*1.7 + 400) if A and B else None
+                    res = route(adj, pos, A, B, straight*(3.2 if mode == 'river' else 1.7) + 400) if A and B else None
                     if not res: continue
                     path = res[1]
                     ia = min(range(len(path)), key=lambda k: d(path[k], pa)); ib = min(range(len(path)), key=lambda k: d(path[k], pb))
