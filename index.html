@@ -57,7 +57,7 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--acc);outline-of
 .mapmenu{background:var(--soft);border-radius:12px;padding:6px 12px;margin-bottom:10px;display:grid}
 .mm-row{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:8px 0;font-size:14px;cursor:pointer}
 .mm-row+.mm-row{border-top:1px solid var(--edge)}
-.mm-places{align-items:flex-start}.mm-places .pl{display:flex;flex-wrap:wrap;gap:4px;justify-content:flex-end}.mm-places .pl button{font-size:12px;padding:4px 8px}
+.mm-places{padding:8px 0;border-top:1px solid var(--edge)}.mm-places+.mm-row{border-top:1px solid var(--edge)}.mm-places b{display:block;font-size:13px;font-weight:600;margin:2px 0 6px}.mm-places b small{font-weight:400;color:var(--mute)}.mm-places .pl{display:flex;flex-wrap:wrap;gap:5px;margin-bottom:8px}.mm-places .pl button{font-size:12.5px;padding:5px 10px}
 .mm-row small{display:block;color:var(--mute);font-size:12px;margin-top:1px}
 .seg2{display:flex;border:1px solid var(--edge);border-radius:8px;overflow:hidden;flex:none}
 .seg2 button{border:0;border-radius:0;padding:6px 10px;font-size:13px;background:var(--panel)}
@@ -232,7 +232,7 @@ body.kiosk #map{bottom:0!important}
     <label class="mm-row"><span>Dark map</span><input type="checkbox" id="mDark" class="switch"></label>
     <label class="mm-row"><span>Show trains<small>The moving train shapes. The lines stay.</small></span><input type="checkbox" id="mIcons" class="switch"></label>
     <label class="mm-row"><span>Lines side by side<small>Where lines share track (e.g. Circle and District), draw them next to each other.</small></span><input type="checkbox" id="mLanes" class="switch"></label>
-    <div class="mm-row mm-places"><span>Go to</span><span class="pl" id="places"></span></div>
+    <div class="mm-places" id="places"></div>
   </div>
   <div class="chips" id="mModes" aria-label="Show transport types"></div>
   <div id="busNote" class="muted" hidden style="font-size:12px;margin:-2px 0 6px"></div>
@@ -1603,7 +1603,9 @@ map.addListener('idle', () => { const c = map.getCenter(), p = [c.lat(), c.lng()
 // quick jumps around the country
 const PLACES = [['London', 51.507, -0.128, 12], ['Manchester', 53.480, -2.243, 13], ['Birmingham', 52.479, -1.899, 13], ['Leeds', 53.797, -1.546, 13],
   ['Liverpool', 53.405, -2.982, 13], ['Newcastle', 54.972, -1.614, 13], ['Edinburgh', 55.951, -3.196, 13], ['Glasgow', 55.861, -4.251, 13], ['Bristol', 51.454, -2.592, 13], ['Cardiff', 51.479, -3.177, 13], ['Helsinki', 60.170, 24.940, 14], ['Finland', 63.5, 26.0, 6], ['Bergen', 60.392, 5.324, 13], ['Trondheim', 63.430, 10.395, 13], ['Boston', 42.355, -71.065, 13]];
-$('places').innerHTML = PLACES.map(([n], i) => `<button type="button" data-pl="${i}">${n}</button>`).join('');
+const LIVE_NOW = new Set(['London', 'Helsinki', 'Finland', 'Bergen', 'Trondheim', 'Boston']);
+const placeBtns = f => PLACES.map(([n], i) => f(n) ? `<button type="button" data-pl="${i}">${n}</button>` : '').join('');
+$('places').innerHTML = `<b>Go to · live now</b><div class="pl">${placeBtns(n => LIVE_NOW.has(n))}</div><b>Go to · rest of Britain <small>(live once the data keys are set up)</small></b><div class="pl">${placeBtns(n => !LIVE_NOW.has(n))}</div>`;
 $('places').addEventListener('click', e => { const b = e.target.closest('[data-pl]'); if(!b) return; const [, lat, lon, z] = PLACES[+b.dataset.pl];
   map.panTo({lat, lng:lon}); map.setZoom(z); $('mapMenu').hidden = true; $('bMap').setAttribute('aria-expanded', 'false'); });
 // which part of the world the map shows: London keeps the full TfL panel, elsewhere it's trimmed to what's live there
