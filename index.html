@@ -2145,7 +2145,7 @@ function drawGps(ctx, s, hl0, hw0, mpp){
     const tram = g.v.tram || g.v.metro, kind = vkind(g.v), mode = KIND_MODE[kind] || 'bus', [len, wid] = REAL_SIZE[mode] || REAL_SIZE.tube; // same sizes as London
     let hl = Math.max(hl0, len/2/mpp), hw = Math.max(hw0, wid/2/mpp);
     if(mode === 'bus' && hl <= hl0){ hl = Math.max(5, hl0*0.5); hw = Math.max(2.4, hw0*0.9); }
-    const coach = coachOf(g.v); if(coach){ hl = Math.max(hl*1.35, 13/2/mpp); }
+    const coach = coachOf(g.v); if(coach){ hl = Math.max(hl*1.35, 13/2/mpp); if(!document.body.classList.contains('away') && PV.z < 14){ hl *= 0.6; hw *= 0.7; } } // London: the Tube stays the focus
     if(g.v.freight){ hl *= 0.8; }
     if(PV.z < 10){ const f = Math.max(0.5, (PV.z - 5)/5); hl *= f; hw *= Math.max(0.65, f); } // whole-country views: smaller, so the map stays readable
     const cs = Math.cos(ang), sn = Math.sin(ang), ux = cs*hl, uy = sn*hl, vx = -sn*hw, vy = cs*hw;
