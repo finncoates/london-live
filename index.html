@@ -234,7 +234,7 @@ body.kiosk #map{bottom:0!important}
   <h1><span id="ttl">London live trains</span> <span class="sp"></span>
     <button id="bPlaces" class="icon" title="Explore cities" aria-label="Explore cities around the world" aria-expanded="false"><svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="2"/><path d="M3 12h18M12 3c3 3.2 3 14.8 0 18M12 3c-3 3.2-3 14.8 0 18" fill="none" stroke="currentColor" stroke-width="1.6"/></svg></button>
     <button id="bMap" class="icon" title="Map style" aria-label="Map style" aria-expanded="false"><svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l9 5-9 5-9-5 9-5zm-9 9l9 5 9-5M3 16l9 5 9-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg></button>
-    <button id="bFit" class="icon" title="Re-centre" aria-label="Re-centre the map">⌖</button>
+    <button id="bFit" class="icon" title="Near me (tap again: all of London)" aria-label="Show where I am and the nearest station">⌖</button>
     <button id="bKiosk" class="icon" title="Full-screen TV mode (K)" aria-label="Full-screen TV mode">⛶</button>
     <button id="bTheme" class="icon" title="Dark / light (D)" aria-label="Switch dark or light map">🌓</button>
   </h1>
@@ -2417,7 +2417,21 @@ if(AUTO.on){ document.body.classList.add('kiosk');
 // ---------- kiosk, clock, re-centre, keys ----------
 if(Q.get('kiosk') === '1') document.body.classList.add('kiosk');
 $('bKiosk').onclick = () => document.body.classList.toggle('kiosk');
-$('bFit').onclick = () => { map.panTo(LL(HOME[0])); map.setZoom(Math.round(HOME[1])); };
+// ⌖: near me (your position, nearest station's departures); tap again for the whole network
+let nearMode = false, nearWatch = null;
+$('bFit').onclick = () => {
+  if(nearMode || !navigator.geolocation){ nearMode = false; map.panTo(LL(HOME[0])); map.setZoom(Math.round(HOME[1])); return; }
+  $('bFit').textContent = '…';
+  navigator.geolocation.getCurrentPosition(pos => { $('bFit').textContent = '⌖'; nearMode = true;
+    me = [pos.coords.latitude, pos.coords.longitude]; meAcc = pos.coords.accuracy || 0;
+    if(!inLondonView(me)){ map.panTo(LL(me)); map.setZoom(15); return; }
+    if(!STATIONS || STATIONS.length < 50) STATIONS = stationIndex();
+    let best = null, bd = 3000; for(const st of STATIONS){ const d = dist(st.p, me); if(d < bd){ bd = d; best = st; } }
+    if(best) goStation(best); map.panTo(LL(me)); map.setZoom(15);
+    if(nearWatch == null) nearWatch = navigator.geolocation.watchPosition(p => { me = [p.coords.latitude, p.coords.longitude]; meAcc = p.coords.accuracy || 0; }, () => {}, {enableHighAccuracy:true});
+  }, err => { $('bFit').textContent = '⌖'; $('err').textContent = err.code === 1 ? 'Location is blocked: allow it in your browser to see what\'s near you.' : 'Could not find your location.'; setTimeout(() => $('err').textContent = '', 6000); },
+  {enableHighAccuracy:true, timeout:12000, maximumAge:30000});
+};
 addEventListener('keydown', e => {
   if(e.target.tagName === 'INPUT') return;
   if(e.key === 'k' || e.key === 'K') document.body.classList.toggle('kiosk');
