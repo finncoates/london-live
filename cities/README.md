@@ -12,3 +12,5 @@ vehicles onto them.
 Rebuild (e.g. after timetable changes):
 `python3 cities/gtfs_lines.py hsl.zip cities/helsinki.json "0:tram,1:metro,109:train,4:ferry"`
 `USE_ROUTE_COLOR=1 python3 cities/gtfs_lines.py vbb.zip cities/berlin.json "109:train,100:train,400:metro,900:tram,1000:ferry" '{"train":"#008D4F","metro":"#115D91","tram":"#CC0A22","ferry":"#0080BA"}' "52.33,13.08,52.68,13.77"`
+| boston.json | MBTA GTFS — https://cdn.mbta.com/MBTA_GTFS.zip (official colours) |
+| finland.json | Fintraffic passenger-train GTFS — https://rata.digitraffic.fi/api/v1/trains/gtfs-passenger.zip (whole network, de-duplicated: `GLOBAL_DEDUP=1 EPS=8`) |

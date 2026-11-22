@@ -1488,7 +1488,6 @@ function drawBostonLines(ctx){
   ctx.globalAlpha = 1;
 }
 async function bostonVehicles(){
-  bostonLines();
   const types = MODES_OFF.has('bus') ? '0,1,2' : '0,1,2,3';
   const r = await fetch(`https://api-v3.mbta.com/vehicles?filter[route_type]=${types}&fields[vehicle]=latitude,longitude,bearing,updated_at,label&include=route,trip&fields[route]=short_name,long_name,color,type&fields[trip]=headsign`, {signal:AbortSignal.timeout(10000)});
   if(!r.ok) throw new Error('MBTA live data: HTTP ' + r.status); const j = await r.json(), inc = {};
@@ -1518,30 +1517,33 @@ async function berlinVehicles(){
 const RELAY_CITIES = [['gdansk', [54.25, 18.3, 54.5, 18.85], 'Gdańsk'], ['tallinn', [59.33, 24.5, 59.52, 25.0], 'Tallinn'], ['vilnius', [54.55, 25.0, 54.82, 25.5], 'Vilnius']];
 const relayCity = p => RELAY_CITIES.find(([, b]) => p[0] > b[0] && p[0] < b[2] && p[1] > b[1] && p[1] < b[3]);
 // ---- city line maps (baked from each city's GTFS timetable: cities/*.json) + snapping vehicles onto them ----
-const CITYL = {list:[{name:'Helsinki', box:p => inHelsinki(p), url:'cities/helsinki.json'}, {name:'Berlin', box:p => inBerlin(p), url:'cities/berlin.json'}], cur:null, data:new Map()};
+const CITYL = {list:[{name:'Helsinki', box:p => inHelsinki(p), urls:['cities/helsinki.json', 'cities/finland.json']}, {name:'Finland', box:p => inFinland(p), urls:['cities/finland.json']},
+  {name:'Berlin', box:p => inBerlin(p), urls:['cities/berlin.json']}, {name:'Boston', box:p => inBoston(p), urls:['cities/boston.json']}], cur:null, data:new Map()};
+const cityData = () => CITYL.cur ? CITYL.cur.urls.map(u => CITYL.data.get(u)).filter(d => d && d.grid) : [];
 const CELL = (la, lo) => Math.floor(la*200) + ',' + Math.floor(lo*100); // ~550 m × 600 m
 async function loadCityLines(p){
-  const c = CITYL.list.find(x => x.box(p)); CITYL.cur = c || null;
-  if(!c || CITYL.data.has(c.url)) return; CITYL.data.set(c.url, null);
-  try{ const d = await (await fetch(c.url, {signal:AbortSignal.timeout(15000)})).json(), grid = new Map();
-    d.lines.forEach((l, li) => { for(let i = 1; i < l.pts.length; i++){ const a = l.pts[i-1], b = l.pts[i], n = Math.max(1, Math.ceil(dist(a, b)/300));
-      for(let k = 0; k <= n; k++){ const q = CELL(a[0] + (b[0]-a[0])*k/n, a[1] + (b[1]-a[1])*k/n); let g = grid.get(q); if(!g) grid.set(q, g = new Set()); g.add(li*100000 + i); } } });
-    d.grid = grid; CITYL.data.set(c.url, d); }
-  catch(e){ CITYL.data.delete(c.url); console.warn('city lines', e.message); }
+  const c = CITYL.list.find(x => x.box(p)); CITYL.cur = c || null; if(!c) return;
+  await Promise.all(c.urls.filter(u => !CITYL.data.has(u)).map(async url => { CITYL.data.set(url, null);
+    try{ const d = await (await fetch(url, {signal:AbortSignal.timeout(15000)})).json(), grid = new Map();
+      d.lines.forEach((l, li) => { for(let i = 1; i < l.pts.length; i++){ const a = l.pts[i-1], b = l.pts[i], n = Math.max(1, Math.ceil(dist(a, b)/300));
+        for(let k = 0; k <= n; k++){ const q = CELL(a[0] + (b[0]-a[0])*k/n, a[1] + (b[1]-a[1])*k/n); let g = grid.get(q); if(!g) grid.set(q, g = new Set()); g.add(li*100000 + i); } } });
+      d.grid = grid; CITYL.data.set(url, d); }
+    catch(e){ CITYL.data.delete(url); console.warn('city lines', e.message); } }));
 }
 // nearest point on a line of the same kind (within 60 m), with the line's direction there
 function snapGps(v){
-  const d = CITYL.cur && CITYL.data.get(CITYL.cur.url); if(!d || !d.grid) return null;
-  const kind = vkind(v); if(kind === 'bus') return null;
+  const sets = cityData(); if(!sets.length) return null;
+  const kind = vkind(v); if(kind === 'bus' || kind === 'ferry') return null;
   const ok = l => l.kind === kind || (kind === 'train' && l.kind === 'train'), kx = Math.cos(v.lat*rad)*111320, ky = 111320;
   let best = null, bd = 60;
-  const ci = Math.floor(v.lat*200), cj = Math.floor(v.lon*100), seen = new Set();
+  const ci = Math.floor(v.lat*200), cj = Math.floor(v.lon*100);
+  for(const d of sets){ const seen = new Set();
   for(let di = -1; di <= 1; di++) for(let dj = -1; dj <= 1; dj++){ const g = d.grid.get((ci+di) + ',' + (cj+dj)); if(!g) continue;
     for(const code of g){ if(seen.has(code)) continue; seen.add(code); const li = Math.floor(code/100000), i = code % 100000, l = d.lines[li]; if(!ok(l)) continue;
       const a = l.pts[i-1], b = l.pts[i], ax = (a[1]-v.lon)*kx, ay = (a[0]-v.lat)*ky, bx = (b[1]-v.lon)*kx, by = (b[0]-v.lat)*ky;
       const dx = bx-ax, dy = by-ay, L2 = dx*dx + dy*dy || 1e-9, t = Math.max(0, Math.min(1, -(ax*dx + ay*dy)/L2)), px = ax + dx*t, py = ay + dy*t, dd = Math.hypot(px, py);
       const same = l.name && v.line && l.name.toLowerCase() === String(v.line).toLowerCase(); // prefer the vehicle's own line
-      if(dd - (same ? 25 : 0) < bd){ bd = dd - (same ? 25 : 0); best = {lat:v.lat + py/ky, lon:v.lon + px/kx, l, i, col:same ? l.col : null}; } } }
+      if(dd - (same ? 25 : 0) < bd){ bd = dd - (same ? 25 : 0); best = {lat:v.lat + py/ky, lon:v.lon + px/kx, l, i, col:same ? l.col : null}; } } } }
   if(best){ // direction over ~60 m each side (ignores the little kinks inside stations)
     const P = best.l.pts; let i0 = best.i - 1, i1 = best.i;
     while(i0 > 0 && dist(P[i0], [best.lat, best.lon]) < 60) i0--;
@@ -1549,8 +1551,8 @@ function snapGps(v){
     best.ang = Math.atan2(-(P[i1][0] - P[i0][0]), (P[i1][1] - P[i0][1])*Math.cos(v.lat*rad)); }
   return best;
 }
-function drawCityLines(ctx){
-  const d = CITYL.cur && CITYL.data.get(CITYL.cur.url); if(!d || !d.lines) return;
+function drawCityLines(ctx){ for(const d of cityData()) drawLineSet(ctx, d); }
+function drawLineSet(ctx, d){
   // line shapes are built once per whole zoom level (world pixels) and then just moved/scaled: cheap every frame
   const zc = Math.floor(PV.z), k = 2 ** (PV.z - zc), W = lineW(), order = {ferry:0, train:1, tram:2, metro:3};
   if(d.pz !== zc){ d.paths = [...d.lines].sort((a, b) => order[a.kind] - order[b.kind]).map(l => { const path = new Path2D();
@@ -1650,7 +1652,7 @@ const gpsPos = (g, now) => { const k = Math.min(1, (now - g.t0)/(g.dur || 15000)
 const OP_COL = ['#E4002B', '#0057B8', '#00843D', '#F4A300', '#6D2077', '#00A3AD', '#D0006F', '#5B6770'];
 const opCol = op => { let h = 0; for(const ch of op || '') h = (h*31 + ch.charCodeAt(0)) >>> 0; return OP_COL[h % OP_COL.length]; };
 function drawGps(ctx, s, hl0, hw0, mpp){
-  draw.ghit = []; if(TRAINS_ON && document.body.classList.contains('away') && map.getCenter()){ const mc = [map.getCenter().lat(), map.getCenter().lng()]; if(inBoston(mc)) drawBostonLines(ctx); else if(CITYL.cur && CITYL.cur.box(mc)) drawCityLines(ctx); } if(!GPS.list.size || !SHOW_ICONS || !TRAINS_ON) return;
+  draw.ghit = []; if(TRAINS_ON && document.body.classList.contains('away') && map.getCenter()){ const mc = [map.getCenter().lat(), map.getCenter().lng()]; if(CITYL.cur && CITYL.cur.box(mc)) drawCityLines(ctx); } if(!GPS.list.size || !SHOW_ICONS || !TRAINS_ON) return;
   const now = Date.now(), cosLat = Math.cos(map.getCenter().lat()*rad), label = PV.z >= 15.5;
   ctx.lineWidth = 1; ctx.font = '700 10.5px system-ui, sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
   for(const g of GPS.list.values()){

@@ -35,7 +35,8 @@ def dp(p, eps):  # Douglas-Peucker in metres
 by_route = collections.defaultdict(list)
 for sid, (rid, d) in shape_route.items(): by_route[rid].append(sid)
 lines = []
-for rid, sids in by_route.items():
+GLOBAL = os.environ.get('GLOBAL_DEDUP') == '1'; gkept = set()
+for rid, sids in sorted(by_route.items(), key=lambda kv: -sum(count[x] for x in kv[1])):
     kind, name, col = routes[rid]
     sids.sort(key=lambda s: -count[s]); keep = []
     for s in sids[:12]:
@@ -49,12 +50,13 @@ for rid, sids in by_route.items():
             p = max(runs, key=len) if runs else []
         if len(p) < 2: continue
         # skip shapes that mostly overlap ones already kept (other direction, short workings)
-        kept_pts = {(round(la, 3), round(lo, 3)) for q in keep for la, lo in q}
+        kept_pts = gkept if GLOBAL else {(round(la, 3), round(lo, 3)) for q in keep for la, lo in q}
         new = sum((round(la, 3), round(lo, 3)) not in kept_pts for la, lo in p) / len(p)
-        if keep and new < 0.25: continue
+        if (keep or GLOBAL) and new < 0.25: continue
         keep.append(p)
+        if GLOBAL: gkept.update((round(la, 3), round(lo, 3)) for la, lo in p)
     for p in keep:
-        q = dp(p, 3.0)
+        q = dp(p, float(os.environ.get("EPS", "3")))
         lines.append({'name':name, 'kind':kind, 'col':('#' + col) if (col and USE_RC) else COL[kind], 'pts':[[round(la, 5), round(lo, 5)] for la, lo in q]})
 json.dump({'lines':lines}, open(out, 'w'), separators=(',', ':'))
 print(len(lines), 'lines', sum(len(l['pts']) for l in lines), 'points', collections.Counter(l['kind'] for l in lines))
