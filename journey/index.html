@@ -609,7 +609,7 @@ function renderOff(zi, T, k){
     // solid lines always; service problems are shown in the legend and station cards
     const bg = l.mode === 'bus' && !l.pinned; // background bus routes: thin and light
     const boat = l.mode === 'river' || l.mode === 'cable'; // boats & cable car: thin, see-through, dotted
-    if(boat){ g.globalAlpha = op*0.75; g.strokeStyle = ink(l.colour); g.lineWidth = Math.max(1.5, W*0.45); g.lineCap = 'round'; g.setLineDash(l.mode === 'cable' ? [W*1.2, W*0.9] : [0.1, W*1.1]); g.stroke(path); g.setLineDash([]); continue; }
+    if(boat){ g.globalAlpha = op*0.45; g.strokeStyle = ink(l.colour); g.lineWidth = Math.max(1.5, W*0.45); g.lineCap = 'butt'; g.setLineDash([W*1.6, W*1.1]); g.stroke(path); g.setLineDash([]); continue; }
     g.globalAlpha = op * (bg ? 0.45 : 1); g.strokeStyle = ink(l.colour); g.lineWidth = bg ? Math.max(1.5, W*0.4) : W/cnt; g.lineCap = cnt > 1 ? 'butt' : 'round'; g.stroke(path);
     if(PARALLEL.has(l.mode)){ g.globalAlpha = 1; g.strokeStyle = MAP_BG(); g.lineWidth = W/cnt/3; g.stroke(path); }
     g.lineCap = 'round';
