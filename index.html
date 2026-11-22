@@ -166,6 +166,8 @@ body.dark #simnote{background:#1f2a44;color:#c6dafc}
 .st-h{display:flex;align-items:center;justify-content:space-between;font-size:16px}
 .st-h .x{padding:4px 8px;font-size:12px}
 .st-lines{display:flex;flex-wrap:wrap;gap:4px;margin:6px 0 4px}
+.st-crowd{font-size:12.5px;margin:6px 0 2px}.st-crowd .bars{display:flex;align-items:flex-end;gap:1px;height:28px;margin-top:4px}.st-crowd .bars i{flex:1;background:var(--edge);border-radius:2px 2px 0 0;min-width:2px}.st-crowd .bars i.now{background:var(--acc)}
+.st-lift{font-size:12px;padding:5px 8px;border-radius:8px;margin:4px 0;background:#e8f0fe;color:#174ea6}body.dark .st-lift{background:#1e2a44;color:#aecbfa}
 .dep-h{font-size:11.5px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--mute);margin:10px 0 2px}
 .st-warn{font-size:12px;line-height:1.35;padding:5px 8px;border-radius:8px;margin:4px 0}.st-warn b{font-weight:700}
 .deps{list-style:none;margin:6px 0 0;padding:0;display:grid;gap:6px}
@@ -2153,6 +2155,27 @@ $('sres').addEventListener('mousedown', e => e.preventDefault());
 $('q').addEventListener('blur', () => setTimeout(() => { $('sres').hidden = true; }, 150));
 $('sres').addEventListener('click', e => { const li = e.target.closest('li[data-i]'); if(li) pickResult(SR.items[+li.dataset.i]); });
 
+// how busy + lifts, for a station card
+let LIFTS = {at:0, list:[]};
+async function stationExtras(st, naptan){
+  let html = '';
+  try{ if(Date.now() - LIFTS.at > 600000){ LIFTS.list = await get('/Disruptions/Lifts/v2/'); LIFTS.at = Date.now(); }
+    const ids = new Set(st.ids); for(const x of LIFTS.list) if(ids.has(x.stationUniqueId)) html += `<div class="st-lift">♿ ${esc(x.message.replace(/^[^:]{2,60}:\s*/, '').replace(/\s*Call us on.*$/i, ''))}</div>`; }catch(e){}
+  if(naptan) try{
+    const [live, prof] = await Promise.all([get(`/crowding/${naptan}/Live`).catch(() => null), get(`/crowding/${naptan}`).catch(() => null)]);
+    const now = new Date();
+    const ld = new Intl.DateTimeFormat('en-GB', {timeZone:'Europe/London', weekday:'short', hour:'2-digit', minute:'2-digit', hourCycle:'h23'}).formatToParts(now), get_ = t => ld.find(x => x.type === t)?.value;
+    const dkey = (get_('weekday') || '').slice(0, 3).toUpperCase(), mins = +get_('hour')*60 + +get_('minute');
+    const d = prof && (prof.daysOfWeek || []).find(x => x.dayOfWeek === dkey);
+    if(d && d.timeBands && d.timeBands.length){
+      const bands = d.timeBands.map(b => b.percentageOfBaseLine), max = Math.max(0.01, ...bands), idx = Math.min(bands.length - 1, Math.floor(mins/15));
+      const nowPct = live && live.dataAvailable ? live.percentageOfBaseline : bands[idx];
+      const word = p => p < 0.2 ? 'Quiet' : p < 0.45 ? 'Not busy' : p < 0.75 ? 'Busy' : 'Very busy';
+      const bars = bands.filter((_, i) => i % 2 === 0 && i >= 20 && i < 96).map((v, k) => { const i = 20 + k*2; return `<i style="height:${Math.max(2, Math.round(v/max*26))}px" class="${Math.abs(i - idx) < 2 ? 'now' : ''}"></i>`; }).join('');
+      html += `<div class="st-crowd"><div><b>${word(nowPct)}</b> ${live && live.dataAvailable ? 'right now (live)' : 'at this time on a typical ' + dkey.charAt(0) + dkey.slice(1).toLowerCase()}</div><div class="bars" title="Typical busyness through the day (5am–midnight)">${bars}</div></div>`;
+    } }catch(e){}
+  return `<div class="st-x">${html}</div>`;
+}
 // keep the open station in the address, so it can be bookmarked or shared
 function setStationUrl(name){ try{ const u = new URL(location.href); name ? u.searchParams.set('station', name) : u.searchParams.delete('station'); history.replaceState(null, '', u); }catch(e){} }
 // the chosen station: zoom in, mark it, list its next trains
@@ -2172,12 +2195,17 @@ async function goStation(st){
     <div class="st-lines">${[...st.lines].map(id => `<span class="pill" style="--c:${BY[id].colour}">${symbol(BY[id].mode==='tube'?'tube':BY[id].mode, BY[id].colour, 14)} ${esc(BY[id].name)}</span>`).join('')}</div>`
     + [...st.lines].map(id => { const x = lineStatus(id); if(!x || !x.lv) return ''; const why = (x.reasons[0] || '').replace(/\s*(Good service|Valid tickets).*$/i, '');
       return `<div class="st-warn st${x.lv}" title="${esc(why)}"><b>${esc(BY[id].name)}: ${esc(x.text)}</b>${why ? ' · ' + esc(why.length > 90 ? why.slice(0, 90).replace(/\s+\S*$/, '') + '…' : why) : ''}</div>`; }).join(''); // problems on this station's lines (rebuilt on each refresh: status may arrive later)
-  let head = head0();
+  // extras: how busy it is (TfL crowding: live when available, otherwise today's typical pattern) and lifts out of service
+  let extra = ''; const head1 = head0; const naptan = [...st.ids].find(id => /^940G/.test(id));
+  const myGen = (goStation.gen = (goStation.gen || 0) + 1);
+  stationExtras(st, naptan).then(h => { if(goStation.gen !== myGen) return; extra = h; const dl = box.querySelector('.st-x'); if(dl) dl.outerHTML = h; }).catch(() => {});
+  const head0x = () => head1() + (extra || '<div class="st-x"></div>');
+  let head = head0x();
   box.innerHTML = head + '<div class="muted">Loading next trains…</div>';
   const CAT = {tube:'Tube', overground:'Overground', elizabeth:'Elizabeth line', dlr:'DLR', tram:'Trams', bus:'Buses', rail:'National Rail', 'elizabeth-line':'Elizabeth line', 'national-rail':'National Rail'};
   let busStops = null; // bus stops within ~250 m, found once
   const load = async () => {
-    head = head0();
+    head = head0x();
     if(!busStops) busStops = get(`/StopPoint?lat=${st.p[0]}&lon=${st.p[1]}&radius=250&stopTypes=NaptanPublicBusCoachTram&modes=bus`).then(r => (r.stopPoints || []).slice(0, 6).map(x => x.naptanId)).catch(() => []);
     const bs = await busStops;
     const all = (await Promise.all([...[...st.ids].slice(0, 5).map(id => /^[A-Z]{3}$/.test(id) ? railArrivals(id) : get(`/StopPoint/${id}/Arrivals`).catch(() => [])),
@@ -2190,7 +2218,7 @@ async function goStation(st){
         return {when:now + a.timeToStation*1000, cat:bus ? 'Buses' : CAT[l?.mode] || CAT[a.modeName] || 'Trains',
           html:`<li><span class="sw" style="background:${col}"></span><span class="to">${esc(cleanName(a.towards || a.destinationName || '') || name)}<small>${esc(bus ? 'Bus ' + name + (a.stationName ? ' · ' + a.stationName : '') : name)}${a.platformName && !bus ? ' · ' + esc(a.platformName) : ''}</small></span><b>${m < 1 ? 'due' : m + ' min'}</b></li>`}; });
     if(box.hidden) return;
-    box.innerHTML = head + (rows.length ? depGroups(rows) : '<div class="muted">No departures listed right now.</div>');
+    box.innerHTML = head0x() + (rows.length ? depGroups(rows) : '<div class="muted">No departures listed right now.</div>');
   };
   load(); focusTimer = setInterval(load, 30000); focusLoad = load;
 }
@@ -2297,7 +2325,7 @@ tick(); setInterval(tick, 1000);
 map.addListener('dragstart', () => { $('tip').style.display = 'none'; hover = null; });
 map.addListener('zoom_changed', () => { $('tip').style.display = 'none'; hover = null; });
 renderModeChips(); renderLegend(); syncMapMenu();
-if(DEBUG) window.LLT = {AUTO, autoNext: () => autoNext(), trains, ACTIVE, BY, placeTrain, segTime, refresh, map, draw, goStation, searchStations, scr, stationAt, GPS, gpsPos, BIKES, SHARE, cityData: () => cityData()};
+if(DEBUG) window.LLT = {AUTO, autoNext: () => autoNext(), trains, ACTIVE, BY, placeTrain, segTime, refresh, map, draw, goStation, searchStations, scr, stationAt, GPS, gpsPos, BIKES, SHARE, cityData: () => cityData(), stationExtras};
 
 // ---------- boot ----------
 (async () => {
