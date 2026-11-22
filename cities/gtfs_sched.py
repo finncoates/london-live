@@ -4,7 +4,9 @@ import sys, zipfile, csv, io, json, collections, datetime
 zf, jf, typemap = sys.argv[1], sys.argv[2], dict(x.split(':') for x in sys.argv[3].split(','))
 z = zipfile.ZipFile(zf); rd = lambda n: csv.DictReader(io.TextIOWrapper(z.open(n), 'utf-8-sig'))
 d = json.load(open(jf)); col = {l['name']: l['col'] for l in d['lines']}
-routes = {r['route_id']: r.get('route_short_name') or r.get('route_long_name') for r in rd('routes.txt') if r['route_type'] in typemap}
+import os, re
+ONLY = re.compile(os.environ['ONLY']) if os.environ.get('ONLY') else None  # e.g. ONLY='^Metro$': just these route names
+routes = {r['route_id']: r.get('route_short_name') or r.get('route_long_name') for r in rd('routes.txt') if r['route_type'] in typemap and (not ONLY or ONLY.search(r.get('route_short_name') or r.get('route_long_name') or ''))}
 trips = {t['trip_id']: (t['route_id'], t['service_id'], t.get('trip_headsign', '')) for t in rd('trips.txt') if t['route_id'] in routes}
 stops = {s['stop_id']: (round(float(s['stop_lat']), 5), round(float(s['stop_lon']), 5), s['stop_name']) for s in rd('stops.txt')}
 seq = collections.defaultdict(list)
@@ -18,7 +20,7 @@ for tid, rows in seq.items():
     if key not in pat_index:
         pat_index[key] = len(patterns)
         patterns.append({'line': routes[rid], 'col': col.get(routes[rid], '#7A1F3D'), 'kind': 'tram', 'stops': [list(stops[r[1]][:2]) for r in rows],
-                         'off': [r[2] - t0 for r in rows], 'dest': stops[rows[-1][1]][2].replace(' (Manchester Metrolink)', '')})
+                         'off': [r[2] - t0 for r in rows], 'dest': re.sub(r' \((Manchester Metrolink|West Midlands Metro)\)$| \(?Tram Stop\)?$', '', stops[rows[-1][1]][2])})
     by_service[sid].append([pat_index[key], t0])
 # which services run on each of the next 21 days
 cal = {c['service_id']: c for c in rd('calendar.txt')} if 'calendar.txt' in z.namelist() else {}
@@ -41,4 +43,4 @@ for k, v in days.items():
     days[k] = ix[kk]
 d['sched'] = {'patterns': patterns, 'days': days, 'lists': lists, 'tz': 'Europe/London'}
 json.dump(d, open(jf, 'w'), separators=(',', ':'), ensure_ascii=False)
-import os; print(len(patterns), 'patterns', {k: len(v) for k, v in list(days.items())[:3]}, os.path.getsize(jf))
+import os; print(len(patterns), 'patterns', len(lists), os.path.getsize(jf))
