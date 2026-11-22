@@ -19,7 +19,7 @@ EDITS = [  # (old, new) — engine changes, applied once
   ("    if(t.anon || t0 - t.seen > REFRESH*2.5){ trains.delete(k); gone.push(t); }",  # rail trains are managed by refreshRail
    "    if(t.rail) continue;\n    if(t.anon || t0 - t.seen > REFRESH*2.5){ trains.delete(k); gone.push(t); }"),
   ("  for(const l of ACTIVE){ l.count = 0; if(!failed.has(l.id)) store.set('segt:'+l.id, l.seg, 30*864e5); }\n  for(const t of trains.values()) if(t0 - t.seen < REFRESH*1.5) BY[t.line].count++;",
-   "  for(const l of ACTIVE){ if(l.rail) continue; l.count = 0; if(!failed.has(l.id)) store.set('segt:'+l.id, l.seg, 30*864e5); }\n  for(const t of trains.values()) if(!t.rail && t0 - t.seen < REFRESH*1.5) BY[t.line].count++;"),
+   "  for(const l of ACTIVE){ if(l.rail) continue; l.count = 0; if(!failed.has(l.id) && l.mode !== 'bus') store.set('segt:'+l.id, l.seg, 30*864e5); } // (bus routes: not kept)\n  for(const t of trains.values()) if(!t.rail && t0 - t.seen < REFRESH*1.5) BY[t.line].count++;"),
   ("  if(!prev || !l.stops[prev]) return snapAt(l, next);",                           # not yet at its first stop
    "  if(!prev || prev === next || !l.stops[prev]) return snapAt(l, next);"),
   ("  let f = Math.min(1, Math.max(0, 1 - remain/segTime(l, prev, next)));",           # rail: real timetable between stops

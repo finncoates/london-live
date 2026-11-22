@@ -85,6 +85,7 @@ little value on a map), crowding (TfL crowding API is patchy), weather, social f
 | **Helsinki: every tram, metro, bus and ferry live each second** (HSL open MQTT feed, no key): HSL colours, route + destination, speed, on time/late; zoom 12+ (only the map tiles on screen are followed) | Live map |
 | **Norway: buses, coaches, trains and ferries with GPS** (Entur, open data, no key) — best in Bergen (Skyss), Trondheim, Tromsø; Oslo's Ruter doesn't publish to this feed; parked vehicles (no report for 10 min) hidden | Live map |
 | **Boston: MBTA subway, light rail, commuter rail and buses with GPS** (MBTA v3 API, no key), official line colours, with the subway lines drawn (MBTA shapes, cached a week) | Live map |
+| Fixes from a fourth independent review: joined lines never pass a stop twice (loops, out-and-back routes); switching country drops the old vehicles; bus updates debounced and arrivals throttled (TfL rate limit); 10 s timeouts on every feed; Helsinki feed stops cleanly when you leave; National Rail re-polls only after a ~25 km move and not abroad; faster relay parsing; tighter Finland/Norway borders | both + relay |
 | Region-aware panel: outside London the title, counts and notes describe what's live there; London legend/status/TfL chips hidden | Live map |
 | Map menu → Go to: London, Manchester, Birmingham, Leeds, Liverpool, Newcastle, Edinburgh, Glasgow, Bristol, Cardiff | Live map |
 

@@ -402,19 +402,23 @@ const vkey = p => p[0].toFixed(4) + ',' + p[1].toFixed(4);
 // Join a line's pieces end to end into long runs, so bends at the joins are rounded too. At a junction
 // the piece that carries on most nearly straight is chosen (never a turn sharper than ~65°).
 function chainPolys(polys){
-  const left = polys.filter(p => p.length > 1).map(p => p.slice()), out = [];
+  const left = polys.filter(p => p.length > 1), out = [];
   const dir = (a, b) => Math.atan2(b[0] - a[0], (b[1] - a[1])*Math.cos(a[0]*rad));
   const turn = (x, y) => Math.abs(Math.atan2(Math.sin(x - y), Math.cos(x - y)));
   while(left.length){
-    let c = left.shift();
+    let c = left.shift().slice(); const seen = new Set(c.map(vkey));
     for(const atEnd of [true, false]) for(;;){
       const k = vkey(atEnd ? c[c.length-1] : c[0]), d0 = atEnd ? dir(c[c.length-2], c[c.length-1]) : dir(c[1], c[0]);
       let best = -1, bt = 1.15, flip = false;
-      for(let i = 0; i < left.length; i++){ const p = left[i];
-        for(const f of [false, true]){ const q = f ? p.slice().reverse() : p; if(vkey(q[0]) !== k) continue;
-          const t = turn(dir(q[0], q[1]), d0); if(t < bt){ bt = t; best = i; flip = f; } } }
+      for(let i = 0; i < left.length; i++){ const p = left[i], n = p.length;
+        for(const f of [false, true]){ if(vkey(f ? p[n-1] : p[0]) !== k) continue;
+          const t = turn(f ? dir(p[n-1], p[n-2]) : dir(p[0], p[1]), d0); if(t >= bt) continue;
+          // never pass the same point twice (loops, out-and-back routes): trains need each stop once per run
+          let rev = false; for(let j = 1; j < n; j++) if(seen.has(vkey(p[f ? n-1-j : j]))){ rev = true; break; }
+          if(!rev){ bt = t; best = i; flip = f; } } }
       if(best < 0) break;
       const q = flip ? left[best].slice().reverse() : left[best]; left.splice(best, 1);
+      for(const x of q) seen.add(vkey(x));
       c = atEnd ? c.concat(q.slice(1)) : q.slice(1).reverse().concat(c);
     }
     out.push(c);
@@ -510,8 +514,9 @@ function buildPaths(z){
   for(const l of ACTIVE){
     if(!lineStyle(l).opacity || !l.dpolys) continue;
     const path = new Path2D();
-    if(LAYOUT === 'simple' && (!l.dchains || l.dchainsOf !== l.dpolys)){ l.dchains = chainPolys(l.dpolys); l.dchainsOf = l.dpolys; }
-    for(const poly of (LAYOUT === 'simple' ? l.dchains : l.dpolys)){
+    if(LAYOUT === 'simple' && !l.rail){ const sig = l.dpolys.length + ':' + l.dpolys.reduce((n, q) => n + q.length, 0); // joined once per shape, not per rebuild
+      if(!l.dchains || l.dchainsSig !== sig){ l.dchains = chainPolys(l.dpolys); l.dchainsSig = sig; } }
+    for(const poly of (LAYOUT === 'simple' && !l.rail ? l.dchains : l.dpolys)){
       const P = poly.map(p => { const w = world(p, z); return {x:w[0], y:w[1]}; }), n = P.length;
       const eo = [];
       for(let i=1;i<n;i++){ let ka = vkey(poly[i-1]), kb = vkey(poly[i]), sign = 1;
@@ -950,7 +955,7 @@ async function refresh(){
     }
     if(best){ best.taken = true; t.d = best.d; t.ang = best.ang; }
   }
-  for(const l of ACTIVE){ if(l.rail) continue; l.count = 0; if(!failed.has(l.id)) store.set('segt:'+l.id, l.seg, 30*864e5); }
+  for(const l of ACTIVE){ if(l.rail) continue; l.count = 0; if(!failed.has(l.id) && l.mode !== 'bus') store.set('segt:'+l.id, l.seg, 30*864e5); } // (bus routes: not kept)
   for(const t of trains.values()) if(!t.rail && t0 - t.seen < REFRESH*1.5) BY[t.line].count++;
   window.onTrainsUpdate && onTrainsUpdate(ACTIVE.reduce((s,l)=>s+(shown(l)?l.count:0),0));
   return !err;
@@ -1152,8 +1157,11 @@ const inLondonView = p => p[0] > 51.28 && p[0] < 51.72 && p[1] > -0.56 && p[1] <
 function railHubs(){
   const c = typeof map !== 'undefined' && map.getCenter ? map.getCenter() : null, p = c ? [c.lat(), c.lng()] : [51.51, -0.12];
   if(inLondonView(p) || !RAIL.stations) return {key:'london', list:RAIL_HUBS};
+  const cell = Math.round(p[0]*4) + ':' + Math.round(p[1]*2.5); // ~25 km squares: re-poll only after a real move
+  if(RAIL.hubCell === cell && RAIL.hubList) return {key:cell, list:RAIL.hubList};
   const near = RAIL.stations.map(([crs, , lat, lon]) => [crs, dist([lat, lon], p)]).filter(x => x[1] < 40000).sort((a, b) => a[1] - b[1]).slice(0, 25).map(x => x[0]);
-  return {key:near.slice(0, 3).join(), list:near.length ? near : RAIL_HUBS};
+  RAIL.hubCell = cell; RAIL.hubList = near;
+  return {key:cell, list:near}; // empty = no British stations near (e.g. abroad): nothing to poll
 }
 async function railStations(){
   if(RAIL.stations) return RAIL.stations;
@@ -1184,8 +1192,9 @@ async function refreshRail(){
   if(!railOn() || (MODES_OFF.has('rail') && !onRailLeg)) return; // switched off — unless you're on a train
   try{
     await railStations();
-    const hubs = railHubs(); RAIL.region = hubs.key;
-    const res = await railGet('/trains?crs=' + hubs.list.join(','));
+    if(RAIL.busy) return; const hubs = railHubs(); RAIL.region = hubs.key;
+    if(!hubs.list.length){ RAIL.msg = 'no stations near'; return; }
+    RAIL.busy = true; let res; try{ res = await railGet('/trains?crs=' + hubs.list.join(',')); } finally { RAIL.busy = false; }
     const t0 = Date.now(), seen = new Set(); let newStops = false;
     for(const tr of res.trains || []){
       const l = railLine(tr.opCode, tr.op);
@@ -1227,7 +1236,7 @@ async function railArrivals(crs){
 }
 if(railOn()){ setTimeout(refreshRail, 2500); setInterval(refreshRail, 60000);
   // moved to another part of the country: poll that area's stations straight away
-  setTimeout(() => { if(typeof map !== 'undefined' && map.addListener) map.addListener('idle', () => { if(RAIL.stations && RAIL.region && railHubs().key !== RAIL.region && map.getZoom() >= 9) refreshRail(); }); }, 3000); }
+  setTimeout(() => { if(typeof map !== 'undefined' && map.addListener) map.addListener('idle', () => { if(RAIL.stations && railHubs().key !== RAIL.region && map.getZoom() >= 9) refreshRail(); }); }, 3000); }
 
 // settings row in the Map menu: status, relay address, demo
 function renderRailStatus(){

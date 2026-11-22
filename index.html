@@ -393,19 +393,23 @@ const vkey = p => p[0].toFixed(4) + ',' + p[1].toFixed(4);
 // Join a line's pieces end to end into long runs, so bends at the joins are rounded too. At a junction
 // the piece that carries on most nearly straight is chosen (never a turn sharper than ~65°).
 function chainPolys(polys){
-  const left = polys.filter(p => p.length > 1).map(p => p.slice()), out = [];
+  const left = polys.filter(p => p.length > 1), out = [];
   const dir = (a, b) => Math.atan2(b[0] - a[0], (b[1] - a[1])*Math.cos(a[0]*rad));
   const turn = (x, y) => Math.abs(Math.atan2(Math.sin(x - y), Math.cos(x - y)));
   while(left.length){
-    let c = left.shift();
+    let c = left.shift().slice(); const seen = new Set(c.map(vkey));
     for(const atEnd of [true, false]) for(;;){
       const k = vkey(atEnd ? c[c.length-1] : c[0]), d0 = atEnd ? dir(c[c.length-2], c[c.length-1]) : dir(c[1], c[0]);
       let best = -1, bt = 1.15, flip = false;
-      for(let i = 0; i < left.length; i++){ const p = left[i];
-        for(const f of [false, true]){ const q = f ? p.slice().reverse() : p; if(vkey(q[0]) !== k) continue;
-          const t = turn(dir(q[0], q[1]), d0); if(t < bt){ bt = t; best = i; flip = f; } } }
+      for(let i = 0; i < left.length; i++){ const p = left[i], n = p.length;
+        for(const f of [false, true]){ if(vkey(f ? p[n-1] : p[0]) !== k) continue;
+          const t = turn(f ? dir(p[n-1], p[n-2]) : dir(p[0], p[1]), d0); if(t >= bt) continue;
+          // never pass the same point twice (loops, out-and-back routes): trains need each stop once per run
+          let rev = false; for(let j = 1; j < n; j++) if(seen.has(vkey(p[f ? n-1-j : j]))){ rev = true; break; }
+          if(!rev){ bt = t; best = i; flip = f; } } }
       if(best < 0) break;
       const q = flip ? left[best].slice().reverse() : left[best]; left.splice(best, 1);
+      for(const x of q) seen.add(vkey(x));
       c = atEnd ? c.concat(q.slice(1)) : q.slice(1).reverse().concat(c);
     }
     out.push(c);
@@ -501,8 +505,9 @@ function buildPaths(z){
   for(const l of ACTIVE){
     if(!lineStyle(l).opacity || !l.dpolys) continue;
     const path = new Path2D();
-    if(LAYOUT === 'simple' && (!l.dchains || l.dchainsOf !== l.dpolys)){ l.dchains = chainPolys(l.dpolys); l.dchainsOf = l.dpolys; }
-    for(const poly of (LAYOUT === 'simple' ? l.dchains : l.dpolys)){
+    if(LAYOUT === 'simple' && !l.rail){ const sig = l.dpolys.length + ':' + l.dpolys.reduce((n, q) => n + q.length, 0); // joined once per shape, not per rebuild
+      if(!l.dchains || l.dchainsSig !== sig){ l.dchains = chainPolys(l.dpolys); l.dchainsSig = sig; } }
+    for(const poly of (LAYOUT === 'simple' && !l.rail ? l.dchains : l.dpolys)){
       const P = poly.map(p => { const w = world(p, z); return {x:w[0], y:w[1]}; }), n = P.length;
       const eo = [];
       for(let i=1;i<n;i++){ let ka = vkey(poly[i-1]), kb = vkey(poly[i]), sign = 1;
@@ -941,7 +946,7 @@ async function refresh(){
     }
     if(best){ best.taken = true; t.d = best.d; t.ang = best.ang; }
   }
-  for(const l of ACTIVE){ if(l.rail) continue; l.count = 0; if(!failed.has(l.id)) store.set('segt:'+l.id, l.seg, 30*864e5); }
+  for(const l of ACTIVE){ if(l.rail) continue; l.count = 0; if(!failed.has(l.id) && l.mode !== 'bus') store.set('segt:'+l.id, l.seg, 30*864e5); } // (bus routes: not kept)
   for(const t of trains.values()) if(!t.rail && t0 - t.seen < REFRESH*1.5) BY[t.line].count++;
   window.onTrainsUpdate && onTrainsUpdate(ACTIVE.reduce((s,l)=>s+(shown(l)?l.count:0),0));
   return !err;
@@ -1141,8 +1146,11 @@ const inLondonView = p => p[0] > 51.28 && p[0] < 51.72 && p[1] > -0.56 && p[1] <
 function railHubs(){
   const c = typeof map !== 'undefined' && map.getCenter ? map.getCenter() : null, p = c ? [c.lat(), c.lng()] : [51.51, -0.12];
   if(inLondonView(p) || !RAIL.stations) return {key:'london', list:RAIL_HUBS};
+  const cell = Math.round(p[0]*4) + ':' + Math.round(p[1]*2.5); // ~25 km squares: re-poll only after a real move
+  if(RAIL.hubCell === cell && RAIL.hubList) return {key:cell, list:RAIL.hubList};
   const near = RAIL.stations.map(([crs, , lat, lon]) => [crs, dist([lat, lon], p)]).filter(x => x[1] < 40000).sort((a, b) => a[1] - b[1]).slice(0, 25).map(x => x[0]);
-  return {key:near.slice(0, 3).join(), list:near.length ? near : RAIL_HUBS};
+  RAIL.hubCell = cell; RAIL.hubList = near;
+  return {key:cell, list:near}; // empty = no British stations near (e.g. abroad): nothing to poll
 }
 async function railStations(){
   if(RAIL.stations) return RAIL.stations;
@@ -1173,8 +1181,9 @@ async function refreshRail(){
   if(!railOn() || (MODES_OFF.has('rail') && !onRailLeg)) return; // switched off — unless you're on a train
   try{
     await railStations();
-    const hubs = railHubs(); RAIL.region = hubs.key;
-    const res = await railGet('/trains?crs=' + hubs.list.join(','));
+    if(RAIL.busy) return; const hubs = railHubs(); RAIL.region = hubs.key;
+    if(!hubs.list.length){ RAIL.msg = 'no stations near'; return; }
+    RAIL.busy = true; let res; try{ res = await railGet('/trains?crs=' + hubs.list.join(',')); } finally { RAIL.busy = false; }
     const t0 = Date.now(), seen = new Set(); let newStops = false;
     for(const tr of res.trains || []){
       const l = railLine(tr.opCode, tr.op);
@@ -1216,7 +1225,7 @@ async function railArrivals(crs){
 }
 if(railOn()){ setTimeout(refreshRail, 2500); setInterval(refreshRail, 60000);
   // moved to another part of the country: poll that area's stations straight away
-  setTimeout(() => { if(typeof map !== 'undefined' && map.addListener) map.addListener('idle', () => { if(RAIL.stations && RAIL.region && railHubs().key !== RAIL.region && map.getZoom() >= 9) refreshRail(); }); }, 3000); }
+  setTimeout(() => { if(typeof map !== 'undefined' && map.addListener) map.addListener('idle', () => { if(RAIL.stations && railHubs().key !== RAIL.region && map.getZoom() >= 9) refreshRail(); }); }, 3000); }
 
 // settings row in the Map menu: status, relay address, demo
 function renderRailStatus(){
@@ -1323,7 +1332,7 @@ $('mModes').addEventListener('click', e => { const b = e.target.closest('[data-m
 
 // ---------- live buses: the routes serving the stops around the view (zoom 14+) ----------
 // TfL has no bus GPS feed; positions come from arrival predictions, like the trains.
-const BUS = {at:null, z:0, busy:false, ids:[], note:''};
+const BUS = {at:null, z:0, busy:false, ids:[], note:'', again:false, lastRef:0, t:0};
 async function updateBuses(force){
   const z = map.getZoom(), c0 = map.getCenter(), away = !inLondonView([c0.lat(), c0.lng()]), on = !MODES_OFF.has('bus') && TRAINS_ON && !away;
   if(!on || z < 14){
@@ -1332,7 +1341,7 @@ async function updateBuses(force){
   }
   const c = map.getCenter(), p = [c.lat(), c.lng()];
   if(!force && BUS.at && dist(BUS.at, p) < 350 && Math.round(z) === BUS.z) return;
-  if(BUS.busy) return; BUS.busy = true; BUS.note = 'Finding buses…'; renderBusNote();
+  if(BUS.busy){ BUS.again = true; return; } BUS.busy = true; BUS.note = 'Finding buses…'; renderBusNote();
   try{
     const r = z >= 16 ? 350 : z >= 15 ? 600 : 900;
     const res = await get(`/StopPoint?lat=${p[0].toFixed(5)}&lon=${p[1].toFixed(5)}&radius=${r}&stopTypes=NaptanPublicBusCoachTram&modes=bus&returnLines=true`);
@@ -1352,7 +1361,9 @@ async function updateBuses(force){
     BUS.ids = [...set]; BUS.at = p; BUS.z = Math.round(z); LANES = null; linesSig = '';
     BUS.note = set.size ? `Buses: ${set.size} routes near here` : 'No bus routes here';
   }catch(e){ BUS.note = 'Buses: ' + e.message; console.warn('buses', e); }
-  BUS.busy = false; renderBusNote(); refresh().catch(()=>{});
+  BUS.busy = false; renderBusNote();
+  if(Date.now() - BUS.lastRef > 10000){ BUS.lastRef = Date.now(); refresh().catch(()=>{}); } // arrivals for the new routes (at most every 10 s: TfL rate limits)
+  if(BUS.again){ BUS.again = false; setTimeout(() => updateBuses(), 500); } // the view moved meanwhile
 }
 // ---------- buses and trams around Great Britain (GPS positions), via the relay ----------
 // England: Bus Open Data Service (needs the relay's free BODS key). Edinburgh: Transport for Edinburgh
@@ -1361,19 +1372,19 @@ const GPS = {list:new Map(), busy:false, note:'', direct:null};
 const EDI = [55.86, -3.45, 56.01, -3.0];
 const inEdinburgh = p => p[0] > EDI[0] && p[0] < EDI[2] && p[1] > EDI[1] && p[1] < EDI[3];
 // ---- Finland: every train in the country with GPS (Digitraffic, open data, no key, works from the browser) ----
-const inFinland = p => p[0] > 59.6 && p[0] < 70.2 && p[1] > 19.4 && p[1] < 31.8;
+const inFinland = p => p[0] > 59.6 && p[0] < 69.6 && p[1] > 19.4 && p[1] < 31.6 && !(p[0] < 61.6 && p[1] > 27.9) && !(p[0] > 68.6 && p[1] < 21) && !(p[0] < 66 && p[1] < 21.3 && p[0] > 60.5); // trimmed: Russia, Norway, Sweden
 const FI = {info:new Map(), at:0};
 async function finlandInfo(){ // train type, line and route for every running train (one call, every 5 min)
   if(Date.now() - FI.at < 300000) return; FI.at = Date.now();
   const q = '{ currentlyRunningTrains { trainNumber commuterLineid trainType { name trainCategory { name } } timeTableRows(where:{trainStopping:{equals:true}}) { station { name } } } }';
-  try{ const r = await fetch('https://rata.digitraffic.fi/api/v2/graphql/graphql', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({query:q})});
+  try{ const r = await fetch('https://rata.digitraffic.fi/api/v2/graphql/graphql', {signal:AbortSignal.timeout(10000), method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({query:q})});
     for(const t of (await r.json()).data.currentlyRunningTrains || []){ const rows = t.timeTableRows || [], nm = x => (x && x.station.name || '').replace(/ asema$/, '');
       FI.info.set(t.trainNumber, {type:t.trainType.name, cat:t.trainType.trainCategory.name, line:t.commuterLineid, from:nm(rows[0]), to:nm(rows[rows.length - 1])}); } }
   catch(e){ FI.at = Date.now() - 240000; console.warn('finland info', e.message); }
 }
 async function finlandTrains(){
   finlandInfo();
-  const r = await fetch('https://rata.digitraffic.fi/api/v1/train-locations/latest/'); if(!r.ok) throw new Error('Finnish rail data: HTTP ' + r.status);
+  const r = await fetch('https://rata.digitraffic.fi/api/v1/train-locations/latest/', {signal:AbortSignal.timeout(10000)}); if(!r.ok) throw new Error('Finnish rail data: HTTP ' + r.status);
   return {vehicles:(await r.json()).map(v => { const i = FI.info.get(v.trainNumber) || {};
     const pax = i.cat === 'Long-distance' || i.cat === 'Commuter';
     return {id:'fi:' + v.trainNumber, line:i.line || (i.type ? i.type + ' ' + v.trainNumber : 'Train ' + v.trainNumber), op:i.line ? 'HSL commuter train' : i.cat || 'VR',
@@ -1386,7 +1397,7 @@ const HSL = {client:null, tiles:'', loading:null, n:0};
 const HSL_COL = {bus:'#007AC9', tram:'#00985F', metro:'#FF6319', ferry:'#00B9E4', ubus:'#007AC9', robot:'#007AC9'};
 async function hslConnect(){
   if(HSL.client) return HSL.client;
-  if(!window.mqtt) await (HSL.loading ||= new Promise((ok, no) => { const sc = document.createElement('script'); sc.src = 'https://unpkg.com/mqtt@5.10.1/dist/mqtt.min.js'; sc.onload = ok; sc.onerror = () => no(new Error('could not load the live feed library')); document.head.appendChild(sc); }));
+  if(!window.mqtt) await (HSL.loading ||= new Promise((ok, no) => { const sc = document.createElement('script'); sc.src = 'https://unpkg.com/mqtt@5.10.1/dist/mqtt.min.js'; sc.onload = ok; sc.onerror = () => { HSL.loading = null; sc.remove(); no(new Error('could not load the live feed library')); }; document.head.appendChild(sc); }));
   const c = HSL.client = window.mqtt.connect('wss://mqtt.hsl.fi:443/', {reconnectPeriod:5000});
   c.on('message', (t, m) => { const a = t.split('/'), mode = a[6]; if(mode === 'train' || (mode !== 'tram' && mode !== 'metro' && mode !== 'ferry' && MODES_OFF.has('bus'))) return;
     let v; try{ v = JSON.parse(m).VP; }catch(e){ return; } if(!v || !v.lat || !v.long) return;
@@ -1405,17 +1416,19 @@ async function hslWatch(){
     tiles.push(`/hfp/v2/journey/ongoing/vp/+/+/+/+/+/+/+/+/+/${Math.floor(la/10)};${Math.floor(lo/10)}/${la % 10}${lo % 10}/#`);
   if(tiles.length > 16) return hslStop(); // too far out: too many vehicles
   const key = tiles.join(); if(key === HSL.tiles) return;
-  const c = await hslConnect(); if(HSL.tiles) c.unsubscribe(HSL.tiles.split(',')); c.subscribe(tiles); HSL.tiles = key;
+  const c = await hslConnect(); const m = map.getCenter();
+  if(!inHelsinki([m.lat(), m.lng()]) || map.getZoom() < 12) return hslStop(); // moved away while the library loaded
+  if(HSL.tiles) c.unsubscribe(HSL.tiles.split(',')); c.subscribe(tiles); HSL.tiles = key;
 }
 function hslStop(){ if(HSL.client){ HSL.client.end(true); HSL.client = null; } HSL.tiles = ''; for(const k of GPS.list.keys()) if(k.startsWith('hsl:')) GPS.list.delete(k); }
 // ---- Norway: every bus, tram, metro, train and ferry with GPS (Entur, open data, no key) ----
-const inNorway = p => p[0] > 57.9 && p[0] < 71.3 && p[1] > 4.4 && p[1] < 31.3 && !(p[1] > 20.5 && p[0] < 68.5);
+const inNorway = p => p[0] > 57.9 && p[0] < 71.3 && p[1] > 4.4 && p[1] < 31.3 && !(p[0] < 68.8 && p[1] > 12.4 + Math.max(0, p[0] - 63.6)*1.2) && !inFinland(p); // west of the Swedish border
 const NO_COL = {RAIL:'#00A28F', BUS:'#E60000', COACH:'#B3001B', TRAM:'#0B91EF', METRO:'#EC700C', WATER:'#682C88', FERRY:'#682C88'};
 async function norwayVehicles(){
   const b = map.getBounds(), sw = b.getSouthWest(), ne = b.getNorthEast(), c = map.getCenter();
   const w = Math.min(0.8, ne.lng() - sw.lng())/2, h = Math.min(0.4, ne.lat() - sw.lat())/2, f = x => x.toFixed(3);
   const q = `{ vehicles(boundingBox:{minLat:${f(c.lat()-h)},minLon:${f(c.lng()-w)},maxLat:${f(c.lat()+h)},maxLon:${f(c.lng()+w)}}) { vehicleId mode line { publicCode lineName } location { latitude longitude } bearing destinationName lastUpdated delay operator { name } } }`;
-  const r = await fetch('https://api.entur.io/realtime/v2/vehicles/graphql', {method:'POST', headers:{'Content-Type':'application/json', 'ET-Client-Name':'finncoates-londonlive'}, body:JSON.stringify({query:q})});
+  const r = await fetch('https://api.entur.io/realtime/v2/vehicles/graphql', {signal:AbortSignal.timeout(10000), method:'POST', headers:{'Content-Type':'application/json', 'ET-Client-Name':'finncoates-londonlive'}, body:JSON.stringify({query:q})});
   if(!r.ok) throw new Error('Norwegian live data: HTTP ' + r.status);
   const bus = !MODES_OFF.has('bus');
   return {vehicles:((await r.json()).data?.vehicles || []).filter(v => v.location && (bus || (v.mode !== 'BUS' && v.mode !== 'COACH')) && Date.now() - Date.parse(v.lastUpdated) < 600000 && !/\.(no|com)$/i.test(v.destinationName || '')).map(v => { // parked / out of service: hidden
@@ -1436,7 +1449,7 @@ async function bostonLines(){
     let d = store.get('mbtaLines');
     if(!d){ d = [];
       for(const [id, col] of [['Red','#DA291C'], ['Mattapan','#DA291C'], ['Orange','#ED8B00'], ['Blue','#003DA5'], ['Green-B','#00843D'], ['Green-C','#00843D'], ['Green-D','#00843D'], ['Green-E','#00843D']]){
-        const j = await (await fetch(`https://api-v3.mbta.com/shapes?filter[route]=${id}&fields[shape]=polyline`)).json();
+        const j = await (await fetch(`https://api-v3.mbta.com/shapes?filter[route]=${id}&fields[shape]=polyline`, {signal:AbortSignal.timeout(10000)})).json();
         const best = (j.data || []).map(x => x.attributes.polyline).sort((a, b) => b.length - a.length)[0];
         if(best) d.push({col, pts:decodePoly(best).map(([a, b]) => [Math.round(a*1e5)/1e5, Math.round(b*1e5)/1e5])});
       }
@@ -1454,7 +1467,7 @@ function drawBostonLines(ctx){
 async function bostonVehicles(){
   bostonLines();
   const types = MODES_OFF.has('bus') ? '0,1,2' : '0,1,2,3';
-  const r = await fetch(`https://api-v3.mbta.com/vehicles?filter[route_type]=${types}&fields[vehicle]=latitude,longitude,bearing,updated_at,label&include=route,trip&fields[route]=short_name,long_name,color,type&fields[trip]=headsign`);
+  const r = await fetch(`https://api-v3.mbta.com/vehicles?filter[route_type]=${types}&fields[vehicle]=latitude,longitude,bearing,updated_at,label&include=route,trip&fields[route]=short_name,long_name,color,type&fields[trip]=headsign`, {signal:AbortSignal.timeout(10000)});
   if(!r.ok) throw new Error('MBTA live data: HTTP ' + r.status); const j = await r.json(), inc = {};
   for(const x of j.included || []) inc[x.type + ':' + x.id] = x.attributes;
   return {vehicles:(j.data || []).filter(v => v.attributes.latitude).map(v => { const a = v.attributes, rt = inc['route:' + v.relationships.route?.data?.id] || {}, tr = inc['trip:' + v.relationships.trip?.data?.id] || {};
@@ -1462,10 +1475,14 @@ async function bostonVehicles(){
     return {id:'us:' + v.id, line:rt.short_name || (rt.long_name || '').replace(/ Line$/, ' Line'), op:'MBTA ' + (rt.long_name || ''), dest:tr.headsign || '', lat:a.latitude, lon:a.longitude,
       brg:a.bearing ?? null, t:Date.parse(a.updated_at) || null, train:rt.type === 1 || rt.type === 2, tram:rt.type === 0, kind, col:rt.color ? '#' + rt.color : '#FFC72C'}; })};
 }
+// keep only the vehicles of the source being shown (switching country drops the last one's)
+const GPS_SRC = ['fi:', 'hsl:', 'no:', 'us:'];
+function gpsOnly(...keep){ for(const k of [...GPS.list.keys()]){ const src = GPS_SRC.find(x => k.startsWith(x)) || 'uk'; if(!keep.includes(src)) GPS.list.delete(k); } }
 async function refreshGps(){
   const c = map.getCenter(), p = [c.lat(), c.lng()], z = map.getZoom();
+  if(inFinland(p) && (!TRAINS_ON || z < 5)){ gpsOnly(); hslStop(); BUS.note = ''; renderBusNote(); return; }
   if(inFinland(p) && TRAINS_ON && z >= 5){ // whole-country view works: only a few hundred trains
-    if(GPS.busy) return; GPS.busy = true;
+    gpsOnly('fi:', 'hsl:'); if(GPS.busy) return; GPS.busy = true;
     let hsl = '';
     if(inHelsinki(p) && z >= 12){ try{ await hslWatch(); for(const [k, g] of GPS.list) if(k.startsWith('hsl:') && Date.now() - g.seen > 60000) GPS.list.delete(k);
       const n = [...GPS.list.keys()].filter(k => k.startsWith('hsl:')).length; hsl = ` · ${n} trams, metros${MODES_OFF.has('bus') ? '' : ', buses'} and ferries in view (HSL, live every second)${MODES_OFF.has('bus') ? '. Turn on Buses for buses too' : ''}`; }catch(e){ hsl = ' · Helsinki live feed: ' + e.message; } }
@@ -1476,6 +1493,7 @@ async function refreshGps(){
   }
   hslStop(); for(const [k] of GPS.list) if(k.startsWith('fi:')) GPS.list.delete(k);
   if(inNorway(p) && TRAINS_ON){
+    gpsOnly('no:');
     if(z < 10){ for(const k of [...GPS.list.keys()]) if(k.startsWith('no:')) GPS.list.delete(k); BUS.note = 'Norway: zoom in to see every bus, tram, metro and train live'; renderBusNote(); return; }
     if(GPS.busy) return; GPS.busy = true;
     try{ gpsMerge(await norwayVehicles(), 'no:'); const n = [...GPS.list.keys()].filter(k => k.startsWith('no:')).length;
@@ -1485,6 +1503,7 @@ async function refreshGps(){
   }
   for(const k of [...GPS.list.keys()]) if(k.startsWith('no:')) GPS.list.delete(k);
   if(inBoston(p) && TRAINS_ON){
+    gpsOnly('us:');
     if(z < 9){ for(const k of [...GPS.list.keys()]) if(k.startsWith('us:')) GPS.list.delete(k); BUS.note = 'Boston: zoom in to see the MBTA live'; renderBusNote(); return; }
     if(GPS.busy) return; GPS.busy = true;
     try{ gpsMerge(await bostonVehicles(), 'us:'); const n = [...GPS.list.keys()].filter(k => k.startsWith('us:')).length;
@@ -1492,7 +1511,7 @@ async function refreshGps(){
     catch(e){ BUS.note = e.message; }
     GPS.busy = false; renderBusNote(); return;
   }
-  for(const k of [...GPS.list.keys()]) if(k.startsWith('us:')) GPS.list.delete(k);
+  gpsOnly('uk');
   if(regionOf(p) === 'world'){ GPS.list.clear(); BUS.note = z >= 8 ? 'No live data for this area yet. Live now: London, Finland, Helsinki, Norway and Boston; coming: trains and buses across Britain.' : ''; renderBusNote(); return; }
   const on = !MODES_OFF.has('bus') && TRAINS_ON && !inLondonView(p);
   if(!on || z < 13){ GPS.list.clear(); if(!inLondonView(p)){ BUS.note = !RAIL.relay ? 'Live trains and buses here are coming soon: they switch on once the data keys are set up. (Preview with made-up data: add ?rail=demo to the address.)' : on ? 'Zoom in to see buses' : 'Turn on Buses to see live buses here'; renderBusNote(); } return; }
@@ -1501,8 +1520,8 @@ async function refreshGps(){
     let res;
     if(RAIL.relay === 'demo') res = gpsDemo(p);
     else if(inEdinburgh(p) && GPS.direct !== false && !RAIL.relay){ // keyless and maybe usable straight from the browser
-      try{ const r = await fetch('https://tfe-opendata.com/api/v1/vehicle_locations'); res = {vehicles:(await r.json()).vehicles.filter(v => v.latitude && v.service_name).map(v => ({id:'tfe:' + v.vehicle_id, line:String(v.service_name),
-        op:'Lothian', dest:v.destination || '', lat:+v.latitude, lon:+v.longitude, brg:v.heading ?? null, t:v.last_gps_fix*1000, tram:v.vehicle_type === 'tram'}))}; GPS.direct = true; }
+      try{ const r = await fetch('https://tfe-opendata.com/api/v1/vehicle_locations', {signal:AbortSignal.timeout(10000)}); res = {vehicles:(await r.json()).vehicles.filter(v => v.latitude && v.service_name).map(v => ({id:'tfe:' + v.vehicle_id, line:String(v.service_name),
+        op:'Lothian', dest:v.destination || '', lat:+v.latitude, lon:+v.longitude, brg:v.heading ?? null, t:v.last_gps_fix ? v.last_gps_fix*1000 : null, tram:v.vehicle_type === 'tram'}))}; GPS.direct = true; }
       catch(e){ GPS.direct = false; throw new Error('Edinburgh\'s live bus data isn\'t answering right now.'); }
     }
     else if(!RAIL.relay) throw new Error('Live buses here are coming soon: they switch on once the data keys are set up.');
@@ -1584,7 +1603,7 @@ function applyRegion(){
 }
 map.addListener('idle', applyRegion);
 function renderBusNote(){ let el = $('busNote'); if(!el) return; el.textContent = BUS.note; el.hidden = !BUS.note; }
-map.addListener('idle', () => updateBuses());
+map.addListener('idle', () => { clearTimeout(BUS.t); BUS.t = setTimeout(() => updateBuses(), 400); }); // settle first
 
 // ---------- map options ----------
 function syncMapMenu(){

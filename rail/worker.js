@@ -154,7 +154,8 @@ function toMs(hhmm, genIso){
 }
 
 // ---------- live vehicles (buses/trams with GPS) ----------
-// Everyone viewing the same area shares one upstream call: answers are cached for 15 s.
+// Everyone viewing the same area shares one upstream call: answers are cached for 15 s
+// (the Cache API works on a custom domain; on *.workers.dev it is skipped and each call goes upstream).
 async function cached(key, ttl, ctx, fn){
   const cache = typeof caches !== 'undefined' ? caches.default : null, k = new Request('https://cache.local/' + encodeURIComponent(key));
   if(cache){ const hit = await cache.match(k); if(hit) return hit.json(); }
@@ -184,7 +185,8 @@ async function vehicles(url, env, ctx){
   });
 }
 // SIRI-VM XML → [{id, line, op, dest, lat, lon, brg, t}] (no XML library in Workers: simple, tolerant scanning)
-const tag = (x, n) => { const m = x.match(new RegExp(`<(?:\\w+:)?${n}[^>]*>([^<]*)</(?:\\w+:)?${n}>`)); return m ? m[1].trim() : null; };
+const TAGS = {}; // compiled once (the free plan allows ~10 ms of CPU per request)
+const tag = (x, n) => { const m = x.match(TAGS[n] ||= new RegExp(`<(?:\\w+:)?${n}[^>]*>([^<]*)</(?:\\w+:)?${n}>`)); return m ? m[1].trim() : null; };
 function parseSiriVm(xml){
   const out = [], seen = new Set();
   for(const m of xml.matchAll(/<(?:\w+:)?VehicleActivity\b[^>]*>([\s\S]*?)<\/(?:\w+:)?VehicleActivity>/g)){

@@ -18,8 +18,11 @@ const inLondonView = p => p[0] > 51.28 && p[0] < 51.72 && p[1] > -0.56 && p[1] <
 function railHubs(){
   const c = typeof map !== 'undefined' && map.getCenter ? map.getCenter() : null, p = c ? [c.lat(), c.lng()] : [51.51, -0.12];
   if(inLondonView(p) || !RAIL.stations) return {key:'london', list:RAIL_HUBS};
+  const cell = Math.round(p[0]*4) + ':' + Math.round(p[1]*2.5); // ~25 km squares: re-poll only after a real move
+  if(RAIL.hubCell === cell && RAIL.hubList) return {key:cell, list:RAIL.hubList};
   const near = RAIL.stations.map(([crs, , lat, lon]) => [crs, dist([lat, lon], p)]).filter(x => x[1] < 40000).sort((a, b) => a[1] - b[1]).slice(0, 25).map(x => x[0]);
-  return {key:near.slice(0, 3).join(), list:near.length ? near : RAIL_HUBS};
+  RAIL.hubCell = cell; RAIL.hubList = near;
+  return {key:cell, list:near}; // empty = no British stations near (e.g. abroad): nothing to poll
 }
 async function railStations(){
   if(RAIL.stations) return RAIL.stations;
@@ -50,8 +53,9 @@ async function refreshRail(){
   if(!railOn() || (MODES_OFF.has('rail') && !onRailLeg)) return; // switched off — unless you're on a train
   try{
     await railStations();
-    const hubs = railHubs(); RAIL.region = hubs.key;
-    const res = await railGet('/trains?crs=' + hubs.list.join(','));
+    if(RAIL.busy) return; const hubs = railHubs(); RAIL.region = hubs.key;
+    if(!hubs.list.length){ RAIL.msg = 'no stations near'; return; }
+    RAIL.busy = true; let res; try{ res = await railGet('/trains?crs=' + hubs.list.join(',')); } finally { RAIL.busy = false; }
     const t0 = Date.now(), seen = new Set(); let newStops = false;
     for(const tr of res.trains || []){
       const l = railLine(tr.opCode, tr.op);
@@ -93,7 +97,7 @@ async function railArrivals(crs){
 }
 if(railOn()){ setTimeout(refreshRail, 2500); setInterval(refreshRail, 60000);
   // moved to another part of the country: poll that area's stations straight away
-  setTimeout(() => { if(typeof map !== 'undefined' && map.addListener) map.addListener('idle', () => { if(RAIL.stations && RAIL.region && railHubs().key !== RAIL.region && map.getZoom() >= 9) refreshRail(); }); }, 3000); }
+  setTimeout(() => { if(typeof map !== 'undefined' && map.addListener) map.addListener('idle', () => { if(RAIL.stations && railHubs().key !== RAIL.region && map.getZoom() >= 9) refreshRail(); }); }, 3000); }
 
 // settings row in the Map menu: status, relay address, demo
 function renderRailStatus(){
