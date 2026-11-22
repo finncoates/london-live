@@ -1957,9 +1957,7 @@ function drawGps(ctx, s, hl0, hw0, mpp){
   const now = Date.now(), cosLat = Math.cos(map.getCenter().lat()*rad), label = PV.z >= 15.5;
   // bus routes abroad: where each bus has driven (thin, light, like London's bus routes), and the tapped bus's whole route
   if(!busOff() && !GPS_OFF.has('bus') && PV.z >= 13){ const W = lineW(), look = lineLook('bus', W); ctx.lineJoin = 'round'; ctx.lineCap = 'round';
-    for(const g of GPS.list.values()){ if(!g.trail || g.trail.length < 2 || vkind(g.v) !== 'bus') continue;
-      ctx.globalAlpha = look.alpha*0.8; ctx.strokeStyle = g.v.col || opCol(g.v.op); ctx.lineWidth = look.w; ctx.beginPath();
-      g.trail.forEach((q, i) => { const c = scr(q); i ? ctx.lineTo(c.x, c.y) : ctx.moveTo(c.x, c.y); }); const c = scr(gpsPos(g, now)); ctx.lineTo(c.x, c.y); ctx.stroke(); }
+    /* (no per-bus GPS trails: straight hops between GPS fixes cut across blocks; the bus route map shows the roads) */
     if(BROUTE.polys){ ctx.globalAlpha = 0.9; ctx.strokeStyle = BROUTE.col; ctx.lineWidth = W*0.8;
       for(const poly of BROUTE.polys){ ctx.beginPath(); poly.forEach((q, i) => { const c = scr(q); i ? ctx.lineTo(c.x, c.y) : ctx.moveTo(c.x, c.y); }); ctx.stroke(); } }
     ctx.globalAlpha = 1; }
@@ -2030,7 +2028,6 @@ async function showBusRoute(g){
   const v = g.v, key = v.op + ':' + v.line; if(BROUTE.key === key) return; BROUTE.key = key; BROUTE.col = v.col || opCol(v.op); BROUTE.polys = null;
   const c = map.getCenter(), mcr = c && Math.abs(c.lat() - 53.48) < 0.3 && Math.abs(c.lng() + 2.24) < 0.4;
   if(mcr){ try{ const r = await fetch('cities/mcr-bus/' + String(v.line).replace(/[^A-Za-z0-9]+/g, '_') + '.json', {signal:AbortSignal.timeout(8000)}); if(r.ok && BROUTE.key === key) BROUTE.polys = await r.json(); }catch(e){} }
-  if(!BROUTE.polys && g.trail && BROUTE.key === key) BROUTE.polys = [g.trail.slice()];
 }
 function gpsTip(e, r, tip){
   const x = e.clientX - r.left, y = e.clientY - r.top, rad0 = matchMedia('(pointer:coarse)').matches ? 24 : 14;
