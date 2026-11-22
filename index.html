@@ -660,7 +660,10 @@ new ResizeObserver(fitMapToSheet).observe($('panel')); addEventListener('resize'
 // ---------- load line geometry ----------
 // Both directions are loaded: some stations only appear in the inbound sequence
 // (e.g. Mildmay's Clapham Junction platform), and inbound routes give inbound stop order.
+// real track shapes for every station-to-station hop (from OpenStreetMap; cities/london-tracks.json), so lines follow the railway
+const TRACKS_P = fetch('cities/london-tracks.json', {signal:AbortSignal.timeout(8000)}).then(r => r.ok ? r.json() : {}).catch(() => ({}));
 async function loadLine(l){
+  const TRACKS = l.mode === 'bus' || l.rail ? null : await TRACKS_P;
   let d = l.mode === 'bus' ? null : store.get('seq2:'+l.id); // bus routes are big: not kept in local storage
   if(!d){
     const [o, i] = await Promise.all([
@@ -676,6 +679,22 @@ async function loadLine(l){
     if(l.mode !== 'bus') store.set('seq2:'+l.id, d, 7*864e5);
   }
   Object.assign(l, d);
+  const segs = TRACKS && TRACKS[l.id];
+  if(segs && segs.length){ // replace TfL's straight hops with the real track, hop by hop
+    const by = new Map(segs.map(([a, b, pts]) => [a + '>' + b, pts])), done = new Set(), polys = [], extra = [];
+    for(const r of l.routes) for(let k = 1; k < r.ids.length; k++){ let a = r.ids[k-1], b = r.ids[k]; if(a > b) [a, b] = [b, a];
+      const key = a + '>' + b; if(done.has(key) || !l.stops[a] || !l.stops[b]) continue; done.add(key);
+      if(by.has(key)) polys.push(by.get(key)); else extra.push([a, b]); }
+    // hops with no track found: kept as straight lines, except long "express" pairs whose stations are reached anyway
+    const has = new Set(); for(const [a, b] of segs.filter(x => done.has(x[0] + '>' + x[1]))) has.add(a), has.add(b);
+    for(const [a, b] of extra) if(dist(l.stops[a].p, l.stops[b].p) < 2000 || !has.has(a) || !has.has(b)) polys.push([l.stops[a].p, l.stops[b].p]);
+    if(polys.length) l.polys = polys;
+    // station-to-station graph over the real track, for trains whose two stations no single drawn run joins
+    l.hopG = new Map(); const addH = (a, b, pts) => { (l.hopG.get(a) || l.hopG.set(a, []).get(a)).push([b, pts]); };
+    for(const r of l.routes) for(let k = 1; k < r.ids.length; k++){ const a = r.ids[k-1], b = r.ids[k]; if(!l.stops[a] || !l.stops[b]) continue;
+      const pts = by.get(a < b ? a + '>' + b : b + '>' + a); const fw = pts ? (a < b ? pts : pts.slice().reverse()) : [l.stops[a].p, l.stops[b].p];
+      if(!pts && dist(l.stops[a].p, l.stops[b].p) >= 2000 && has.has(a) && has.has(b)) continue; addH(a, b, fw); addH(b, a, fw.slice().reverse()); }
+  }
   l.adj = new Set(); for(const r of l.routes) for(let k=1;k<r.ids.length;k++) l.adj.add(r.ids[k-1]+'>'+r.ids[k]);
   l.byName = {}; for(const [id,s] of Object.entries(l.stops)) (l.byName[normName(s.n)] ||= []).push(id);
   l.alias = {};
@@ -750,10 +769,17 @@ function trackPath(l, a, b){
     if(score<bestScore){ bestScore=score; best=pts; }
   }
   let pts = best;
+  if(!pts && l.hopG && l.hopG.has(a)){ // walk the station graph (shortest along the track)
+    const D = new Map([[a, 0]]), P = new Map(), Q = [[0, a]];
+    while(Q.length){ Q.sort((x, y) => x[0] - y[0]); const [c, u] = Q.shift(); if(u === b) break; if(c > (D.get(u) ?? 1e18) || c > straight*3 + 3000) continue;
+      for(const [v, seg] of l.hopG.get(u) || []){ let L = 0; for(let i = 1; i < seg.length; i++) L += dist(seg[i-1], seg[i]); const nc = c + L;
+        if(nc < (D.get(v) ?? 1e18)){ D.set(v, nc); P.set(v, [u, seg]); Q.push([nc, v]); } } }
+    if(P.has(b)){ const parts = []; let v = b; while(v !== a){ const [u, seg] = P.get(v); parts.unshift(seg); v = u; } pts = parts.flatMap((seg, i) => i ? seg.slice(1) : seg); }
+  }
   if(!pts){ // no drawn line joins these stations: draw one, so the train still sits on a line
     pts = [snapStop(l,a), snapStop(l,b)];
     const fk = [a, b].sort().join('|'); l.fb ||= new Set();
-    if(!l.fb.has(fk)){ l.fb.add(fk); l.polys.push([l.stops[a].p, l.stops[b].p]); LANES = null; linesSig = ""; } // drawn by drawLines from now on
+    if(!l.fb.has(fk) && dist(l.stops[a].p, l.stops[b].p) < 2500){ l.fb.add(fk); l.polys.push([l.stops[a].p, l.stops[b].p]); LANES = null; linesSig = ""; } // drawn by drawLines from now on
   }
   const cum=[0]; for(let i=1;i<pts.length;i++) cum.push(cum[i-1]+dist(pts[i-1],pts[i]));
   return l.pathCache[key] = {pts, cum, len:cum[cum.length-1]};
