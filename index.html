@@ -1951,7 +1951,17 @@ async function openCityStation(hit){
         const j = await (await fetch(`https://v6.vbb.transport.rest/stops/${encodeURIComponent(id)}/departures?duration=40&results=40`, {signal:AbortSignal.timeout(10000)})).json();
         rows = (j.departures || j || []).map(x => { const when = Date.parse(x.when || x.plannedWhen); if(!when || x.cancelled) return null; const l = st[4].find(q => q[0] === x.line?.name);
           return {when, cat:{suburban:'S-Bahn', subway:'U-Bahn', tram:'Trams', bus:'Buses', regional:'Regional trains', express:'Long-distance trains', ferry:'Ferries'}[x.line?.product] || 'Other', html:row(l && l[1] || VBB_COL[x.line?.product] || '#888', x.direction || '', (x.line?.name || '') + (x.platform ? ' · platform ' + x.platform : '') + (x.delay > 60 ? ` · ${Math.round(x.delay/60)} min late` : ''), Math.round((when - now)/60000))}; });
-      } else note = 'Live departures for HSL metro and trams need a free HSL key; the vehicles on the map are live.';
+      } else if(CITYL.data.get(url)?.sched){ // timetable departures (Metrolink, Supertram, Tyne and Wear Metro, Subway…)
+        const d = CITYL.data.get(url), S = d.sched, P = Object.fromEntries(new Intl.DateTimeFormat('en-GB', {timeZone:'Europe/London', year:'numeric', month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit', second:'2-digit', hourCycle:'h23'}).formatToParts(new Date()).map(x => [x.type, x.value]));
+        const sec = +P.hour*3600 + +P.minute*60 + +P.second, li = schedDay(S, P.year + P.month + P.day); rows = [];
+        if(li != null) for(const [pi, t0] of S.lists[li]){ const pt = S.patterns[pi];
+          const k = pt.stops.findIndex(q => dist(q, [st[2], st[3]]) < 150); if(k < 0 || k === pt.stops.length - 1) continue; // not here, or terminates here
+          const at = t0 + pt.off[k]; if(at < sec - 30 || at > sec + 5400) continue;
+          rows.push({when:now + (at - sec)*1000, cat:{tram:'Trams', metro:'Metro', ferry:'Ferries'}[pt.kind || 'tram'] || 'Trams', html:row(pt.col, pt.dest, pt.line.replace(/ Line$/, ' line') + ' · timetable', Math.max(0, Math.round((at - sec)/60)))}); }
+        const seen = new Set(); rows = rows.filter(r => { const k2 = r.html; if(seen.has(k2)) return false; seen.add(k2); return true; }).slice(0, 24);
+        note = 'No more departures in the next 90 minutes (timetable).';
+      } else if(/helsinki\.json/.test(url)) note = 'Live departures for HSL metro and trams need a free HSL key; the vehicles on the map are live.';
+      else note = 'No timetable for this stop yet; the vehicles on the map are live where the operator shares positions.';
     }catch(e){ note = 'Departures could not be loaded right now.'; }
     if(box.hidden) return;
     rows = (rows || []).filter(r => r && r.when > Date.now() - 60000).sort((a, b) => a.when - b.when);
@@ -2499,11 +2509,15 @@ function searchLines(text){
     if(/^[a-z]{0,2}\d{1,3}[a-z]?$/i.test(q) && !seen.has(q)) out.push({lineHit:true, id:q, name:q.toUpperCase(), col:'#DC241F', mode:'bus', exact:true, bus:true});
   } else for(const d of cityData()){ const names = new Map(); for(const l of d.lines) if(!names.has(l.name)) names.set(l.name, l);
     for(const [n, l] of names){ const k = String(n).toLowerCase(); if(k === q || k.startsWith(q)) out.push({lineHit:true, city:true, name:n, col:l.col, mode:l.kind, exact:k === q}); } }
+  if(document.body.classList.contains('away') && typeof GPS !== 'undefined'){ // live buses and coaches in the area: by route number
+    const live = new Map(); for(const g of GPS.list.values()){ if(vkind(g.v) !== 'bus' || g.v.line == null) continue; const n = String(g.v.line), k = n.toLowerCase();
+      if((k === q || (q.length >= 2 && k.startsWith(q))) && !live.has(n)) live.set(n, {lineHit:true, city:true, live:true, name:n, col:g.v.col || opCol(g.v.op), mode:'bus', exact:k === q, op:g.v.coach ? (coachOf(g.v) || [g.v.op])[0] : opName(g.v.op)}); }
+    out.push(...live.values()); }
   return out.sort((a, b) => b.exact - a.exact).slice(0, 4);
 }
 const lineResult = (s, i) => `<li role="option" data-i="${i}" class="${i===SR.sel?'on':''}" aria-selected="${i===SR.sel}">
   <span class="dots">${symbol(s.mode === 'bus' ? 'tube' : s.mode === 'train' || s.mode === 'rail' ? 'rail' : 'tube', s.col, 18)}</span>
-  <span><b>${esc(s.mode === 'bus' ? 'Bus ' + s.name : s.name + (/line|^dlr$/i.test(s.name) || s.city ? '' : ' line'))}</b><small>Show the route and its ${s.mode === 'bus' ? 'buses' : 'trains'} live</small></span></li>`;
+  <span><b>${esc(s.mode === 'bus' ? 'Bus ' + s.name : s.name + (/line|^dlr$/i.test(s.name) || s.city ? '' : ' line'))}</b><small>${s.live ? esc(s.op || '') + ' · show its buses live' : 'Show the route and its ' + (s.mode === 'bus' ? 'buses' : 'trains') + ' live'}</small></span></li>`;
 function searchCityStations(text){
   const q = text.trim().toLowerCase(); if(q.length < 2) return []; const out = [];
   for(const d of cityData()) for(const st of d.stations || []){ const n = stName(st[1]).toLowerCase(); if(n.startsWith(q) || (q.length >= 3 && n.includes(q))) out.push({cityHit:true, st, d, score:n.startsWith(q) ? 0 : 1}); }
@@ -2517,7 +2531,8 @@ async function focusLine(x){
   box.innerHTML = head('Loading the route…');
   let pts = [];
   if(x.city){ LF.city = x.name; LF.name = x.name;
-    for(const d of cityData()) for(const l of d.lines) if(l.name === x.name) pts.push(...l.pts); }
+    for(const d of cityData()) for(const l of d.lines) if(l.name === x.name) pts.push(...l.pts);
+    if(!pts.length && x.live) for(const g of GPS.list.values()) if(String(g.v.line) === String(x.name)) pts.push(g.to); }
   else {
     let l = BY[x.id];
     if(!l && x.bus){ try{ const info = await get('/Line/' + encodeURIComponent(x.id)); const m = info[0] || info; if(!m || m.modeName !== 'bus') throw new Error('not a bus route');
