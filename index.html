@@ -237,7 +237,7 @@ body.kiosk #map{bottom:0!important}
   <div id="status">Loading lines…</div>
   <div id="explore" class="explore" hidden></div>
   <div class="search">
-    <div class="field"><label for="q">Find</label><input id="q" placeholder="Search a station" autocomplete="off" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="sres" enterkeyhint="search"></div>
+    <div class="field"><label for="q">Find</label><input id="q" placeholder="Search a station or line (e.g. 172, Victoria)" autocomplete="off" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="sres" enterkeyhint="search"></div>
     <ul id="sres" role="listbox" hidden></ul>
   </div>
   <div id="station" hidden></div>
@@ -630,7 +630,8 @@ function trainLane(t, l){
   return {x:e.nx*off, y:e.ny*off};
 }
 const lineCentre = l => ({color:MAP_BG(), weight:LINE_W/3, opacity:lineStyle(l).opacity ? 1 : 0, z:2});
-const lineStyle = l => ({color:ink(l.colour), weight:LINE_W, opacity:!shown(l)?0:l.on===false?0.07:window.DIM_TRAINS?0.08:1});
+const LF = {id:null, city:null, name:''}; // the line picked in search (live page)
+const lineStyle = l => ({color:ink(l.colour), weight:LINE_W, opacity:!shown(l)?0:l.on===false?0.07:window.DIM_TRAINS?(l.pinned && LF.id === l.id ? 1 : 0.08):1}); // a searched line stays bright
 function applyTheme(){ document.body.classList.toggle('dark', dark); map.setOptions({styles:mapStyles()}); for(const l of ACTIVE) l.layer && l.layer.eachLayer(p => p.setStyle(lineStyle(l))); }
 applyTheme();
 // Screen positions (fractional pixels, so movement is smooth) via an empty overlay's projection
@@ -1055,7 +1056,7 @@ function draw(ts){
   }
   ctx.lineWidth = 1;
   for(const [l, items] of byLine){
-    ctx.globalAlpha = dim && !l.pinned ? 0.3 : 1;
+    ctx.globalAlpha = dim && !l.pinned ? (LF.id ? 0.15 : 0.3) : 1;
     ctx.fillStyle = ctx.strokeStyle = l.colour==='#000000'&&dark ? '#e6e6e6' : l.colour;
     ctx.beginPath(); for(const d of items) rect(d[5]); ctx.fill(); if(!LOW) ctx.stroke(); // stroke rounds the corners
     if(PARALLEL.has(l.mode)){ // centre stripe, like the line itself
@@ -1560,7 +1561,7 @@ function drawLineSet(ctx, d){
     l.pts.forEach((q, i) => { const w = world(q, zc); i ? path.lineTo(w[0], w[1]) : path.moveTo(w[0], w[1]); }); return [l, path]; }); d.pz = zc; }
   ctx.save(); ctx.translate(PV.ox, PV.oy); ctx.scale(k, k);
   ctx.lineJoin = 'round'; ctx.lineCap = 'round'; ctx.globalAlpha = 0.85;
-  for(const [l, path] of d.paths){ if(GPS_OFF.has(l.kind)) continue;
+  for(const [l, path] of d.paths){ if(GPS_OFF.has(l.kind)) continue; ctx.globalAlpha = LF.city ? (l.name === LF.city ? 1 : 0.1) : 0.85;
     ctx.setLineDash(l.kind === 'ferry' ? [W*1.5/k, W*1.5/k] : []); ctx.strokeStyle = l.col; ctx.lineWidth = (l.kind === 'tram' ? W*0.7 : l.kind === 'ferry' ? W*0.6 : W)/k; ctx.stroke(path); }
   ctx.restore(); ctx.setLineDash([]); ctx.globalAlpha = 1;
   // stations: dots from zoom 13 (bigger where lines meet), names from zoom 14 when the map's own labels are hidden — as in London
@@ -1714,6 +1715,7 @@ function drawGps(ctx, s, hl0, hw0, mpp){
   ctx.lineWidth = 1; ctx.font = '700 10.5px system-ui, sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
   for(const g of GPS.list.values()){
     if(GPS_OFF.has(vkind(g.v))) continue;
+    ctx.globalAlpha = LF.city && String(g.v.line) !== String(LF.city) ? 0.2 : 1;
     const p = gpsPos(g, now), c = scr(p); if(c.x < -30 || c.y < -30 || c.x > s.x + 30 || c.y > s.y + 30) continue;
     let ang = g.v.segAng != null ? g.v.segAng : g.v.brg != null ? (g.v.brg - 90)*rad : g.ang ?? 0; // on a known line: its direction
     if(g.v.segAng == null && g.v.brg == null && (g.to[0] !== g.from[0] || g.to[1] !== g.from[1])) ang = Math.atan2(-(g.to[0] - g.from[0]), (g.to[1] - g.from[1])*cosLat);
@@ -1725,7 +1727,7 @@ function drawGps(ctx, s, hl0, hw0, mpp){
     if(label){ ctx.lineWidth = 3; ctx.strokeText(g.v.line, c.x, c.y - hw - 9); ctx.fillStyle = dark ? '#eee' : '#222'; ctx.fillText(g.v.line, c.x, c.y - hw - 9); }
     draw.ghit.push([g, c.x, c.y]);
   }
-  ctx.textAlign = 'start';
+  ctx.globalAlpha = 1; ctx.textAlign = 'start';
 }
 function gpsTip(e, r, tip){
   const x = e.clientX - r.left, y = e.clientY - r.top, rad0 = matchMedia('(pointer:coarse)').matches ? 24 : 14;
@@ -1993,25 +1995,72 @@ function searchStations(text){
   const score = s => s.key.startsWith(q) ? 0 : s.key.split(' ').some(w => w.startsWith(q)) ? 1 : s.key.includes(q) ? 2 : 9;
   return STATIONS.map(s => [score(s), s]).filter(x => x[0] < 9).sort((a, b) => a[0]-b[0] || b[1].lines.size-a[1].lines.size || a[1].name.localeCompare(b[1].name)).slice(0, 7).map(x => x[1]);
 }
+// ---------- line search: "172", "Victoria", "U8", "M1"… → that route, its vehicles; everything else faded ----------
+function searchLines(text){
+  const q = text.trim().toLowerCase().replace(/^(bus|route|line)\s+/, '').replace(/\s+(bus|line)$/, ''); if(!q) return [];
+  const out = [], seen = new Set();
+  if(!document.body.classList.contains('away')){
+    for(const l of ACTIVE){ if(l.mode === 'bus' && !l.layer) continue; const n = l.name.toLowerCase();
+      if(n === q || n.startsWith(q) || (q.length >= 3 && n.includes(q))){ out.push({lineHit:true, id:l.id, name:l.name, col:l.colour, mode:l.mode, exact:n === q}); seen.add(l.id); } }
+    if(/^[a-z]{0,2}\d{1,3}[a-z]?$/i.test(q) && !seen.has(q)) out.push({lineHit:true, id:q, name:q.toUpperCase(), col:'#DC241F', mode:'bus', exact:true, bus:true});
+  } else for(const d of cityData()){ const names = new Map(); for(const l of d.lines) if(!names.has(l.name)) names.set(l.name, l);
+    for(const [n, l] of names){ const k = String(n).toLowerCase(); if(k === q || k.startsWith(q)) out.push({lineHit:true, city:true, name:n, col:l.col, mode:l.kind, exact:k === q}); } }
+  return out.sort((a, b) => b.exact - a.exact).slice(0, 4);
+}
+const lineResult = (s, i) => `<li role="option" data-i="${i}" class="${i===SR.sel?'on':''}" aria-selected="${i===SR.sel}">
+  <span class="dots">${symbol(s.mode === 'bus' ? 'tube' : s.mode === 'train' || s.mode === 'rail' ? 'rail' : 'tube', s.col, 18)}</span>
+  <span><b>${esc(s.mode === 'bus' ? 'Bus ' + s.name : s.name + (/line|^dlr$/i.test(s.name) || s.city ? '' : ' line'))}</b><small>Show the route and its ${s.mode === 'bus' ? 'buses' : 'trains'} live</small></span></li>`;
+function pickResult(x){ if(x && x.lineHit) focusLine(x); else if(x) goStation(x); }
+async function focusLine(x){
+  unfocusLine(); $('q').value = x.mode === 'bus' ? 'Bus ' + x.name : x.name; SR.items = []; renderResults(); $('q').blur(); clearFocus();
+  const box = $('station'); box.hidden = false;
+  const head = n => `<div class="st-h"><b>${symbol(x.mode === 'bus' ? 'tube' : x.mode === 'train' ? 'rail' : 'tube', x.col, 18)} ${esc(x.mode === 'bus' ? 'Bus ' + x.name : x.name)}</b><button type="button" class="x" id="lfClose" aria-label="Close">✕</button></div><div class="muted">${n}</div>`;
+  box.innerHTML = head('Loading the route…');
+  let pts = [];
+  if(x.city){ LF.city = x.name; LF.name = x.name;
+    for(const d of cityData()) for(const l of d.lines) if(l.name === x.name) pts.push(...l.pts); }
+  else {
+    let l = BY[x.id];
+    if(!l && x.bus){ try{ const info = await get('/Line/' + encodeURIComponent(x.id)); const m = info[0] || info; if(!m || m.modeName !== 'bus') throw new Error('not a bus route');
+        l = {id:m.id, name:m.name, colour:'#DC241F', mode:'bus', group:'bus', on:true, count:0, polys:[], routes:[], stops:{}, seg:{}}; ACTIVE.push(l); BY[l.id] = l; await loadLine(l); }
+      catch(e){ box.innerHTML = head(`No bus route "${esc(x.name)}" found.`); return; } }
+    if(!l) return;
+    if(MODES_OFF.has(l.mode)){ MODES_OFF.delete(l.mode); renderModeChips(); }
+    LF.id = l.id; LF.name = l.name; l.pinned = true; window.DIM_TRAINS = true; LANES = null; LPATHS = null; linesSig = '';
+    for(const p of l.polys) pts.push(...p);
+    refresh().catch(() => {});
+  }
+  if(pts.length){ const b = new google.maps.LatLngBounds(); for(const p of pts) b.extend({lat:p[0], lng:p[1]}); map.fitBounds(b, phone() ? 30 : {top:40, bottom:40, left:380, right:40}); }
+  const count = () => x.city ? [...GPS.list.values()].filter(g => String(g.v.line) === String(LF.city)).length : (BY[LF.id] ? BY[LF.id].count : 0);
+  const upd = () => { if(box.hidden || (!LF.id && !LF.city)) return; const n = count(); const w = x.mode === 'bus' ? (n === 1 ? 'bus' : 'buses') : x.mode === 'tram' ? (n === 1 ? 'tram' : 'trams') : (n === 1 ? 'train' : 'trains');
+    box.innerHTML = head(`${n} ${w} on the route now · everything else is faded. Tap ✕ to show all.`); };
+  setTimeout(upd, 2500); clearInterval(focusTimer); focusTimer = setInterval(upd, 15000);
+}
+function unfocusLine(){
+  if(LF.id && BY[LF.id]){ BY[LF.id].pinned = false; if(BY[LF.id].mode === 'bus' && !BY[LF.id].near) BY[LF.id].count = 0; }
+  if(LF.id || LF.city){ window.DIM_TRAINS = false; LANES = null; LPATHS = null; linesSig = ''; }
+  LF.id = null; LF.city = null; LF.name = '';
+}
+$('station').addEventListener('click', e => { if(e.target.closest('#lfClose')){ clearFocus(); unfocusLine(); $('q').value = ''; } });
 function renderResults(){
   const ul = $('sres');
-  ul.innerHTML = SR.items.map((s, i) => `<li role="option" data-i="${i}" class="${i===SR.sel?'on':''}" aria-selected="${i===SR.sel}">
+  ul.innerHTML = SR.items.map((s, i) => s.lineHit ? lineResult(s, i) : `<li role="option" data-i="${i}" class="${i===SR.sel?'on':''}" aria-selected="${i===SR.sel}">
     <span class="dots">${[...s.lines].slice(0, 6).map(id => `<i style="background:${ink(BY[id].colour)}"></i>`).join('')}</span>
     <span><b>${esc(s.name)}</b><small>${[...s.lines].map(id => esc(BY[id].name)).join(', ')}</small></span></li>`).join('')
-    || ($('q').value.trim() ? '<li class="none">No station found</li>' : '');
+    || ($('q').value.trim() ? '<li class="none">No station or line found</li>' : '');
   ul.hidden = !ul.innerHTML; $('q').setAttribute('aria-expanded', String(!ul.hidden));
 }
-$('q').addEventListener('input', () => { SR.items = searchStations($('q').value); SR.sel = SR.items.length ? 0 : -1; renderResults(); });
+$('q').addEventListener('input', () => { SR.items = [...searchLines($('q').value), ...searchStations($('q').value)].slice(0, 8); SR.sel = SR.items.length ? 0 : -1; renderResults(); });
 $('q').addEventListener('keydown', e => {
   const n = SR.items.length;
   if(e.key === 'ArrowDown' && n){ e.preventDefault(); SR.sel = (SR.sel + 1) % n; renderResults(); }
   else if(e.key === 'ArrowUp' && n){ e.preventDefault(); SR.sel = (SR.sel - 1 + n) % n; renderResults(); }
-  else if(e.key === 'Enter' && SR.sel >= 0){ e.preventDefault(); goStation(SR.items[SR.sel]); }
-  else if(e.key === 'Escape'){ $('q').value = ''; SR.items = []; renderResults(); clearFocus(); setStationUrl(null); }
+  else if(e.key === 'Enter' && SR.sel >= 0){ e.preventDefault(); pickResult(SR.items[SR.sel]); }
+  else if(e.key === 'Escape'){ $('q').value = ''; SR.items = []; renderResults(); clearFocus(); setStationUrl(null); unfocusLine(); }
 });
 $('sres').addEventListener('mousedown', e => e.preventDefault());
 $('q').addEventListener('blur', () => setTimeout(() => { $('sres').hidden = true; }, 150));
-$('sres').addEventListener('click', e => { const li = e.target.closest('li[data-i]'); if(li) goStation(SR.items[+li.dataset.i]); });
+$('sres').addEventListener('click', e => { const li = e.target.closest('li[data-i]'); if(li) pickResult(SR.items[+li.dataset.i]); });
 
 // keep the open station in the address, so it can be bookmarked or shared
 function setStationUrl(name){ try{ const u = new URL(location.href); name ? u.searchParams.set('station', name) : u.searchParams.delete('station'); history.replaceState(null, '', u); }catch(e){} }
