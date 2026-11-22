@@ -90,6 +90,7 @@ little value on a map), crowding (TfL crowding API is patchy), weather, social f
 | **Berlin & Brandenburg: S-Bahn, U-Bahn, trams, buses, regional trains** (VBB real-time positions, no key) in BVG/VBB colours | Live map |
 | **Bikes: Santander Cycles docks live** (TfL): bikes, e-bikes (blue dot) and free docks; tap for details; `?bikes=1`. Lime/Forest/Voi/Dott publish no open data for London | Live map |
 | **City line maps** for Helsinki (metro, trams, local trains, ferries) and Berlin (S-Bahn, U-Bahn, trams, regional, in official colours), baked from GTFS (`cities/`); vehicles snap onto their own line and face along it; Explore switches hide lines and vehicles together (Boston too) | Live map |
+| **Bus stops**: with Buses on and zoomed in (16+), stops show as red markers with their letter; tap for the next buses | Live map |
 | **How busy + lifts on station cards**: TfL crowding (live when available, else the typical pattern for today with a 5am–midnight chart) and lifts out of service at that station | Live map |
 | **River boats and cable car**: Uber Boat RB1/RB4/RB6 and the Woolwich Ferry moving live (TfL predictions), routes following the Thames (OpenStreetMap river centreline); IFS Cloud Cable Car line; own switches | Live map |
 | **Shared track split side by side**: where 2, 3, 4… lines share track (Circle + District, H&C + Met…) each gets an equal slice of the line width, so all colours show | both |

@@ -1150,6 +1150,7 @@ function draw(ts){
     for(const [l, items] of byLine) if(l.mode === 'bus') for(const [, x, y, , , , , , , hw] of items){ const ty = y - hw - 9, txt = l.name.toUpperCase();
       ctx.strokeStyle = dark ? 'rgba(0,0,0,.85)' : 'rgba(255,255,255,.95)'; ctx.strokeText(txt, x, ty); ctx.fillStyle = dark ? '#ff8a80' : '#b3140f'; ctx.fillText(txt, x, ty); }
     ctx.textAlign = 'start'; }
+  if(typeof drawBusStops === 'function') drawBusStops(ctx, s);
   if(typeof drawBikes === 'function') drawBikes(ctx, s);
   if(typeof drawShare === 'function') drawShare(ctx, s);
   if(typeof drawGps === 'function') drawGps(ctx, s, hl0, hw0, mpp); // GPS buses/trams outside London
@@ -1207,7 +1208,7 @@ function showTip(e){
   if(e.type === 'click' && map.getZoom() >= 13 && stationAt(e.clientX-r.left, e.clientY-r.top, matchMedia('(pointer:coarse)').matches ? 12 : 8)){ $('tip').style.display = 'none'; hover = null; return; } // a station tap
   const t = nearest(e.clientX-r.left, e.clientY-r.top); hover = t;
   const tip = $('tip');
-  if(!t){ if(typeof gpsTip === 'function' && gpsTip(e, r, tip)) return; if(typeof bikeTip === 'function' && bikeTip(e, r, tip)) return; if(typeof shareTip === 'function' && shareTip(e, r, tip)) return; tip.style.display='none'; return; }
+  if(!t){ if(typeof gpsTip === 'function' && gpsTip(e, r, tip)) return; if(typeof bikeTip === 'function' && bikeTip(e, r, tip)) return; if(e.type === 'click' && typeof busStopAt === 'function' && busStopAt(e.clientX - r.left, e.clientY - r.top)) return; if(typeof shareTip === 'function' && shareTip(e, r, tip)) return; tip.style.display='none'; return; }
   const l = BY[t.line], secs = Math.max(0, Math.round(((t.curArr??t.arr)-now())/1000));
   // TfL has no train names; tube trains have a set number and buses a registration (rail ids are trip codes)
   const vid = t.anon ? '' : t.key.slice(t.line.length + 1);
@@ -1449,6 +1450,7 @@ async function updateBuses(force){
   try{
     const r = z >= 16 ? 350 : z >= 15 ? 600 : 900;
     const res = await get(`/StopPoint?lat=${p[0].toFixed(5)}&lon=${p[1].toFixed(5)}&radius=${r}&stopTypes=NaptanPublicBusCoachTram&modes=bus&returnLines=true`);
+    BUS.stops = (res.stopPoints || []).map(x => ({id:x.naptanId, name:x.commonName, letter:x.stopLetter || x.indicator || '', p:[x.lat, x.lon], lines:(x.lines || []).map(l => l.name)}));
     const h = +new Intl.DateTimeFormat('en-GB', {timeZone:'Europe/London', hour:'numeric', hourCycle:'h23'}).format(new Date()), night = h < 5 || h >= 23;
     const n = new Map(), names = {};
     for(const st of res.stopPoints || []) for(const ln of st.lines || []){ if(!night && /^n\d/i.test(ln.id)) continue; n.set(ln.id, (n.get(ln.id) || 0) + 1); names[ln.id] = ln.name; }
@@ -2038,6 +2040,28 @@ function shareTip(e, r, tip){
   tip.style.left = Math.max(8, Math.min(innerWidth - 258, e.clientX + 14)) + 'px'; tip.style.top = Math.max(8, Math.min(innerHeight - 150, e.clientY + 14)) + 'px';
   return true;
 }
+// bus stops (zoom 16+, Buses on): small red markers with the stop letter; tap for its next buses
+function drawBusStops(ctx, s){
+  draw.sthit = []; if(MODES_OFF.has('bus') || !BUS.stops || PV.z < 16 || document.body.classList.contains('away')) return;
+  ctx.font = '700 8.5px system-ui, sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  for(const st of BUS.stops){ const c = scr(st.p); if(c.x < -10 || c.y < -10 || c.x > s.x + 10 || c.y > s.y + 10) continue;
+    ctx.beginPath(); ctx.arc(c.x, c.y, 6.5, 0, 7); ctx.fillStyle = '#DC241F'; ctx.fill(); ctx.lineWidth = 1.5; ctx.strokeStyle = '#fff'; ctx.stroke();
+    ctx.fillStyle = '#fff'; ctx.fillText((st.letter || '').replace(/^Stop\s*/i, '').slice(0, 2), c.x, c.y + 0.5); draw.sthit.push([st, c.x, c.y]); }
+  ctx.textAlign = 'start';
+}
+function busStopAt(x, y){ let best = null, bd = matchMedia('(pointer:coarse)').matches ? 16 : 10; for(const [st, sx, sy] of draw.sthit || []){ const k = Math.hypot(sx - x, sy - y); if(k < bd){ bd = k; best = st; } } return best; }
+async function openBusStop(st){
+  clearFocus(); FOCUS_ST = null; $('tip').style.display = 'none'; const box = $('station'); box.hidden = false;
+  const head = `<div class="st-h"><b>${symbol('tube', '#DC241F', 18)} ${esc(st.name)}${st.letter ? ` <small class="muted">${esc(st.letter)}</small>` : ''}</b><button type="button" class="x" id="stClose" aria-label="Close">✕</button></div>
+    <div class="st-lines">${st.lines.slice(0, 16).map(n => `<span class="pill" style="--c:#DC241F">${esc(n)}</span>`).join('')}</div>`;
+  box.innerHTML = head + '<div class="muted">Loading next buses…</div>';
+  const load = async () => { let a = []; try{ a = await get(`/StopPoint/${st.id}/Arrivals`); }catch(e){}
+    if(box.hidden) return; const now = Date.now();
+    const rows = a.sort((x, y) => x.timeToStation - y.timeToStation).slice(0, 10).map(x => { const m = Math.round(x.timeToStation/60);
+      return {when:now + x.timeToStation*1000, cat:'Buses', html:`<li><span class="sw" style="background:#DC241F"></span><span class="to">${esc(x.destinationName || x.towards || '')}<small>Bus ${esc(x.lineName)}</small></span><b>${m < 1 ? 'due' : m + ' min'}</b></li>`}; });
+    box.innerHTML = head + (rows.length ? `<ol class="deps">${rows.map(r => r.html).join('')}</ol>` : '<div class="muted">No buses listed right now.</div>'); };
+  load(); clearInterval(focusTimer); focusTimer = setInterval(load, 30000); focusLoad = load;
+}
 function renderBusNote(){ if(document.body.classList.contains('away') && typeof onTrainsUpdate === 'function') onTrainsUpdate(0); // away: the status counts what's live here
   let el = $('busNote'); if(!el) return; el.textContent = BUS.note; el.hidden = !BUS.note; }
 map.addListener('idle', () => { clearTimeout(BUS.t); BUS.t = setTimeout(() => updateBuses(), 400); }); // settle first
@@ -2269,7 +2293,8 @@ function stopFollow(){ HL.clear(); FW.t = null; FW.tour = false; $('tourcap').hi
 $('follow').addEventListener('click', e => { if(e.target.closest('#fwStop')) stopFollow(); });
 map.addListener('click', ev => { if(!ev.pixel) return; const {x, y} = ev.pixel, coarse = matchMedia('(pointer:coarse)').matches;
   if(document.body.classList.contains('away')){ const cs = cityStationAt(x, y); if(cs) return openCityStation(cs); return; } // abroad: the city's stations
-  const onDot = stationAt(x, y, coarse ? 12 : 8); if(onDot) return goStation(onDot); // right on a dot: the station, even with a train waiting there
+  const onDot = stationAt(x, y, coarse ? 12 : 8); if(onDot) return goStation(onDot);
+  const bs = busStopAt(x, y); if(bs) return openBusStop(bs); // right on a dot: the station, even with a train waiting there
   const t = nearest(x, y); if(t) return follow(t, map.getZoom());
   const st = stationAt(x, y); if(st) goStation(st); });
 // a station dot under the finger (dots show from zoom 13): open its next trains
@@ -2325,7 +2350,7 @@ tick(); setInterval(tick, 1000);
 map.addListener('dragstart', () => { $('tip').style.display = 'none'; hover = null; });
 map.addListener('zoom_changed', () => { $('tip').style.display = 'none'; hover = null; });
 renderModeChips(); renderLegend(); syncMapMenu();
-if(DEBUG) window.LLT = {AUTO, autoNext: () => autoNext(), trains, ACTIVE, BY, placeTrain, segTime, refresh, map, draw, goStation, searchStations, scr, stationAt, GPS, gpsPos, BIKES, SHARE, cityData: () => cityData(), stationExtras};
+if(DEBUG) window.LLT = {AUTO, autoNext: () => autoNext(), trains, ACTIVE, BY, placeTrain, segTime, refresh, map, draw, goStation, searchStations, scr, stationAt, GPS, gpsPos, BIKES, SHARE, cityData: () => cityData(), stationExtras, BUS};
 
 // ---------- boot ----------
 (async () => {
