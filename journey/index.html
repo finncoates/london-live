@@ -497,7 +497,7 @@ function buildLanes(){
       for(const poly of l.polys) for(const q of poly){ const d = dist(q, s.p); if(d < bd){ bd = d; best = q; } }
       if(best) l.vk[id] = vkey(best); } }
 }
-const lineW = (z = map.getZoom()) => { z = Math.round(z); return z <= 10 ? 2.5 : z <= 11 ? 3.2 : z <= 12 ? 4 : z <= 13 ? 5 : z <= 15 ? 6 : 7; };
+const lineW = (z = map.getZoom()) => { z = Math.round(z); return z <= 10 ? 1.8 : z <= 11 ? 2.2 : z <= 12 ? 2.7 : z <= 13 ? 3.3 : z <= 14 ? 3.8 : z <= 15 ? 4.3 : 5; }; // slim, like a transit map layer
 // sideways offset (px) of line l on an edge: lines sharing it are spread out, centred on the track
 function laneOffset(e, id){
   if(LAYOUT === 'simple') return 0; // one smooth line per route
@@ -1000,7 +1000,7 @@ function draw(ts){
   viewNow(); drawLines();
   const s = mapSize(); ctx.clearRect(0,0,s.x,s.y);
   // train size: a long thin rectangle, roughly tube-train proportions (not to scale)
-  const z = PV.z, hl0 = Math.max(7, Math.min(16, (z-9)*3)), hw0 = Math.max(2.2, hl0/3.6);
+  const z = PV.z, hl0 = Math.max(5.5, Math.min(12.5, (z-9)*2.4)), hw0 = Math.max(1.9, hl0/3.4); // a little slimmer than the lines are thick
   // zoomed right in: once a real train would be bigger than the icon, draw it at real size
   const mpp = 156543.03*Math.cos(map.getCenter().lat()*rad)/2**z; // metres per screen pixel
   const size = l => { const [len, wid] = REAL_SIZE[l.mode] || REAL_SIZE.tube;
@@ -1040,7 +1040,7 @@ function draw(ts){
   ctx.lineJoin = 'round';
   const dim = !!window.DIM_TRAINS, FADE = 0.1; // trains not on your route fade right back
   if(!LOW){
-  ctx.strokeStyle = dark ? 'rgba(0,0,0,.9)' : 'rgba(255,255,255,.95)'; ctx.lineWidth = 3;
+  ctx.strokeStyle = dark ? 'rgba(0,0,0,.9)' : 'rgba(255,255,255,.95)'; ctx.lineWidth = 2;
   for(const front of dim ? [false, true] : [true]){ // outlines: faded ones first, then yours
     ctx.globalAlpha = front ? 1 : FADE; ctx.beginPath();
     for(const d of drawn) if(!dim || onRoute(d[0]) === front) rect(d[5]);
