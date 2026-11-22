@@ -1899,7 +1899,7 @@ const opName = op => OP_NAMES[op] || op;
 const OP_COL = ['#E4002B', '#0057B8', '#00843D', '#F4A300', '#6D2077', '#00A3AD', '#D0006F', '#5B6770'];
 const opCol = op => { let h = 0; for(const ch of op || '') h = (h*31 + ch.charCodeAt(0)) >>> 0; return OP_COL[h % OP_COL.length]; };
 function drawGps(ctx, s, hl0, hw0, mpp){
-  draw.ghit = []; if(TRAINS_ON && document.body.classList.contains('away') && map.getCenter()){ const mc = [map.getCenter().lat(), map.getCenter().lng()]; if(CITYL.cur && CITYL.cur.box(mc)) drawCityLines(ctx); } if(!GPS.list.size || !SHOW_ICONS || !TRAINS_ON) return;
+  draw.ghit = []; if(TRAINS_ON && document.body.classList.contains('away') && map.getCenter()){ const mc = [map.getCenter().lat(), map.getCenter().lng()]; drawBusNet(ctx); if(CITYL.cur && CITYL.cur.box(mc)) drawCityLines(ctx); } if(!GPS.list.size || !SHOW_ICONS || !TRAINS_ON) return;
   const now = Date.now(), cosLat = Math.cos(map.getCenter().lat()*rad), label = PV.z >= 15.5;
   // bus routes abroad: where each bus has driven (thin, light, like London's bus routes), and the tapped bus's whole route
   if(!busOff() && !GPS_OFF.has('bus') && PV.z >= 13){ const W = lineW(), look = lineLook('bus', W); ctx.lineJoin = 'round'; ctx.lineCap = 'round';
@@ -1930,6 +1930,25 @@ function drawGps(ctx, s, hl0, hw0, mpp){
     draw.ghit.push([g, c.x, c.y]);
   }
   ctx.globalAlpha = 1; ctx.textAlign = 'start';
+}
+// ---- every bus route outside London (national bus timetables, de-duplicated, tiled: cities/busnet/) ----
+const BUSNET = {tiles:new Map(), path:new Map()};
+function busnetTiles(){
+  const b = map.getBounds(); if(!b) return []; const sw = b.getSouthWest(), ne = b.getNorthEast(), out = [];
+  for(let la = Math.floor(sw.lat()*10); la <= Math.floor(ne.lat()*10); la++) for(let lo = Math.floor(sw.lng()*10); lo <= Math.floor(ne.lng()*10); lo++) out.push(la + '_' + lo);
+  return out.length > 30 ? [] : out;
+}
+function drawBusNet(ctx){
+  if(busOff() || GPS_OFF.has('bus') || PV.z < 12) return; const c = map.getCenter(); if(!c || regionOf([c.lat(), c.lng()]) !== 'uk' && regionOf([c.lat(), c.lng()]) !== 'edinburgh' && !CITYL.cur?.name?.match(/Manchester/)) return;
+  const zc = Math.floor(PV.z), k = 2 ** (PV.z - zc), look = lineLook('bus', lineW());
+  ctx.save(); ctx.translate(PV.ox, PV.oy); ctx.scale(k, k); ctx.globalAlpha = look.alpha; ctx.strokeStyle = '#DC241F'; ctx.lineWidth = look.w/k; ctx.lineJoin = 'round'; ctx.lineCap = 'round';
+  for(const t of busnetTiles()){
+    if(!BUSNET.tiles.has(t)){ BUSNET.tiles.set(t, null); fetch('cities/busnet/' + t + '.json', {signal:AbortSignal.timeout(10000)}).then(r => r.ok ? r.json() : []).then(j => { BUSNET.tiles.set(t, j); }).catch(() => BUSNET.tiles.set(t, [])); continue; }
+    const polys = BUSNET.tiles.get(t); if(!polys || !polys.length) continue;
+    const key = t + '@' + zc; let path = BUSNET.path.get(key);
+    if(!path){ path = new Path2D(); for(const poly of polys) poly.forEach((q, i) => { const w = world(q, zc); i ? path.lineTo(w[0], w[1]) : path.moveTo(w[0], w[1]); }); BUSNET.path.set(key, path); if(BUSNET.path.size > 200) BUSNET.path.delete(BUSNET.path.keys().next().value); }
+    ctx.stroke(path); }
+  ctx.restore(); ctx.globalAlpha = 1;
 }
 // the tapped bus's route: from the timetable where we have it (Manchester), otherwise the road it has driven
 const BROUTE = {polys:null, key:'', col:'#DC241F'};

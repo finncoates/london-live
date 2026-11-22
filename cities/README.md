@@ -16,3 +16,4 @@ Rebuild (e.g. after timetable changes):
 | finland.json | Fintraffic passenger-train GTFS — https://rata.digitraffic.fi/api/v1/trains/gtfs-passenger.zip (whole network, de-duplicated: `GLOBAL_DEDUP=1 EPS=8`) |
 | london-tracks.json | OpenStreetMap railway tracks (© OpenStreetMap contributors, ODbL), via the BBBike London extract: each TfL station-to-station hop routed along the real track (`osm_rails.py` then `osm_tracks.py`) |
 | manchester.json | TfGM GTFS — https://odata.tfgm.com/opendata/downloads/TfGMgtfsnew.zip: Metrolink lines (line colours set by name), stops, and a compact timetable (`gtfs_sched.py`) used to place trams where no live feed exists |
+| busnet/ | Every bus route outside London, from the Bus Open Data Service regional GTFS timetables (https://data.bus-data.dft.gov.uk/timetable/download/gtfs-file/<region>/), de-duplicated (each road once) and tiled 0.1°×0.1° (`busnet.py`) |
