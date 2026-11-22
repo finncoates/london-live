@@ -18,11 +18,9 @@ def dp(p, eps):
         if d > best: best, bi = d, i
     return [a, b] if best <= eps else dp(p[:bi+1], eps)[:-1] + dp(p[bi:], eps)
 seen = set(); tiles = collections.defaultdict(list); CELL = 0.0003  # ~30 m
+SKIPMIN = 6  # pieces of 25 m: shared stretches shorter than ~150 m are drawn anyway
 def add(p):
-    p = dp(p, 5); run = []; mine = set()
-    def flush():
-        if len(run) > 1:
-            t = f"{math.floor(run[0][0]*10)}_{math.floor(run[0][1]*10)}"; tiles[t].append([[round(a, 5), round(b, 5)] for a, b in run])
+    p = dp(p, 5); pieces = []
     for i in range(1, len(p)):
         a, b = p[i-1], p[i]; L = math.hypot((b[0]-a[0])*111320, (b[1]-a[1])*69000); n = max(1, int(L/25))
         for k in range(1, n+1):
@@ -31,12 +29,28 @@ def add(p):
             key = (round((q0[0]+q1[0])/2/CELL), round((q0[1]+q1[1])/2/CELL/1.6), db)
             # same road = a nearby piece going the same way (a crossing or a side road is never 'the same')
             near = any((key[0]+i2, key[1]+j2, (db+d2) % 8) in seen for i2 in (-1, 0, 1) for j2 in (-1, 0, 1) for d2 in (-1, 0, 1))
-            if near:
-                flush(); run = []; continue
-            mine.add(key)
-            if not run: run = [q0]
-            run.append(q1)
-            if math.floor(run[0][0]*10) != math.floor(q1[0]*10) or math.floor(run[0][1]*10) != math.floor(q1[1]*10): flush(); run = [q1]
+            pieces.append([q0, q1, key, near])
+    # a short 'already drawn' stretch is usually a parallel street brushing past, not a shared road: draw it (no gaps)
+    k = 0
+    while k < len(pieces):
+        if pieces[k][3]:
+            e = k
+            while e < len(pieces) and pieces[e][3]: e += 1
+            if e - k < SKIPMIN:
+                for x in range(k, e): pieces[x][3] = False
+            k = e
+        else: k += 1
+    run = []; mine = set()
+    def flush():
+        if len(run) > 1:
+            t = f"{math.floor(run[0][0]*10)}_{math.floor(run[0][1]*10)}"; tiles[t].append([[round(a, 5), round(b, 5)] for a, b in run])
+    for q0, q1, key, near in pieces:
+        if near:
+            flush(); run = []; continue
+        mine.add(key)
+        if not run: run = [q0]
+        run.append(q1)
+        if math.floor(run[0][0]*10) != math.floor(q1[0]*10) or math.floor(run[0][1]*10) != math.floor(q1[1]*10): flush(); run = [q1]
     flush(); seen.update(mine)
 if os.environ.get('MERGE') == '1':  # roads already in the tiles (other regions/feeds) count as drawn
     for fn in os.listdir(outdir):
@@ -45,7 +59,7 @@ if os.environ.get('MERGE') == '1':  # roads already in the tiles (other regions/
                 q0, q1 = poly[i-1], poly[i]; ang = math.atan2(q1[0]-q0[0], (q1[1]-q0[1])*0.62) % math.pi
                 seen.add((round((q0[0]+q1[0])/2/CELL), round((q0[1]+q1[1])/2/CELL/1.6), int(ang/(math.pi/8)) % 8))
 cur, pts, n = None, [], 0
-if os.environ.get('NOSHAPE') == '1': shapes = set()
+if os.environ.get('SHAPES') == '0': shapes = set()
 with z.open('shapes.txt') as f:
     for s in csv.DictReader(io.TextIOWrapper(f, 'utf-8-sig')):
         sid = s['shape_id']

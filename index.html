@@ -1699,6 +1699,28 @@ function schedDay(S, ymd){
   const wd = s => new Date(Date.UTC(+s.slice(0, 4), +s.slice(4, 6) - 1, +s.slice(6, 8))).getUTCDay(), w = wd(ymd);
   const same = Object.keys(S.days).filter(k => wd(k) === w).sort(); return same.length ? S.days[same[same.length - 1]] : null;
 }
+// a scheduled vehicle between two stops runs along the drawn line (not a straight chord): the stretch of line between the stops, cached
+function projLine(P, q){ const kx = Math.cos(q[0]*rad)*111320; let best = null;
+  for(let i = 1; i < P.length; i++){ const a = P[i-1], b = P[i], ax = (a[1]-q[1])*kx, ay = (a[0]-q[0])*111320, dx = (b[1]-a[1])*kx, dy = (b[0]-a[0])*111320, L2 = dx*dx + dy*dy || 1e-9, t = Math.max(0, Math.min(1, -(ax*dx + ay*dy)/L2)), dd = Math.hypot(ax + dx*t, ay + dy*t);
+    if(!best || dd < best.d) best = {i, t, d:dd}; }
+  return best; }
+function alongHop(d, pt, i, f){
+  const a = pt.stops[i-1], b = pt.stops[i], hops = pt._hops || (pt._hops = []);
+  let h = hops[i];
+  if(h === undefined){ h = hops[i] = null;
+    for(const l of (d.lines || []).slice().sort((x, y) => (y.name === pt.line) - (x.name === pt.line))){ if(l.kind !== (pt.kind || 'tram')) continue;
+      const pa = projLine(l.pts, a), pb = projLine(l.pts, b); if(!pa || !pb || pa.d > 120 || pb.d > 120) continue;
+      const pos = p => p.i - 1 + p.t, A = pos(pa), B = pos(pb); if(Math.abs(B - A) < 1e-6) continue;
+      const pts = [], at = x => { const k = Math.min(l.pts.length - 2, Math.floor(x)), u = x - k, P0 = l.pts[k], P1 = l.pts[k+1]; return [P0[0] + (P1[0]-P0[0])*u, P0[1] + (P1[1]-P0[1])*u]; };
+      pts.push(at(A)); if(B > A){ for(let k = Math.floor(A) + 1; k <= Math.ceil(B) - 1; k++) pts.push(l.pts[k]); } else { for(let k = Math.ceil(A) - 1; k >= Math.floor(B) + 1; k--) pts.push(l.pts[k]); } pts.push(at(B));
+      const cum = [0]; for(let k = 1; k < pts.length; k++) cum.push(cum[k-1] + dist(pts[k-1], pts[k]));
+      if(cum[cum.length-1] > 3*dist(a, b) + 300) continue; // went the long way round: not this line
+      h = hops[i] = {pts, cum}; break; } }
+  if(!h) return [a[0] + (b[0]-a[0])*f, a[1] + (b[1]-a[1])*f, Math.atan2(-(b[0]-a[0]), (b[1]-a[1])*Math.cos(a[0]*rad))];
+  const L = h.cum[h.cum.length-1]*f; let k = 1; while(k < h.cum.length - 1 && h.cum[k] < L) k++;
+  const u = Math.max(0, Math.min(1, (L - h.cum[k-1]) / ((h.cum[k] - h.cum[k-1]) || 1))), P0 = h.pts[k-1], P1 = h.pts[k];
+  return [P0[0] + (P1[0]-P0[0])*u, P0[1] + (P1[1]-P0[1])*u, Math.atan2(-(P1[0]-P0[0]), (P1[1]-P0[1])*Math.cos(P0[0]*rad))];
+}
 function schedVehicles(){
   const sets = cityData().filter(d => d.sched); if(!sets.length || !TRAINS_ON){ for(const k of [...GPS.list.keys()]) if(k.startsWith('sch:')) GPS.list.delete(k); return; }
   const P = Object.fromEntries(new Intl.DateTimeFormat('en-GB', {timeZone:'Europe/London', year:'numeric', month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit', second:'2-digit', hourCycle:'h23'}).formatToParts(new Date()).map(x => [x.type, x.value]));
@@ -1709,8 +1731,8 @@ function schedVehicles(){
     for(const [day, t] of [[today, sec], [yday, sec + 86400]]){ const li = schedDay(S, day); if(li == null) continue;
       for(const [pi, t0] of S.lists[li]){ const pt = S.patterns[pi], el = t - t0; if(el < 0 || el > pt.off[pt.off.length-1]) continue;
         let i = 1; while(i < pt.off.length - 1 && pt.off[i] < el) i++;
-        const a = pt.stops[i-1], b = pt.stops[i], f = Math.max(0, Math.min(1, (el - pt.off[i-1]) / ((pt.off[i] - pt.off[i-1]) || 1)));
-        out.push({id:'sch:' + pi + ':' + t0, line:pt.line.replace(/ Line$/, ''), op:pt.op || d.op || 'Metrolink', dest:pt.dest, lat:a[0] + (b[0]-a[0])*f, lon:a[1] + (b[1]-a[1])*f, brg:null, t:null, tram:(pt.kind || 'tram') === 'tram', kind:pt.kind || 'tram', col:pt.col, sched:true}); } } }
+        const f = Math.max(0, Math.min(1, (el - pt.off[i-1]) / ((pt.off[i] - pt.off[i-1]) || 1))), q = alongHop(d, pt, i, f);
+        out.push({id:'sch:' + pi + ':' + t0, line:pt.line.replace(/ Line$/, ''), op:pt.op || d.op || 'Metrolink', dest:pt.dest, lat:q[0], lon:q[1], segAng:q[2], brg:null, t:null, tram:(pt.kind || 'tram') === 'tram', kind:pt.kind || 'tram', col:pt.col, sched:true}); } } }
   gpsMerge({vehicles:out}, 'sch:');
   if(document.body.classList.contains('away') && typeof onTrainsUpdate === 'function') onTrainsUpdate(0);
   if(awayKindsHere().join() !== AWAY_KINDS) renderModeChips();
@@ -1913,6 +1935,7 @@ function gpsMerge(res, prefix){
     const now = Date.now();
     for(const v of res.vehicles || []){ const sn = snapGps(v); if(sn){ v.lat = sn.lat; v.lon = sn.lon; v.segAng = sn.ang; if(sn.col) v.col = sn.col; }
       let g = GPS.list.get(v.id);
+      if(vkind(v) === 'bus' && !sn){ const ra = busRoadAng(v, g ? g.ang : null); if(ra != null) v.segAng = ra; } // parallel to its road, moving or at rest
       if(g && vkind(v) === 'bus'){ const tr = g.trail || (g.trail = [[g.to[0], g.to[1]]]); const last = tr[tr.length - 1]; if(dist(last, [v.lat, v.lon]) > 15){ tr.push([v.lat, v.lon]); if(tr.length > 40) tr.shift(); } } // the road it has driven
       if(!g){ g = {from:[v.lat, v.lon], to:[v.lat, v.lon], t0:now}; GPS.list.set(v.id, g); }
       else if(g.to[0] !== v.lat || g.to[1] !== v.lon){ g.from = gpsPos(g, now); g.to = [v.lat, v.lon]; g.t0 = now; }
@@ -1983,6 +2006,23 @@ function drawBusNet(ctx){
     if(!path){ path = new Path2D(); for(const poly of polys) poly.forEach((q, i) => { const w = world(q, zc); i ? path.lineTo(w[0], w[1]) : path.moveTo(w[0], w[1]); }); BUSNET.path.set(key, path); if(BUSNET.path.size > 200) BUSNET.path.delete(BUSNET.path.keys().next().value); }
     ctx.stroke(path); }
   ctx.restore(); ctx.globalAlpha = 1;
+}
+// the direction of the bus road under a bus (from the bus route map tiles), pointing the way it's heading
+BUSNET.grid = new Map();
+function busRoadAng(v, prev){
+  const t = Math.floor(v.lat*10) + '_' + Math.floor(v.lon*10), polys = BUSNET.tiles.get(t); if(!polys || !polys.length) return null;
+  let G = BUSNET.grid.get(t);
+  if(!G){ G = new Map(); for(const poly of polys) for(let i = 1; i < poly.length; i++){ const a = poly[i-1], b = poly[i];
+      const k = Math.floor((a[0]+b[0])/2*2000) + ',' + Math.floor((a[1]+b[1])/2*1200); (G.get(k) || G.set(k, []).get(k)).push([a, b]); }
+    BUSNET.grid.set(t, G); if(BUSNET.grid.size > 60) BUSNET.grid.delete(BUSNET.grid.keys().next().value); }
+  const ci = Math.floor(v.lat*2000), cj = Math.floor(v.lon*1200), kx = Math.cos(v.lat*rad)*111320; let best = null, bd = 25;
+  for(let di = -1; di <= 1; di++) for(let dj = -1; dj <= 1; dj++) for(const [a, b] of G.get((ci+di) + ',' + (cj+dj)) || []){
+    const ax = (a[1]-v.lon)*kx, ay = (a[0]-v.lat)*111320, dx = (b[1]-a[1])*kx, dy = (b[0]-a[0])*111320, L2 = dx*dx + dy*dy || 1e-9, u = Math.max(0, Math.min(1, -(ax*dx + ay*dy)/L2)), dd = Math.hypot(ax + dx*u, ay + dy*u);
+    if(dd < bd){ bd = dd; best = Math.atan2(-dy, dx); } }
+  if(best == null) return null;
+  const ref = v.brg != null ? (v.brg - 90)*rad : prev; // which way along the road
+  if(ref != null && Math.cos(best - ref) < 0) best += Math.PI;
+  return best;
 }
 // the tapped bus's route: from the timetable where we have it (Manchester), otherwise the road it has driven
 const BROUTE = {polys:null, key:'', col:'#DC241F'};
