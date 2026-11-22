@@ -252,6 +252,7 @@ body.kiosk #map{bottom:0!important}
     <label class="mm-row"><span>Hide places &amp; labels<small>Shops, landmarks, stations and area names. Street names stay.</small></span><input type="checkbox" id="mQuiet" class="switch"></label>
     <label class="mm-row"><span>Dark map</span><input type="checkbox" id="mDark" class="switch"></label>
     <label class="mm-row"><span>Show trains<small>The moving train shapes. The lines stay.</small></span><input type="checkbox" id="mIcons" class="switch"></label>
+    <label class="mm-row"><span>Show stations<small>Station dots and names on the lines (zoom in).</small></span><input type="checkbox" id="mStations" class="switch"></label>
     <label class="mm-row"><span>Step-free view<small>Stations with lift access to the platforms in blue, others faded (TfL data; zoom in).</small></span><input type="checkbox" id="mSF" class="switch"></label>
     <label class="mm-row"><span>Lines side by side<small>Where lines share track (e.g. Circle and District), draw them next to each other.</small></span><input type="checkbox" id="mLanes" class="switch"></label>
   </div>
@@ -318,6 +319,7 @@ const BY = Object.fromEntries(ACTIVE.map(l => [l.id, l]));
 // Background trains can be switched off; lines used by the current journey are always shown ("pinned")
 // line layout: 'simple' = one smooth line per route (default); 'lanes' = lines sharing track drawn side by side
 let LAYOUT = (() => { try{ return localStorage.getItem('lineLayout') || 'simple'; }catch(e){ return 'simple'; } })();
+let SHOW_ST = (() => { try{ return localStorage.getItem('showStations') !== '0'; }catch(e){ return true; } })(); // station dots and names
 let TRAINS_ON = (() => { try{ return localStorage.getItem('trainsOn') !== '0' }catch(e){ return true } })();
 // which kinds of transport to show in the background (each can be switched off in the Map menu)
 const MODE_GROUPS = [['tube','Tube'], ['overground','Overground'], ['elizabeth','Elizabeth line'], ['dlr','DLR'], ['tram','Trams'], ['river','River boats'], ['cable','Cable car'], ['bus','Buses'], ['bike','Bikes & scooters'], ['road','Road works'], ['rail','National Rail']];
@@ -529,7 +531,7 @@ let LPATHS = null, lpathSig = '';
 // source of each line's shape. Each shared stretch gives every line an equal slice of the usual width, side by side.
 let SHARE_C = null, shareSig = '';
 function sharedTrack(){
-  const vis = ACTIVE.filter(l => l.dchains && lineStyle(l).opacity >= 0.5 && l.mode !== 'bus');
+  const vis = ACTIVE.filter(l => l.dchains && lineStyle(l).opacity >= 0.5 && l.mode !== 'bus' && l.mode !== 'river' && l.mode !== 'cable');
   const sig = vis.map(l => l.id + ':' + l.dchainsSig).join();
   if(SHARE_C && sig === shareSig) return SHARE_C;
   const CELLM = 40, kx = Math.cos(51.5*rad)*111320, ky = 111320, grid = new Map(), order = new Map(ACTIVE.map((l, i) => [l.id, i]));
@@ -626,13 +628,15 @@ function renderOff(zi, T, k){
     const op = lineStyle(l).opacity; if(!op) continue;
     // solid lines always; service problems are shown in the legend and station cards
     const bg = l.mode === 'bus' && !l.pinned; // background bus routes: thin and light
+    const boat = l.mode === 'river' || l.mode === 'cable'; // boats & cable car: thin, see-through, dotted
+    if(boat){ g.globalAlpha = op*0.75; g.strokeStyle = ink(l.colour); g.lineWidth = Math.max(1.5, W*0.45); g.lineCap = 'round'; g.setLineDash(l.mode === 'cable' ? [W*1.2, W*0.9] : [0.1, W*1.1]); g.stroke(path); g.setLineDash([]); continue; }
     g.globalAlpha = op * (bg ? 0.45 : 1); g.strokeStyle = ink(l.colour); g.lineWidth = bg ? Math.max(1.5, W*0.4) : W/cnt; g.lineCap = cnt > 1 ? 'butt' : 'round'; g.stroke(path);
     if(PARALLEL.has(l.mode)){ g.globalAlpha = 1; g.strokeStyle = MAP_BG(); g.lineWidth = W/cnt/3; g.stroke(path); }
     g.lineCap = 'round';
   }
   g.setLineDash([]);
   // stations: dots from zoom 13 (bigger for interchanges), names from zoom 14 when the map's own labels are hidden
-  if(zi >= 13){
+  if(zi >= 13 && SHOW_ST){
     const names = QUIET_ON && zi >= 14, r = Math.max(2.5, W*0.55);
     g.globalAlpha = 1; g.lineWidth = Math.max(1.5, W*0.3);
     if(names){ g.font = `600 ${zi >= 15 ? 13 : 11.5}px "Hanken Grotesk", system-ui, sans-serif`; g.textBaseline = 'middle'; }
@@ -648,7 +652,7 @@ function renderOff(zi, T, k){
   }
   OFF = {canvas:c, zi, box, odpr, sig:offSig()}; linesSig = ''; // force the on-screen copy to update
 }
-const offSig = () => [dark, MAP_STYLE, QUIET_ON, LAYOUT, SF_ON, !!LIFTMAP, lpathSig, ...ACTIVE.map(l => lineStyle(l).opacity + ':' + (STATUS.get(l.id)?.lv || 0))].join();
+const offSig = () => [dark, MAP_STYLE, QUIET_ON, LAYOUT, SHOW_ST, SF_ON, !!LIFTMAP, lpathSig, ...ACTIVE.map(l => lineStyle(l).opacity + ':' + (STATUS.get(l.id)?.lv || 0))].join();
 function drawLines(){
   if(!ov.getProjection() || !PV) return;
   if(!LANES) buildLanes();
@@ -1685,7 +1689,7 @@ function drawLineSet(ctx, d){
     ctx.setLineDash(l.kind === 'ferry' ? [W*1.5/k, W*1.5/k] : []); ctx.strokeStyle = l.col; ctx.lineWidth = (l.kind === 'tram' ? W*0.7 : l.kind === 'ferry' ? W*0.6 : W)/k; ctx.stroke(path); }
   ctx.restore(); ctx.setLineDash([]); ctx.globalAlpha = 1;
   // stations: dots from zoom 13 (bigger where lines meet), names from zoom 14 when the map's own labels are hidden — as in London
-  if(!d.stations || PV.z < 13) return; const s0 = mapSize(), r = Math.max(2.5, W*0.55), names = QUIET_ON && PV.z >= 14;
+  if(!d.stations || PV.z < 13 || !SHOW_ST) return; const s0 = mapSize(), r = Math.max(2.5, W*0.55), names = QUIET_ON && PV.z >= 14;
   ctx.lineWidth = Math.max(1.5, W*0.3); if(names){ ctx.font = `600 ${PV.z >= 15 ? 13 : 11.5}px "Hanken Grotesk", system-ui, sans-serif`; ctx.textBaseline = 'middle'; ctx.textAlign = 'start'; }
   const bnd = map.getBounds(), sw = bnd && bnd.getSouthWest(), ne = bnd && bnd.getNorthEast();
   for(const st of d.stations){ if(sw && (st[2] < sw.lat() - 0.01 || st[2] > ne.lat() + 0.01 || st[3] < sw.lng() - 0.01 || st[3] > ne.lng() + 0.01)) continue; if(!showSt(d, st)) continue;
@@ -1706,7 +1710,7 @@ function depGroups(rows, per = 4){
 }
 // a city station under the finger
 function cityStationAt(x, y, rad0){
-  if(PV.z < 13) return null; let best = null, bd = rad0 || (matchMedia('(pointer:coarse)').matches ? 20 : 12);
+  if(PV.z < 13 || !SHOW_ST) return null; let best = null, bd = rad0 || (matchMedia('(pointer:coarse)').matches ? 20 : 12);
   for(const d of cityData()) for(const st of d.stations || []){ if(!showSt(d, st)) continue; const tramOnly = st[4].every(l => l[2] === 'tram'); if(tramOnly && PV.z < 15) continue;
     const c = scr([st[2], st[3]]), k = Math.hypot(c.x - x, c.y - y) + (tramOnly ? 6 : 0); if(k < bd){ /* a tram stop next to a station: the station wins */ bd = k; best = {st, src:d.src || CITYL.cur.name, url:d.url}; } }
   return best;
@@ -2135,7 +2139,7 @@ map.addListener('idle', () => { clearTimeout(BUS.t); BUS.t = setTimeout(() => up
 // ---------- map options ----------
 function syncMapMenu(){
   for(const b of document.querySelectorAll('[data-ms]')) b.classList.toggle('sel', b.dataset.ms === MAP_STYLE);
-  $('mQuiet').checked = QUIET_ON; $('mDark').checked = dark; $('mIcons').checked = SHOW_ICONS; $('mLanes').checked = LAYOUT === 'lanes'; $('mSF').checked = SF_ON;
+  $('mQuiet').checked = QUIET_ON; $('mDark').checked = dark; $('mIcons').checked = SHOW_ICONS; $('mStations').checked = SHOW_ST; $('mLanes').checked = LAYOUT === 'lanes'; $('mSF').checked = SF_ON;
 }
 $('bMap').onclick = () => { const m = $('mapMenu'); m.hidden = !m.hidden; $('bMap').setAttribute('aria-expanded', !m.hidden); syncMapMenu(); };
 $('mapMenu').addEventListener('click', e => { const b = e.target.closest('[data-ms]'); if(!b) return;
@@ -2146,6 +2150,7 @@ $('mIcons').onchange = () => { SHOW_ICONS = $('mIcons').checked; try{ localStora
 $('mSF').onchange = () => { SF_ON = $('mSF').checked; try{ localStorage.setItem('stepFree', SF_ON ? '1' : '0'); }catch(x){} OFF = null; linesSig = ''; if(SF_ON && map.getZoom() < 13) map.setZoom(13); };
 $('mLanes').onchange = () => { LAYOUT = $('mLanes').checked ? 'lanes' : 'simple'; try{ localStorage.setItem('lineLayout', LAYOUT); }catch(x){}
   LPATHS = null; OFF = null; linesSig = ''; };
+$('mStations').onchange = () => { SHOW_ST = $('mStations').checked; try{ localStorage.setItem('showStations', SHOW_ST ? '1' : '0'); }catch(x){} OFF = null; linesSig = ''; };
 $('mDark').onchange = () => { if($('mDark').checked !== dark) toggleDark(); };
 function toggleDark(){ dark = !dark; try{ localStorage.setItem('theme', dark ? 'dark' : 'light'); }catch(x){} applyTheme(); syncMapMenu(); renderModeChips(); renderLegend(); }
 $('bTheme').onclick = toggleDark;
@@ -2382,7 +2387,7 @@ map.addListener('click', ev => { if(!ev.pixel) return; const {x, y} = ev.pixel, 
   const st = stationAt(x, y); if(st) goStation(st); });
 // a station dot under the finger (dots show from zoom 13): open its next trains
 function stationAt(x, y, r){
-  if(map.getZoom() < 13) return null;
+  if(map.getZoom() < 13 || !SHOW_ST) return null;
   if(!STATIONS || STATIONS.length < 50) STATIONS = stationIndex();
   let best = null, bd = r || (matchMedia('(pointer:coarse)').matches ? 22 : 14);
   for(const st of STATIONS){ if(![...st.lines].some(id => BY[id] && BY[id].on !== false && lineStyle(BY[id]).opacity > 0)) continue;
