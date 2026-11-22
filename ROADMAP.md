@@ -84,6 +84,7 @@ little value on a map), crowding (TfL crowding API is patchy), weather, social f
 | **Finland: every train in the country live** (GPS from Digitraffic, open data, no key, straight from the browser): type, route, speed; Helsinki commuter trains purple, long-distance green, freight grey | Live map |
 | **Helsinki: every tram, metro, bus and ferry live each second** (HSL open MQTT feed, no key): HSL colours, route + destination, speed, on time/late; zoom 12+ (only the map tiles on screen are followed) | Live map |
 | **Norway: buses, coaches, trains and ferries with GPS** (Entur, open data, no key) — best in Bergen (Skyss), Trondheim, Tromsø; Oslo's Ruter doesn't publish to this feed; parked vehicles (no report for 10 min) hidden | Live map |
+| **Boston: MBTA subway, light rail, commuter rail and buses with GPS** (MBTA v3 API, no key), official line colours | Live map |
 | Region-aware panel: outside London the title, counts and notes describe what's live there; London legend/status/TfL chips hidden | Live map |
 | Map menu → Go to: London, Manchester, Birmingham, Leeds, Liverpool, Newcastle, Edinburgh, Glasgow, Bristol, Cardiff | Live map |
 
