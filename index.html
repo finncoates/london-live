@@ -251,6 +251,7 @@ body.kiosk #map{bottom:0!important}
     <label class="mm-row"><span>Hide places &amp; labels<small>Shops, landmarks, stations and area names. Street names stay.</small></span><input type="checkbox" id="mQuiet" class="switch"></label>
     <label class="mm-row"><span>Dark map</span><input type="checkbox" id="mDark" class="switch"></label>
     <label class="mm-row"><span>Show trains<small>The moving train shapes. The lines stay.</small></span><input type="checkbox" id="mIcons" class="switch"></label>
+    <label class="mm-row"><span>Step-free view<small>Stations with lift access to the platforms in blue, others faded (TfL data; zoom in).</small></span><input type="checkbox" id="mSF" class="switch"></label>
     <label class="mm-row"><span>Lines side by side<small>Where lines share track (e.g. Circle and District), draw them next to each other.</small></span><input type="checkbox" id="mLanes" class="switch"></label>
   </div>
   <div class="chips" id="mModes" aria-label="Show transport types"></div>
@@ -593,8 +594,11 @@ function buildPaths(z){
 let OFF = null;
 // one dot per station on the lines that are showing (same name within 500 m = one station)
 let SDOTS = null, sdotSig = '';
+// lift access to platforms (TfL StopPoint accessibility data, baked: cities/london-lifts.json)
+let LIFTMAP = null; fetch('cities/london-lifts.json').then(r => r.json()).then(j => { LIFTMAP = j; SDOTS = null; OFF = null; linesSig = ''; }).catch(() => {});
+let SF_ON = (() => { try{ return localStorage.getItem('stepFree') === '1'; }catch(e){ return false; } })();
 function stationDots(){
-  const sig = lpathSig + ACTIVE.length + ACTIVE.map(l => l.on === false ? 0 : 1).join('');
+  const sig = lpathSig + ACTIVE.length + ACTIVE.map(l => l.on === false ? 0 : 1).join('') + (LIFTMAP ? 'L' : '');
   if(SDOTS && sig === sdotSig) return SDOTS;
   const by = new Map(); // normalised name -> stations with that name (one per place, 400 m)
   for(const l of ACTIVE){ if(l.mode === 'bus' || !l.stops || l.on === false || !(lineStyle(l).opacity >= 0.5)) continue; // hidden/faded lines: no dots
@@ -603,10 +607,10 @@ function stationDots(){
       const k = name.toLowerCase().replace(/^london /, '').replace(/ \(london\)$/, '').replace(/['’.]/g, '').replace(/&/g, 'and').replace(/[^a-z0-9]+/g, ' ').trim();
       const list = by.get(k) || []; let d = list.find(x => dist(x.p, s.p) < 400);
       if(!d){ d = {name, p:s.p, lines:new Set(), pts:[]}; list.push(d); by.set(k, list); }
-      d.lines.add(l.id);
+      d.lines.add(l.id); if(LIFTMAP){ const id = Object.keys(l.stops).find(i => l.stops[i] === s); if(id && id in LIFTMAP) d.sf = Math.max(d.sf ?? 0, LIFTMAP[id]); }
       if(!d.pts.some(q => dist(q, s.p) < 120)) d.pts.push(s.p); // platforms far apart (Paddington): a dot on each, one name
     } }
-  SDOTS = [...by.values()].flat().flatMap(d => d.pts.map((p, i) => ({name:i ? '' : d.name, p, n:d.lines.size}))); sdotSig = sig; return SDOTS;
+  SDOTS = [...by.values()].flat().flatMap(d => d.pts.map((p, i) => ({name:i ? '' : d.name, p, n:d.lines.size, sf:d.sf}))); sdotSig = sig; return SDOTS;
 }
 function renderOff(zi, T, k){
   const s = mapSize(), m = 0.3, odpr = LDPR();
@@ -633,15 +637,17 @@ function renderOff(zi, T, k){
     if(names){ g.font = `600 ${zi >= 15 ? 13 : 11.5}px "Hanken Grotesk", system-ui, sans-serif`; g.textBaseline = 'middle'; }
     for(const s of stationDots()){
       const w = world(s.p, zi); if(w[0] < box.x || w[1] < box.y || w[0] > box.x + box.w || w[1] > box.y + box.h) continue;
-      const big = s.n > 1, rr = big ? r*1.35 : r;
-      g.beginPath(); g.arc(w[0], w[1], rr, 0, 7); g.fillStyle = dark ? '#1b1c1f' : '#fff'; g.fill(); g.strokeStyle = dark ? '#e6e6e6' : '#1b1c1f'; g.stroke();
+      const big = s.n > 1, rr = (big ? r*1.35 : r) * (SF_ON && s.sf === 1 ? 1.25 : 1);
+      g.globalAlpha = SF_ON && s.sf !== 1 ? 0.35 : 1;
+      g.beginPath(); g.arc(w[0], w[1], rr, 0, 7); g.fillStyle = SF_ON && s.sf === 1 ? '#0019A8' : dark ? '#1b1c1f' : '#fff'; g.fill(); g.strokeStyle = SF_ON && s.sf === 1 ? '#fff' : dark ? '#e6e6e6' : '#1b1c1f'; g.stroke();
+      g.globalAlpha = 1;
       if(names && s.name){ g.lineWidth = 3; g.strokeStyle = dark ? 'rgba(0,0,0,.85)' : 'rgba(255,255,255,.95)'; g.strokeText(s.name, w[0] + rr + 4, w[1]);
         g.fillStyle = dark ? '#eee' : '#1b1c1f'; g.fillText(s.name, w[0] + rr + 4, w[1]); g.lineWidth = Math.max(1.5, W*0.3); }
     }
   }
   OFF = {canvas:c, zi, box, odpr, sig:offSig()}; linesSig = ''; // force the on-screen copy to update
 }
-const offSig = () => [dark, MAP_STYLE, QUIET_ON, LAYOUT, lpathSig, ...ACTIVE.map(l => lineStyle(l).opacity + ':' + (STATUS.get(l.id)?.lv || 0))].join();
+const offSig = () => [dark, MAP_STYLE, QUIET_ON, LAYOUT, SF_ON, !!LIFTMAP, lpathSig, ...ACTIVE.map(l => lineStyle(l).opacity + ':' + (STATUS.get(l.id)?.lv || 0))].join();
 function drawLines(){
   if(!ov.getProjection() || !PV) return;
   if(!LANES) buildLanes();
@@ -1148,6 +1154,14 @@ function draw(ts){
     }
   }
   ctx.globalAlpha = 1;
+  // next stop + countdown on trains when zoomed right in
+  if(PV.z >= 15.5 && SHOW_ICONS){ ctx.font = '600 10.5px system-ui, sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.lineWidth = 3; let n = 0; const placed = [];
+    for(const [l, items] of byLine){ if(l.mode === 'bus') continue; for(const [t, x, y, , , , , , , hw] of items){ if(n++ > 40) break;
+      const st = l.stops[t.cur || t.next]; if(!st) continue; const sec = Math.max(0, Math.round(((t.curArr ?? t.arr) - now())/1000));
+      const txt = `→ ${cleanName(st.n).replace(/ \(.*\)$/, '')} ${sec < 30 ? 'due' : Math.round(sec/60) + ' min'}`, ty = y + hw + 10;
+      const tw = ctx.measureText(txt).width, box = [x - tw/2 - 3, ty - 8, x + tw/2 + 3, ty + 8]; if(placed.some(q => box[0] < q[2] && box[2] > q[0] && box[1] < q[3] && box[3] > q[1])) continue; placed.push(box);
+      ctx.strokeStyle = dark ? 'rgba(0,0,0,.85)' : 'rgba(255,255,255,.95)'; ctx.strokeText(txt, x, ty); ctx.fillStyle = dark ? '#eee' : '#333'; ctx.fillText(txt, x, ty); } }
+    ctx.textAlign = 'start'; }
   // route numbers on buses when zoomed in
   if(PV.z >= 15.5 && SHOW_ICONS){ ctx.font = '700 10.5px system-ui, sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.lineWidth = 3;
     for(const [l, items] of byLine) if(l.mode === 'bus') for(const [, x, y, , , , , , , hw] of items){ const ty = y - hw - 9, txt = l.name.toUpperCase();
@@ -2103,7 +2117,7 @@ map.addListener('idle', () => { clearTimeout(BUS.t); BUS.t = setTimeout(() => up
 // ---------- map options ----------
 function syncMapMenu(){
   for(const b of document.querySelectorAll('[data-ms]')) b.classList.toggle('sel', b.dataset.ms === MAP_STYLE);
-  $('mQuiet').checked = QUIET_ON; $('mDark').checked = dark; $('mIcons').checked = SHOW_ICONS; $('mLanes').checked = LAYOUT === 'lanes';
+  $('mQuiet').checked = QUIET_ON; $('mDark').checked = dark; $('mIcons').checked = SHOW_ICONS; $('mLanes').checked = LAYOUT === 'lanes'; $('mSF').checked = SF_ON;
 }
 $('bMap').onclick = () => { const m = $('mapMenu'); m.hidden = !m.hidden; $('bMap').setAttribute('aria-expanded', !m.hidden); syncMapMenu(); };
 $('mapMenu').addEventListener('click', e => { const b = e.target.closest('[data-ms]'); if(!b) return;
@@ -2111,6 +2125,7 @@ $('mapMenu').addEventListener('click', e => { const b = e.target.closest('[data-
 $('mQuiet').onchange = () => { QUIET_ON = $('mQuiet').checked; try{ localStorage.setItem('mapQuiet', QUIET_ON ? '1' : '0'); }catch(x){} map.setOptions({styles:mapStyles()}); };
 $('mIcons').onchange = () => { SHOW_ICONS = $('mIcons').checked; try{ localStorage.setItem('trainIcons', SHOW_ICONS ? '1' : '0'); }catch(x){}
   $('tip').style.display = 'none'; hover = null; };
+$('mSF').onchange = () => { SF_ON = $('mSF').checked; try{ localStorage.setItem('stepFree', SF_ON ? '1' : '0'); }catch(x){} OFF = null; linesSig = ''; if(SF_ON && map.getZoom() < 13) map.setZoom(13); };
 $('mLanes').onchange = () => { LAYOUT = $('mLanes').checked ? 'lanes' : 'simple'; try{ localStorage.setItem('lineLayout', LAYOUT); }catch(x){}
   LPATHS = null; OFF = null; linesSig = ''; };
 $('mDark').onchange = () => { if($('mDark').checked !== dark) toggleDark(); };
