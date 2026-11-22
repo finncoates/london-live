@@ -22,7 +22,7 @@ for tid, rows in seq.items():
         pat_index[key] = len(patterns)
         nm, cl, kd = (NAMES.get(routes[rid], [routes[rid], col.get(routes[rid], '#7A1F3D'), 'tram']) + ['tram'])[:3]; kd = 'tram' if kd == 'tramtrain' else kd
         patterns.append({'line': nm, 'col': cl, 'kind': kd, 'stops': [list(stops[r[1]][:2]) for r in rows],
-                         'off': [r[2] - t0 for r in rows], 'dest': re.sub(r' \((Manchester Metrolink|West Midlands Metro|Sheffield Supertram|Blackpool Tramway)\)$| \(?Tram Stop\)?$| \(Tram\)$| (To|From) (City|Sheffield|Parkgate|Rotherham|Meadowhall|Halfway|Herdings|Hillsborough|Malin Bridge|Middlewood|Cathedral)( [A-Z][a-z]+)*$', '', stops[rows[-1][1]][2])})
+                         'off': [r[2] - t0 for r in rows], 'dest': re.sub(r' \((Manchester Metrolink|West Midlands Metro|Sheffield Supertram|Blackpool Tramway|Tyne and Wear Metro|Tyne and Wear Metro Station|Edinburgh Trams|SPT Subway)\)$| SPT Subway Station$| Subway$| Metro Interchange$| \(Metro\)$| Metro Station$| Subway Station$| \(?Tram Stop\)?$| \(Tram\)$| (To|From) (City|Sheffield|Parkgate|Rotherham|Meadowhall|Halfway|Herdings|Hillsborough|Malin Bridge|Middlewood|Cathedral)( [A-Z][a-z]+)*$', '', stops[rows[-1][1]][2])})
     by_service[sid].append([pat_index[key], t0])
 # which services run on each of the next 21 days
 cal = {c['service_id']: c for c in rd('calendar.txt')} if 'calendar.txt' in z.namelist() else {}

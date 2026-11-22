@@ -1,5 +1,5 @@
 # Road router for bus routes that come without a shape: A* over the OSM drivable road network between consecutive stops.
-import math, heapq, array, osmium
+import math, heapq, array, os, osmium
 import numpy as np
 from scipy.spatial import cKDTree
 
@@ -11,8 +11,9 @@ class H(osmium.SimpleHandler):
     def __init__(self, box, kind='road'):
         super().__init__(); self.box = box; self.ways = []; self.kind = kind
     def way(self, w):
-        if self.kind in ('tram', 'tramrail'):
-            if w.tags.get('railway') not in (RAIL | {'rail'} if self.kind == 'tramrail' else RAIL) or w.tags.get('service') in ('yard', 'siding'): return
+        if self.kind in ('tram', 'tramrail', 'metro'):
+            ok = RAIL | {'rail'} if self.kind == 'tramrail' else RAIL | {'rail', 'subway'} if self.kind == 'metro' else RAIL
+            if w.tags.get('railway') not in ok or w.tags.get('service') in ('yard', 'siding'): return
             return self.keep(w)
         hw = w.tags.get('highway')
         busok = w.tags.get('bus') in ('yes', 'designated') or w.tags.get('psv') in ('yes', 'designated') or w.tags.get('busway') or w.tags.get('lanes:bus') or w.tags.get('lanes:psv')
@@ -30,7 +31,7 @@ class H(osmium.SimpleHandler):
 
 class Router:
     def __init__(self, pbf, box, kind='road', snap_m=60):
-        self.snap_m = snap_m; h = H(box, kind); h.apply_file(pbf, locations=True, idx='flex_mem')
+        self.snap_m = snap_m; h = H(box, kind); h.apply_file(pbf, locations=True, idx=os.environ.get('OSM_IDX', 'flex_mem'))
         idx = {}; lat = array.array('d'); lon = array.array('d'); adj = []
         def nid(ref, a, b):
             i = idx.get(ref)
