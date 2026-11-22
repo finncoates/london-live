@@ -2006,11 +2006,12 @@ const COACH = {on:false, at:0, ops:new Set(['NATX', 'NXSH', 'MEGA', 'SMGB', 'SCM
 async function refreshCoaches(p, z){
   const gb = p[0] > 49.8 && p[0] < 60.9 && p[1] > -8.7 && p[1] < 1.9;
   if(!gb || (document.body.classList.contains('away') ? GPS_OFF.has('bus') : false) || !TRAINS_ON || !RAIL.relay || RAIL.relay === 'demo' || z < 6){ COACH.on = false; for(const k of [...GPS.list.keys()]) if(k.startsWith('co:')) GPS.list.delete(k); return ''; }
-  if(Date.now() - COACH.at > 25000){ COACH.at = Date.now();
-    try{ const r = await railGet('/vehicles?src=coach'); for(const v of r.vehicles || []){ v.id = 'co:' + v.id; v.coach = true; }
+  if(COACH.pending) await COACH.pending.catch(() => {}); // another refresh is already fetching: use its result
+  else if(Date.now() - COACH.at > 25000){ COACH.at = Date.now();
+    try{ const r = await (COACH.pending = railGet('/vehicles?src=coach')).finally(() => { COACH.pending = null; }); for(const v of r.vehicles || []){ v.id = 'co:' + v.id; v.coach = true; }
       const ids = new Set((r.vehicles || []).map(v => v.id)); for(const k of [...GPS.list.keys()]) if(k.startsWith('co:') && !ids.has(k)) GPS.list.delete(k);
-      COACH.res = r; gpsMerge(r); COACH.on = true; COACH.n = ids.size; }catch(e){ COACH.on = false; } }
-  else if(COACH.res) for(const v of COACH.res.vehicles) if(!GPS.list.has(v.id)) gpsMerge({vehicles:[v]}); // put back any a region switch cleared
+      COACH.res = r; gpsMerge(r); COACH.on = true; COACH.n = ids.size; if(typeof renderBusNote === 'function') renderBusNote(); }catch(e){ COACH.on = false; } }
+  if(COACH.res && COACH.on) for(const v of COACH.res.vehicles) if(!GPS.list.has(v.id)) gpsMerge({vehicles:[v]}); // put back any a region switch cleared
   return COACH.on ? `${COACH.n} coaches on the road` : '';
 }
 async function refreshGps(){
@@ -2069,7 +2070,7 @@ async function refreshGps(){
   if(regionOf(p) === 'world'){ GPS.list.clear(); BUS.note = z >= 8 ? 'No live data for this area yet. Live now: London, every bus, tram and coach across the UK, Finland, Helsinki, Norway, Berlin, Boston, Tallinn, Gdańsk and Vilnius.' : ''; renderBusNote(); return; }
   const on = !busOff() && TRAINS_ON && !inLondonView(p);
   const coachTxt = await refreshCoaches(p, z);
-  if(!on || z < 13){ gpsOnly('sch:', 'co:'); if(!inLondonView(p)){ BUS.note = !RAIL.relay ? 'Live trains and buses here are coming soon: they switch on once the data keys are set up. (Preview with made-up data: add ?rail=demo to the address.)' : on ? 'Zoom in to see local buses' + (coachTxt ? ' · ' + coachTxt + ' (live)' : '') : 'Turn on Buses to see live buses here'; renderBusNote(); } return; }
+  if(!on || z < 13){ gpsOnly('sch:', 'co:'); if(!inLondonView(p)){ BUS.note = !RAIL.relay ? 'Live trains and buses here are coming soon: they switch on once the data keys are set up. (Preview with made-up data: add ?rail=demo to the address.)' : on ? 'Zoom in to see local buses' : 'Turn on Buses to see live buses here'; renderBusNote(); } return; }
   if(GPS.busy) return; GPS.busy = true;
   try{
     let res;
@@ -2089,7 +2090,7 @@ async function refreshGps(){
       res.vehicles = (res.vehicles || []).filter(v => !COACH.ops.has(v.op) || !co.some(g => String(g.v.line) === String(v.line) && dist(g.to, [v.lat, v.lon]) < 400)); }
     gpsMerge(res);
     const gap = NO_OPEN_GPS.find(([b]) => p[0] > b[0] && p[0] < b[2] && p[1] > b[1] && p[1] < b[3]);
-    BUS.note = (gap ? gap[1] + ' ' : '') + (coachTxt ? coachTxt + ' · ' : '') + `${[...GPS.list.keys()].filter(k => !k.startsWith('co:')).length} buses${[...GPS.list.values()].some(g => g.v.tram) ? ' and trams' : ''} here (GPS)${RAIL.relay === 'demo' ? ' · demo data' : ''}`;
+    BUS.note = (gap ? gap[1] + ' ' : '') + `${(n => n + (n === 1 ? ' bus' : ' buses'))([...GPS.list.keys()].filter(k => !k.startsWith('co:')).length)}${[...GPS.list.values()].some(g => g.v.tram) ? ' and trams' : ''} here (GPS)${RAIL.relay === 'demo' ? ' · demo data' : ''}`;
   }catch(e){ BUS.note = e.message.replace(/^HTTP 503.*|.*BODS_KEY.*/, 'Live buses here are coming soon: they switch on once the bus data key is set up.'); }
   GPS.busy = false; renderBusNote();
 }
@@ -2487,7 +2488,9 @@ function roadTip(e, r, tip){
   return true;
 }
 function renderBusNote(){ if(document.body.classList.contains('away') && typeof onTrainsUpdate === 'function') onTrainsUpdate(0); // away: the status counts what's live here
-  let el = $('busNote'); if(!el) return; el.textContent = BUS.note; el.hidden = !BUS.note; }
+  let el = $('busNote'); if(!el) return; const away = document.body.classList.contains('away');
+  const t = BUS.note + (away && COACH.on && COACH.n ? (BUS.note ? ' · ' : '') + COACH.n + ' coaches on the road across Britain (live)' : '');
+  el.textContent = t; el.hidden = !t; }
 map.addListener('idle', () => { clearTimeout(BUS.t); BUS.t = setTimeout(() => updateBuses(), 400); }); // settle first
 
 // ---------- map options ----------
@@ -2811,7 +2814,7 @@ tick(); setInterval(tick, 1000);
 map.addListener('dragstart', () => { $('tip').style.display = 'none'; hover = null; });
 map.addListener('zoom_changed', () => { $('tip').style.display = 'none'; hover = null; });
 renderModeChips(); renderLegend(); syncMapMenu();
-if(DEBUG) window.LLT = {RV: () => RIVER_E, st: () => ({busOff:busOff(), TRAINS_ON, away:document.body.classList.contains("away"), GPS_OFF:[...GPS_OFF], MODES_OFF:[...MODES_OFF], note:BUS.note, size:GPS.list.size}), AUTO, autoNext: () => autoNext(), trains, ACTIVE, BY, placeTrain, segTime, refresh, map, draw, goStation, searchStations, scr, stationAt, GPS, gpsPos, BIKES, SHARE, cityData: () => cityData(), stationExtras, BUS, ROADS, LP: () => LPATHS};
+if(DEBUG) window.LLT = {RV: () => RIVER_E, st: () => ({coach:COACH.on, cn:COACH.n, busOff:busOff(), TRAINS_ON, away:document.body.classList.contains("away"), GPS_OFF:[...GPS_OFF], MODES_OFF:[...MODES_OFF], note:BUS.note, size:GPS.list.size}), AUTO, autoNext: () => autoNext(), trains, ACTIVE, BY, placeTrain, segTime, refresh, map, draw, goStation, searchStations, scr, stationAt, GPS, gpsPos, BIKES, SHARE, cityData: () => cityData(), stationExtras, BUS, ROADS, LP: () => LPATHS};
 
 // ---------- boot ----------
 (async () => {
