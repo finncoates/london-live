@@ -161,7 +161,7 @@ body.dark #simnote{background:#1f2a44;color:#c6dafc}
 #mModes{margin:0 0 8px}
 #legend{display:grid;gap:0}
 body.abroad #mModes [data-mode=rail]{display:none}
-body.away #legend, body.away #lgAll, body.away #sbox, body.away #mModes [data-mode=tube], body.away #mModes [data-mode=overground], body.away #mModes [data-mode=elizabeth], body.away #mModes [data-mode=dlr], body.away #mModes [data-mode=tram]{display:none} /* London-only parts, hidden elsewhere */
+body.away #legend, body.away #lgAll, body.away #sbox, body.away #mModes [data-mode=tube], body.away #mModes [data-mode=overground], body.away #mModes [data-mode=elizabeth], body.away #mModes [data-mode=dlr], body.away #mModes [data-mode=tram], body.away #mModes [data-mode=bike]{display:none} /* London-only parts, hidden elsewhere */
 .lgall{display:flex;justify-content:flex-end;gap:14px;margin:2px 0 4px}.lgall button{background:none;border:0;padding:4px 2px;color:var(--mute);font-size:12.5px;font-weight:600;cursor:pointer}.lgall button:hover{color:var(--ink)}
 .row{display:flex;align-items:center;gap:8px;padding:4px 2px;border:0;background:none;border-radius:6px;font-size:14px;text-align:left;width:100%}
 .row:hover{background:var(--soft)}
@@ -297,8 +297,10 @@ const BY = Object.fromEntries(ACTIVE.map(l => [l.id, l]));
 let LAYOUT = (() => { try{ return localStorage.getItem('lineLayout') || 'simple'; }catch(e){ return 'simple'; } })();
 let TRAINS_ON = (() => { try{ return localStorage.getItem('trainsOn') !== '0' }catch(e){ return true } })();
 // which kinds of transport to show in the background (each can be switched off in the Map menu)
-const MODE_GROUPS = [['tube','Tube'], ['overground','Overground'], ['elizabeth','Elizabeth line'], ['dlr','DLR'], ['tram','Trams'], ['bus','Buses'], ['rail','National Rail']];
+const MODE_GROUPS = [['tube','Tube'], ['overground','Overground'], ['elizabeth','Elizabeth line'], ['dlr','DLR'], ['tram','Trams'], ['bus','Buses'], ['bike','Bikes'], ['rail','National Rail']];
 let MODES_OFF = new Set((() => { try{ return JSON.parse(localStorage.getItem('modesOff')) || []; }catch(e){ return []; } })());
+try{ if(!localStorage.getItem('bikeInit')){ MODES_OFF.add('bike'); localStorage.setItem('modesOff', JSON.stringify([...MODES_OFF])); localStorage.setItem('bikeInit', '1'); } }catch(e){ MODES_OFF.add('bike'); } // bikes start off
+if(Q.get('bikes') === '1') MODES_OFF.delete('bike');
 try{ if(!localStorage.getItem('busInit')){ MODES_OFF.add('bus'); localStorage.setItem('modesOff', JSON.stringify([...MODES_OFF])); localStorage.setItem('busInit', '1'); } }catch(e){ MODES_OFF.add('bus'); } // buses start off
 if(Q.get('buses') === '1') MODES_OFF.delete('bus');
 const shown = l => l.pinned || (TRAINS_ON && !MODES_OFF.has(l.mode) && (l.mode !== 'bus' || l.near)); // buses: only routes near the view (live map)
@@ -1053,6 +1055,7 @@ function draw(ts){
     for(const [l, items] of byLine) if(l.mode === 'bus') for(const [, x, y, , , , , , , hw] of items){ const ty = y - hw - 9, txt = l.name.toUpperCase();
       ctx.strokeStyle = dark ? 'rgba(0,0,0,.85)' : 'rgba(255,255,255,.95)'; ctx.strokeText(txt, x, ty); ctx.fillStyle = dark ? '#ff8a80' : '#b3140f'; ctx.fillText(txt, x, ty); }
     ctx.textAlign = 'start'; }
+  if(typeof drawBikes === 'function') drawBikes(ctx, s);
   if(typeof drawGps === 'function') drawGps(ctx, s, hl0, hw0, mpp); // GPS buses/trams outside London
   // the user's own train/bus: drawn larger, on top, with a ring
   for(const d of drawn) if(HL.has(d[0].key)){
@@ -1107,7 +1110,7 @@ function showTip(e){
   if(e.type === 'click' && map.getZoom() >= 13 && stationAt(e.clientX-r.left, e.clientY-r.top, matchMedia('(pointer:coarse)').matches ? 12 : 8)){ $('tip').style.display = 'none'; hover = null; return; } // a station tap
   const t = nearest(e.clientX-r.left, e.clientY-r.top); hover = t;
   const tip = $('tip');
-  if(!t){ if(typeof gpsTip === 'function' && gpsTip(e, r, tip)) return; tip.style.display='none'; return; }
+  if(!t){ if(typeof gpsTip === 'function' && gpsTip(e, r, tip)) return; if(typeof bikeTip === 'function' && bikeTip(e, r, tip)) return; tip.style.display='none'; return; }
   const l = BY[t.line], secs = Math.max(0, Math.round(((t.curArr??t.arr)-now())/1000));
   // TfL has no train names; tube trains have a set number and buses a registration (rail ids are trip codes)
   const vid = t.anon ? '' : t.key.slice(t.line.length + 1);
@@ -1317,10 +1320,10 @@ $('legend').addEventListener('click', e => {
 });
 
 // ---------- transport switches ----------
-const GROUP_SYM = {bus:['tube','#DC241F'], tube:['tubeLogo','#DC241F'], overground:['tube','#FA7B05'], elizabeth:['tube','#60399E'], dlr:['tube','#00AFAD'], tram:['tube','#5FB526'], rail:['rail','#1D5BA0']};
+const GROUP_SYM = {bike:['cycle','#EC0000'], bus:['tube','#DC241F'], tube:['tubeLogo','#DC241F'], overground:['tube','#FA7B05'], elizabeth:['tube','#60399E'], dlr:['tube','#00AFAD'], tram:['tube','#5FB526'], rail:['rail','#1D5BA0']};
 function renderModeChips(){
   $('mModes').innerHTML = MODE_GROUPS.map(([m, name]) => {
-    const has = m === 'bus' || ACTIVE.some(l => l.mode === m) || (m === 'rail' && typeof railOn === 'function' && railOn());
+    const has = m === 'bus' || m === 'bike' || ACTIVE.some(l => l.mode === m) || (m === 'rail' && typeof railOn === 'function' && railOn());
     return `<button type="button" class="chip2" data-mode="${m}" aria-pressed="${has && !MODES_OFF.has(m)}" ${has ? '' : 'disabled title="Coming soon"'}>${symbol(GROUP_SYM[m][0], GROUP_SYM[m][1], 16)}${name}${has ? '' : ' <small>soon</small>'}</button>`;
   }).join('');
 }
@@ -1328,7 +1331,7 @@ $('mModes').addEventListener('click', e => { const b = e.target.closest('[data-m
   const m = b.dataset.mode; MODES_OFF.has(m) ? MODES_OFF.delete(m) : MODES_OFF.add(m);
   try{ localStorage.setItem('modesOff', JSON.stringify([...MODES_OFF])); }catch(x){}
   for(const l of ACTIVE) l.layer && l.layer.eachLayer(p => p.setStyle(lineStyle(l)));
-  renderModeChips(); renderLegend(); if(m === 'bus') updateBuses(true); else refresh().catch(()=>{}); });
+  renderModeChips(); renderLegend(); if(m === 'bus') updateBuses(true); else if(m === 'bike') refreshBikes(true); else refresh().catch(()=>{}); });
 
 // ---------- live buses: the routes serving the stops around the view (zoom 14+) ----------
 // TfL has no bus GPS feed; positions come from arrival predictions, like the trains.
@@ -1639,6 +1642,48 @@ function applyRegion(){
   if(typeof onTrainsUpdate === 'function') onTrainsUpdate(ACTIVE.reduce((s, l) => s + (shown(l) ? l.count : 0), 0));
 }
 map.addListener('idle', applyRegion);
+// ---------- bikes for hire: Santander Cycles docks (TfL, live) ----------
+// (Lime, Forest, Voi and Dott don't publish open data for London.)
+const BIKES = {docks:[], at:0, busy:false};
+async function refreshBikes(force){
+  const c = map.getCenter(), on = !MODES_OFF.has('bike') && inLondonView([c.lat(), c.lng()]);
+  if(!on){ BIKES.docks = []; return; }
+  if(BIKES.busy || (!force && Date.now() - BIKES.at < 110000)) return; BIKES.busy = true;
+  try{
+    const res = await get('/BikePoint'), num = (x, k) => +((x.additionalProperties || []).find(p => p.key === k) || {}).value || 0;
+    BIKES.docks = res.filter(x => x.lat && (x.additionalProperties || []).some(p => p.key === 'Installed' && p.value === 'true')).map(x => ({name:x.commonName.replace(/\s+,\s*/, ', '), p:[x.lat, x.lon],
+      bikes:num(x, 'NbStandardBikes'), ebikes:num(x, 'NbEBikes'), free:num(x, 'NbEmptyDocks'), docks:num(x, 'NbDocks'), locked:(x.additionalProperties || []).some(p => p.key === 'Locked' && p.value === 'true')}));
+    BIKES.at = Date.now();
+  }catch(e){ console.warn('bikes', e.message); }
+  BIKES.busy = false;
+}
+setInterval(refreshBikes, 30000); map.addListener('idle', () => refreshBikes());
+function drawBikes(ctx, s){
+  draw.bhit = []; if(!BIKES.docks.length || PV.z < 13) return;
+  const r = PV.z >= 16 ? 8 : PV.z >= 15 ? 6.5 : PV.z >= 14 ? 5 : 3.6, label = PV.z >= 15;
+  ctx.font = `700 ${PV.z >= 16 ? 10 : 9}px system-ui, sans-serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  for(const d of BIKES.docks){
+    const c = scr(d.p); if(c.x < -10 || c.y < -10 || c.x > s.x + 10 || c.y > s.y + 10) continue;
+    const n = d.bikes + d.ebikes, empty = !n || d.locked;
+    ctx.beginPath(); ctx.arc(c.x, c.y, r, 0, 7); ctx.fillStyle = empty ? (dark ? '#555' : '#b9b9b9') : '#EC0000'; ctx.fill();
+    ctx.lineWidth = 1.5; ctx.strokeStyle = dark ? '#111' : '#fff'; ctx.stroke();
+    if(d.ebikes && !empty){ ctx.beginPath(); ctx.arc(c.x + r*0.75, c.y - r*0.75, Math.max(2, r*0.38), 0, 7); ctx.fillStyle = '#00A0E0'; ctx.fill(); } // has e-bikes
+    if(label){ ctx.fillStyle = '#fff'; ctx.fillText(String(n), c.x, c.y + 0.5); }
+    draw.bhit.push([d, c.x, c.y]);
+  }
+  ctx.textAlign = 'start';
+}
+function bikeTip(e, r, tip){
+  const x = e.clientX - r.left, y = e.clientY - r.top, rr = matchMedia('(pointer:coarse)').matches ? 20 : 12;
+  let best = null, bd = rr; for(const [d, dx, dy] of draw.bhit || []){ const k = Math.hypot(dx - x, dy - y); if(k < bd){ bd = k; best = d; } }
+  if(!best) return false;
+  tip.innerHTML = `<div class="tt-h">${symbol('cycle', '#EC0000', 20)}<b>Santander Cycles</b></div><div><b>${esc(best.name)}</b></div>
+    <div>${best.locked ? 'Closed right now' : `${best.bikes} bike${best.bikes === 1 ? '' : 's'}${best.ebikes ? ` · ${best.ebikes} e-bike${best.ebikes === 1 ? '' : 's'}` : ''} · ${best.free} free dock${best.free === 1 ? '' : 's'}`}</div>
+    <div class="tt-m">live from TfL · updated ${Math.max(0, Math.round((Date.now() - BIKES.at)/60000))} min ago</div>`;
+  tip.style.display = 'block';
+  tip.style.left = Math.max(8, Math.min(innerWidth - 258, e.clientX + 14)) + 'px'; tip.style.top = Math.max(8, Math.min(innerHeight - 150, e.clientY + 14)) + 'px';
+  return true;
+}
 function renderBusNote(){ if(document.body.classList.contains('away') && typeof onTrainsUpdate === 'function') onTrainsUpdate(0); // away: the status counts what's live here
   let el = $('busNote'); if(!el) return; el.textContent = BUS.note; el.hidden = !BUS.note; }
 map.addListener('idle', () => { clearTimeout(BUS.t); BUS.t = setTimeout(() => updateBuses(), 400); }); // settle first
@@ -1839,7 +1884,7 @@ tick(); setInterval(tick, 1000);
 map.addListener('dragstart', () => { $('tip').style.display = 'none'; hover = null; });
 map.addListener('zoom_changed', () => { $('tip').style.display = 'none'; hover = null; });
 renderModeChips(); renderLegend(); syncMapMenu();
-if(DEBUG) window.LLT = {AUTO, autoNext: () => autoNext(), trains, ACTIVE, BY, placeTrain, segTime, refresh, map, draw, goStation, searchStations, scr, stationAt, GPS, gpsPos};
+if(DEBUG) window.LLT = {AUTO, autoNext: () => autoNext(), trains, ACTIVE, BY, placeTrain, segTime, refresh, map, draw, goStation, searchStations, scr, stationAt, GPS, gpsPos, BIKES};
 
 // ---------- boot ----------
 (async () => {
