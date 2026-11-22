@@ -1,4 +1,4 @@
-import json, math, heapq, urllib.request, collections, sys, os
+import json, math, heapq, itertools, urllib.request, collections, sys, os
 ways = json.load(open('rails.json'))
 LINES = {'tube': 'bakerloo,central,circle,district,hammersmith-city,jubilee,metropolitan,northern,piccadilly,victoria,waterloo-city',
          'overground': 'liberty,lioness,mildmay,suffragette,weaver,windrush', 'elizabeth': 'elizabeth', 'dlr': 'dlr', 'tram': 'tram', 'river': 'rb1,rb4,rb6,woolwich-ferry'}
@@ -9,8 +9,12 @@ def graph(types):
     for w in ways:
         if w['r'] not in types: continue
         for i in range(1, len(w['id'])):
-            a, b = w['id'][i-1], w['id'][i]; pos[a] = w['p'][i-1]; pos[b] = w['p'][i]; L = d(w['p'][i-1], w['p'][i])
-            adj[a].append((b, L)); adj[b].append((a, L))
+            a, b = w['id'][i-1], w['id'][i]; pa_, pb_ = w['p'][i-1], w['p'][i]; pos[a] = pa_; pos[b] = pb_; L = d(pa_, pb_); n = max(1, int(L // 30))
+            last = a
+            for k in range(1, n + 1):  # extra points every ~30 m on long straight track, so stations find the track right under them
+                if k < n: cur = ('v', a, b, k); pos[cur] = [pa_[0] + (pb_[0]-pa_[0])*k/n, pa_[1] + (pb_[1]-pa_[1])*k/n]
+                else: cur = b
+                adj[last].append((cur, L/n)); adj[cur].append((last, L/n)); last = cur
     grid = collections.defaultdict(list)
     for n, p in pos.items(): grid[(int(p[0]*500), int(p[1]*300))].append(n)
     return adj, pos, grid
@@ -21,21 +25,43 @@ def near(grid, pos, p, r=250):
             for n in grid.get((i, j), []):
                 k = d(pos[n], p)
                 if k < r: out.append((k, n))
-    return [n for _, n in sorted(out)[:25]]
-def route(adj, pos, A, B, limit):
-    src = set(A); dst = set(B); dist = {n: 0 for n in A}; prev = {}; pq = [(0, n) for n in A]; heapq.heapify(pq)
+    return [n for _, n in sorted(out)[:120]]
+def route(adj, pos, A, B, limit, pa=None, pb=None):
+    # start near station a, end near station b: the distance from each station to its track node counts (no skipping past the station)
+    dist = {n: (d(pos[n], pa) if pa else 0) for n in A}; prev = {}; cnt = itertools.count(); pq = [(c, next(cnt), n) for n, c in dist.items()]; heapq.heapify(pq)
+    dst = set(B); best = None
     while pq:
-        c, u = heapq.heappop(pq)
+        c, _, u = heapq.heappop(pq)
         if c > dist.get(u, 1e18): continue
+        if best and c >= best[0]: break
         if u in dst:
-            path = [u]
-            while path[-1] in prev: path.append(prev[path[-1]])
-            return c, [pos[x] for x in reversed(path)]
-        if c > limit: return None
+            tot = c + (d(pos[u], pb) if pb else 0)
+            if not best or tot < best[0]: best = (tot, u)
+        if c > limit: break
         for v, w in adj[u]:
             nc = c + w
-            if nc < dist.get(v, 1e18): dist[v] = nc; prev[v] = u; heapq.heappush(pq, (nc, v))
-    return None
+            if nc < dist.get(v, 1e18): dist[v] = nc; prev[v] = u; heapq.heappush(pq, (nc, next(cnt), v))
+    if not best: return None
+    path = [best[1]]
+    while path[-1] in prev: path.append(prev[path[-1]])
+    return best[0], [pos[x] for x in reversed(path)]
+ANCH = {}
+def anchor(grid, pos, q):
+    k = (id(grid), round(q[0], 6), round(q[1], 6))
+    if k not in ANCH:
+        nn = near(grid, pos, q, 60); ANCH[k] = (round(pos[nn[0]][0], 6), round(pos[nn[0]][1], 6)) if nn else None
+    return ANCH[k]
+def proj(path, q):  # nearest point on the polyline to q: (segment index, point)
+    k = math.cos(math.radians(q[0])); best = None
+    for i in range(1, len(path)):
+        a, b = path[i-1], path[i]; ax, ay = (a[1]-q[1])*k, a[0]-q[0]; dx, dy = (b[1]-a[1])*k, b[0]-a[0]; L2 = dx*dx + dy*dy or 1e-18
+        t = max(0, min(1, -(ax*dx + ay*dy)/L2)); x, y = ax + dx*t, ay + dy*t; dd = x*x + y*y
+        if best is None or dd < best[0]: best = (dd, i, (round(a[0] + (b[0]-a[0])*t, 6), round(a[1] + (b[1]-a[1])*t, 6)))
+    return best[1], best[2]
+def cut(path, q, end):  # trim the path at the station's projection: end=0 keeps what follows it, end=1 what precedes it
+    if len(path) < 2: return path
+    i, p = proj(path, q)
+    return [p] + list(path[i:]) if end == 0 else list(path[:i]) + [p]
 def dp(p, eps=3):
     if len(p) < 3: return p
     k = math.cos(math.radians(p[0][0])); a, b = p[0], p[-1]
@@ -76,16 +102,23 @@ for mode, ids in LINES.items():
             for (adj, pos, grid) in ([SUBG, (adj0, pos0, grid0)] if mode == 'tube' else [(adj0, pos0, grid0)]):
                 for r in ((400, 700) if mode == 'river' else (250, 500)):
                     A, B = near(grid, pos, pa, r), near(grid, pos, pb, r)
-                    res = route(adj, pos, A, B, straight*(3.2 if mode == 'river' else 1.7) + 400) if A and B else None
+                    res = route(adj, pos, A, B, straight*(3.2 if mode == 'river' else 1.7) + 400, pa, pb) if A and B else None
                     if not res: continue
                     path = res[1]
                     ia = min(range(len(path)), key=lambda k: d(path[k], pa)); ib = min(range(len(path)), key=lambda k: d(path[k], pb))
                     if ib > ia: path = path[ia:ib+1]
                     if d(path[0], pa) > LIM['end'] or d(path[-1], pb) > LIM['end']: continue
-                    # stations are points on the surface: start/end on the track itself, not with a jog out to the station dot
+                    # start/end where the station projects onto the track (no jog out to the station pin, no V at the station)
+                    path = cut(path, pa, 0); path = cut(path, pb, 1)
+                    # every hop at a station starts/ends at the same point: the nearest point of track to the station
+                    for end, st_ in ((0, pa), (1, pb)):
+                        an = anchor(SUBG[2], SUBG[1], st_) if mode == 'tube' else anchor(grid0, pos0, st_)  # one anchor per station and line type
+                        if an is None: continue
+                        e = path[0] if end == 0 else path[-1]
+                        if d(e, an) < 25: path = ([an] + list(path[1:])) if end == 0 else (list(path[:-1]) + [an])
+                        else: path = ([an] + list(path)) if end == 0 else (list(path) + [an])
                     pts = dp([list(x) for x in path]) if len(path) > 1 else None
                     if not pts or len(pts) < 2: continue
-                    pts = [list(pa)] + pts[1:-1] + [list(pb)] if len(pts) > 2 else [list(pa), list(pb)]
                     L = sum(d(pts[k-1], pts[k]) for k in range(1, len(pts)))
                     if L <= straight*LIM['ratio'] + 120 and maxturn(pts) < LIM['turn']: good = pts; break
                 if good: break

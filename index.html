@@ -531,12 +531,12 @@ function laneOffset(e, id){
 let LPATHS = null, lpathSig = '';
 // Lines sharing track (Circle + District, Overground + Elizabeth…): found by distance, so it works whatever the
 // source of each line's shape. Each shared stretch gives every line an equal slice of the usual width, side by side.
-let SHARE_C = null, shareSig = '';
+let SHARE_C = null, shareSig = '', RIVER_E = new Map(), NOSNAP = new URLSearchParams(location.search).has('nosnap');
 function sharedTrack(){
   const vis = ACTIVE.filter(l => l.dchains && lineStyle(l).opacity >= 0.5 && l.mode !== 'bus' && l.mode !== 'river' && l.mode !== 'cable');
   const sig = vis.map(l => l.id + ':' + l.dchainsSig).join();
   if(SHARE_C && sig === shareSig) return SHARE_C;
-  const CELLM = 40, kx = Math.cos(51.5*rad)*111320, ky = 111320, grid = new Map(), order = new Map(ACTIVE.map((l, i) => [l.id, i]));
+  const CELLM = 40, TOL = 30, kx = Math.cos(51.5*rad)*111320, ky = 111320, grid = new Map(), order = new Map(ACTIVE.map((l, i) => [l.id, i]));
   const cell = (x, y) => Math.floor(x/CELLM) + ',' + Math.floor(y/CELLM);
   for(const l of vis) for(const poly of l.dchains) for(let i = 1; i < poly.length; i++){ // samples every ~15 m, with direction
     const a = poly[i-1], b = poly[i], ax = a[1]*kx, ay = a[0]*ky, bx = b[1]*kx, by = b[0]*ky, L = Math.hypot(bx-ax, by-ay), n = Math.max(1, Math.ceil(L/15));
@@ -547,15 +547,48 @@ function sharedTrack(){
       const here = new Set([l.id]);
       for(const f of [0.25, 0.5, 0.75]){ const x = ax + (bx-ax)*f, y = ay + (by-ay)*f, cx = Math.floor(x/CELLM), cy = Math.floor(y/CELLM), near = new Set();
         for(let i2 = -1; i2 <= 1; i2++) for(let j2 = -1; j2 <= 1; j2++) for(const s of grid.get((cx+i2) + ',' + (cy+j2)) || [])
-          if(s[4] !== l.id && Math.hypot(s[0]-x, s[1]-y) < 14 && Math.abs(s[2]*ux + s[3]*uy) > 0.85) near.add(s[4]);
+          if(s[4] !== l.id && Math.hypot(s[0]-x, s[1]-y) < TOL && Math.abs(s[2]*ux + s[3]*uy) > 0.85) near.add(s[4]);
         if(f === 0.25) for(const id of near) here.add(id); else for(const id of [...here]) if(id !== l.id && !near.has(id)) here.delete(id); } // shared along the whole edge
-      const ids = [...here].sort((p, q) => order.get(p) - order.get(q)); e.push([ids.length, ids.indexOf(l.id)]); }
-    return e; }));
+      const ids = [...here].sort((p, q) => order.get(p) - order.get(q)); e.push([ids.length, ids.indexOf(l.id), ids[0]]); }
+    // lines sharing a stretch all follow ONE centreline (the first line's track), so their stripes touch, curves included
+    const snap = poly.map((v, i) => { const lead = [e[i-1], e[i]].filter(Boolean).filter(x => x[0] > 1).map(x => x[2])[0];
+      if(NOSNAP || !lead || lead === l.id) return null;
+      const x = v[1]*kx, y = v[0]*ky, cx = Math.floor(x/CELLM), cy = Math.floor(y/CELLM); let best = null, bd = TOL*1.5;
+      for(let i2 = -1; i2 <= 1; i2++) for(let j2 = -1; j2 <= 1; j2++) for(const s of grid.get((cx+i2) + ',' + (cy+j2)) || []){ if(s[4] !== lead) continue;
+        const t = (x - s[0])*s[2] + (y - s[1])*s[3], px = s[0] + s[2]*t, py = s[1] + s[3]*t, dd = Math.hypot(px - x, py - y);
+        if(Math.abs(t) < 20 && dd < bd){ bd = dd; best = [py/ky, px/kx]; } }
+      return best; });
+    e.snap = snap; return e; }));
+  // trains run on what is drawn: each line's train paths follow the same (shared, snapped) centreline
+  for(const l of vis){ const sh = out.get(l.id); if(!sh || !sh.some(e => e.snap && e.snap.some(Boolean))) continue;
+    l.curves = l.dchains.map((poly, pi) => roundCorners(poly.map((p, i) => sh[pi].snap && sh[pi].snap[i] || p))); l.pathCache = {}; l.snapCache = {}; }
   SHARE_C = out; shareSig = sig; return out;
+}
+// smooth a drawn run: corners are cut (Chaikin, 3 rounds) by at most r px, so small kinks vanish and bends are round,
+// while long straights stay straight and the ends stay put (stations, joins)
+// soften a whole chain's corners without changing its points' count (so per-edge sharing info still lines up):
+// each inner point moves a little towards its neighbours' midpoint, at most r px in total; the ends stay put
+function relax(P, r){
+  if(P.length < 3) return P; let Q = P.map(p => ({x:p.x, y:p.y}));
+  for(let it = 0; it < 4; it++){ const N = Q.map(p => ({x:p.x, y:p.y}));
+    for(let k = 1; k < Q.length - 1; k++){ const mx = (Q[k-1].x + Q[k+1].x)/2, my = (Q[k-1].y + Q[k+1].y)/2;
+      let nx = Q[k].x + (mx - Q[k].x)*0.5, ny = Q[k].y + (my - Q[k].y)*0.5; const dx = nx - P[k].x, dy = ny - P[k].y, dd = Math.hypot(dx, dy);
+      if(dd > r){ nx = P[k].x + dx*r/dd; ny = P[k].y + dy*r/dd; } N[k] = {x:nx, y:ny}; }
+    Q = N; }
+  return Q;
+}
+function smoothRun(P, r){
+  let Q = P;
+  for(let it = 0; it < 3 && Q.length > 2; it++){ const out = [Q[0]];
+    for(let k = 1; k < Q.length - 1; k++){ const a = Q[k-1], b = Q[k], c = Q[k+1];
+      const la = Math.hypot(b.x-a.x, b.y-a.y) || 1, lc = Math.hypot(c.x-b.x, c.y-b.y) || 1, da = Math.min(la*0.25, r), dc = Math.min(lc*0.25, r);
+      out.push({x:b.x + (a.x-b.x)*da/la, y:b.y + (a.y-b.y)*da/la}, {x:b.x + (c.x-b.x)*dc/lc, y:b.y + (c.y-b.y)*dc/lc}); }
+    out.push(Q[Q.length-1]); Q = out; }
+  return Q;
 }
 function buildPaths(z){
   const W = lineW(), mpp = 156543.03*Math.cos(51.5*rad)/2**z, R = Math.max(6, 250/mpp);
-  LPATHS = new Map();
+  LPATHS = new Map(); RIVER_E = new Map();
   const simple = LAYOUT === 'simple';
   for(const l of ACTIVE){ if(!lineStyle(l).opacity || !l.dpolys || l.rail || !simple) continue;
     const sig = l.dpolys.length + ':' + l.dpolys.reduce((n, q) => n + q.length, 0); // joined once per shape, not per rebuild
@@ -563,10 +596,11 @@ function buildPaths(z){
   const SH = simple ? sharedTrack() : null;
   for(const l of ACTIVE){
     if(!lineStyle(l).opacity || !l.dpolys) continue;
-    const chains = simple && !l.rail ? l.dchains : l.dpolys, shr = SH && SH.get(l.id);
+    const chains = simple && !l.rail && l.mode !== 'river' ? l.dchains : l.dpolys, shr = l.mode === 'river' ? null : SH && SH.get(l.id);
     chains.forEach((poly, pi) => {
-      const P = poly.map(p => { const w = world(p, z); return {x:w[0], y:w[1]}; }), n = P.length;
-      const eo = [], sh = shr ? shr[pi] : null;
+      const sh = shr ? shr[pi] : null;
+      const P = relax(poly.map((p, i) => { const w = world(sh && sh.snap && sh.snap[i] || p, z); return {x:w[0], y:w[1]}; }), R*0.35), n = P.length;
+      const eo = [];
       for(let i=1;i<n;i++){ let ka = vkey(poly[i-1]), kb = vkey(poly[i]), sign = 1;
         const dx = P[i].x - P[i-1].x, dy = P[i].y - P[i-1].y, L = Math.hypot(dx, dy) || 1;
         let off = 0, cnt = 1;
@@ -583,26 +617,32 @@ function buildPaths(z){
         nx /= L; ny /= L; const cos = nx*b.nx + ny*b.ny, off = (a.off + b.off)/2 / Math.max(0.5, cos);
         return {x:p.x + nx*off, y:p.y + ny*off};
       });
-      if(l.mode === 'river'){ // all river boats: one network, each stretch of river drawn once whatever the routes
-        let rec = LPATHS.get('river-all'); if(!rec) LPATHS.set('river-all', rec = {l, n:1, path:new Path2D(), seen:new Set()});
-        const cell = 50/mpp, mine = new Set(); let pen = false;
-        const key = (q, d) => Math.round(q.x/cell) + ',' + Math.round(q.y/cell) + ',' + d;
-        const near = kk => { const [i, j, d] = kk.split(',').map(Number); for(let a2 = -1; a2 <= 1; a2++) for(let b2 = -1; b2 <= 1; b2++) for(let c2 = -1; c2 <= 1; c2++) if(rec.seen.has((i+a2) + ',' + (j+b2) + ',' + ((d+c2+8) % 8))) return true; return false; }; // same stretch, same direction (either way) // an earlier route already runs here
-        for(let i = 1; i < n; i++){ const a = Q[i-1], b = Q[i], L = Math.hypot(b.x-a.x, b.y-a.y), m = Math.max(1, Math.ceil(L/(cell*0.5)));
-          for(let k = 1; k <= m; k++){ const p0 = {x:a.x + (b.x-a.x)*(k-1)/m, y:a.y + (b.y-a.y)*(k-1)/m}, p1 = {x:a.x + (b.x-a.x)*k/m, y:a.y + (b.y-a.y)*k/m};
-            const kk = key({x:(p0.x+p1.x)/2, y:(p0.y+p1.y)/2}, Math.floor((((Math.atan2(p1.y-p0.y, p1.x-p0.x) % Math.PI) + Math.PI) % Math.PI)/(Math.PI/8)) % 8); mine.add(kk); if(rec.seen.has(kk) || near(kk)){ pen = false; continue; }
-            if(!pen){ rec.path.moveTo(p0.x, p0.y); pen = true; } rec.path.lineTo(p1.x, p1.y); } }
-        for(const kk of mine) rec.seen.add(kk); return; }
+      if(l.mode === 'river'){ // all river boats: one network; pieces of river shared by several routes are the same pieces (one Thames line), drawn once
+        for(let i = 1; i < n; i++){ const ka = vkey(poly[i-1]), kb = vkey(poly[i]); if(ka === kb) continue;
+          const k = ka < kb ? ka + '>' + kb : kb + '>' + ka; if(!RIVER_E.has(k)) RIVER_E.set(k, [ka, kb, P[i-1], P[i]]); }
+        return; }
       // one path per width (1 line, shared by 2, by 3…): runs split where the count changes
       let start = 0;
       for(let i = 1; i < n; i++){ const cnt = eo[i-1].cnt; if(i < n-1 && eo[i].cnt === cnt) continue;
         const key = l.id + '|' + cnt; let rec = LPATHS.get(key); if(!rec) LPATHS.set(key, rec = {l, n:cnt, path:new Path2D()});
-        const path = rec.path; path.moveTo(Q[start].x, Q[start].y);
-        for(let k = start + 1; k < i; k++){ const a = Q[k-1], b = Q[k], c = Q[k+1];
-          path.arcTo(b.x, b.y, c.x, c.y, Math.min(R, Math.hypot(b.x-a.x, b.y-a.y)*0.45, Math.hypot(c.x-b.x, c.y-b.y)*0.45)); }
-        path.lineTo(Q[i].x, Q[i].y); start = i; }
+        const path = rec.path, sm = smoothRun(Q.slice(start, i + 1), R); path.moveTo(sm[0].x, sm[0].y);
+        for(let k = 1; k < sm.length; k++) path.lineTo(sm[k].x, sm[k].y);
+        start = i; }
     });
   }
+  riverNet();
+}
+// the river network: join the pieces into long runs (so the dashes flow), each piece once
+function riverNet(){
+  if(!RIVER_E.size) return; const adj = new Map(), pt = new Map(), l = ACTIVE.find(x => x.mode === 'river');
+  for(const [k, [ka, kb, pa, pb]] of RIVER_E){ pt.set(ka, pa); pt.set(kb, pb); (adj.get(ka) || adj.set(ka, []).get(ka)).push([kb, k]); (adj.get(kb) || adj.set(kb, []).get(kb)).push([ka, k]); }
+  const used = new Set(), path = new Path2D();
+  const walk = (u, v, k) => { used.add(k); path.moveTo(pt.get(u).x, pt.get(u).y); path.lineTo(pt.get(v).x, pt.get(v).y); let prev = u, cur = v;
+    for(;;){ const nx = (adj.get(cur) || []).filter(([w, kk]) => !used.has(kk)); if((adj.get(cur) || []).length !== 2 || !nx.length) break;
+      const [w, kk] = nx[0]; used.add(kk); path.lineTo(pt.get(w).x, pt.get(w).y); prev = cur; cur = w; } };
+  for(const [u, list] of adj) if(list.length !== 2) for(const [v, k] of list) if(!used.has(k)) walk(u, v, k);
+  for(const [u, list] of adj) for(const [v, k] of list) if(!used.has(k)) walk(u, v, k);
+  LPATHS.set('river-all', {l, n:1, path});
 }
 // Lines are rendered once into an off-screen image a bit larger than the screen; while you pan or
 // zoom that image is just moved/scaled (cheap), and only re-rendered when you leave it or the zoom settles.
@@ -725,6 +765,9 @@ new ResizeObserver(fitMapToSheet).observe($('panel')); addEventListener('resize'
 // (e.g. Mildmay's Clapham Junction platform), and inbound routes give inbound stop order.
 // real track shapes for every station-to-station hop (from OpenStreetMap; cities/london-tracks.json), so lines follow the railway
 const TRACKS_P = fetch('cities/london-tracks.json', {signal:AbortSignal.timeout(8000)}).then(r => r.ok ? r.json() : {}).catch(() => ({}));
+// Elizabeth line: a few early/late Shenfield trains leave from Liverpool Street's main-line platforms and run non-stop to Stratford
+// via Bethnal Green; drawn, it looks like a separate purple line, so the link is kept for those trains but not drawn
+const HIDE_HOP = new Set(['elizabeth:910GLIVST>910GSTFD']);
 async function loadLine(l){
   const TRACKS = l.mode === 'bus' || l.rail ? null : await TRACKS_P;
   let d = l.mode === 'bus' ? null : store.get('seq2:'+l.id); // bus routes are big: not kept in local storage
@@ -747,6 +790,7 @@ async function loadLine(l){
     const by = new Map(segs.map(([a, b, pts]) => [a + '>' + b, pts])), done = new Set(), polys = [], extra = [];
     for(const r of l.routes) for(let k = 1; k < r.ids.length; k++){ let a = r.ids[k-1], b = r.ids[k]; if(a > b) [a, b] = [b, a];
       const key = a + '>' + b; if(done.has(key) || !l.stops[a] || !l.stops[b]) continue; done.add(key);
+      if(HIDE_HOP.has(l.id + ':' + key)) continue; // rare links that would read as a line of their own
       if(by.has(key)) polys.push(by.get(key)); else extra.push([a, b]); }
     // hops with no track found: kept as straight lines, except long "express" pairs whose stations are reached anyway
     const has = new Set(); for(const [a, b] of segs.filter(x => done.has(x[0] + '>' + x[1]))) has.add(a), has.add(b);
@@ -2625,7 +2669,7 @@ tick(); setInterval(tick, 1000);
 map.addListener('dragstart', () => { $('tip').style.display = 'none'; hover = null; });
 map.addListener('zoom_changed', () => { $('tip').style.display = 'none'; hover = null; });
 renderModeChips(); renderLegend(); syncMapMenu();
-if(DEBUG) window.LLT = {st: () => ({busOff:busOff(), TRAINS_ON, away:document.body.classList.contains("away"), GPS_OFF:[...GPS_OFF], MODES_OFF:[...MODES_OFF], note:BUS.note, size:GPS.list.size}), AUTO, autoNext: () => autoNext(), trains, ACTIVE, BY, placeTrain, segTime, refresh, map, draw, goStation, searchStations, scr, stationAt, GPS, gpsPos, BIKES, SHARE, cityData: () => cityData(), stationExtras, BUS, ROADS, LP: () => LPATHS};
+if(DEBUG) window.LLT = {RV: () => RIVER_E, st: () => ({busOff:busOff(), TRAINS_ON, away:document.body.classList.contains("away"), GPS_OFF:[...GPS_OFF], MODES_OFF:[...MODES_OFF], note:BUS.note, size:GPS.list.size}), AUTO, autoNext: () => autoNext(), trains, ACTIVE, BY, placeTrain, segTime, refresh, map, draw, goStation, searchStations, scr, stationAt, GPS, gpsPos, BIKES, SHARE, cityData: () => cityData(), stationExtras, BUS, ROADS, LP: () => LPATHS};
 
 // ---------- boot ----------
 (async () => {
