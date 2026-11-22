@@ -47,8 +47,9 @@ def dp(p, eps=3):
     if best <= eps: return [a, b]
     return dp(p[:bi+1], eps)[:-1] + dp(p[bi:], eps)
 out = {}; stats = collections.Counter()
+SUBG = graph({'subway'})
 for mode, ids in LINES.items():
-    adj, pos, grid = graph(ALLOW[mode])
+    adj0, pos0, grid0 = graph(ALLOW[mode])
     for lid in ids.split(','):
         pairs = {}; stops = {}
         for direction in ('outbound', 'inbound'):
@@ -60,14 +61,35 @@ for mode, ids in LINES.items():
                 for i in range(1, len(ids_)):
                     a, b = sorted((ids_[i-1], ids_[i])); pairs[(a, b)] = 1
         segs = []
+        def maxturn(q):
+            m = 0
+            for k in range(1, len(q)-1):
+                a1 = math.atan2(q[k][0]-q[k-1][0], (q[k][1]-q[k-1][1])*0.62); a2 = math.atan2(q[k+1][0]-q[k][0], (q[k+1][1]-q[k][1])*0.62)
+                t = abs(math.atan2(math.sin(a2-a1), math.cos(a2-a1)))
+                if min(d(q[k-1], q[k]), d(q[k], q[k+1])) > 15: m = max(m, t)
+            return math.degrees(m)
+        under = mode == 'tube' and lid != 'metropolitan'
+        LIM = {'ratio':1.3 if under else 1.7, 'turn':75 if under else (170 if mode == 'tram' else 140), 'end':250 if under else 300}
         for a, b in pairs:
             if a not in stops or b not in stops: continue
-            pa, pb = stops[a], stops[b]; straight = d(pa, pb)
-            A, B = near(grid, pos, pa), near(grid, pos, pb)
-            if not (A and B) or not route(adj, pos, A, B, straight*1.7 + 400): A, B = near(grid, pos, pa, 500), near(grid, pos, pb, 500)  # deep tunnels: platforms far from the station point
-            res = route(adj, pos, A, B, straight*1.7 + 400) if A and B else None
-            if res and res[0] <= straight*1.7 + 400:
-                pts = [list(pa)] + res[1] + [list(pb)]; segs.append([a, b, [[round(x, 5), round(y, 5)] for x, y in dp(pts)]]); stats['ok'] += 1
+            pa, pb = stops[a], stops[b]; straight = d(pa, pb); good = None
+            for (adj, pos, grid) in ([SUBG, (adj0, pos0, grid0)] if mode == 'tube' else [(adj0, pos0, grid0)]):
+                for r in (250, 500):
+                    A, B = near(grid, pos, pa, r), near(grid, pos, pb, r)
+                    res = route(adj, pos, A, B, straight*1.7 + 400) if A and B else None
+                    if not res: continue
+                    path = res[1]
+                    ia = min(range(len(path)), key=lambda k: d(path[k], pa)); ib = min(range(len(path)), key=lambda k: d(path[k], pb))
+                    if ib > ia: path = path[ia:ib+1]
+                    if d(path[0], pa) > LIM['end'] or d(path[-1], pb) > LIM['end']: continue
+                    # stations are points on the surface: start/end on the track itself, not with a jog out to the station dot
+                    pts = dp([list(x) for x in path]) if len(path) > 1 else None
+                    if not pts or len(pts) < 2: continue
+                    pts = [list(pa)] + pts[1:-1] + [list(pb)] if len(pts) > 2 else [list(pa), list(pb)]
+                    L = sum(d(pts[k-1], pts[k]) for k in range(1, len(pts)))
+                    if L <= straight*LIM['ratio'] + 120 and maxturn(pts) < LIM['turn']: good = pts; break
+                if good: break
+            if good: segs.append([a, b, [[round(x, 5), round(y, 5)] for x, y in good]]); stats['ok'] += 1
             else: stats['straight'] += 1; stats['straight:' + lid] += 1
         out[lid] = segs
         print(lid, len(pairs), 'pairs', sum(1 for s in segs), 'on track', flush=True)
