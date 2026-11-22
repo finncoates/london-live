@@ -1476,8 +1476,21 @@ async function bostonVehicles(){
       brg:a.bearing ?? null, t:Date.parse(a.updated_at) || null, train:rt.type === 1 || rt.type === 2, tram:rt.type === 0, kind, col:rt.color ? '#' + rt.color : '#FFC72C'}; })};
 }
 // keep only the vehicles of the source being shown (switching country drops the last one's)
-const GPS_SRC = ['fi:', 'hsl:', 'no:', 'us:'];
+const GPS_SRC = ['fi:', 'hsl:', 'no:', 'us:', 'de:'];
 function gpsOnly(...keep){ for(const k of [...GPS.list.keys()]){ const src = GPS_SRC.find(x => k.startsWith(x)) || 'uk'; if(!keep.includes(src)) GPS.list.delete(k); } }
+// ---- Berlin & Brandenburg: S-Bahn, U-Bahn, trams, buses, regional trains (VBB "radar": real-time positions, no key) ----
+const inBerlin = p => p[0] > 52.2 && p[0] < 52.8 && p[1] > 12.9 && p[1] < 13.9;
+const VBB_COL = {suburban:'#008D4F', subway:'#115D91', tram:'#CC0A22', bus:'#A5027D', regional:'#E30613', express:'#7F7F7F', ferry:'#0080BA'};
+async function berlinVehicles(){
+  const b = map.getBounds(), sw = b.getSouthWest(), ne = b.getNorthEast(), c = map.getCenter(), f = x => x.toFixed(4);
+  const w = Math.min(0.5, ne.lng() - sw.lng())/2, h = Math.min(0.3, ne.lat() - sw.lat())/2;
+  const r = await fetch(`https://v6.vbb.transport.rest/radar?north=${f(c.lat()+h)}&west=${f(c.lng()-w)}&south=${f(c.lat()-h)}&east=${f(c.lng()+w)}&results=400&duration=30&frames=1&polylines=false`, {signal:AbortSignal.timeout(10000)});
+  if(!r.ok) throw new Error('Berlin live data: HTTP ' + r.status); const j = await r.json(), bus = !MODES_OFF.has('bus');
+  return {vehicles:(j.movements || j || []).filter(m => m.location && m.line && (bus || m.line.product !== 'bus')).map(m => { const pr = m.line.product;
+    return {id:'de:' + m.tripId, line:m.line.name || '', op:'VBB ' + ({suburban:'S-Bahn', subway:'U-Bahn', tram:'tram', bus:'bus', regional:'regional train', express:'long-distance train', ferry:'ferry'}[pr] || ''),
+      dest:m.direction || '', lat:m.location.latitude, lon:m.location.longitude, brg:null, t:null, train:pr === 'suburban' || pr === 'regional' || pr === 'express', metro:pr === 'subway', tram:pr === 'tram',
+      kind:{suburban:'S-Bahn train', subway:'U-Bahn train', regional:'train', express:'train'}[pr] || pr, col:VBB_COL[pr] || '#A5027D', est:true}; })};
+}
 // ---- cities whose open feeds don't allow browsers directly: through the relay (no key needed) ----
 const RELAY_CITIES = [['gdansk', [54.25, 18.3, 54.5, 18.85], 'Gdańsk'], ['tallinn', [59.33, 24.5, 59.52, 25.0], 'Tallinn'], ['vilnius', [54.55, 25.0, 54.82, 25.5], 'Vilnius']];
 const relayCity = p => RELAY_CITIES.find(([, b]) => p[0] > b[0] && p[0] < b[2] && p[1] > b[1] && p[1] < b[3]);
@@ -1514,6 +1527,15 @@ async function refreshGps(){
     catch(e){ BUS.note = e.message; }
     GPS.busy = false; renderBusNote(); return;
   }
+  if(inBerlin(p) && TRAINS_ON){
+    gpsOnly('de:');
+    if(z < 11){ GPS.list.clear(); BUS.note = 'Berlin: zoom in to see S-Bahn, U-Bahn, trams and buses live'; renderBusNote(); return; }
+    if(GPS.busy) return; GPS.busy = true;
+    try{ gpsMerge(await berlinVehicles(), 'de:'); const n = [...GPS.list.keys()].filter(k => k.startsWith('de:')).length;
+      BUS.note = `${n} ${MODES_OFF.has('bus') ? 'trains and trams' : 'trains, trams and buses'} live here (VBB real-time positions)${MODES_OFF.has('bus') ? '. Turn on Buses for buses too' : ''}`; }
+    catch(e){ BUS.note = e.message; }
+    GPS.busy = false; renderBusNote(); return;
+  }
   gpsOnly('uk');
   const rc = relayCity(p);
   if(rc && TRAINS_ON){
@@ -1525,7 +1547,7 @@ async function refreshGps(){
     catch(e){ BUS.note = rc[2] + ': ' + e.message; }
     GPS.busy = false; renderBusNote(); return;
   }
-  if(regionOf(p) === 'world'){ GPS.list.clear(); BUS.note = z >= 8 ? 'No live data for this area yet. Live now: London, Finland, Helsinki, Norway and Boston; coming: trains and buses across Britain.' : ''; renderBusNote(); return; }
+  if(regionOf(p) === 'world'){ GPS.list.clear(); BUS.note = z >= 8 ? 'No live data for this area yet. Live now: London, Finland, Helsinki, Norway, Berlin and Boston; coming: trains and buses across Britain.' : ''; renderBusNote(); return; }
   const on = !MODES_OFF.has('bus') && TRAINS_ON && !inLondonView(p);
   if(!on || z < 13){ GPS.list.clear(); if(!inLondonView(p)){ BUS.note = !RAIL.relay ? 'Live trains and buses here are coming soon: they switch on once the data keys are set up. (Preview with made-up data: add ?rail=demo to the address.)' : on ? 'Zoom in to see buses' : 'Turn on Buses to see live buses here'; renderBusNote(); } return; }
   if(GPS.busy) return; GPS.busy = true;
@@ -1585,7 +1607,7 @@ function gpsTip(e, r, tip){
   const kind = v.train ? (v.freight ? 'freight train' : 'train') : v.kind || (v.tram ? 'tram' : 'bus'), col = v.col || (v.tram ? '#7A1F3D' : opCol(v.op));
   tip.innerHTML = `<div class="tt-h">${symbol(v.train ? 'rail' : 'tube', col, 20)}<b>${esc(v.line)} ${v.train && /\d/.test(v.line) ? '' : kind}</b></div>
     ${v.dest ? `<div>${v.from ? esc(v.from) + ' → ' : 'To '}<b>${esc(v.dest)}</b></div>` : ''}${v.speed != null ? `<div>${Math.round(v.speed)} km/h${v.late != null ? ` · ${v.late <= -90 ? Math.round(-v.late/60) + ' min late' : v.late >= 90 ? Math.round(v.late/60) + ' min early' : 'on time'}` : ''}</div>` : ''}
-    <div class="tt-m">${esc(v.op || '')}${age != null ? ` · position ${age < 90 ? age + ' s' : Math.round(age/60) + ' min'} ago` : ''}</div>`;
+    <div class="tt-m">${esc(v.op || '')}${v.est ? ' · position from live timings' : ''}${age != null ? ` · position ${age < 90 ? age + ' s' : Math.round(age/60) + ' min'} ago` : ''}</div>`;
   tip.style.display = 'block';
   tip.style.left = Math.max(8, Math.min(innerWidth - 258, e.clientX + 14)) + 'px'; tip.style.top = Math.max(8, Math.min(innerHeight - 150, e.clientY + 14)) + 'px';
   return true;
@@ -1602,18 +1624,18 @@ setInterval(refreshGps, 15000);
 map.addListener('idle', () => { const c = map.getCenter(), p = [c.lat(), c.lng()]; if(!inLondonView(p)) refreshGps(); else if(GPS.list.size){ GPS.list.clear(); } });
 // quick jumps around the country
 const PLACES = [['London', 51.507, -0.128, 12], ['Manchester', 53.480, -2.243, 13], ['Birmingham', 52.479, -1.899, 13], ['Leeds', 53.797, -1.546, 13],
-  ['Liverpool', 53.405, -2.982, 13], ['Newcastle', 54.972, -1.614, 13], ['Edinburgh', 55.951, -3.196, 13], ['Glasgow', 55.861, -4.251, 13], ['Bristol', 51.454, -2.592, 13], ['Cardiff', 51.479, -3.177, 13], ['Helsinki', 60.170, 24.940, 14], ['Finland', 63.5, 26.0, 6], ['Bergen', 60.392, 5.324, 13], ['Trondheim', 63.430, 10.395, 13], ['Boston', 42.355, -71.065, 13]];
-const LIVE_NOW = new Set(['London', 'Helsinki', 'Finland', 'Bergen', 'Trondheim', 'Boston']);
+  ['Liverpool', 53.405, -2.982, 13], ['Newcastle', 54.972, -1.614, 13], ['Edinburgh', 55.951, -3.196, 13], ['Glasgow', 55.861, -4.251, 13], ['Bristol', 51.454, -2.592, 13], ['Cardiff', 51.479, -3.177, 13], ['Helsinki', 60.170, 24.940, 14], ['Finland', 63.5, 26.0, 6], ['Bergen', 60.392, 5.324, 13], ['Trondheim', 63.430, 10.395, 13], ['Boston', 42.355, -71.065, 13], ['Berlin', 52.515, 13.395, 14]];
+const LIVE_NOW = new Set(['London', 'Helsinki', 'Finland', 'Bergen', 'Trondheim', 'Berlin', 'Boston']);
 const placeBtns = f => PLACES.map(([n], i) => f(n) ? `<button type="button" data-pl="${i}">${n}</button>` : '').join('');
 $('places').innerHTML = `<b>Go to · live now</b><div class="pl">${placeBtns(n => LIVE_NOW.has(n))}</div><b>Go to · rest of Britain <small>(live once the data keys are set up)</small></b><div class="pl">${placeBtns(n => !LIVE_NOW.has(n))}</div>`;
 $('places').addEventListener('click', e => { const b = e.target.closest('[data-pl]'); if(!b) return; const [, lat, lon, z] = PLACES[+b.dataset.pl];
   map.panTo({lat, lng:lon}); map.setZoom(z); $('mapMenu').hidden = true; $('bMap').setAttribute('aria-expanded', 'false'); });
 // which part of the world the map shows: London keeps the full TfL panel, elsewhere it's trimmed to what's live there
-function regionOf(p){ return inLondonView(p) ? 'london' : inFinland(p) ? 'finland' : inNorway(p) ? 'norway' : inBoston(p) ? 'boston' : relayCity(p) ? 'city' : inEdinburgh(p) ? 'edinburgh' : p[0] > 49.8 && p[0] < 60.9 && p[1] > -8.7 && p[1] < 1.9 ? 'uk' : 'world'; }
+function regionOf(p){ return inLondonView(p) ? 'london' : inFinland(p) ? 'finland' : inNorway(p) ? 'norway' : inBoston(p) ? 'boston' : inBerlin(p) ? 'berlin' : relayCity(p) ? 'city' : inEdinburgh(p) ? 'edinburgh' : p[0] > 49.8 && p[0] < 60.9 && p[1] > -8.7 && p[1] < 1.9 ? 'uk' : 'world'; }
 function applyRegion(){
   const c = map.getCenter(), r = regionOf([c.lat(), c.lng()]), away = r !== 'london' && map.getZoom() >= 5;
   document.body.classList.toggle('away', away); document.body.classList.toggle('abroad', away && r !== 'uk' && r !== 'edinburgh');
-  $('ttl').textContent = !away ? 'London live trains' : {finland:'Finland live trains', norway:'Norway live map', boston:'Boston live map', city:(relayCity([c.lat(), c.lng()]) || [, , ''])[2] + ' live map', edinburgh:'Edinburgh live map', uk:'UK live map', world:'Live map', london:'London live trains'}[r];
+  $('ttl').textContent = !away ? 'London live trains' : {finland:'Finland live trains', norway:'Norway live map', boston:'Boston live map', berlin:'Berlin live map', city:(relayCity([c.lat(), c.lng()]) || [, , ''])[2] + ' live map', edinburgh:'Edinburgh live map', uk:'UK live map', world:'Live map', london:'London live trains'}[r];
   if(typeof onTrainsUpdate === 'function') onTrainsUpdate(ACTIVE.reduce((s, l) => s + (shown(l) ? l.count : 0), 0));
 }
 map.addListener('idle', applyRegion);

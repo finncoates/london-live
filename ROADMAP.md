@@ -87,6 +87,8 @@ little value on a map), crowding (TfL crowding API is patchy), weather, social f
 | **Boston: MBTA subway, light rail, commuter rail and buses with GPS** (MBTA v3 API, no key), official line colours, with the subway lines drawn (MBTA shapes, cached a week) | Live map |
 | Fixes from a fourth independent review: joined lines never pass a stop twice (loops, out-and-back routes); switching country drops the old vehicles; bus updates debounced and arrivals throttled (TfL rate limit); 10 s timeouts on every feed; Helsinki feed stops cleanly when you leave; National Rail re-polls only after a ~25 km move and not abroad; faster relay parsing; tighter Finland/Norway borders | both + relay |
 | Relay also serves **Tallinn (250 buses/trams), Gdańsk (140), Vilnius** — open feeds that don't allow browsers directly, so they switch on with the relay (no key); tested end-to-end with the real feeds through the relay code | Live map + relay |
+| **Berlin & Brandenburg: S-Bahn, U-Bahn, trams, buses, regional trains** (VBB real-time positions, no key) in BVG/VBB colours | Live map |
+| Map menu → Go to grouped: live now (London, Helsinki, Finland, Bergen, Trondheim, Berlin, Boston) / rest of Britain (live once keys are set up) | Live map |
 | Region-aware panel: outside London the title, counts and notes describe what's live there; London legend/status/TfL chips hidden | Live map |
 | Map menu → Go to: London, Manchester, Birmingham, Leeds, Liverpool, Newcastle, Edinburgh, Glasgow, Bristol, Cardiff | Live map |
 
