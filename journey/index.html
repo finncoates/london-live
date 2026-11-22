@@ -564,6 +564,15 @@ function buildPaths(z){
         nx /= L; ny /= L; const cos = nx*b.nx + ny*b.ny, off = (a.off + b.off)/2 / Math.max(0.5, cos);
         return {x:p.x + nx*off, y:p.y + ny*off};
       });
+      if(l.mode === 'river'){ // all river boats: one network, each stretch of river drawn once whatever the routes
+        let rec = LPATHS.get('river-all'); if(!rec) LPATHS.set('river-all', rec = {l, n:1, path:new Path2D(), seen:new Set()});
+        const cell = 60/mpp, key = q => Math.round(q.x/cell) + ',' + Math.round(q.y/cell), mine = new Set(); let pen = false;
+        const near = kk => { const [i, j] = kk.split(',').map(Number); for(let a2 = -1; a2 <= 1; a2++) for(let b2 = -1; b2 <= 1; b2++) if(rec.seen.has((i+a2) + ',' + (j+b2))) return true; return false; }; // an earlier route already runs here
+        for(let i = 1; i < n; i++){ const a = Q[i-1], b = Q[i], L = Math.hypot(b.x-a.x, b.y-a.y), m = Math.max(1, Math.ceil(L/(cell*0.5)));
+          for(let k = 1; k <= m; k++){ const p0 = {x:a.x + (b.x-a.x)*(k-1)/m, y:a.y + (b.y-a.y)*(k-1)/m}, p1 = {x:a.x + (b.x-a.x)*k/m, y:a.y + (b.y-a.y)*k/m};
+            const kk = key({x:(p0.x+p1.x)/2, y:(p0.y+p1.y)/2}); mine.add(kk); if(rec.seen.has(kk) || near(kk)){ pen = false; continue; }
+            if(!pen){ rec.path.moveTo(p0.x, p0.y); pen = true; } rec.path.lineTo(p1.x, p1.y); } }
+        for(const kk of mine) rec.seen.add(kk); return; }
       // one path per width (1 line, shared by 2, by 3…): runs split where the count changes
       let start = 0;
       for(let i = 1; i < n; i++){ const cnt = eo[i-1].cnt; if(i < n-1 && eo[i].cnt === cnt) continue;
