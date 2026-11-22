@@ -1078,6 +1078,18 @@ function placeTrain(t){
 let hover = null, lastDraw = 0;
 const HL = new Set(); // keys of highlighted trains (the user's vehicle)
 // real train sizes in metres [length, width]: e.g. a 7-car 1973/1992 Tube stock is ~110-130 m, Class 345 is 205 m
+// One look per kind of transport, everywhere (London is the template). kind = what a vehicle/line is abroad;
+// mode = the London mode it looks like (its size, and whether it has the double-line stripe).
+const KIND_MODE = {metro:'tube', train:'overground', tram:'tram', bus:'bus', ferry:'river', cable:'cable'};
+function lineLook(kind, W){ // {w, alpha, dash, stripe}
+  switch(kind){
+    case 'metro': return {w:W, alpha:1};
+    case 'train': return {w:W, alpha:1, stripe:true};
+    case 'tram':  return {w:W*0.8, alpha:1, stripe:true};
+    case 'bus':   return {w:Math.max(1.5, W*0.4), alpha:0.45};
+    case 'ferry': case 'cable': return {w:Math.max(1.5, W*0.45), alpha:0.45, dash:[W*1.6, W*1.1]};
+    default:      return {w:W, alpha:1};
+  } }
 const REAL_SIZE = {river:[40, 9], cable:[4, 3], tube:[113, 2.65], elizabeth:[205, 2.8], overground:[100, 2.8], dlr:[87, 2.65], tram:[32, 2.65], bus:[11, 2.55], rail:[200, 2.8]};
 let SHOW_ICONS = (() => { try{ return localStorage.getItem('trainIcons') !== '0'; }catch(e){ return true; } })();
 const TAU = 2; // seconds: corrections after a refresh glide rather than jump
@@ -1621,7 +1633,7 @@ async function bostonVehicles(){
   return {vehicles:(j.data || []).filter(v => v.attributes.latitude).map(v => { const a = v.attributes, rt = inc['route:' + v.relationships.route?.data?.id] || {}, tr = inc['trip:' + v.relationships.trip?.data?.id] || {};
     const kind = ['tram', 'subway train', 'commuter train', 'bus'][rt.type] || 'bus';
     return {id:'us:' + v.id, line:rt.short_name || (rt.long_name || '').replace(/ Line$/, ' Line'), op:'MBTA ' + (rt.long_name || ''), dest:tr.headsign || '', lat:a.latitude, lon:a.longitude,
-      brg:a.bearing ?? null, t:Date.parse(a.updated_at) || null, train:rt.type === 1 || rt.type === 2, tram:rt.type === 0, kind, col:rt.color ? '#' + rt.color : '#FFC72C'}; })};
+      brg:a.bearing ?? null, t:Date.parse(a.updated_at) || null, train:rt.type === 2, metro:rt.type === 1, tram:rt.type === 0, kind, col:rt.color ? '#' + rt.color : '#FFC72C'}; })};
 }
 // keep only the vehicles of the source being shown (switching country drops the last one's)
 const GPS_SRC = ['fi:', 'hsl:', 'no:', 'us:', 'de:'];
@@ -1684,9 +1696,12 @@ function drawLineSet(ctx, d){
   if(d.pz !== zc){ d.paths = [...d.lines].sort((a, b) => order[a.kind] - order[b.kind]).map(l => { const path = new Path2D();
     l.pts.forEach((q, i) => { const w = world(q, zc); i ? path.lineTo(w[0], w[1]) : path.moveTo(w[0], w[1]); }); return [l, path]; }); d.pz = zc; }
   ctx.save(); ctx.translate(PV.ox, PV.oy); ctx.scale(k, k);
-  ctx.lineJoin = 'round'; ctx.lineCap = 'round'; ctx.globalAlpha = 0.85;
-  for(const [l, path] of d.paths){ if(GPS_OFF.has(l.kind)) continue; ctx.globalAlpha = LF.city ? (l.name === LF.city ? 1 : 0.1) : 0.85;
-    ctx.setLineDash(l.kind === 'ferry' ? [W*1.5/k, W*1.5/k] : []); ctx.strokeStyle = l.col; ctx.lineWidth = (l.kind === 'tram' ? W*0.7 : l.kind === 'ferry' ? W*0.6 : W)/k; ctx.stroke(path); }
+  ctx.lineJoin = 'round';
+  for(const [l, path] of d.paths){ if(GPS_OFF.has(l.kind)) continue; const look = lineLook(l.kind, W);
+    ctx.globalAlpha = look.alpha * (LF.city ? (l.name === LF.city ? 1 : 0.12) : 1);
+    ctx.lineCap = look.dash ? 'butt' : 'round'; ctx.setLineDash(look.dash ? look.dash.map(x => x/k) : []);
+    ctx.strokeStyle = l.col; ctx.lineWidth = look.w/k; ctx.stroke(path);
+    if(look.stripe){ ctx.setLineDash([]); ctx.strokeStyle = MAP_BG(); ctx.lineWidth = look.w/3/k; ctx.stroke(path); } } // double line, like the Overground
   ctx.restore(); ctx.setLineDash([]); ctx.globalAlpha = 1;
   // stations: dots from zoom 13 (bigger where lines meet), names from zoom 14 when the map's own labels are hidden — as in London
   if(!d.stations || PV.z < 13 || !SHOW_ST) return; const s0 = mapSize(), r = Math.max(2.5, W*0.55), names = QUIET_ON && PV.z >= 14;
@@ -1851,10 +1866,15 @@ function drawGps(ctx, s, hl0, hw0, mpp){
     let ang = g.v.segAng != null ? g.v.segAng : g.v.brg != null ? (g.v.brg - 90)*rad : g.ang ?? 0; // on a known line: its direction
     if(g.v.segAng == null && g.v.brg == null && (g.to[0] !== g.from[0] || g.to[1] !== g.from[1])) ang = Math.atan2(-(g.to[0] - g.from[0]), (g.to[1] - g.from[1])*cosLat);
     g.ang = ang;
-    const tram = g.v.tram || g.v.metro, tr = g.v.train, hl = Math.max(tr ? hl0*(g.v.freight ? 0.8 : 1) : tram ? hl0*0.8 : Math.max(5, hl0*0.5), (tr ? 150 : g.v.metro ? 90 : tram ? 22 : 5.5)/mpp), hw = Math.max(tr ? hw0 : 2.4, hw0*0.9, (tr ? 1.5 : 1.3)/mpp);
+    const tram = g.v.tram || g.v.metro, kind = vkind(g.v), mode = KIND_MODE[kind] || 'bus', [len, wid] = REAL_SIZE[mode] || REAL_SIZE.tube; // same sizes as London
+    let hl = Math.max(hl0, len/2/mpp), hw = Math.max(hw0, wid/2/mpp);
+    if(mode === 'bus' && hl <= hl0){ hl = Math.max(5, hl0*0.5); hw = Math.max(2.4, hw0*0.9); }
+    if(g.v.freight){ hl *= 0.8; }
     const cs = Math.cos(ang), sn = Math.sin(ang), ux = cs*hl, uy = sn*hl, vx = -sn*hw, vy = cs*hw;
     ctx.beginPath(); ctx.moveTo(c.x+ux+vx, c.y+uy+vy); ctx.lineTo(c.x+ux-vx, c.y+uy-vy); ctx.lineTo(c.x-ux-vx, c.y-uy-vy); ctx.lineTo(c.x-ux+vx, c.y-uy+vy); ctx.closePath();
     ctx.fillStyle = g.v.col || (tram ? '#7A1F3D' : opCol(g.v.op)); ctx.strokeStyle = dark ? 'rgba(0,0,0,.9)' : 'rgba(255,255,255,.95)'; ctx.lineWidth = 2; ctx.stroke(); ctx.fill();
+    if(PARALLEL.has(mode)){ const ux2 = cs*(hl-hw*1.2), uy2 = sn*(hl-hw*1.2), vx2 = -sn*hw/3, vy2 = cs*hw/3; ctx.beginPath(); // centre stripe, like London's double-line trains
+      ctx.moveTo(c.x+ux2+vx2, c.y+uy2+vy2); ctx.lineTo(c.x+ux2-vx2, c.y+uy2-vy2); ctx.lineTo(c.x-ux2-vx2, c.y-uy2-vy2); ctx.lineTo(c.x-ux2+vx2, c.y-uy2+vy2); ctx.closePath(); ctx.fillStyle = MAP_BG(); ctx.fill(); }
     if(label){ ctx.lineWidth = 3; ctx.strokeText(g.v.line, c.x, c.y - hw - 9); ctx.fillStyle = dark ? '#eee' : '#222'; ctx.fillText(g.v.line, c.x, c.y - hw - 9); }
     draw.ghit.push([g, c.x, c.y]);
   }
@@ -1907,7 +1927,7 @@ const CATALOG = [
     {name:'Lithuania', flag:'🇱🇹', cities:[{name:'Vilnius', at:[54.687, 25.280, 13], live:'keys', modes:[['bus','Buses & trolleybuses'], ['bike','City bikes']], note:'Open data, no key: switches on with the relay.'}]}]},
   {name:'North America', countries:[
     {name:'United States', flag:'🇺🇸', cities:[
-      {name:'Boston', at:[42.355, -71.065, 13], live:'now', modes:[['train','Subway & commuter rail'], ['tram','Green Line & Mattapan'], ['bus','Buses'], ['bike','Bluebikes']], note:'MBTA vehicles by GPS, on the subway lines in their own colours.'}]}]},
+      {name:'Boston', at:[42.355, -71.065, 13], live:'now', modes:[['metro','Subway'], ['train','Commuter rail'], ['tram','Green Line & Mattapan'], ['bus','Buses'], ['ferry','Ferries'], ['bike','Bluebikes']], note:'MBTA vehicles by GPS, on the subway lines in their own colours.'}]}]},
 ];
 // vehicle kinds switched off abroad (buses use the Buses switch)
 let GPS_OFF = new Set((() => { try{ return JSON.parse(localStorage.getItem('gpsOff')) || []; }catch(e){ return []; } })());
