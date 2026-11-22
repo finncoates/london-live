@@ -38,6 +38,12 @@ def add(p):
             run.append(q1)
             if math.floor(run[0][0]*10) != math.floor(q1[0]*10) or math.floor(run[0][1]*10) != math.floor(q1[1]*10): flush(); run = [q1]
     flush(); seen.update(mine)
+if os.environ.get('MERGE') == '1':  # roads already in the tiles (other regions/feeds) count as drawn
+    for fn in os.listdir(outdir):
+        for poly in json.load(open(os.path.join(outdir, fn))):
+            for i in range(1, len(poly)):
+                q0, q1 = poly[i-1], poly[i]; ang = math.atan2(q1[0]-q0[0], (q1[1]-q0[1])*0.62) % math.pi
+                seen.add((round((q0[0]+q1[0])/2/CELL), round((q0[1]+q1[1])/2/CELL/1.6), int(ang/(math.pi/8)) % 8))
 cur, pts, n = None, [], 0
 with z.open('shapes.txt') as f:
     for s in csv.DictReader(io.TextIOWrapper(f, 'utf-8-sig')):
