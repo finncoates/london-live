@@ -759,6 +759,10 @@ function trackPath(l, a, b){
     if(score<bestScore){ bestScore=score; best=pts; }
   }
   let pts = best;
+  if(!pts && l.mode === 'bus'){ // bus stops on different pieces of the route: follow the route through the joined pieces (loose match)
+    for(const poly of l.curves){ let ia=-1, da=1e9, ib=-1, db=1e9;
+      for(let i=0;i<poly.length;i++){ const x=dist(poly[i],A), y=dist(poly[i],B); if(x<da){da=x;ia=i} if(y<db){db=y;ib=i} }
+      if(da>400||db>400||ia===ib||ia>ib) continue; pts = poly.slice(ia, ib+1); break; } }
   if(!pts && l.hopG && l.hopG.has(a)){ // walk the station graph (shortest along the track)
     const D = new Map([[a, 0]]), P = new Map(), Q = [[0, a]];
     while(Q.length){ Q.sort((x, y) => x[0] - y[0]); const [c, u] = Q.shift(); if(u === b) break; if(c > (D.get(u) ?? 1e18) || c > straight*3 + 3000) continue;
@@ -769,7 +773,7 @@ function trackPath(l, a, b){
   if(!pts){ // no drawn line joins these stations: draw one, so the train still sits on a line
     pts = [snapStop(l,a), snapStop(l,b)];
     const fk = [a, b].sort().join('|'); l.fb ||= new Set();
-    if(!l.fb.has(fk) && dist(l.stops[a].p, l.stops[b].p) < 2500){ l.fb.add(fk); l.polys.push([l.stops[a].p, l.stops[b].p]); LANES = null; linesSig = ""; } // drawn by drawLines from now on
+    if(!l.fb.has(fk) && l.mode !== 'bus' && dist(l.stops[a].p, l.stops[b].p) < 2500){ /* buses: never draw a straight cut across streets */ l.fb.add(fk); l.polys.push([l.stops[a].p, l.stops[b].p]); LANES = null; linesSig = ""; } // drawn by drawLines from now on
   }
   const cum=[0]; for(let i=1;i<pts.length;i++) cum.push(cum[i-1]+dist(pts[i-1],pts[i]));
   return l.pathCache[key] = {pts, cum, len:cum[cum.length-1]};

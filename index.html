@@ -166,6 +166,7 @@ body.dark #simnote{background:#1f2a44;color:#c6dafc}
 .st-h{display:flex;align-items:center;justify-content:space-between;font-size:16px}
 .st-h .x{padding:4px 8px;font-size:12px}
 .st-lines{display:flex;flex-wrap:wrap;gap:4px;margin:6px 0 4px}
+.dep-h{font-size:11.5px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--mute);margin:10px 0 2px}
 .st-warn{font-size:12px;line-height:1.35;padding:5px 8px;border-radius:8px;margin:4px 0}.st-warn b{font-weight:700}
 .deps{list-style:none;margin:6px 0 0;padding:0;display:grid;gap:6px}
 .deps li{display:flex;align-items:center;gap:8px;font-size:13.5px}
@@ -769,6 +770,10 @@ function trackPath(l, a, b){
     if(score<bestScore){ bestScore=score; best=pts; }
   }
   let pts = best;
+  if(!pts && l.mode === 'bus'){ // bus stops on different pieces of the route: follow the route through the joined pieces (loose match)
+    for(const poly of l.curves){ let ia=-1, da=1e9, ib=-1, db=1e9;
+      for(let i=0;i<poly.length;i++){ const x=dist(poly[i],A), y=dist(poly[i],B); if(x<da){da=x;ia=i} if(y<db){db=y;ib=i} }
+      if(da>400||db>400||ia===ib||ia>ib) continue; pts = poly.slice(ia, ib+1); break; } }
   if(!pts && l.hopG && l.hopG.has(a)){ // walk the station graph (shortest along the track)
     const D = new Map([[a, 0]]), P = new Map(), Q = [[0, a]];
     while(Q.length){ Q.sort((x, y) => x[0] - y[0]); const [c, u] = Q.shift(); if(u === b) break; if(c > (D.get(u) ?? 1e18) || c > straight*3 + 3000) continue;
@@ -779,7 +784,7 @@ function trackPath(l, a, b){
   if(!pts){ // no drawn line joins these stations: draw one, so the train still sits on a line
     pts = [snapStop(l,a), snapStop(l,b)];
     const fk = [a, b].sort().join('|'); l.fb ||= new Set();
-    if(!l.fb.has(fk) && dist(l.stops[a].p, l.stops[b].p) < 2500){ l.fb.add(fk); l.polys.push([l.stops[a].p, l.stops[b].p]); LANES = null; linesSig = ""; } // drawn by drawLines from now on
+    if(!l.fb.has(fk) && l.mode !== 'bus' && dist(l.stops[a].p, l.stops[b].p) < 2500){ /* buses: never draw a straight cut across streets */ l.fb.add(fk); l.polys.push([l.stops[a].p, l.stops[b].p]); LANES = null; linesSig = ""; } // drawn by drawLines from now on
   }
   const cum=[0]; for(let i=1;i<pts.length;i++) cum.push(cum[i-1]+dist(pts[i-1],pts[i]));
   return l.pathCache[key] = {pts, cum, len:cum[cum.length-1]};
@@ -1607,6 +1612,12 @@ function drawLineSet(ctx, d){
 }
 const showSt = (d, st) => st[4].some(l => !GPS_OFF.has(l[2])) && !(d.dupRail && st[4].every(l => l[2] === 'train'));
 const stName = n => String(n).replace(/ \((Berlin|Helsinki|Helsingfors)\)$/, '').replace(/ Bhf\b/, '').trim();
+// departures grouped by kind (train, metro, tram, bus…), soonest first, a few of each
+function depGroups(rows, per = 4){
+  const g = new Map(); for(const r of rows){ const k = r.cat || 'Departures'; if(!g.has(k)) g.set(k, []); g.get(k).push(r); }
+  const order = [...g.keys()].sort((a, b) => g.get(a)[0].when - g.get(b)[0].when);
+  return order.map(k => `<div class="dep-h">${esc(k)}</div><ol class="deps">${g.get(k).slice(0, per).map(r => r.html).join('')}</ol>`).join('');
+}
 // a city station under the finger
 function cityStationAt(x, y, rad0){
   if(PV.z < 13) return null; let best = null, bd = rad0 || (matchMedia('(pointer:coarse)').matches ? 20 : 12);
@@ -1632,22 +1643,22 @@ async function openCityStation(hit){
         const nameOf = code => { for(const d of cityData()) for(const x of d.stations || []) if(x[0] === code) return stName(x[1]); return code; };
         rows = j.map(t => { const dep = t.timeTableRows.find(r => r.stationShortCode === st[0] && r.type === 'DEPARTURE'); if(!dep || t.cancelled) return null;
           const when = Date.parse(dep.liveEstimateTime || dep.scheduledTime), last = t.timeTableRows[t.timeTableRows.length - 1];
-          return {when, html:row(t.commuterLineID ? '#8C4799' : '#3DAE2B', nameOf(last.stationShortCode), (t.commuterLineID ? t.commuterLineID + ' train' : t.trainType + ' ' + t.trainNumber) + (dep.commercialTrack ? ' · track ' + dep.commercialTrack : '') + (dep.differenceInMinutes > 0 ? ` · ${dep.differenceInMinutes} min late` : ''), Math.round((when - now)/60000))}; });
+          return {when, cat:t.commuterLineID ? 'Local trains' : 'Long-distance trains', html:row(t.commuterLineID ? '#8C4799' : '#3DAE2B', nameOf(last.stationShortCode), (t.commuterLineID ? t.commuterLineID + ' train' : t.trainType + ' ' + t.trainNumber) + (dep.commercialTrack ? ' · track ' + dep.commercialTrack : '') + (dep.differenceInMinutes > 0 ? ` · ${dep.differenceInMinutes} min late` : ''), Math.round((when - now)/60000))}; });
       } else if(/boston\.json/.test(url)){ // MBTA predictions
-        const j = await (await fetch(`https://api-v3.mbta.com/predictions?filter[stop]=${encodeURIComponent(st[0])}&include=route,trip&sort=departure_time&page[limit]=12`, {signal:AbortSignal.timeout(10000)})).json(), inc = {};
+        const j = await (await fetch(`https://api-v3.mbta.com/predictions?filter[latitude]=${st[2]}&filter[longitude]=${st[3]}&filter[radius]=0.004&include=route,trip&sort=departure_time&page[limit]=40`, {signal:AbortSignal.timeout(10000)})).json(), inc = {};
         for(const x of j.included || []) inc[x.type + ':' + x.id] = x.attributes;
         rows = (j.data || []).map(p => { const a = p.attributes, rt = inc['route:' + p.relationships.route.data.id] || {}, tr = inc['trip:' + p.relationships.trip.data?.id] || {}; const when = Date.parse(a.departure_time || a.arrival_time); if(!when) return null;
-          return {when, html:row('#' + (rt.color || '888'), tr.headsign || '', rt.short_name || rt.long_name || '', Math.round((when - now)/60000))}; });
+          return {when, cat:['Light rail & Green Line', 'Subway', 'Commuter rail', 'Buses', 'Ferries'][rt.type] || 'Other', html:row('#' + (rt.color || '888'), tr.headsign || '', rt.short_name || rt.long_name || '', Math.round((when - now)/60000))}; });
       } else if(/berlin\.json/.test(url)){ // VBB departures
         const id = String(st[0]).split(':').pop();
-        const j = await (await fetch(`https://v6.vbb.transport.rest/stops/${encodeURIComponent(id)}/departures?duration=40&results=12&bus=false`, {signal:AbortSignal.timeout(10000)})).json();
+        const j = await (await fetch(`https://v6.vbb.transport.rest/stops/${encodeURIComponent(id)}/departures?duration=40&results=40`, {signal:AbortSignal.timeout(10000)})).json();
         rows = (j.departures || j || []).map(x => { const when = Date.parse(x.when || x.plannedWhen); if(!when || x.cancelled) return null; const l = st[4].find(q => q[0] === x.line?.name);
-          return {when, html:row(l && l[1] || VBB_COL[x.line?.product] || '#888', x.direction || '', (x.line?.name || '') + (x.platform ? ' · platform ' + x.platform : '') + (x.delay > 60 ? ` · ${Math.round(x.delay/60)} min late` : ''), Math.round((when - now)/60000))}; });
+          return {when, cat:{suburban:'S-Bahn', subway:'U-Bahn', tram:'Trams', bus:'Buses', regional:'Regional trains', express:'Long-distance trains', ferry:'Ferries'}[x.line?.product] || 'Other', html:row(l && l[1] || VBB_COL[x.line?.product] || '#888', x.direction || '', (x.line?.name || '') + (x.platform ? ' · platform ' + x.platform : '') + (x.delay > 60 ? ` · ${Math.round(x.delay/60)} min late` : ''), Math.round((when - now)/60000))}; });
       } else note = 'Live departures for HSL metro and trams need a free HSL key; the vehicles on the map are live.';
     }catch(e){ note = 'Departures could not be loaded right now.'; }
     if(box.hidden) return;
-    rows = (rows || []).filter(r => r && r.when > Date.now() - 60000).sort((a, b) => a.when - b.when).slice(0, 8);
-    box.innerHTML = head + (rows.length ? `<ol class="deps">${rows.map(r => r.html).join('')}</ol>` : `<div class="muted">${esc(note || 'No departures listed right now.')}</div>`);
+    rows = (rows || []).filter(r => r && r.when > Date.now() - 60000).sort((a, b) => a.when - b.when);
+    box.innerHTML = head + (rows.length ? depGroups(rows) : `<div class="muted">${esc(note || 'No departures listed right now.')}</div>`);
   };
   load(); clearInterval(focusTimer); focusTimer = setInterval(load, 30000); focusLoad = load;
 }
@@ -2118,15 +2129,23 @@ async function goStation(st){
       return `<div class="st-warn st${x.lv}" title="${esc(why)}"><b>${esc(BY[id].name)}: ${esc(x.text)}</b>${why ? ' · ' + esc(why.length > 90 ? why.slice(0, 90).replace(/\s+\S*$/, '') + '…' : why) : ''}</div>`; }).join(''); // problems on this station's lines (rebuilt on each refresh: status may arrive later)
   let head = head0();
   box.innerHTML = head + '<div class="muted">Loading next trains…</div>';
+  const CAT = {tube:'Tube', overground:'Overground', elizabeth:'Elizabeth line', dlr:'DLR', tram:'Trams', bus:'Buses', rail:'National Rail', 'elizabeth-line':'Elizabeth line', 'national-rail':'National Rail'};
+  let busStops = null; // bus stops within ~250 m, found once
   const load = async () => {
     head = head0();
-    const all = (await Promise.all([...st.ids].slice(0, 5).map(id => /^[A-Z]{3}$/.test(id) ? railArrivals(id) : get(`/StopPoint/${id}/Arrivals`).catch(() => [])))).flat()
-      .filter(a => st.lines.has(a.lineId) || a.rail);
-    const seen = new Set(), rows = all.sort((a, b) => a.timeToStation - b.timeToStation)
-      .filter(a => { const k = a.vehicleId + a.lineId + a.platformName; if(seen.has(k)) return false; seen.add(k); return true; }).slice(0, 8);
+    if(!busStops) busStops = get(`/StopPoint?lat=${st.p[0]}&lon=${st.p[1]}&radius=250&stopTypes=NaptanPublicBusCoachTram&modes=bus`).then(r => (r.stopPoints || []).slice(0, 6).map(x => x.naptanId)).catch(() => []);
+    const bs = await busStops;
+    const all = (await Promise.all([...[...st.ids].slice(0, 5).map(id => /^[A-Z]{3}$/.test(id) ? railArrivals(id) : get(`/StopPoint/${id}/Arrivals`).catch(() => [])),
+      ...bs.map(id => get(`/StopPoint/${id}/Arrivals`).catch(() => []))])).flat()
+      .filter(a => st.lines.has(a.lineId) || a.rail || a.modeName === 'bus');
+    const seen = new Set(), now = Date.now(), rows = all.sort((a, b) => a.timeToStation - b.timeToStation)
+      .filter(a => { const k = a.vehicleId + a.lineId + a.platformName; if(seen.has(k)) return false; seen.add(k); return true; })
+      .map(a => { const l = BY[a.lineId], bus = !l && a.modeName === 'bus' || l?.mode === 'bus', m = Math.round(a.timeToStation/60), col = l ? ink(l.colour) : '#DC241F';
+        const name = l ? l.name : a.lineName || a.lineId;
+        return {when:now + a.timeToStation*1000, cat:bus ? 'Buses' : CAT[l?.mode] || CAT[a.modeName] || 'Trains',
+          html:`<li><span class="sw" style="background:${col}"></span><span class="to">${esc(cleanName(a.towards || a.destinationName || '') || name)}<small>${esc(bus ? 'Bus ' + name + (a.stationName ? ' · ' + a.stationName : '') : name)}${a.platformName && !bus ? ' · ' + esc(a.platformName) : ''}</small></span><b>${m < 1 ? 'due' : m + ' min'}</b></li>`}; });
     if(box.hidden) return;
-    box.innerHTML = head + (rows.length ? `<ol class="deps">${rows.map(a => { const l = BY[a.lineId], m = Math.round(a.timeToStation/60);
-      return `<li><span class="sw" style="background:${ink(l.colour)}"></span><span class="to">${esc(cleanName(a.towards || a.destinationName || '') || l.name)}<small>${esc(l.name)}${a.platformName ? ' · ' + esc(a.platformName) : ''}</small></span><b>${m < 1 ? 'due' : m + ' min'}</b></li>`; }).join('')}</ol>` : '<div class="muted">No trains listed right now.</div>');
+    box.innerHTML = head + (rows.length ? depGroups(rows) : '<div class="muted">No departures listed right now.</div>');
   };
   load(); focusTimer = setInterval(load, 30000); focusLoad = load;
 }
