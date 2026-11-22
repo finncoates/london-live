@@ -179,7 +179,7 @@ body.dark #simnote{background:#1f2a44;color:#c6dafc}
 #mModes{margin:0 0 8px}
 #legend{display:grid;gap:0}
 body.abroad #mModes [data-mode=rail]{display:none}
-body.away #legend, body.away #lgAll, body.away #sbox, body.away #mModes [data-mode=tube], body.away #mModes [data-mode=overground], body.away #mModes [data-mode=elizabeth], body.away #mModes [data-mode=dlr], body.away #mModes [data-mode=tram], body.away #mModes [data-mode=river], body.away #mModes [data-mode=cable]{display:none} /* London-only parts, hidden elsewhere */
+body.away #legend, body.away #lgAll, body.away #sbox, body.away #mModes [data-mode=tube], body.away #mModes [data-mode=overground], body.away #mModes [data-mode=elizabeth], body.away #mModes [data-mode=dlr], body.away #mModes [data-mode=tram], body.away #mModes [data-mode=river], body.away #mModes [data-mode=cable], body.away #mModes [data-mode=road]{display:none} /* London-only parts, hidden elsewhere */
 .lgall{display:flex;justify-content:flex-end;gap:14px;margin:2px 0 4px}.lgall button{background:none;border:0;padding:4px 2px;color:var(--mute);font-size:12.5px;font-weight:600;cursor:pointer}.lgall button:hover{color:var(--ink)}
 .row{display:flex;align-items:center;gap:8px;padding:4px 2px;border:0;background:none;border-radius:6px;font-size:14px;text-align:left;width:100%}
 .row:hover{background:var(--soft)}
@@ -318,8 +318,9 @@ const BY = Object.fromEntries(ACTIVE.map(l => [l.id, l]));
 let LAYOUT = (() => { try{ return localStorage.getItem('lineLayout') || 'simple'; }catch(e){ return 'simple'; } })();
 let TRAINS_ON = (() => { try{ return localStorage.getItem('trainsOn') !== '0' }catch(e){ return true } })();
 // which kinds of transport to show in the background (each can be switched off in the Map menu)
-const MODE_GROUPS = [['tube','Tube'], ['overground','Overground'], ['elizabeth','Elizabeth line'], ['dlr','DLR'], ['tram','Trams'], ['river','River boats'], ['cable','Cable car'], ['bus','Buses'], ['bike','Bikes & scooters'], ['rail','National Rail']];
+const MODE_GROUPS = [['tube','Tube'], ['overground','Overground'], ['elizabeth','Elizabeth line'], ['dlr','DLR'], ['tram','Trams'], ['river','River boats'], ['cable','Cable car'], ['bus','Buses'], ['bike','Bikes & scooters'], ['road','Road works'], ['rail','National Rail']];
 let MODES_OFF = new Set((() => { try{ return JSON.parse(localStorage.getItem('modesOff')) || []; }catch(e){ return []; } })());
+try{ if(!localStorage.getItem('roadInit')){ MODES_OFF.add('road'); localStorage.setItem('modesOff', JSON.stringify([...MODES_OFF])); localStorage.setItem('roadInit', '1'); } }catch(e){ MODES_OFF.add('road'); }
 try{ if(!localStorage.getItem('bikeInit')){ MODES_OFF.add('bike'); localStorage.setItem('modesOff', JSON.stringify([...MODES_OFF])); localStorage.setItem('bikeInit', '1'); } }catch(e){ MODES_OFF.add('bike'); } // bikes start off
 if(Q.get('bikes') === '1') MODES_OFF.delete('bike');
 try{ if(!localStorage.getItem('busInit')){ MODES_OFF.add('bus'); localStorage.setItem('modesOff', JSON.stringify([...MODES_OFF])); localStorage.setItem('busInit', '1'); } }catch(e){ MODES_OFF.add('bus'); } // buses start off
@@ -1150,6 +1151,7 @@ function draw(ts){
     for(const [l, items] of byLine) if(l.mode === 'bus') for(const [, x, y, , , , , , , hw] of items){ const ty = y - hw - 9, txt = l.name.toUpperCase();
       ctx.strokeStyle = dark ? 'rgba(0,0,0,.85)' : 'rgba(255,255,255,.95)'; ctx.strokeText(txt, x, ty); ctx.fillStyle = dark ? '#ff8a80' : '#b3140f'; ctx.fillText(txt, x, ty); }
     ctx.textAlign = 'start'; }
+  if(typeof drawRoads === 'function') drawRoads(ctx, s);
   if(typeof drawBusStops === 'function') drawBusStops(ctx, s);
   if(typeof drawBikes === 'function') drawBikes(ctx, s);
   if(typeof drawShare === 'function') drawShare(ctx, s);
@@ -1208,7 +1210,7 @@ function showTip(e){
   if(e.type === 'click' && map.getZoom() >= 13 && stationAt(e.clientX-r.left, e.clientY-r.top, matchMedia('(pointer:coarse)').matches ? 12 : 8)){ $('tip').style.display = 'none'; hover = null; return; } // a station tap
   const t = nearest(e.clientX-r.left, e.clientY-r.top); hover = t;
   const tip = $('tip');
-  if(!t){ if(typeof gpsTip === 'function' && gpsTip(e, r, tip)) return; if(typeof bikeTip === 'function' && bikeTip(e, r, tip)) return; if(e.type === 'click' && typeof busStopAt === 'function' && busStopAt(e.clientX - r.left, e.clientY - r.top)) return; if(typeof shareTip === 'function' && shareTip(e, r, tip)) return; tip.style.display='none'; return; }
+  if(!t){ if(typeof gpsTip === 'function' && gpsTip(e, r, tip)) return; if(typeof bikeTip === 'function' && bikeTip(e, r, tip)) return; if(typeof roadTip === 'function' && roadTip(e, r, tip)) return; if(e.type === 'click' && typeof busStopAt === 'function' && busStopAt(e.clientX - r.left, e.clientY - r.top)) return; if(typeof shareTip === 'function' && shareTip(e, r, tip)) return; tip.style.display='none'; return; }
   const l = BY[t.line], secs = Math.max(0, Math.round(((t.curArr??t.arr)-now())/1000));
   // TfL has no train names; tube trains have a set number and buses a registration (rail ids are trip codes)
   const vid = t.anon ? '' : t.key.slice(t.line.length + 1);
@@ -1420,10 +1422,10 @@ $('legend').addEventListener('click', e => {
 });
 
 // ---------- transport switches ----------
-const GROUP_SYM = {river:['tube','#009FE0'], cable:['tube','#E21836'], bike:['cycle','#EC0000'], bus:['tube','#DC241F'], tube:['tubeLogo','#DC241F'], overground:['tube','#FA7B05'], elizabeth:['tube','#60399E'], dlr:['tube','#00AFAD'], tram:['tube','#5FB526'], rail:['rail','#1D5BA0']};
+const GROUP_SYM = {road:['drive','#F29400'], river:['tube','#009FE0'], cable:['tube','#E21836'], bike:['cycle','#EC0000'], bus:['tube','#DC241F'], tube:['tubeLogo','#DC241F'], overground:['tube','#FA7B05'], elizabeth:['tube','#60399E'], dlr:['tube','#00AFAD'], tram:['tube','#5FB526'], rail:['rail','#1D5BA0']};
 function renderModeChips(){
   $('mModes').innerHTML = MODE_GROUPS.map(([m, name]) => {
-    const has = m === 'bus' || m === 'bike' || ACTIVE.some(l => l.mode === m) || (m === 'rail' && typeof railOn === 'function' && railOn());
+    const has = m === 'bus' || m === 'bike' || m === 'road' || ACTIVE.some(l => l.mode === m) || (m === 'rail' && typeof railOn === 'function' && railOn());
     const off = m === 'bus' && document.body.classList.contains('away') ? GPS_OFF.has('bus') : MODES_OFF.has(m);
     return `<button type="button" class="chip2" data-mode="${m}" aria-pressed="${has && !off}" ${has ? '' : 'disabled title="Coming soon"'}>${symbol(GROUP_SYM[m][0], GROUP_SYM[m][1], 16)}${name}${has ? '' : ' <small>soon</small>'}</button>`;
   }).join('');
@@ -1433,7 +1435,7 @@ $('mModes').addEventListener('click', e => { const b = e.target.closest('[data-m
   if(m === 'bus' && document.body.classList.contains('away')){ GPS_OFF.has('bus') ? GPS_OFF.delete('bus') : GPS_OFF.add('bus'); try{ localStorage.setItem('gpsOff', JSON.stringify([...GPS_OFF])); }catch(x){} renderModeChips(); refreshGps(); return; } MODES_OFF.has(m) ? MODES_OFF.delete(m) : MODES_OFF.add(m);
   try{ localStorage.setItem('modesOff', JSON.stringify([...MODES_OFF])); }catch(x){}
   for(const l of ACTIVE) l.layer && l.layer.eachLayer(p => p.setStyle(lineStyle(l)));
-  renderModeChips(); renderLegend(); if(m === 'bus') updateBuses(true); else if(m === 'bike'){ refreshBikes(true); refreshShare(); } else refresh().catch(()=>{}); });
+  renderModeChips(); renderLegend(); if(m === 'bus') updateBuses(true); else if(m === 'bike'){ refreshBikes(true); refreshShare(); } else if(m === 'road') refreshRoads(true); else refresh().catch(()=>{}); });
 
 // ---------- live buses: the routes serving the stops around the view (zoom 14+) ----------
 // TfL has no bus GPS feed; positions come from arrival predictions, like the trains.
@@ -1848,7 +1850,7 @@ map.addListener('idle', () => { const c = map.getCenter(), p = [c.lat(), c.lng()
 const CATALOG = [
   {name:'Europe', countries:[
     {name:'United Kingdom', flag:'🇬🇧', cities:[
-      {name:'London', at:[51.507, -0.128, 12], live:'now', modes:[['tube','Tube'], ['overground','Overground'], ['elizabeth','Elizabeth line'], ['dlr','DLR'], ['tram','Trams'], ['river','River boats'], ['cable','Cable car'], ['bus','Buses'], ['bike','Santander Cycles & Beryl'], ['rail','National Rail']],
+      {name:'London', at:[51.507, -0.128, 12], live:'now', modes:[['tube','Tube'], ['overground','Overground'], ['elizabeth','Elizabeth line'], ['dlr','DLR'], ['tram','Trams'], ['river','River boats'], ['cable','Cable car'], ['road','Road works'], ['bus','Buses'], ['bike','Santander Cycles & Beryl'], ['rail','National Rail']],
         note:'Every Tube, Overground, Elizabeth line, DLR and tram train live from TfL. Buses: zoom in. Santander Cycles docks with bikes and e-bikes.'},
       ...[['Manchester', 53.480, -2.243], ['Birmingham', 52.479, -1.899], ['Leeds', 53.797, -1.546], ['Liverpool', 53.405, -2.982], ['Newcastle', 54.972, -1.614], ['Glasgow', 55.861, -4.251], ['Bristol', 51.454, -2.592], ['Cardiff', 51.479, -3.177]]
         .map(([name, a, b]) => ({name, at:[a, b, 13], live:'keys', modes:[['bus','Buses'], ['rail','National Rail'], ...(['Manchester','Leeds','Birmingham','Liverpool','Bristol'].includes(name) ? [['bike','Bikes & scooters (live now)']] : [])], note:'Live buses (GPS) and National Rail trains switch on once the free data keys are set up.' + (['Manchester','Leeds','Birmingham','Liverpool','Bristol'].includes(name) ? ' Bikes and scooters for hire are live now.' : '')})),
@@ -1877,7 +1879,7 @@ function cityHere(){ const c = map.getCenter(); if(!c) return null; const p = [c
   return best; }
 // London's switches (and Buses/National Rail everywhere) vs. vehicle kinds abroad
 const exCity = () => { const [a, b, c] = EX.path; return CATALOG[a]?.countries[b]?.cities[c] || null; };
-const isSwitch = m => ['tube','overground','elizabeth','dlr','bike','rail','river','cable'].includes(m) || ((m === 'tram' || m === 'bus') && exCity()?.name === 'London');
+const isSwitch = m => ['tube','overground','elizabeth','dlr','bike','rail','river','cable','road'].includes(m) || ((m === 'tram' || m === 'bus') && exCity()?.name === 'London');
 const modeOn = m => isSwitch(m) ? !MODES_OFF.has(m) : !GPS_OFF.has(m);
 function renderExplore(){
   const box = $('explore'); if(box.hidden) return;
@@ -2061,6 +2063,35 @@ async function openBusStop(st){
       return {when:now + x.timeToStation*1000, cat:'Buses', html:`<li><span class="sw" style="background:#DC241F"></span><span class="to">${esc(x.destinationName || x.towards || '')}<small>Bus ${esc(x.lineName)}</small></span><b>${m < 1 ? 'due' : m + ' min'}</b></li>`}; });
     box.innerHTML = head + (rows.length ? `<ol class="deps">${rows.map(r => r.html).join('')}</ol>` : '<div class="muted">No buses listed right now.</div>'); };
   load(); clearInterval(focusTimer); focusTimer = setInterval(load, 30000); focusLoad = load;
+}
+// ---------- road works & closures (TfL road disruptions; affect buses) ----------
+const ROADS = {list:[], at:0, busy:false};
+async function refreshRoads(force){
+  if(MODES_OFF.has('road') || ROADS.busy || (!force && Date.now() - ROADS.at < 300000)) return; ROADS.busy = true;
+  try{ const d = await get('/Road/all/Disruption?stripContent=true');
+    ROADS.list = d.filter(x => x.point && x.severity !== 'No impact').map(x => { const pt = JSON.parse(x.point); return {p:[pt[1], pt[0]], sev:x.severity, closed:!!x.hasClosures, cat:x.category || '',
+      text:(x.comments || '').replace(/^\[[^\]]+\]\s*/, ''), where:(x.location || '').replace(/\s*\([^)]*\)\s*/g, ' ').replace(/^\[[^\]]+\]\s*/, '').trim().toLowerCase().replace(/\b\w/g, ch => ch.toUpperCase()), end:x.endDateTime}; });
+    ROADS.at = Date.now(); }catch(e){ console.warn('roads', e.message); }
+  ROADS.busy = false;
+}
+setInterval(refreshRoads, 300000); setTimeout(refreshRoads, 4000);
+function drawRoads(ctx, s){
+  draw.rhit = []; if(MODES_OFF.has('road') || !ROADS.list.length || PV.z < 12 || document.body.classList.contains('away')) return;
+  const r = PV.z >= 15 ? 8 : PV.z >= 13 ? 6.5 : 5;
+  for(const x of ROADS.list){ const c = scr(x.p); if(c.x < -10 || c.y < -10 || c.x > s.x + 10 || c.y > s.y + 10) continue;
+    ctx.beginPath(); ctx.moveTo(c.x, c.y - r*1.1); ctx.lineTo(c.x + r, c.y + r*0.75); ctx.lineTo(c.x - r, c.y + r*0.75); ctx.closePath(); // warning triangle
+    ctx.fillStyle = x.closed ? '#D93025' : x.sev === 'Minimal' ? '#F2B400' : '#F28C00'; ctx.fill(); ctx.lineWidth = 1.5; ctx.strokeStyle = dark ? '#111' : '#fff'; ctx.stroke();
+    ctx.fillStyle = '#111'; ctx.fillRect(c.x - 0.7, c.y - r*0.45, 1.4, r*0.6); ctx.fillRect(c.x - 0.7, c.y + r*0.3, 1.4, 1.4);
+    draw.rhit.push([x, c.x, c.y]); }
+}
+function roadTip(e, r, tip){
+  const x = e.clientX - r.left, y = e.clientY - r.top; let best = null, bd = matchMedia('(pointer:coarse)').matches ? 16 : 10;
+  for(const [d, dx, dy] of draw.rhit || []){ const k = Math.hypot(dx - x, dy - y); if(k < bd){ bd = k; best = d; } } if(!best) return false;
+  const until = best.end ? new Date(best.end).toLocaleDateString([], {weekday:'short', day:'numeric', month:'short'}) : '';
+  tip.innerHTML = `<div class="tt-h">${symbol('drive', best.closed ? '#D93025' : '#F28C00', 20)}<b>${esc(best.closed ? 'Road closure' : best.cat || 'Road works')}</b></div><div><b>${esc(best.where)}</b></div>
+    <div>${esc(best.text.length > 180 ? best.text.slice(0, 180).replace(/\s+\S*$/, '') + '…' : best.text)}</div><div class="tt-m">${esc(best.sev)} impact${until ? ' · until ' + until : ''} · TfL</div>`;
+  tip.style.display = 'block'; tip.style.left = Math.max(8, Math.min(innerWidth - 258, e.clientX + 14)) + 'px'; tip.style.top = Math.max(8, Math.min(innerHeight - 170, e.clientY + 14)) + 'px';
+  return true;
 }
 function renderBusNote(){ if(document.body.classList.contains('away') && typeof onTrainsUpdate === 'function') onTrainsUpdate(0); // away: the status counts what's live here
   let el = $('busNote'); if(!el) return; el.textContent = BUS.note; el.hidden = !BUS.note; }
@@ -2350,7 +2381,7 @@ tick(); setInterval(tick, 1000);
 map.addListener('dragstart', () => { $('tip').style.display = 'none'; hover = null; });
 map.addListener('zoom_changed', () => { $('tip').style.display = 'none'; hover = null; });
 renderModeChips(); renderLegend(); syncMapMenu();
-if(DEBUG) window.LLT = {AUTO, autoNext: () => autoNext(), trains, ACTIVE, BY, placeTrain, segTime, refresh, map, draw, goStation, searchStations, scr, stationAt, GPS, gpsPos, BIKES, SHARE, cityData: () => cityData(), stationExtras, BUS};
+if(DEBUG) window.LLT = {AUTO, autoNext: () => autoNext(), trains, ACTIVE, BY, placeTrain, segTime, refresh, map, draw, goStation, searchStations, scr, stationAt, GPS, gpsPos, BIKES, SHARE, cityData: () => cityData(), stationExtras, BUS, ROADS};
 
 // ---------- boot ----------
 (async () => {
