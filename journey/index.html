@@ -567,7 +567,7 @@ function buildPaths(z){
       if(l.mode === 'river'){ // all river boats: one network, each stretch of river drawn once whatever the routes
         let rec = LPATHS.get('river-all'); if(!rec) LPATHS.set('river-all', rec = {l, n:1, path:new Path2D(), seen:new Set()});
         const cell = 60/mpp, key = q => Math.round(q.x/cell) + ',' + Math.round(q.y/cell), mine = new Set(); let pen = false;
-        const near = kk => { const [i, j] = kk.split(',').map(Number); for(let a2 = -1; a2 <= 1; a2++) for(let b2 = -1; b2 <= 1; b2++) if(rec.seen.has((i+a2) + ',' + (j+b2))) return true; return false; }; // an earlier route already runs here
+        const near = kk => { const [i, j] = kk.split(',').map(Number); for(let a2 = -2; a2 <= 2; a2++) for(let b2 = -2; b2 <= 2; b2++) if(rec.seen.has((i+a2) + ',' + (j+b2))) return true; return false; }; // within ~120 m = same stretch of river // an earlier route already runs here
         for(let i = 1; i < n; i++){ const a = Q[i-1], b = Q[i], L = Math.hypot(b.x-a.x, b.y-a.y), m = Math.max(1, Math.ceil(L/(cell*0.5)));
           for(let k = 1; k <= m; k++){ const p0 = {x:a.x + (b.x-a.x)*(k-1)/m, y:a.y + (b.y-a.y)*(k-1)/m}, p1 = {x:a.x + (b.x-a.x)*k/m, y:a.y + (b.y-a.y)*k/m};
             const kk = key({x:(p0.x+p1.x)/2, y:(p0.y+p1.y)/2}); mine.add(kk); if(rec.seen.has(kk) || near(kk)){ pen = false; continue; }
@@ -820,7 +820,7 @@ function trackPath(l, a, b){
   if(!pts){ // no drawn line joins these stations: draw one, so the train still sits on a line
     pts = [snapStop(l,a), snapStop(l,b)];
     const fk = [a, b].sort().join('|'); l.fb ||= new Set();
-    if(!l.fb.has(fk) && l.mode !== 'bus' && dist(l.stops[a].p, l.stops[b].p) < 2500){ /* buses: never draw a straight cut across streets */ l.fb.add(fk); l.polys.push([l.stops[a].p, l.stops[b].p]); LANES = null; linesSig = ""; } // drawn by drawLines from now on
+    if(!l.fb.has(fk) && l.mode !== 'bus' && l.mode !== 'river' && dist(l.stops[a].p, l.stops[b].p) < 2500){ /* buses: never draw a straight cut across streets */ l.fb.add(fk); l.polys.push([l.stops[a].p, l.stops[b].p]); LANES = null; linesSig = ""; } // drawn by drawLines from now on
   }
   const cum=[0]; for(let i=1;i<pts.length;i++) cum.push(cum[i-1]+dist(pts[i-1],pts[i]));
   return l.pathCache[key] = {pts, cum, len:cum[cum.length-1]};
