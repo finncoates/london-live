@@ -201,8 +201,9 @@ function parseSiriVm(xml){
     const id = (tag(x, 'OperatorRef') || '') + ':' + (tag(x, 'VehicleRef') || tag(x, 'FramedVehicleJourneyRef') || out.length);
     if(seen.has(id)) continue; seen.add(id);
     const brg = tag(x, 'Bearing');
-    out.push({id, line:tag(x, 'PublishedLineName') || tag(x, 'LineRef') || '', op:tag(x, 'OperatorRef') || '', dest:unesc(tag(x, 'DestinationName') || ''),
-      lat:Math.round(lat*1e5)/1e5, lon:Math.round(lon*1e5)/1e5, brg:brg == null ? null : +brg, t:Date.parse(tag(x, 'RecordedAtTime') || '') || null});
+    const t = Date.parse(tag(x, 'RecordedAtTime') || '') || null; if(t && Date.now() - t > 600000) continue; // no report for 10 min: parked / off service
+    out.push({id, line:tag(x, 'PublishedLineName') || tag(x, 'LineRef') || '', op:tag(x, 'OperatorRef') || '', dest:unesc(tag(x, 'DestinationName') || '').replace(/_/g, ' '),
+      lat:Math.round(lat*1e5)/1e5, lon:Math.round(lon*1e5)/1e5, brg:brg == null ? null : +brg, t});
   }
   return out;
 }

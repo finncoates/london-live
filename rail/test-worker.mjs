@@ -5,7 +5,7 @@ import {boards} from './mock.mjs';
 const now = Date.now(), B = boards(now);
 let calls = 0;
 const SIRI = `<?xml version="1.0"?><Siri xmlns="http://www.siri.org.uk/siri"><ServiceDelivery><VehicleMonitoringDelivery>
-${[0,1,2].map(i => `<VehicleActivity><RecordedAtTime>2026-11-21T21:00:0${i}+00:00</RecordedAtTime><MonitoredVehicleJourney><LineRef>4${i}</LineRef><PublishedLineName>4${i}</PublishedLineName><OperatorRef>FMAN</OperatorRef><DestinationName>Piccadilly Gardens &amp; Centre</DestinationName><VehicleLocation><Longitude>-2.24${i}</Longitude><Latitude>53.48${i}</Latitude></VehicleLocation><Bearing>9${i}</Bearing><VehicleRef>BUS${i}</VehicleRef></MonitoredVehicleJourney></VehicleActivity>`).join('')}
+${[0,1,2].map(i => `<VehicleActivity><RecordedAtTime>${new Date(Date.now()-i*1000).toISOString()}</RecordedAtTime><MonitoredVehicleJourney><LineRef>4${i}</LineRef><PublishedLineName>4${i}</PublishedLineName><OperatorRef>FMAN</OperatorRef><DestinationName>Piccadilly Gardens &amp; Centre</DestinationName><VehicleLocation><Longitude>-2.24${i}</Longitude><Latitude>53.48${i}</Latitude></VehicleLocation><Bearing>9${i}</Bearing><VehicleRef>BUS${i}</VehicleRef></MonitoredVehicleJourney></VehicleActivity>`).join('')}
 <VehicleActivity><MonitoredVehicleJourney><LineRef>X</LineRef><VehicleRef>NOPOS</VehicleRef></MonitoredVehicleJourney></VehicleActivity>
 </VehicleMonitoringDelivery></ServiceDelivery></Siri>`;
 const TFE = {vehicles:[{vehicle_id:'101', service_name:'26', destination:'Clerwood', latitude:55.95, longitude:-3.19, heading:180, last_gps_fix:1763758800, vehicle_type:'bus'},
