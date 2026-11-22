@@ -411,7 +411,7 @@ function chainPolys(polys){
     let c = left.shift().slice(); const seen = new Set(c.map(vkey));
     for(const atEnd of [true, false]) for(;;){
       const k = vkey(atEnd ? c[c.length-1] : c[0]), d0 = atEnd ? dir(c[c.length-2], c[c.length-1]) : dir(c[1], c[0]);
-      let best = -1, bt = 1.15, flip = false;
+      let best = -1, bt = 1.75, flip = false;
       for(let i = 0; i < left.length; i++){ const p = left[i], n = p.length;
         for(const f of [false, true]){ if(vkey(f ? p[n-1] : p[0]) !== k) continue;
           const t = turn(f ? dir(p[n-1], p[n-2]) : dir(p[0], p[1]), d0); if(t >= bt) continue;
@@ -541,14 +541,39 @@ function sharedTrack(){
       return best; });
     e.snap = snap; return e; }));
   // trains run on what is drawn: each line's train paths follow the same (shared, snapped) centreline
-  for(const l of vis){ const sh = out.get(l.id); if(!sh || !sh.some(e => e.snap && e.snap.some(Boolean))) continue;
-    l.curves = l.dchains.map((poly, pi) => roundCorners(poly.map((p, i) => sh[pi].snap && sh[pi].snap[i] || p))); l.pathCache = {}; l.snapCache = {}; }
   SHARE_C = out; shareSig = sig; return out;
 }
 // smooth a drawn run: corners are cut (Chaikin, 3 rounds) by at most r px, so small kinks vanish and bends are round,
 // while long straights stay straight and the ends stay put (stations, joins)
 // soften a whole chain's corners without changing its points' count (so per-edge sharing info still lines up):
 // each inner point moves a little towards its neighbours' midpoint, at most r px in total; the ends stay put
+// corners of lines are rounded by up to CURVE_M metres (same for the drawn line and the trains on it)
+const CURVE_M = 120;
+function chaikinLL(P, m){ // P = [[lat,lon]...]; same corner cutting as smoothRun, in metres
+  if(P.length < 3) return P.map(p => [p[0], p[1]]); const k = Math.cos(P[0][0]*rad)*111320, ky = 111320;
+  const xy = P.map(p => ({x:p[1]*k, y:p[0]*ky})), sm = smoothRun(xy, m, 0);
+  return sm.map(q => [q.y/ky, q.x/k]);
+}
+// a point of a train's path, moved onto its line's drawn centreline (so trains always ride on the line you see)
+function onLine(l, p){
+  if(!l.curves || !l.curves.length) return p;
+  if(!l.cgrid){ l.cgrid = new Map(); l.curves.forEach((c, ci) => { for(let i = 1; i < c.length; i++){ const m = [(c[i-1][0]+c[i][0])/2, (c[i-1][1]+c[i][1])/2], key = Math.floor(m[0]*500) + ',' + Math.floor(m[1]*300);
+    (l.cgrid.get(key) || l.cgrid.set(key, []).get(key)).push([c[i-1], c[i]]); } }); }
+  const k = Math.cos(p[0]*rad)*111320, gi = Math.floor(p[0]*500), gj = Math.floor(p[1]*300); let best = null, bd = 120;
+  for(let a = -1; a <= 1; a++) for(let b = -1; b <= 1; b++) for(const [A, B] of l.cgrid.get((gi+a) + ',' + (gj+b)) || []){
+    const ax = (A[1]-p[1])*k, ay = (A[0]-p[0])*111320, dx = (B[1]-A[1])*k, dy = (B[0]-A[0])*111320, L2 = dx*dx + dy*dy || 1e-9, t = Math.max(0, Math.min(1, -(ax*dx + ay*dy)/L2)), dd = Math.hypot(ax + dx*t, ay + dy*t);
+    if(dd < bd){ bd = dd; best = [A[0] + (B[0]-A[0])*t, A[1] + (B[1]-A[1])*t]; } }
+  return best || p;
+}
+// a train's path laid onto the drawn line: points every ~15 m, each moved onto the line's centreline
+function fitLine(l, pts){
+  if(l.mode === 'bus' || l.mode === 'river' || !l.dcentre || pts.length < 2) return pts;
+  const out = [];
+  for(let i = 1; i < pts.length; i++){ const a = pts[i-1], b = pts[i], n = Math.max(1, Math.ceil(dist(a, b)/15));
+    for(let k = i === 1 ? 0 : 1; k <= n; k++) out.push(onLine(l, [a[0] + (b[0]-a[0])*k/n, a[1] + (b[1]-a[1])*k/n])); }
+  return out;
+}
+function segD(q, A, B){ const dx = B.x - A.x, dy = B.y - A.y, L2 = dx*dx + dy*dy || 1e-9, t = Math.max(0, Math.min(1, ((q.x-A.x)*dx + (q.y-A.y)*dy)/L2)); return Math.hypot(A.x + dx*t - q.x, A.y + dy*t - q.y); }
 function relax(P, r){
   if(P.length < 3) return P; let Q = P.map(p => ({x:p.x, y:p.y}));
   for(let it = 0; it < 4; it++){ const N = Q.map(p => ({x:p.x, y:p.y}));
@@ -559,10 +584,15 @@ function relax(P, r){
   return Q;
 }
 function smoothRun(P, r){
-  let Q = P;
+  // long straights get a point 2r from each corner, so a sharp corner has room to become a curve of radius ~r
+  let Q = [P[0]];
+  for(let k = 1; k < P.length; k++){ const a = P[k-1], b = P[k], L = Math.hypot(b.x-a.x, b.y-a.y);
+    if(L > 4*r && P.length > 2){ const f = 2*r/L; if(k > 1) Q.push({x:a.x + (b.x-a.x)*f, y:a.y + (b.y-a.y)*f}); if(k < P.length - 1) Q.push({x:b.x - (b.x-a.x)*f, y:b.y - (b.y-a.y)*f}); }
+    Q.push(b); }
   for(let it = 0; it < 3 && Q.length > 2; it++){ const out = [Q[0]];
     for(let k = 1; k < Q.length - 1; k++){ const a = Q[k-1], b = Q[k], c = Q[k+1];
-      const la = Math.hypot(b.x-a.x, b.y-a.y) || 1, lc = Math.hypot(c.x-b.x, c.y-b.y) || 1, da = Math.min(la*0.25, r), dc = Math.min(lc*0.25, r);
+      const la = Math.hypot(b.x-a.x, b.y-a.y) || 1, lc = Math.hypot(c.x-b.x, c.y-b.y) || 1, turn = Math.acos(Math.max(-1, Math.min(1, ((b.x-a.x)*(c.x-b.x) + (b.y-a.y)*(c.y-b.y))/(la*lc)))), rr = r*Math.min(1, turn/0.8);
+      const da = Math.min(la*0.25, rr), dc = Math.min(lc*0.25, rr);
       out.push({x:b.x + (a.x-b.x)*da/la, y:b.y + (a.y-b.y)*da/la}, {x:b.x + (c.x-b.x)*dc/lc, y:b.y + (c.y-b.y)*dc/lc}); }
     out.push(Q[Q.length-1]); Q = out; }
   return Q;
@@ -575,12 +605,18 @@ function buildPaths(z){
     const sig = l.dpolys.length + ':' + l.dpolys.reduce((n, q) => n + q.length, 0); // joined once per shape, not per rebuild
     if(!l.dchains || l.dchainsSig !== sig){ l.dchains = chainPolys(l.dpolys); l.dchainsSig = sig; } }
   const SH = simple ? sharedTrack() : null;
+  if(simple) for(const l of ACTIVE){ if(!l.dchains || l.mode === 'bus' || l.mode === 'river') continue;
+    const sig = l.dchainsSig + '|' + shareSig; if(l.dcentreSig === sig) continue; l.dcentreSig = sig;
+    const sh = SH && SH.get(l.id);
+    l.dcentre = l.dchains.map((poly, pi) => poly.map((p, i) => sh && sh[pi] && sh[pi].snap && sh[pi].snap[i] || p));
+    l.curves = l.dcentre.map(c => chaikinLL(c, CURVE_M)); l.cgrid = null; l.pathCache = {}; l.snapCache = {}; }
   for(const l of ACTIVE){
     if(!lineStyle(l).opacity || !l.dpolys) continue;
     const chains = simple && !l.rail && l.mode !== 'river' ? l.dchains : l.dpolys, shr = l.mode === 'river' ? null : SH && SH.get(l.id);
     chains.forEach((poly, pi) => {
       const sh = shr ? shr[pi] : null;
-      const P = relax(poly.map((p, i) => { const w = world(sh && sh.snap && sh.snap[i] || p, z); return {x:w[0], y:w[1]}; }), R*0.35), n = P.length;
+      const C = l.dcentre && l.dcentre[pi] && l.dcentre[pi].length === poly.length ? l.dcentre[pi] : poly;
+      const P = C.map(p => { const w = world(p, z); return {x:w[0], y:w[1]}; }), n = P.length;
       const eo = [];
       for(let i=1;i<n;i++){ let ka = vkey(poly[i-1]), kb = vkey(poly[i]), sign = 1;
         const dx = P[i].x - P[i-1].x, dy = P[i].y - P[i-1].y, L = Math.hypot(dx, dy) || 1;
@@ -602,11 +638,25 @@ function buildPaths(z){
         for(let i = 1; i < n; i++){ const ka = vkey(poly[i-1]), kb = vkey(poly[i]); if(ka === kb) continue;
           const k = ka < kb ? ka + '>' + kb : kb + '>' + ka; if(!RIVER_E.has(k)) RIVER_E.set(k, [ka, kb, P[i-1], P[i]]); }
         return; }
+      // the drawn line IS the trains' path: the smoothed centreline (l.curves), each point pushed sideways by its edge's stripe offset;
       // one path per width (1 line, shared by 2, by 3…): runs split where the count changes
+      const SC = simple && l.curves && l.curves[pi] && l.dcentre && C === l.dcentre[pi] ? l.curves[pi].map(p => { const w = world(p, z); return {x:w[0], y:w[1]}; }) : null;
+      if(SC && SC.length > 1){
+        let e = 0; const pts = SC.map((q, j) => { // nearest original edge, walking forward
+          while(e < n - 2){ const A = P[e], B = P[e+1], A2 = P[e+1], B2 = P[e+2], d1 = segD(q, A, B), d2 = segD(q, A2, B2); if(d2 < d1) e++; else break; }
+          const a = SC[Math.max(0, j-1)], b = SC[Math.min(SC.length-1, j+1)], dx = b.x - a.x, dy = b.y - a.y, L = Math.hypot(dx, dy) || 1, E = eo[e];
+          const sgn = E.nx*(-dy/L) + E.ny*(dx/L) >= 0 ? 1 : -1;
+          return {x:q.x + (-dy/L)*E.off*sgn, y:q.y + (dx/L)*E.off*sgn, cnt:E.cnt}; });
+        let start = 0;
+        for(let j = 1; j < pts.length; j++){ const cnt = pts[j-1].cnt; if(j < pts.length-1 && pts[j].cnt === cnt) continue;
+          const key = l.id + '|' + cnt; let rec = LPATHS.get(key); if(!rec) LPATHS.set(key, rec = {l, n:cnt, path:new Path2D()});
+          rec.path.moveTo(pts[start].x, pts[start].y); for(let k = start + 1; k <= j; k++) rec.path.lineTo(pts[k].x, pts[k].y);
+          start = j; }
+        return; }
       let start = 0;
       for(let i = 1; i < n; i++){ const cnt = eo[i-1].cnt; if(i < n-1 && eo[i].cnt === cnt) continue;
         const key = l.id + '|' + cnt; let rec = LPATHS.get(key); if(!rec) LPATHS.set(key, rec = {l, n:cnt, path:new Path2D()});
-        const path = rec.path, sm = smoothRun(Q.slice(start, i + 1), R); path.moveTo(sm[0].x, sm[0].y);
+        const path = rec.path, sm = smoothRun(Q.slice(start, i + 1), CURVE_M/mpp); path.moveTo(sm[0].x, sm[0].y);
         for(let k = 1; k < sm.length; k++) path.lineTo(sm[k].x, sm[k].y);
         start = i; }
     });
@@ -815,6 +865,7 @@ function snapAt(l, id){
     const d = dist(c[i],P);
     if(d<bd){ bd=d; best={p:c[i], a:c[Math.max(0,i-1)], b:c[Math.min(c.length-1,i+1)]}; }
   }
+  if(l.dcentre && best.p){ best.p = onLine(l, best.p); if(best.a) best.a = onLine(l, best.a); if(best.b) best.b = onLine(l, best.b); }
   return l.snapCache[id] = best;
 }
 const snapStop = (l, id) => snapAt(l, id).p;
@@ -835,7 +886,7 @@ function trackPath(l, a, b){
   const key = a+'>'+b; if(l.pathCache[key]) return l.pathCache[key];
   const A = l.stops[a]?.p, B = l.stops[b]?.p; if(!A||!B) return null;
   if(l.skip && l.vk && l.vk[a] && l.vk[b]){ const ka = l.vk[a], kb = l.vk[b], sk = l.skip.get(ka < kb ? ka+'|'+kb : kb+'|'+ka);
-    if(sk){ const pts = [A, ...(ka < kb ? sk : sk.slice().reverse()).slice(1, -1), B];
+    if(sk){ const pts = fitLine(l, [A, ...(ka < kb ? sk : sk.slice().reverse()).slice(1, -1), B]);
       const cum=[0]; for(let i=1;i<pts.length;i++) cum.push(cum[i-1]+dist(pts[i-1],pts[i]));
       return l.pathCache[key] = {pts, cum, len:cum[cum.length-1]}; } }
   const straight = dist(A,B);
@@ -867,6 +918,7 @@ function trackPath(l, a, b){
     const fk = [a, b].sort().join('|'); l.fb ||= new Set();
     if(!l.fb.has(fk) && l.mode !== 'bus' && l.mode !== 'river' && dist(l.stops[a].p, l.stops[b].p) < 2500){ /* buses: never draw a straight cut across streets */ l.fb.add(fk); l.polys.push([l.stops[a].p, l.stops[b].p]); LANES = null; linesSig = ""; } // drawn by drawLines from now on
   }
+  pts = fitLine(l, pts);
   const cum=[0]; for(let i=1;i<pts.length;i++) cum.push(cum[i-1]+dist(pts[i-1],pts[i]));
   return l.pathCache[key] = {pts, cum, len:cum[cum.length-1]};
 }
