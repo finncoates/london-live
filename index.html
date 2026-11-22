@@ -1424,11 +1424,12 @@ async function hslConnect(){
   c.on('message', (t, m) => { const a = t.split('/'), mode = a[6]; if(mode === 'train' || (mode !== 'tram' && mode !== 'metro' && mode !== 'ferry' && MODES_OFF.has('bus'))) return;
     let v; try{ v = JSON.parse(m).VP; }catch(e){ return; } if(!v || !v.lat || !v.long) return;
     const id = 'hsl:' + a[7] + '/' + a[8], now = Date.now(); let g = GPS.list.get(id);
+    const sn = snapGps({lat:v.lat, lon:v.long, tram:mode === 'tram', metro:mode === 'metro', kind:mode}); if(sn){ v.lat = sn.lat; v.long = sn.lon; }
     if(!g){ g = {from:[v.lat, v.long], to:[v.lat, v.long], t0:now, dur:1200}; GPS.list.set(id, g); }
     else { g.from = gpsPos(g, now); g.to = [v.lat, v.long]; g.t0 = now; g.dur = 1200; }
     g.seen = now; HSL.n++;
     g.v = {id, line:v.desi || '', op:'HSL ' + mode, dest:decodeURIComponent(a[11] || ''), lat:v.lat, lon:v.long, brg:v.hdg ?? null, speed:v.spd != null ? v.spd*3.6 : null,
-      t:Date.parse(v.tst) || now, tram:mode === 'tram', metro:mode === 'metro', col:HSL_COL[mode] || '#007AC9', kind:mode, late:v.dl}; });
+      t:Date.parse(v.tst) || now, tram:mode === 'tram', metro:mode === 'metro', col:HSL_COL[mode] || '#007AC9', kind:mode, late:v.dl, segAng:sn ? sn.ang : undefined}; });
   return c;
 }
 // subscribe to the 0.1° map tiles on screen (each tile is a few dozen vehicles)
@@ -1468,14 +1469,14 @@ const decodePoly = str => { const out = []; let i = 0, lat = 0, lng = 0;
 async function bostonLines(){
   if(BOS.lines || BOS.loading) return; BOS.loading = true;
   try{
-    let d = store.get('mbtaLines');
+    let d = store.get('mbtaLines2');
     if(!d){ d = [];
       for(const [id, col] of [['Red','#DA291C'], ['Mattapan','#DA291C'], ['Orange','#ED8B00'], ['Blue','#003DA5'], ['Green-B','#00843D'], ['Green-C','#00843D'], ['Green-D','#00843D'], ['Green-E','#00843D']]){
         const j = await (await fetch(`https://api-v3.mbta.com/shapes?filter[route]=${id}&fields[shape]=polyline`, {signal:AbortSignal.timeout(10000)})).json();
         const best = (j.data || []).map(x => x.attributes.polyline).sort((a, b) => b.length - a.length)[0];
-        if(best) d.push({col, pts:decodePoly(best).map(([a, b]) => [Math.round(a*1e5)/1e5, Math.round(b*1e5)/1e5])});
+        if(best) d.push({col, kind:/Green|Mattapan/.test(id) ? 'tram' : 'train', pts:decodePoly(best).map(([a, b]) => [Math.round(a*1e5)/1e5, Math.round(b*1e5)/1e5])});
       }
-      store.set('mbtaLines', d, 7*864e5); }
+      store.set('mbtaLines2', d, 7*864e5); }
     BOS.lines = d;
   }catch(e){ console.warn('mbta lines', e.message); }
   BOS.loading = false;
@@ -1483,7 +1484,7 @@ async function bostonLines(){
 function drawBostonLines(ctx){
   if(!BOS.lines) return; const W = lineW();
   ctx.lineJoin = 'round'; ctx.lineCap = 'round'; ctx.globalAlpha = 0.85;
-  for(const l of BOS.lines){ ctx.beginPath(); l.pts.forEach((q, i) => { const c = scr(q); i ? ctx.lineTo(c.x, c.y) : ctx.moveTo(c.x, c.y); }); ctx.strokeStyle = l.col; ctx.lineWidth = W; ctx.stroke(); }
+  for(const l of BOS.lines){ if(GPS_OFF.has(l.kind || 'train')) continue; ctx.beginPath(); l.pts.forEach((q, i) => { const c = scr(q); i ? ctx.lineTo(c.x, c.y) : ctx.moveTo(c.x, c.y); }); ctx.strokeStyle = l.col; ctx.lineWidth = W; ctx.stroke(); }
   ctx.globalAlpha = 1;
 }
 async function bostonVehicles(){
@@ -1516,8 +1517,52 @@ async function berlinVehicles(){
 // ---- cities whose open feeds don't allow browsers directly: through the relay (no key needed) ----
 const RELAY_CITIES = [['gdansk', [54.25, 18.3, 54.5, 18.85], 'Gdańsk'], ['tallinn', [59.33, 24.5, 59.52, 25.0], 'Tallinn'], ['vilnius', [54.55, 25.0, 54.82, 25.5], 'Vilnius']];
 const relayCity = p => RELAY_CITIES.find(([, b]) => p[0] > b[0] && p[0] < b[2] && p[1] > b[1] && p[1] < b[3]);
+// ---- city line maps (baked from each city's GTFS timetable: cities/*.json) + snapping vehicles onto them ----
+const CITYL = {list:[{name:'Helsinki', box:p => inHelsinki(p), url:'cities/helsinki.json'}, {name:'Berlin', box:p => inBerlin(p), url:'cities/berlin.json'}], cur:null, data:new Map()};
+const CELL = (la, lo) => Math.floor(la*200) + ',' + Math.floor(lo*100); // ~550 m × 600 m
+async function loadCityLines(p){
+  const c = CITYL.list.find(x => x.box(p)); CITYL.cur = c || null;
+  if(!c || CITYL.data.has(c.url)) return; CITYL.data.set(c.url, null);
+  try{ const d = await (await fetch(c.url, {signal:AbortSignal.timeout(15000)})).json(), grid = new Map();
+    d.lines.forEach((l, li) => { for(let i = 1; i < l.pts.length; i++){ const a = l.pts[i-1], b = l.pts[i], n = Math.max(1, Math.ceil(dist(a, b)/300));
+      for(let k = 0; k <= n; k++){ const q = CELL(a[0] + (b[0]-a[0])*k/n, a[1] + (b[1]-a[1])*k/n); let g = grid.get(q); if(!g) grid.set(q, g = new Set()); g.add(li*100000 + i); } } });
+    d.grid = grid; CITYL.data.set(c.url, d); }
+  catch(e){ CITYL.data.delete(c.url); console.warn('city lines', e.message); }
+}
+// nearest point on a line of the same kind (within 60 m), with the line's direction there
+function snapGps(v){
+  const d = CITYL.cur && CITYL.data.get(CITYL.cur.url); if(!d || !d.grid) return null;
+  const kind = vkind(v); if(kind === 'bus') return null;
+  const ok = l => l.kind === kind || (kind === 'train' && l.kind === 'train'), kx = Math.cos(v.lat*rad)*111320, ky = 111320;
+  let best = null, bd = 60;
+  const ci = Math.floor(v.lat*200), cj = Math.floor(v.lon*100), seen = new Set();
+  for(let di = -1; di <= 1; di++) for(let dj = -1; dj <= 1; dj++){ const g = d.grid.get((ci+di) + ',' + (cj+dj)); if(!g) continue;
+    for(const code of g){ if(seen.has(code)) continue; seen.add(code); const li = Math.floor(code/100000), i = code % 100000, l = d.lines[li]; if(!ok(l)) continue;
+      const a = l.pts[i-1], b = l.pts[i], ax = (a[1]-v.lon)*kx, ay = (a[0]-v.lat)*ky, bx = (b[1]-v.lon)*kx, by = (b[0]-v.lat)*ky;
+      const dx = bx-ax, dy = by-ay, L2 = dx*dx + dy*dy || 1e-9, t = Math.max(0, Math.min(1, -(ax*dx + ay*dy)/L2)), px = ax + dx*t, py = ay + dy*t, dd = Math.hypot(px, py);
+      const same = l.name && v.line && l.name.toLowerCase() === String(v.line).toLowerCase(); // prefer the vehicle's own line
+      if(dd - (same ? 25 : 0) < bd){ bd = dd - (same ? 25 : 0); best = {lat:v.lat + py/ky, lon:v.lon + px/kx, l, i, col:same ? l.col : null}; } } }
+  if(best){ // direction over ~60 m each side (ignores the little kinks inside stations)
+    const P = best.l.pts; let i0 = best.i - 1, i1 = best.i;
+    while(i0 > 0 && dist(P[i0], [best.lat, best.lon]) < 60) i0--;
+    while(i1 < P.length - 1 && dist(P[i1], [best.lat, best.lon]) < 60) i1++;
+    best.ang = Math.atan2(-(P[i1][0] - P[i0][0]), (P[i1][1] - P[i0][1])*Math.cos(v.lat*rad)); }
+  return best;
+}
+function drawCityLines(ctx){
+  const d = CITYL.cur && CITYL.data.get(CITYL.cur.url); if(!d || !d.lines) return;
+  // line shapes are built once per whole zoom level (world pixels) and then just moved/scaled: cheap every frame
+  const zc = Math.floor(PV.z), k = 2 ** (PV.z - zc), W = lineW(), order = {ferry:0, train:1, tram:2, metro:3};
+  if(d.pz !== zc){ d.paths = [...d.lines].sort((a, b) => order[a.kind] - order[b.kind]).map(l => { const path = new Path2D();
+    l.pts.forEach((q, i) => { const w = world(q, zc); i ? path.lineTo(w[0], w[1]) : path.moveTo(w[0], w[1]); }); return [l, path]; }); d.pz = zc; }
+  ctx.save(); ctx.translate(PV.ox, PV.oy); ctx.scale(k, k);
+  ctx.lineJoin = 'round'; ctx.lineCap = 'round'; ctx.globalAlpha = 0.85;
+  for(const [l, path] of d.paths){ if(GPS_OFF.has(l.kind)) continue;
+    ctx.setLineDash(l.kind === 'ferry' ? [W*1.5/k, W*1.5/k] : []); ctx.strokeStyle = l.col; ctx.lineWidth = (l.kind === 'tram' ? W*0.7 : l.kind === 'ferry' ? W*0.6 : W)/k; ctx.stroke(path); }
+  ctx.restore(); ctx.setLineDash([]); ctx.globalAlpha = 1;
+}
 async function refreshGps(){
-  const c = map.getCenter(), p = [c.lat(), c.lng()], z = map.getZoom();
+  const c = map.getCenter(), p = [c.lat(), c.lng()], z = map.getZoom(); loadCityLines(p);
   if(inFinland(p) && (!TRAINS_ON || z < 5)){ gpsOnly(); hslStop(); BUS.note = ''; renderBusNote(); return; }
   if(inFinland(p) && TRAINS_ON && z >= 5){ // whole-country view works: only a few hundred trains
     gpsOnly('fi:', 'hsl:'); if(GPS.busy) return; GPS.busy = true;
@@ -1593,7 +1638,8 @@ async function refreshGps(){
 }
 function gpsMerge(res, prefix){
     const now = Date.now();
-    for(const v of res.vehicles || []){ let g = GPS.list.get(v.id);
+    for(const v of res.vehicles || []){ const sn = snapGps(v); if(sn){ v.lat = sn.lat; v.lon = sn.lon; v.segAng = sn.ang; if(sn.col) v.col = sn.col; }
+      let g = GPS.list.get(v.id);
       if(!g){ g = {from:[v.lat, v.lon], to:[v.lat, v.lon], t0:now}; GPS.list.set(v.id, g); }
       else if(g.to[0] !== v.lat || g.to[1] !== v.lon){ g.from = gpsPos(g, now); g.to = [v.lat, v.lon]; g.t0 = now; }
       g.v = v; g.seen = now; }
@@ -1604,14 +1650,14 @@ const gpsPos = (g, now) => { const k = Math.min(1, (now - g.t0)/(g.dur || 15000)
 const OP_COL = ['#E4002B', '#0057B8', '#00843D', '#F4A300', '#6D2077', '#00A3AD', '#D0006F', '#5B6770'];
 const opCol = op => { let h = 0; for(const ch of op || '') h = (h*31 + ch.charCodeAt(0)) >>> 0; return OP_COL[h % OP_COL.length]; };
 function drawGps(ctx, s, hl0, hw0, mpp){
-  draw.ghit = []; if(TRAINS_ON && document.body.classList.contains('away') && map.getCenter() && inBoston([map.getCenter().lat(), map.getCenter().lng()])) drawBostonLines(ctx); if(!GPS.list.size || !SHOW_ICONS || !TRAINS_ON) return;
+  draw.ghit = []; if(TRAINS_ON && document.body.classList.contains('away') && map.getCenter()){ const mc = [map.getCenter().lat(), map.getCenter().lng()]; if(inBoston(mc)) drawBostonLines(ctx); else if(CITYL.cur && CITYL.cur.box(mc)) drawCityLines(ctx); } if(!GPS.list.size || !SHOW_ICONS || !TRAINS_ON) return;
   const now = Date.now(), cosLat = Math.cos(map.getCenter().lat()*rad), label = PV.z >= 15.5;
   ctx.lineWidth = 1; ctx.font = '700 10.5px system-ui, sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
   for(const g of GPS.list.values()){
     if(GPS_OFF.has(vkind(g.v))) continue;
     const p = gpsPos(g, now), c = scr(p); if(c.x < -30 || c.y < -30 || c.x > s.x + 30 || c.y > s.y + 30) continue;
-    let ang = g.v.brg != null ? (g.v.brg - 90)*rad : g.ang ?? 0;
-    if(g.v.brg == null && (g.to[0] !== g.from[0] || g.to[1] !== g.from[1])) ang = Math.atan2(-(g.to[0] - g.from[0]), (g.to[1] - g.from[1])*cosLat);
+    let ang = g.v.segAng != null ? g.v.segAng : g.v.brg != null ? (g.v.brg - 90)*rad : g.ang ?? 0; // on a known line: its direction
+    if(g.v.segAng == null && g.v.brg == null && (g.to[0] !== g.from[0] || g.to[1] !== g.from[1])) ang = Math.atan2(-(g.to[0] - g.from[0]), (g.to[1] - g.from[1])*cosLat);
     g.ang = ang;
     const tram = g.v.tram || g.v.metro, tr = g.v.train, hl = Math.max(tr ? hl0*(g.v.freight ? 0.8 : 1) : tram ? hl0*0.8 : Math.max(5, hl0*0.5), (tr ? 150 : g.v.metro ? 90 : tram ? 22 : 5.5)/mpp), hw = Math.max(tr ? hw0 : 2.4, hw0*0.9, (tr ? 1.5 : 1.3)/mpp);
     const cs = Math.cos(ang), sn = Math.sin(ang), ux = cs*hl, uy = sn*hl, vx = -sn*hw, vy = cs*hw;
@@ -1716,7 +1762,7 @@ function regionOf(p){ return inLondonView(p) ? 'london' : inFinland(p) ? 'finlan
 function applyRegion(){
   const c = map.getCenter(), r = regionOf([c.lat(), c.lng()]), away = r !== 'london' && map.getZoom() >= 5;
   document.body.classList.toggle('away', away); document.body.classList.toggle('abroad', away && r !== 'uk' && r !== 'edinburgh');
-  $('ttl').textContent = !away ? 'London live trains' : {finland:'Finland live trains', norway:'Norway live map', boston:'Boston live map', berlin:'Berlin live map', city:(relayCity([c.lat(), c.lng()]) || [, , ''])[2] + ' live map', edinburgh:'Edinburgh live map', uk:'UK live map', world:'Live map', london:'London live trains'}[r];
+  $('ttl').textContent = !away ? 'London live trains' : inHelsinki([c.lat(), c.lng()]) && map.getZoom() >= 10 ? 'Helsinki live map' : {finland:'Finland live trains', norway:'Norway live map', boston:'Boston live map', berlin:'Berlin live map', city:(relayCity([c.lat(), c.lng()]) || [, , ''])[2] + ' live map', edinburgh:'Edinburgh live map', uk:'UK live map', world:'Live map', london:'London live trains'}[r];
   if(typeof onTrainsUpdate === 'function') onTrainsUpdate(ACTIVE.reduce((s, l) => s + (shown(l) ? l.count : 0), 0));
 }
 map.addListener('idle', applyRegion);
