@@ -90,6 +90,7 @@ little value on a map), crowding (TfL crowding API is patchy), weather, social f
 | **Berlin & Brandenburg: S-Bahn, U-Bahn, trams, buses, regional trains** (VBB real-time positions, no key) in BVG/VBB colours | Live map |
 | **Bikes: Santander Cycles docks live** (TfL): bikes, e-bikes (blue dot) and free docks; tap for details; `?bikes=1`. Lime/Forest/Voi/Dott publish no open data for London | Live map |
 | **City line maps** for Helsinki (metro, trams, local trains, ferries) and Berlin (S-Bahn, U-Bahn, trams, regional, in official colours), baked from GTFS (`cities/`); vehicles snap onto their own line and face along it; Explore switches hide lines and vehicles together (Boston too) | Live map |
+| Fixes from a fifth independent review: line-search card no longer overwritten by an old station card; taps work outside London (UK region); right departures source per city file; failed bus routes not retried every refresh; Explore switches abroad apply at once; faster bent trains and city station dots | Live map |
 | **Road works layer** ("Road works" switch): TfL road disruptions as warning triangles (red = closure), tap for what, where and until when | Live map |
 | **Bus stops**: with Buses on and zoomed in (16+), stops show as red markers with their letter; tap for the next buses | Live map |
 | **How busy + lifts on station cards**: TfL crowding (live when available, else the typical pattern for today with a 5am–midnight chart) and lifts out of service at that station | Live map |

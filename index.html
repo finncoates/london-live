@@ -1111,9 +1111,11 @@ function draw(ts){
     const r = [c.x+ux+vx, c.y+uy+vy, c.x+ux-vx, c.y+uy-vy, c.x-ux-vx, c.y-uy-vy, c.x-ux+vx, c.y-uy+vy];
     // bent along the track: the stretch of the path the train covers (life-size length when zoomed in)
     let body = null;
-    if(pos.path && on.i && hl*mpp < pos.path.len*0.9){ const P = pos.path.pts, C = pos.path.cum, s0 = C[on.i-1] + (C[on.i]-C[on.i-1])*on.k, half = hl*mpp;
-      const a0 = Math.max(0, s0 - half), a1 = Math.min(pos.path.len, s0 + half), at = d0 => { let j = 1; while(j < C.length-1 && C[j] < d0) j++; const f = (d0 - C[j-1])/((C[j]-C[j-1]) || 1); return [P[j-1][0] + (P[j][0]-P[j-1][0])*f, P[j-1][1] + (P[j][1]-P[j-1][1])*f]; };
-      const pts = [at(a0)]; for(let j = 1; j < C.length; j++) if(C[j] > a0 && C[j] < a1) pts.push(P[j]); pts.push(at(a1));
+    if(pos.path && on.i && hl*mpp < pos.path.len*0.9 && c.x > -60 && c.y > -60 && c.x < s.x + 60 && c.y < s.y + 60){ const P = pos.path.pts, C = pos.path.cum, s0 = C[on.i-1] + (C[on.i]-C[on.i-1])*on.k, half = hl*mpp;
+      const a0 = Math.max(0, s0 - half), a1 = Math.min(pos.path.len, s0 + half);
+      let j0 = on.i; while(j0 > 1 && C[j0-1] > a0) j0--; let j1 = on.i; while(j1 < C.length-1 && C[j1] < a1) j1++; // just the points around the train
+      const at = (d0, j) => { const f = (d0 - C[j-1])/((C[j]-C[j-1]) || 1); return [P[j-1][0] + (P[j][0]-P[j-1][0])*f, P[j-1][1] + (P[j][1]-P[j-1][1])*f]; };
+      const pts = [at(a0, j0)]; for(let j = j0; j < j1; j++) if(C[j] > a0 && C[j] < a1) pts.push(P[j]); pts.push(at(a1, j1));
       if(pts.length > 2){ const ox = lane ? lane.x : 0, oy = lane ? lane.y : 0; body = pts.map(q => { const w = scr(q); return [w.x + ox, w.y + oy]; }); } }
     const item = [t, c.x, c.y, c.x, c.y, r, cs, sn, hl, hw, body]; drawn.push(item);
     if(!byLine.has(l)) byLine.set(l, []); byLine.get(l).push(item);
@@ -1615,7 +1617,7 @@ async function loadCityLines(p){
     try{ const d = await (await fetch(url, {signal:AbortSignal.timeout(15000)})).json(), grid = new Map();
       d.lines.forEach((l, li) => { for(let i = 1; i < l.pts.length; i++){ const a = l.pts[i-1], b = l.pts[i], n = Math.max(1, Math.ceil(dist(a, b)/300));
         for(let k = 0; k <= n; k++){ const q = CELL(a[0] + (b[0]-a[0])*k/n, a[1] + (b[1]-a[1])*k/n); let g = grid.get(q); if(!g) grid.set(q, g = new Set()); g.add(li*100000 + i); } } });
-      d.grid = grid; d.dupRail = /helsinki\.json/.test(url); CITYL.data.set(url, d); }
+      d.grid = grid; d.url = url; d.dupRail = /helsinki\.json/.test(url); CITYL.data.set(url, d); }
     catch(e){ CITYL.data.delete(url); console.warn('city lines', e.message); } }));
 }
 // nearest point on a line of the same kind (within 60 m), with the line's direction there
@@ -1653,7 +1655,8 @@ function drawLineSet(ctx, d){
   // stations: dots from zoom 13 (bigger where lines meet), names from zoom 14 when the map's own labels are hidden — as in London
   if(!d.stations || PV.z < 13) return; const s0 = mapSize(), r = Math.max(2.5, W*0.55), names = QUIET_ON && PV.z >= 14;
   ctx.lineWidth = Math.max(1.5, W*0.3); if(names){ ctx.font = `600 ${PV.z >= 15 ? 13 : 11.5}px "Hanken Grotesk", system-ui, sans-serif`; ctx.textBaseline = 'middle'; ctx.textAlign = 'start'; }
-  for(const st of d.stations){ if(!showSt(d, st)) continue;
+  const bnd = map.getBounds(), sw = bnd && bnd.getSouthWest(), ne = bnd && bnd.getNorthEast();
+  for(const st of d.stations){ if(sw && (st[2] < sw.lat() - 0.01 || st[2] > ne.lat() + 0.01 || st[3] < sw.lng() - 0.01 || st[3] > ne.lng() + 0.01)) continue; if(!showSt(d, st)) continue;
     if(st[4].every(l => l[2] === 'tram') && PV.z < 15) continue; // tram stops only close up
     const c = scr([st[2], st[3]]); if(c.x < -20 || c.y < -20 || c.x > s0.x + 20 || c.y > s0.y + 20) continue;
     const rr = st[4].length > 1 && st[4].some(l => l[2] !== 'tram') ? r*1.35 : r;
@@ -1673,12 +1676,12 @@ function depGroups(rows, per = 4){
 function cityStationAt(x, y, rad0){
   if(PV.z < 13) return null; let best = null, bd = rad0 || (matchMedia('(pointer:coarse)').matches ? 20 : 12);
   for(const d of cityData()) for(const st of d.stations || []){ if(!showSt(d, st)) continue; const tramOnly = st[4].every(l => l[2] === 'tram'); if(tramOnly && PV.z < 15) continue;
-    const c = scr([st[2], st[3]]), k = Math.hypot(c.x - x, c.y - y) + (tramOnly ? 6 : 0); if(k < bd){ /* a tram stop next to a station: the station wins */ bd = k; best = {st, src:d.src || CITYL.cur.name, url:CITYL.cur.urls[cityData().indexOf(d)]}; } }
+    const c = scr([st[2], st[3]]), k = Math.hypot(c.x - x, c.y - y) + (tramOnly ? 6 : 0); if(k < bd){ /* a tram stop next to a station: the station wins */ bd = k; best = {st, src:d.src || CITYL.cur.name, url:d.url}; } }
   return best;
 }
 // its card: lines in their colours, and live departures where a free source exists
 async function openCityStation(hit){
-  const {st, url} = hit, box = $('station'); clearFocus(); FOCUS_ST = null; $('tip').style.display = 'none';
+  const {st, url} = hit, box = $('station'); unfocusLine(); clearFocus(); FOCUS_ST = null; $('tip').style.display = 'none';
   const kindName = {metro:'metro', train:'train', tram:'tram', ferry:'ferry'};
   const head = `<div class="st-h"><b>${esc(stName(st[1]))}</b><button type="button" class="x" id="stClose" aria-label="Close">✕</button></div>
     <div class="st-lines">${st[4].slice(0, 14).map(([n, col, k]) => `<span class="pill" style="--c:${col || '#888'}">${symbol(k === 'train' ? 'rail' : 'tube', col || '#888', 14)} ${esc(n)}</span>`).join('')}</div>`;
@@ -1903,7 +1906,7 @@ $('explore').addEventListener('click', e => {
   const m = e.target.closest('[data-mode-x]');
   if(m){ const k = m.dataset.modeX;
     if(isSwitch(k)){ const chip = document.querySelector(`#mModes [data-mode="${k}"]`); if(chip && !chip.disabled) chip.click(); else { MODES_OFF.has(k) ? MODES_OFF.delete(k) : MODES_OFF.add(k); try{ localStorage.setItem('modesOff', JSON.stringify([...MODES_OFF])); }catch(x){} } }
-    else { GPS_OFF.has(k) ? GPS_OFF.delete(k) : GPS_OFF.add(k); try{ localStorage.setItem('gpsOff', JSON.stringify([...GPS_OFF])); }catch(x){} if(typeof renderBusNote === 'function') renderBusNote(); }
+    else { GPS_OFF.has(k) ? GPS_OFF.delete(k) : GPS_OFF.add(k); try{ localStorage.setItem('gpsOff', JSON.stringify([...GPS_OFF])); }catch(x){} renderModeChips(); if(k === 'bus') refreshGps(); if(typeof renderBusNote === 'function') renderBusNote(); }
     renderExplore(); return; }
   const b = e.target.closest('[data-ex]'); if(!b) return;
   EX.path = b.dataset.ex === '' ? [] : b.dataset.ex.split(',').map(Number);
@@ -2053,7 +2056,7 @@ function drawBusStops(ctx, s){
 }
 function busStopAt(x, y){ let best = null, bd = matchMedia('(pointer:coarse)').matches ? 16 : 10; for(const [st, sx, sy] of draw.sthit || []){ const k = Math.hypot(sx - x, sy - y); if(k < bd){ bd = k; best = st; } } return best; }
 async function openBusStop(st){
-  clearFocus(); FOCUS_ST = null; $('tip').style.display = 'none'; const box = $('station'); box.hidden = false;
+  unfocusLine(); clearFocus(); FOCUS_ST = null; $('tip').style.display = 'none'; const box = $('station'); box.hidden = false;
   const head = `<div class="st-h"><b>${symbol('tube', '#DC241F', 18)} ${esc(st.name)}${st.letter ? ` <small class="muted">${esc(st.letter)}</small>` : ''}</b><button type="button" class="x" id="stClose" aria-label="Close">✕</button></div>
     <div class="st-lines">${st.lines.slice(0, 16).map(n => `<span class="pill" style="--c:#DC241F">${esc(n)}</span>`).join('')}</div>`;
   box.innerHTML = head + '<div class="muted">Loading next buses…</div>';
@@ -2158,9 +2161,9 @@ function searchCityStations(text){
   for(const d of cityData()) for(const st of d.stations || []){ const n = stName(st[1]).toLowerCase(); if(n.startsWith(q) || (q.length >= 3 && n.includes(q))) out.push({cityHit:true, st, d, score:n.startsWith(q) ? 0 : 1}); }
   return out.sort((a, b) => a.score - b.score || b.st[4].length - a.st[4].length).slice(0, 6);
 }
-function pickResult(x){ if(!x) return; if(x.lineHit) focusLine(x); else if(x.cityHit){ $('q').value = stName(x.st[1]); SR.items = []; renderResults(); $('q').blur(); map.setZoom(Math.max(map.getZoom(), 15)); openCityStation({st:x.st, url:CITYL.cur.urls[cityData().indexOf(x.d)]}); } else goStation(x); }
+function pickResult(x){ if(!x) return; if(x.lineHit) focusLine(x); else if(x.cityHit){ $('q').value = stName(x.st[1]); SR.items = []; renderResults(); $('q').blur(); map.setZoom(Math.max(map.getZoom(), 15)); openCityStation({st:x.st, url:x.d.url}); } else goStation(x); }
 async function focusLine(x){
-  unfocusLine(); $('q').value = x.mode === 'bus' ? 'Bus ' + x.name : x.name; SR.items = []; renderResults(); $('q').blur(); clearFocus();
+  unfocusLine(); const gen = (focusLine.gen = (focusLine.gen || 0) + 1); $('q').value = x.mode === 'bus' ? 'Bus ' + x.name : x.name; SR.items = []; renderResults(); $('q').blur(); clearFocus();
   const box = $('station'); box.hidden = false;
   const head = n => `<div class="st-h"><b>${symbol(x.mode === 'bus' ? 'tube' : x.mode === 'train' ? 'rail' : 'tube', x.col, 18)} ${esc(x.mode === 'bus' ? 'Bus ' + x.name : x.name)}</b><button type="button" class="x" id="lfClose" aria-label="Close">✕</button></div><div class="muted">${n}</div>`;
   box.innerHTML = head('Loading the route…');
@@ -2170,9 +2173,10 @@ async function focusLine(x){
   else {
     let l = BY[x.id];
     if(!l && x.bus){ try{ const info = await get('/Line/' + encodeURIComponent(x.id)); const m = info[0] || info; if(!m || m.modeName !== 'bus') throw new Error('not a bus route');
-        l = {id:m.id, name:m.name, colour:'#DC241F', mode:'bus', group:'bus', on:true, count:0, polys:[], routes:[], stops:{}, seg:{}}; ACTIVE.push(l); BY[l.id] = l; await loadLine(l); }
+        l = {id:m.id, name:m.name, colour:'#DC241F', mode:'bus', group:'bus', on:true, count:0, polys:[], routes:[], stops:{}, seg:{}}; ACTIVE.push(l); BY[l.id] = l;
+        try{ await loadLine(l); }catch(e){ ACTIVE.splice(ACTIVE.indexOf(l), 1); delete BY[l.id]; throw e; } }
       catch(e){ box.innerHTML = head(`No bus route "${esc(x.name)}" found.`); return; } }
-    if(!l) return;
+    if(!l || gen !== focusLine.gen || box.hidden) return; // closed or replaced meanwhile
     if(MODES_OFF.has(l.mode)){ MODES_OFF.delete(l.mode); renderModeChips(); }
     LF.id = l.id; LF.name = l.name; l.pinned = true; window.DIM_TRAINS = true; LANES = null; LPATHS = null; linesSig = '';
     for(const p of l.polys) pts.push(...p);
@@ -2182,7 +2186,7 @@ async function focusLine(x){
   const count = () => x.city ? [...GPS.list.values()].filter(g => String(g.v.line) === String(LF.city)).length : (BY[LF.id] ? BY[LF.id].count : 0);
   const upd = () => { if(box.hidden || (!LF.id && !LF.city)) return; const n = count(); const w = x.mode === 'bus' ? (n === 1 ? 'bus' : 'buses') : x.mode === 'tram' ? (n === 1 ? 'tram' : 'trams') : (n === 1 ? 'train' : 'trains');
     box.innerHTML = head(`${n} ${w} on the route now · everything else is faded. Tap ✕ to show all.`); };
-  setTimeout(upd, 2500); clearInterval(focusTimer); focusTimer = setInterval(upd, 15000);
+  clearTimeout(focusLine.t); focusLine.t = setTimeout(upd, 2500); clearInterval(focusTimer); focusTimer = setInterval(upd, 15000); focusLoad = upd;
 }
 function unfocusLine(){
   if(LF.id && BY[LF.id]){ BY[LF.id].pinned = false; if(BY[LF.id].mode === 'bus' && !BY[LF.id].near) BY[LF.id].count = 0; }
@@ -2235,9 +2239,9 @@ async function stationExtras(st, naptan){
 function setStationUrl(name){ try{ const u = new URL(location.href); name ? u.searchParams.set('station', name) : u.searchParams.delete('station'); history.replaceState(null, '', u); }catch(e){} }
 // the chosen station: zoom in, mark it, list its next trains
 let focusMarker = null, focusTimer = 0, focusLoad = null;
-function clearFocus(){ if(focusMarker){ focusMarker.setMap(null); focusMarker = null; } $('station').hidden = true; clearInterval(focusTimer); }
+function clearFocus(){ clearTimeout(focusLine.t); focusLoad = null; if(focusMarker){ focusMarker.setMap(null); focusMarker = null; } $('station').hidden = true; clearInterval(focusTimer); }
 async function goStation(st){
-  clearFocus(); FOCUS_ST = st; $('tip').style.display = 'none';
+  unfocusLine(); clearFocus(); FOCUS_ST = st; $('tip').style.display = 'none';
   setStationUrl(st.name);
   $('q').value = st.name; SR.items = []; $('sres').hidden = true; $('q').setAttribute('aria-expanded', 'false'); $('q').blur();
   map.panTo(LL(st.p)); map.setZoom(15);
@@ -2323,7 +2327,7 @@ function follow(t, zoom = 14){ HL.clear(); if(t) HL.add(t.key); FW.t = t; if(t &
 function stopFollow(){ HL.clear(); FW.t = null; FW.tour = false; $('tourcap').hidden = true; renderFollow(); }
 $('follow').addEventListener('click', e => { if(e.target.closest('#fwStop')) stopFollow(); });
 map.addListener('click', ev => { if(!ev.pixel) return; const {x, y} = ev.pixel, coarse = matchMedia('(pointer:coarse)').matches;
-  if(document.body.classList.contains('away')){ const cs = cityStationAt(x, y); if(cs) return openCityStation(cs); return; } // abroad: the city's stations
+  if(document.body.classList.contains('away')){ const cs = cityStationAt(x, y); if(cs) return openCityStation(cs); } // abroad: the city's stations first
   const onDot = stationAt(x, y, coarse ? 12 : 8); if(onDot) return goStation(onDot);
   const bs = busStopAt(x, y); if(bs) return openBusStop(bs); // right on a dot: the station, even with a train waiting there
   const t = nearest(x, y); if(t) return follow(t, map.getZoom());

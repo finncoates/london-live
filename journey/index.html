@@ -1094,9 +1094,11 @@ function draw(ts){
     const ux = cs*hl, uy = sn*hl, vx = -sn*hw, vy = cs*hw; // half-length and half-width vectors
     const r = [c.x+ux+vx, c.y+uy+vy, c.x+ux-vx, c.y+uy-vy, c.x-ux-vx, c.y-uy-vy, c.x-ux+vx, c.y-uy+vy];
     let body = null;
-    if(pos.path && on.i && hl*mpp < pos.path.len*0.9){ const P = pos.path.pts, C = pos.path.cum, s0 = C[on.i-1] + (C[on.i]-C[on.i-1])*on.k, half = hl*mpp;
-      const a0 = Math.max(0, s0 - half), a1 = Math.min(pos.path.len, s0 + half), at = d0 => { let j = 1; while(j < C.length-1 && C[j] < d0) j++; const f = (d0 - C[j-1])/((C[j]-C[j-1]) || 1); return [P[j-1][0] + (P[j][0]-P[j-1][0])*f, P[j-1][1] + (P[j][1]-P[j-1][1])*f]; };
-      const pts = [at(a0)]; for(let j = 1; j < C.length; j++) if(C[j] > a0 && C[j] < a1) pts.push(P[j]); pts.push(at(a1));
+    if(pos.path && on.i && hl*mpp < pos.path.len*0.9 && c.x > -60 && c.y > -60 && c.x < s.x + 60 && c.y < s.y + 60){ const P = pos.path.pts, C = pos.path.cum, s0 = C[on.i-1] + (C[on.i]-C[on.i-1])*on.k, half = hl*mpp;
+      const a0 = Math.max(0, s0 - half), a1 = Math.min(pos.path.len, s0 + half);
+      let j0 = on.i; while(j0 > 1 && C[j0-1] > a0) j0--; let j1 = on.i; while(j1 < C.length-1 && C[j1] < a1) j1++; // just the points around the train
+      const at = (d0, j) => { const f = (d0 - C[j-1])/((C[j]-C[j-1]) || 1); return [P[j-1][0] + (P[j][0]-P[j-1][0])*f, P[j-1][1] + (P[j][1]-P[j-1][1])*f]; };
+      const pts = [at(a0, j0)]; for(let j = j0; j < j1; j++) if(C[j] > a0 && C[j] < a1) pts.push(P[j]); pts.push(at(a1, j1));
       if(pts.length > 2){ const ox = lane ? lane.x : 0, oy = lane ? lane.y : 0; body = pts.map(q => { const w = scr(q); return [w.x + ox, w.y + oy]; }); } }
     const item = [t, c.x, c.y, c.x, c.y, r, cs, sn, hl, hw, body]; drawn.push(item);
     if(!byLine.has(l)) byLine.set(l, []); byLine.get(l).push(item);
