@@ -22,6 +22,7 @@
 //   GET /trains?crs=VIC,CLJ,... → every train seen on those boards, merged, with times at each stop
 //                                 (what the live map needs to place trains)
 //   GET /vehicles?src=bods&bbox=minLon,minLat,maxLon,maxLat → live bus positions (England)
+//   GET /vehicles?src=coach → every long-distance coach in England (National Express, Megabus, FlixBus…)
 //   GET /vehicles?src=tfe       → Edinburgh buses and trams
 //   GET /vehicles?src=gdansk|tallinn|vilnius → those cities' buses and trams (open data, no key; they don't allow browsers directly)
 //   GET /metrolink              → Manchester Metrolink departures by stop
@@ -189,7 +190,16 @@ async function vehicles(url, env, ctx){
       return {src, vehicles:parseBustimes(await r.json())};
     });
   }
-  if(src !== 'bods') throw fail('src must be bods, bustimes, tfe, gdansk, tallinn or vilnius', 400);
+  if(src === 'coach'){ // every long-distance coach in England (National Express, Megabus, FlixBus…), the whole country at once
+    if(!env.BODS_KEY) throw fail('BODS_KEY secret is not set on the worker', 503);
+    return cached('coach', 30, ctx, async () => {
+      const ops = 'NATX,NXSH,MEGA,SMGB,SCMB,FLIX,FLXB,FLXO,SCLK,CTLK';
+      const r = await fetch(`https://data.bus-data.dft.gov.uk/api/v1/datafeed/?operatorRef=${ops}&api_key=${encodeURIComponent(env.BODS_KEY)}`, {signal:AbortSignal.timeout(15000)});
+      if(!r.ok) throw fail('Bus Open Data: HTTP ' + r.status, 502);
+      return {src, vehicles:parseSiriVm(await r.text())};
+    });
+  }
+  if(src !== 'bods') throw fail('src must be bods, coach, bustimes, tfe, gdansk, tallinn or vilnius', 400);
   if(!env.BODS_KEY) throw fail('BODS_KEY secret is not set on the worker', 503);
   // bounding box, rounded so nearby viewers share the cache; at most ~0.5° × 0.35° (a city)
   const b = (url.searchParams.get('bbox') || '').split(',').map(Number);
