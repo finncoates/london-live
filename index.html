@@ -603,12 +603,12 @@ function stationDots(){
   if(SDOTS && sig === sdotSig) return SDOTS;
   const by = new Map(); // normalised name -> stations with that name (one per place, 400 m)
   for(const l of ACTIVE){ if(l.mode === 'bus' || !l.stops || l.on === false || !(lineStyle(l).opacity >= 0.5)) continue; // hidden/faded lines: no dots
-    for(const s of Object.values(l.stops)){
+    for(const [sid, s] of Object.entries(l.stops)){ s._id = sid;
       const name = s.n.replace(/\s*\((?:[^)]*line|H&C|Circle Line|[^)]*Underground)[^)]*\)\s*/i, ' ').replace(/-Underground$/i, '').replace(/\s+/g, ' ').trim();
       const k = name.toLowerCase().replace(/^london /, '').replace(/ \(london\)$/, '').replace(/['’.]/g, '').replace(/&/g, 'and').replace(/[^a-z0-9]+/g, ' ').trim();
       const list = by.get(k) || []; let d = list.find(x => dist(x.p, s.p) < 400);
       if(!d){ d = {name, p:s.p, lines:new Set(), pts:[]}; list.push(d); by.set(k, list); }
-      d.lines.add(l.id); if(LIFTMAP){ const id = Object.keys(l.stops).find(i => l.stops[i] === s); if(id && id in LIFTMAP) d.sf = Math.max(d.sf ?? 0, LIFTMAP[id]); }
+      d.lines.add(l.id); if(LIFTMAP && s._id in LIFTMAP) d.sf = Math.min(d.sf ?? 1, LIFTMAP[s._id]); // step-free only if every known part is
       if(!d.pts.some(q => dist(q, s.p) < 120)) d.pts.push(s.p); // platforms far apart (Paddington): a dot on each, one name
     } }
   SDOTS = [...by.values()].flat().flatMap(d => d.pts.map((p, i) => ({name:i ? '' : d.name, p, n:d.lines.size, sf:d.sf}))); sdotSig = sig; return SDOTS;
@@ -639,7 +639,7 @@ function renderOff(zi, T, k){
     for(const s of stationDots()){
       const w = world(s.p, zi); if(w[0] < box.x || w[1] < box.y || w[0] > box.x + box.w || w[1] > box.y + box.h) continue;
       const big = s.n > 1, rr = (big ? r*1.35 : r) * (SF_ON && s.sf === 1 ? 1.25 : 1);
-      g.globalAlpha = SF_ON && s.sf !== 1 ? 0.35 : 1;
+      g.globalAlpha = SF_ON && s.sf === 0 ? 0.35 : 1; // unknown: normal
       g.beginPath(); g.arc(w[0], w[1], rr, 0, 7); g.fillStyle = SF_ON && s.sf === 1 ? '#0019A8' : dark ? '#1b1c1f' : '#fff'; g.fill(); g.strokeStyle = SF_ON && s.sf === 1 ? '#fff' : dark ? '#e6e6e6' : '#1b1c1f'; g.stroke();
       g.globalAlpha = 1;
       if(names && s.name){ g.lineWidth = 3; g.strokeStyle = dark ? 'rgba(0,0,0,.85)' : 'rgba(255,255,255,.95)'; g.strokeText(s.name, w[0] + rr + 4, w[1]);
@@ -1158,7 +1158,7 @@ function draw(ts){
   // next stop + countdown on trains when zoomed right in
   if(PV.z >= 15.5 && SHOW_ICONS){ ctx.font = '600 10.5px system-ui, sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.lineWidth = 3; let n = 0; const placed = [];
     for(const [l, items] of byLine){ if(l.mode === 'bus') continue; for(const [t, x, y, , , , , , , hw] of items){ if(n++ > 40) break;
-      const st = l.stops[t.cur || t.next]; if(!st) continue; const sec = Math.max(0, Math.round(((t.curArr ?? t.arr) - now())/1000));
+      if(dim && !l.pinned) continue; const st = l.stops[t.cur || t.next]; if(!st) continue; const sec = Math.max(0, Math.round(((t.curArr ?? t.arr) - now())/1000));
       const txt = `→ ${cleanName(st.n).replace(/ \(.*\)$/, '')} ${sec < 30 ? 'due' : Math.round(sec/60) + ' min'}`, ty = y + hw + 10;
       const tw = ctx.measureText(txt).width, box = [x - tw/2 - 3, ty - 8, x + tw/2 + 3, ty + 8]; if(placed.some(q => box[0] < q[2] && box[2] > q[0] && box[1] < q[3] && box[3] > q[1])) continue; placed.push(box);
       ctx.strokeStyle = dark ? 'rgba(0,0,0,.85)' : 'rgba(255,255,255,.95)'; ctx.strokeText(txt, x, ty); ctx.fillStyle = dark ? '#eee' : '#333'; ctx.fillText(txt, x, ty); } }
@@ -1436,7 +1436,7 @@ async function refreshNrStatus(){
       return {name:l.name, ...ss}; }); renderNrStatus(); }catch(e){}
 }
 function renderNrStatus(){
-  let el = $('nrbox'); if(!el){ el = document.createElement('div'); el.id = 'nrbox'; $('sbox').after(el); }
+  let el = $('nrbox'); if(!el){ el = document.createElement('div'); el.id = 'nrbox'; $('sbox').after(el); el.addEventListener('click', e => { if(e.target.closest('#nrT')){ NRS.open = !NRS.open; renderNrStatus(); } }); }
   if(!NRS.list.length){ el.innerHTML = ''; return; }
   const bad = NRS.list.filter(x => x.lv).sort((a, b) => b.lv - a.lv);
   el.innerHTML = !bad.length ? '<div class="sb ok">✓ National Rail: good service on all operators</div>'
@@ -2103,8 +2103,8 @@ const ROADS = {list:[], at:0, busy:false};
 async function refreshRoads(force){
   if(MODES_OFF.has('road') || ROADS.busy || (!force && Date.now() - ROADS.at < 300000)) return; ROADS.busy = true;
   try{ const d = await get('/Road/all/Disruption?stripContent=true');
-    ROADS.list = d.filter(x => x.point && x.severity !== 'No impact').map(x => { const pt = JSON.parse(x.point); return {p:[pt[1], pt[0]], sev:x.severity, closed:!!x.hasClosures, cat:x.category || '',
-      text:(x.comments || '').replace(/^\[[^\]]+\]\s*/, ''), where:(x.location || '').replace(/\s*\([^)]*\)\s*/g, ' ').replace(/^\[[^\]]+\]\s*/, '').trim().toLowerCase().replace(/\b\w/g, ch => ch.toUpperCase()), end:x.endDateTime}; });
+    ROADS.list = d.filter(x => x.point && x.severity !== 'No impact').map(x => { let pt; try{ pt = JSON.parse(x.point); }catch(e){ return null; } if(!Array.isArray(pt)) return null; return {p:[pt[1], pt[0]], sev:x.severity, closed:!!x.hasClosures, cat:x.category || '',
+      text:(x.comments || '').replace(/^\[[^\]]+\]\s*/, ''), where:(x.location || '').replace(/\s*\([^)]*\)\s*/g, ' ').replace(/^\[[^\]]+\]\s*/, '').trim().toLowerCase().replace(/\b\w/g, ch => ch.toUpperCase()), end:x.endDateTime}; }).filter(Boolean);
     ROADS.at = Date.now(); }catch(e){ console.warn('roads', e.message); }
   ROADS.busy = false;
 }
@@ -2307,7 +2307,7 @@ async function goStation(st){
       .map(a => { const l = BY[a.lineId], bus = !l && a.modeName === 'bus' || l?.mode === 'bus', m = Math.round(a.timeToStation/60), col = l ? ink(l.colour) : '#DC241F';
         const name = l ? l.name : a.lineName || a.lineId;
         return {when:now + a.timeToStation*1000, cat:bus ? 'Buses' : CAT[l?.mode] || CAT[a.modeName] || 'Trains',
-          html:`<li data-veh="${esc(a.lineId)}|${esc((a.vehicleId || '').trim())}"><span class="sw" style="background:${col}"></span><span class="to">${esc(cleanName(a.towards || a.destinationName || '') || name)}<small>${esc(bus ? 'Bus ' + name + (a.stationName ? ' · ' + a.stationName : '') : name)}${a.platformName && !bus ? ' · ' + esc(a.platformName) : ''}</small></span><b>${m < 1 ? 'due' : m + ' min'}</b></li>`}; });
+          html:`<li${(a.vehicleId || '').trim() && !/^0+$/.test((a.vehicleId || '').trim()) ? ` data-veh="${esc(a.lineId)}|${esc((a.vehicleId || '').trim())}"` : ''}><span class="sw" style="background:${col}"></span><span class="to">${esc(cleanName(a.towards || a.destinationName || '') || name)}<small>${esc(bus ? 'Bus ' + name + (a.stationName ? ' · ' + a.stationName : '') : name)}${a.platformName && !bus ? ' · ' + esc(a.platformName) : ''}</small></span><b>${m < 1 ? 'due' : m + ' min'}</b></li>`}; });
     if(box.hidden) return;
     box.innerHTML = head0x() + (rows.length ? depGroups(rows) : '<div class="muted">No departures listed right now.</div>');
   };
@@ -2357,12 +2357,13 @@ function renderFollow(){
 }
 // tap a departure in a card: find that train/bus on the map and follow it (a bus route is loaded first if needed)
 async function followVehicle(lineId, vid){
-  if(!vid) return; const key = lineId + ':' + vid; let t = trains.get(key);
+  if(!vid || /^0+$/.test(vid)) return; const key = /^nr-/.test(lineId) ? 'nr:' + vid : lineId + ':' + vid; let t = trains.get(key);
+  if(!t && /^nr-/.test(lineId)) return;
   if(!t){ let l = BY[lineId];
     if(!l){ try{ const info = await get('/Line/' + encodeURIComponent(lineId)); const m = info[0] || info; if(!m || m.modeName !== 'bus') return;
         l = {id:m.id, name:m.name, colour:'#DC241F', mode:'bus', group:'bus', on:true, count:0, polys:[], routes:[], stops:{}, seg:{}}; ACTIVE.push(l); BY[l.id] = l;
         try{ await loadLine(l); }catch(e){ ACTIVE.splice(ACTIVE.indexOf(l), 1); delete BY[l.id]; return; } }catch(e){ return; } }
-    if(l.mode === 'bus'){ l.near = true; if(MODES_OFF.has('bus')){ MODES_OFF.delete('bus'); renderModeChips(); } LANES = null; linesSig = ''; }
+    if(l.mode === 'bus'){ l.pinned = true; FW.pinned = l; if(MODES_OFF.has('bus')){ MODES_OFF.delete('bus'); try{ localStorage.setItem('modesOff', JSON.stringify([...MODES_OFF])); }catch(x){} renderModeChips(); } LANES = null; linesSig = ''; }
     await refresh().catch(() => {}); t = trains.get(key);
     if(!t) return; }
   for(let i = 0; i < 20 && !t.d; i++) await sleep(100); // placed on the next frame
@@ -2370,7 +2371,7 @@ async function followVehicle(lineId, vid){
 }
 $('station').addEventListener('click', e => { const li = e.target.closest('li[data-veh]'); if(!li) return; const [lid, vid] = li.dataset.veh.split('|'); followVehicle(lid, vid); });
 function follow(t, zoom = 14){ HL.clear(); if(t) HL.add(t.key); FW.t = t; if(t && t.d){ map.setZoom(Math.max(map.getZoom(), zoom)); map.panTo(LL(t.d)); } renderFollow(); }
-function stopFollow(){ HL.clear(); FW.t = null; FW.tour = false; $('tourcap').hidden = true; renderFollow(); }
+function stopFollow(){ if(FW.pinned){ FW.pinned.pinned = false; FW.pinned = null; LANES = null; linesSig = ''; } HL.clear(); FW.t = null; FW.tour = false; $('tourcap').hidden = true; renderFollow(); }
 $('follow').addEventListener('click', e => { if(e.target.closest('#fwStop')) stopFollow(); });
 map.addListener('click', ev => { if(!ev.pixel) return; const {x, y} = ev.pixel, coarse = matchMedia('(pointer:coarse)').matches;
   if(document.body.classList.contains('away')){ const cs = cityStationAt(x, y); if(cs) return openCityStation(cs); } // abroad: the city's stations first
@@ -2420,13 +2421,13 @@ $('bKiosk').onclick = () => document.body.classList.toggle('kiosk');
 // ⌖: near me (your position, nearest station's departures); tap again for the whole network
 let nearMode = false, nearWatch = null;
 $('bFit').onclick = () => {
-  if(nearMode || !navigator.geolocation){ nearMode = false; map.panTo(LL(HOME[0])); map.setZoom(Math.round(HOME[1])); return; }
+  if(nearMode || !navigator.geolocation){ nearMode = false; if(nearWatch != null){ navigator.geolocation.clearWatch(nearWatch); nearWatch = null; } me = null; map.panTo(LL(HOME[0])); map.setZoom(Math.round(HOME[1])); return; }
   $('bFit').textContent = '…';
   navigator.geolocation.getCurrentPosition(pos => { $('bFit').textContent = '⌖'; nearMode = true;
     me = [pos.coords.latitude, pos.coords.longitude]; meAcc = pos.coords.accuracy || 0;
     if(!inLondonView(me)){ map.panTo(LL(me)); map.setZoom(15); return; }
     if(!STATIONS || STATIONS.length < 50) STATIONS = stationIndex();
-    let best = null, bd = 3000; for(const st of STATIONS){ const d = dist(st.p, me); if(d < bd){ bd = d; best = st; } }
+    let best = null, bd = 3000; for(const st of STATIONS){ const river = [...st.lines].every(id => BY[id] && (BY[id].mode === 'river' || BY[id].mode === 'cable')); const d = dist(st.p, me) + (river ? 400 : 0); if(d < bd){ bd = d; best = st; } } // piers only when much closer
     if(best) goStation(best); map.panTo(LL(me)); map.setZoom(15);
     if(nearWatch == null) nearWatch = navigator.geolocation.watchPosition(p => { me = [p.coords.latitude, p.coords.longitude]; meAcc = p.coords.accuracy || 0; }, () => {}, {enableHighAccuracy:true});
   }, err => { $('bFit').textContent = '⌖'; $('err').textContent = err.code === 1 ? 'Location is blocked: allow it in your browser to see what\'s near you.' : 'Could not find your location.'; setTimeout(() => $('err').textContent = '', 6000); },
