@@ -15,7 +15,8 @@ class H(osmium.SimpleHandler):
             if w.tags.get('railway') not in (RAIL | {'rail'} if self.kind == 'tramrail' else RAIL) or w.tags.get('service') in ('yard', 'siding'): return
             return self.keep(w)
         hw = w.tags.get('highway')
-        if hw not in BUS_HW: return
+        busok = w.tags.get('bus') in ('yes', 'designated') or w.tags.get('psv') in ('yes', 'designated') or w.tags.get('busway') or w.tags.get('lanes:bus') or w.tags.get('lanes:psv')
+        if hw not in BUS_HW and not (busok and hw): return
         if hw == 'service' and w.tags.get('bus') not in ('yes', 'designated') and w.tags.get('psv') not in ('yes', 'designated') and w.tags.get('service') not in (None, 'bus'): return
         if w.tags.get('access') in ('private', 'no') and w.tags.get('bus') not in ('yes', 'designated') and w.tags.get('psv') not in ('yes', 'designated'): return
         self.keep(w)
