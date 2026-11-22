@@ -2141,6 +2141,7 @@ function drawGps(ctx, s, hl0, hw0, mpp){
     if(mode === 'bus' && hl <= hl0){ hl = Math.max(5, hl0*0.5); hw = Math.max(2.4, hw0*0.9); }
     const coach = coachOf(g.v); if(coach){ hl = Math.max(hl*1.35, 13/2/mpp); }
     if(g.v.freight){ hl *= 0.8; }
+    if(PV.z < 10){ const f = Math.max(0.5, (PV.z - 5)/5); hl *= f; hw *= Math.max(0.65, f); } // whole-country views: smaller, so the map stays readable
     const cs = Math.cos(ang), sn = Math.sin(ang), ux = cs*hl, uy = sn*hl, vx = -sn*hw, vy = cs*hw;
     ctx.beginPath(); ctx.moveTo(c.x+ux+vx, c.y+uy+vy); ctx.lineTo(c.x+ux-vx, c.y+uy-vy); ctx.lineTo(c.x-ux-vx, c.y-uy-vy); ctx.lineTo(c.x-ux+vx, c.y-uy+vy); ctx.closePath();
     ctx.fillStyle = coach ? '#fff' : g.v.col || (tram ? '#7A1F3D' : opCol(g.v.op)); ctx.strokeStyle = coach ? coach[1] : dark ? 'rgba(0,0,0,.9)' : 'rgba(255,255,255,.95)'; ctx.lineWidth = 2; ctx.stroke(); ctx.fill();
