@@ -83,11 +83,13 @@ little value on a map), crowding (TfL crowding API is patchy), weather, social f
 | Lines back to a simple style: one smooth solid line per route (pieces joined so every bend is rounded), TfL colours and double lines kept, no dashed "problem" lines; side-by-side layout is an option in the Map menu | both |
 | **Finland: every train in the country live** (GPS from Digitraffic, open data, no key, straight from the browser): type, route, speed; Helsinki commuter trains purple, long-distance green, freight grey | Live map |
 | **Helsinki: every tram, metro, bus and ferry live each second** (HSL open MQTT feed, no key): HSL colours, route + destination, speed, on time/late; zoom 12+ (only the map tiles on screen are followed) | Live map |
+| **Norway: buses, coaches, trains and ferries with GPS** (Entur, open data, no key) — best in Bergen (Skyss), Trondheim, Tromsø; Oslo's Ruter doesn't publish to this feed; parked vehicles (no report for 10 min) hidden | Live map |
 | Region-aware panel: outside London the title, counts and notes describe what's live there; London legend/status/TfL chips hidden | Live map |
 | Map menu → Go to: London, Manchester, Birmingham, Leeds, Liverpool, Newcastle, Edinburgh, Glasgow, Bristol, Cardiff | Live map |
 
 ## Next ideas (not built yet)
 - Switch on live National Rail (waiting on the key; `rail/SETUP.md`) and buses beyond London (free BODS key, instant).
+- Other countries checked 21–22 Nov: Tallinn (transport.tallinn.ee/gps.txt, keyless, but no CORS → relay); Boston MBTA to try; Germany db.transport.rest down; Edinburgh TfE server down (522).
 - Other countries checked 21 Nov: Switzerland (transport.opendata.ch, departure boards only, CORS ok); Germany (v6.db.transport.rest radar = live positions, keyless) didn't connect from the sandbox; Helsinki HSL live vehicles via MQTT (mqtt.hsl.fi) to try.
 - Research notes (21 Nov): no GB rail source gives GPS train positions; RealTimeTrains API (free, personal use) is the best alternative to Darwin; Tyne & Wear Metro only via an unofficial API; Glasgow Subway / Sheffield / Nottingham / Blackpool trams have no public live feed.
 - Optional OSM track geometry so lines follow real curves.
