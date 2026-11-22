@@ -169,22 +169,20 @@ def tiles(outdir, files):
                 cut += 1
         if not cut: break
     for u in [x for x in adj if not adj[x]]: del adj[u]
-    used = set(); lines = []
-    def walk(u, v):
-        line = [u, v]; used.add((u, v) if u < v else (v, u))
-        while len(adj[v]) == 2:
-            w = next(x for x in adj[v] if x != line[-2])
-            e = (v, w) if v < w else (w, v)
-            if e in used: break
-            used.add(e); line.append(w); v = w
-        return line
+    # tiny islands (a few metres of road matched on their own, joined to nothing): dropped
+    seenc = set()
     for u in list(adj):
-        if len(adj[u]) != 2:
-            for v in adj[u]:
-                if ((u, v) if u < v else (v, u)) not in used: lines.append(walk(u, v))
-    for u in list(adj):  # closed loops
-        for v in adj[u]:
-            if ((u, v) if u < v else (v, u)) not in used: lines.append(walk(u, v))
+        if u in seenc: continue
+        comp = [u]; seenc.add(u); i = 0
+        while i < len(comp):
+            for v in adj[comp[i]]:
+                if v not in seenc: seenc.add(v); comp.append(v)
+            i += 1
+        if len(comp) < 40:
+            L = sum(math.hypot((a[0]-b[0])*111320, (a[1]-b[1])*111320*0.6) for a in comp for b in adj[a]) / 2
+            if L < 80:
+                for a in comp: adj[a] = set()
+    for u in [x for x in adj if not adj[x]]: del adj[u]
     # raw pieces (where no road matched): every bit of a bus route farther than 20 m from the drawn roads is drawn as published,
     # so nothing a bus drives is ever missing (strict: sampled every 8 m against the matched road segments themselves)
     from scipy.spatial import cKDTree
@@ -228,10 +226,48 @@ def tiles(outdir, files):
         if L < 300: return False
         ax, ay, bx, by = r[0][1]*kx, r[0][0]*111320, r[-1][1]*kx, r[-1][0]*111320
         return max(abs((bx-ax)*(ay-q[0]*111320) - (ax-q[1]*kx)*(by-ay))/L for q in r) < 8
-    rawkeep = [r for r in rawkeep if len(r) > 1 and math.hypot((r[0][0]-r[-1][0])*111320, (r[0][1]-r[-1][1])*kx) > 10 and not straightjump(r)]
+    def onroad(q):
+        if tree is None: return False
+        dd, _ = tree.query((q[0]*111320, q[1]*kx)); return dd < 25
+    def plen(r): return sum(math.hypot((a[0]-b[0])*111320, (a[1]-b[1])*kx) for a, b in zip(r, r[1:]))
+    def shadow(r):  # every point of the piece has a drawn road running the same way within 35 m: it's that road, offset
+        if tree is None or len(r) < 2: return False
+        L = math.hypot((r[-1][0]-r[0][0])*111320, (r[-1][1]-r[0][1])*kx) or 1; rx, ry = (r[-1][1]-r[0][1])*kx/L, (r[-1][0]-r[0][0])*111320/L
+        nb = tree.query_ball_point(np.array([(q[0]*111320, q[1]*kx) for q in r]), 25)
+        return all(any(abs(SD[j][0]*rx + SD[j][1]*ry) > 0.8 for j in js) for js in nb)
+    rawkeep = [r for r in rawkeep if not shadow(r)]
+    # a short piece joined to nothing at either end is a stray fragment of the published shape, not a road: dropped
+    rawkeep = [r for r in rawkeep if len(r) > 1 and math.hypot((r[0][0]-r[-1][0])*111320, (r[0][1]-r[-1][1])*kx) > 10 and not straightjump(r)
+               and (plen(r) > 150 or onroad(r[0]) or onroad(r[-1]))]
+    # the kept pieces join the road network: their points are added as edges, ends snapped onto the nearest drawn point within 15 m,
+    # so they continue the lines they leave and rejoin (no hairline gaps) and identical pieces collapse into one
+    if rawkeep:
+        nodes = list(adj); nt = cKDTree(np.array([(u[0]*111320, u[1]*kx) for u in nodes]))
+        def snapn(q):
+            dd, j = nt.query((q[0]*111320, q[1]*kx)); return nodes[j] if dd < 15 else (round(q[0], 5), round(q[1], 5))
+        for r in rawkeep:
+            pts = [snapn(r[0])] + [(round(q[0], 5), round(q[1], 5)) for q in r[1:-1]] + [snapn(r[-1])]
+            for u, v in zip(pts, pts[1:]):
+                if u != v: adj[u].add(v); adj[v].add(u)
+    used = set(); lines = []
+    def walk(u, v):
+        line = [u, v]; used.add((u, v) if u < v else (v, u))
+        while len(adj[v]) == 2:
+            w = next(x for x in adj[v] if x != line[-2])
+            e = (v, w) if v < w else (w, v)
+            if e in used: break
+            used.add(e); line.append(w); v = w
+        return line
+    for u in list(adj):
+        if len(adj[u]) != 2:
+            for v in adj[u]:
+                if ((u, v) if u < v else (v, u)) not in used: lines.append(walk(u, v))
+    for u in list(adj):  # closed loops
+        for v in adj[u]:
+            if ((u, v) if u < v else (v, u)) not in used: lines.append(walk(u, v))
     T = collections.defaultdict(list)
     tk = lambda q: f"{math.floor(q[0]*10)}_{math.floor(q[1]*10)}"
-    for line in [dp(l, 2.5) for l in lines] + rawkeep:
+    for line in [dp(l, 2.5) for l in lines]:
         run = [line[0]]
         for q in line[1:]:
             run.append(q)
