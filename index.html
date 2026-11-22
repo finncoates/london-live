@@ -1371,11 +1371,13 @@ const GROUP_SYM = {bike:['cycle','#EC0000'], bus:['tube','#DC241F'], tube:['tube
 function renderModeChips(){
   $('mModes').innerHTML = MODE_GROUPS.map(([m, name]) => {
     const has = m === 'bus' || m === 'bike' || ACTIVE.some(l => l.mode === m) || (m === 'rail' && typeof railOn === 'function' && railOn());
-    return `<button type="button" class="chip2" data-mode="${m}" aria-pressed="${has && !MODES_OFF.has(m)}" ${has ? '' : 'disabled title="Coming soon"'}>${symbol(GROUP_SYM[m][0], GROUP_SYM[m][1], 16)}${name}${has ? '' : ' <small>soon</small>'}</button>`;
+    const off = m === 'bus' && document.body.classList.contains('away') ? GPS_OFF.has('bus') : MODES_OFF.has(m);
+    return `<button type="button" class="chip2" data-mode="${m}" aria-pressed="${has && !off}" ${has ? '' : 'disabled title="Coming soon"'}>${symbol(GROUP_SYM[m][0], GROUP_SYM[m][1], 16)}${name}${has ? '' : ' <small>soon</small>'}</button>`;
   }).join('');
 }
 $('mModes').addEventListener('click', e => { const b = e.target.closest('[data-mode]'); if(!b || b.disabled) return;
-  const m = b.dataset.mode; MODES_OFF.has(m) ? MODES_OFF.delete(m) : MODES_OFF.add(m);
+  const m = b.dataset.mode;
+  if(m === 'bus' && document.body.classList.contains('away')){ GPS_OFF.has('bus') ? GPS_OFF.delete('bus') : GPS_OFF.add('bus'); try{ localStorage.setItem('gpsOff', JSON.stringify([...GPS_OFF])); }catch(x){} renderModeChips(); refreshGps(); return; } MODES_OFF.has(m) ? MODES_OFF.delete(m) : MODES_OFF.add(m);
   try{ localStorage.setItem('modesOff', JSON.stringify([...MODES_OFF])); }catch(x){}
   for(const l of ACTIVE) l.layer && l.layer.eachLayer(p => p.setStyle(lineStyle(l)));
   renderModeChips(); renderLegend(); if(m === 'bus') updateBuses(true); else if(m === 'bike'){ refreshBikes(true); refreshShare(); } else refresh().catch(()=>{}); });
@@ -1421,6 +1423,8 @@ async function updateBuses(force){
 const GPS = {list:new Map(), busy:false, note:'', direct:null};
 const EDI = [55.86, -3.45, 56.01, -3.0];
 const inEdinburgh = p => p[0] > EDI[0] && p[0] < EDI[2] && p[1] > EDI[1] && p[1] < EDI[3];
+// buses abroad have their own switch (on by default); London's Buses switch is about TfL routes
+const busOff = () => document.body.classList.contains('away') ? GPS_OFF.has('bus') : MODES_OFF.has('bus');
 // ---- Finland: every train in the country with GPS (Digitraffic, open data, no key, works from the browser) ----
 const inFinland = p => p[0] > 59.6 && p[0] < 69.6 && p[1] > 19.4 && p[1] < 31.6 && !(p[0] < 61.6 && p[1] > 27.9) && !(p[0] > 68.6 && p[1] < 21) && !(p[0] < 66 && p[1] < 21.3 && p[0] > 60.5); // trimmed: Russia, Norway, Sweden
 const FI = {info:new Map(), at:0};
@@ -1449,7 +1453,7 @@ async function hslConnect(){
   if(HSL.client) return HSL.client;
   if(!window.mqtt) await (HSL.loading ||= new Promise((ok, no) => { const sc = document.createElement('script'); sc.src = 'https://unpkg.com/mqtt@5.10.1/dist/mqtt.min.js'; sc.onload = ok; sc.onerror = () => { HSL.loading = null; sc.remove(); no(new Error('could not load the live feed library')); }; document.head.appendChild(sc); }));
   const c = HSL.client = window.mqtt.connect('wss://mqtt.hsl.fi:443/', {reconnectPeriod:5000});
-  c.on('message', (t, m) => { const a = t.split('/'), mode = a[6]; if(mode === 'train' || (mode !== 'tram' && mode !== 'metro' && mode !== 'ferry' && MODES_OFF.has('bus'))) return;
+  c.on('message', (t, m) => { const a = t.split('/'), mode = a[6]; if(mode === 'train' || (mode !== 'tram' && mode !== 'metro' && mode !== 'ferry' && busOff())) return;
     let v; try{ v = JSON.parse(m).VP; }catch(e){ return; } if(!v || !v.lat || !v.long) return;
     const id = 'hsl:' + a[7] + '/' + a[8], now = Date.now(); let g = GPS.list.get(id);
     const sn = snapGps({lat:v.lat, lon:v.long, tram:mode === 'tram', metro:mode === 'metro', kind:mode}); if(sn){ v.lat = sn.lat; v.long = sn.lon; }
@@ -1481,7 +1485,7 @@ async function norwayVehicles(){
   const q = `{ vehicles(boundingBox:{minLat:${f(c.lat()-h)},minLon:${f(c.lng()-w)},maxLat:${f(c.lat()+h)},maxLon:${f(c.lng()+w)}}) { vehicleId mode line { publicCode lineName } location { latitude longitude } bearing destinationName lastUpdated delay operator { name } } }`;
   const r = await fetch('https://api.entur.io/realtime/v2/vehicles/graphql', {signal:AbortSignal.timeout(10000), method:'POST', headers:{'Content-Type':'application/json', 'ET-Client-Name':'finncoates-londonlive'}, body:JSON.stringify({query:q})});
   if(!r.ok) throw new Error('Norwegian live data: HTTP ' + r.status);
-  const bus = !MODES_OFF.has('bus');
+  const bus = !busOff();
   return {vehicles:((await r.json()).data?.vehicles || []).filter(v => v.location && (bus || (v.mode !== 'BUS' && v.mode !== 'COACH')) && Date.now() - Date.parse(v.lastUpdated) < 600000 && !/\.(no|com)$/i.test(v.destinationName || '')).map(v => { // parked / out of service: hidden
     const m = v.mode || 'BUS', kind = {RAIL:'train', TRAM:'tram', METRO:'metro', WATER:'ferry', FERRY:'ferry', COACH:'coach'}[m] || 'bus';
     return {id:'no:' + v.vehicleId, line:v.line?.publicCode || '', op:v.operator?.name || 'Entur', dest:v.destinationName || '', lat:v.location.latitude, lon:v.location.longitude,
@@ -1516,7 +1520,7 @@ function drawBostonLines(ctx){
   ctx.globalAlpha = 1;
 }
 async function bostonVehicles(){
-  const types = MODES_OFF.has('bus') ? '0,1,2' : '0,1,2,3';
+  const types = busOff() ? '0,1,2' : '0,1,2,3';
   const r = await fetch(`https://api-v3.mbta.com/vehicles?filter[route_type]=${types}&fields[vehicle]=latitude,longitude,bearing,updated_at,label&include=route,trip&fields[route]=short_name,long_name,color,type&fields[trip]=headsign`, {signal:AbortSignal.timeout(10000)});
   if(!r.ok) throw new Error('MBTA live data: HTTP ' + r.status); const j = await r.json(), inc = {};
   for(const x of j.included || []) inc[x.type + ':' + x.id] = x.attributes;
@@ -1535,7 +1539,7 @@ async function berlinVehicles(){
   const b = map.getBounds(), sw = b.getSouthWest(), ne = b.getNorthEast(), c = map.getCenter(), f = x => x.toFixed(4);
   const w = Math.min(0.5, ne.lng() - sw.lng())/2, h = Math.min(0.3, ne.lat() - sw.lat())/2;
   const r = await fetch(`https://v6.vbb.transport.rest/radar?north=${f(c.lat()+h)}&west=${f(c.lng()-w)}&south=${f(c.lat()-h)}&east=${f(c.lng()+w)}&results=400&duration=30&frames=1&polylines=false`, {signal:AbortSignal.timeout(10000)});
-  if(!r.ok) throw new Error('Berlin live data: HTTP ' + r.status); const j = await r.json(), bus = !MODES_OFF.has('bus');
+  if(!r.ok) throw new Error('Berlin live data: HTTP ' + r.status); const j = await r.json(), bus = !busOff();
   return {vehicles:(j.movements || j || []).filter(m => m.location && m.line && (bus || m.line.product !== 'bus')).map(m => { const pr = m.line.product;
     return {id:'de:' + m.tripId, line:m.line.name || '', op:'VBB ' + ({suburban:'S-Bahn', subway:'U-Bahn', tram:'tram', bus:'bus', regional:'regional train', express:'long-distance train', ferry:'ferry'}[pr] || ''),
       dest:m.direction || '', lat:m.location.latitude, lon:m.location.longitude, brg:null, t:null, train:pr === 'suburban' || pr === 'regional' || pr === 'express', metro:pr === 'subway', tram:pr === 'tram',
@@ -1654,7 +1658,7 @@ async function refreshGps(){
     gpsOnly('fi:', 'hsl:'); if(GPS.busy) return; GPS.busy = true;
     let hsl = '';
     if(inHelsinki(p) && z >= 12){ try{ await hslWatch(); for(const [k, g] of GPS.list) if(k.startsWith('hsl:') && Date.now() - g.seen > 60000) GPS.list.delete(k);
-      const n = [...GPS.list.keys()].filter(k => k.startsWith('hsl:')).length; hsl = ` · ${n} trams, metros${MODES_OFF.has('bus') ? '' : ', buses'} and ferries in view (HSL, live every second)${MODES_OFF.has('bus') ? '. Turn on Buses for buses too' : ''}`; }catch(e){ hsl = ' · Helsinki live feed: ' + e.message; } }
+      const n = [...GPS.list.keys()].filter(k => k.startsWith('hsl:')).length; hsl = ` · ${n} trams, metros${busOff() ? '' : ', buses'} and ferries in view (HSL, live every second)${busOff() ? '. Turn on Buses for buses too' : ''}`; }catch(e){ hsl = ' · Helsinki live feed: ' + e.message; } }
     else { hslStop(); if(inHelsinki(p)) hsl = ' · zoom in for Helsinki trams, metro and buses'; }
     try{ gpsMerge(await finlandTrains(), 'fi:'); const n = [...GPS.list.keys()].filter(k => k.startsWith('fi:')).length; BUS.note = `${n} trains moving in Finland (live GPS)${hsl}`; }
     catch(e){ BUS.note = e.message; }
@@ -1666,7 +1670,7 @@ async function refreshGps(){
     if(z < 10){ for(const k of [...GPS.list.keys()]) if(k.startsWith('no:')) GPS.list.delete(k); BUS.note = 'Norway: zoom in to see every bus, tram, metro and train live'; renderBusNote(); return; }
     if(GPS.busy) return; GPS.busy = true;
     try{ gpsMerge(await norwayVehicles(), 'no:'); const n = [...GPS.list.keys()].filter(k => k.startsWith('no:')).length;
-      BUS.note = `${n} vehicle${n === 1 ? '' : 's'} live here (Entur, GPS)${MODES_OFF.has('bus') ? '. Turn on Buses for buses too' : ''}`; }
+      BUS.note = `${n} vehicle${n === 1 ? '' : 's'} live here (Entur, GPS)${busOff() ? '. Turn on Buses for buses too' : ''}`; }
     catch(e){ BUS.note = e.message; }
     GPS.busy = false; renderBusNote(); return;
   }
@@ -1676,7 +1680,7 @@ async function refreshGps(){
     if(z < 9){ for(const k of [...GPS.list.keys()]) if(k.startsWith('us:')) GPS.list.delete(k); BUS.note = 'Boston: zoom in to see the MBTA live'; renderBusNote(); return; }
     if(GPS.busy) return; GPS.busy = true;
     try{ gpsMerge(await bostonVehicles(), 'us:'); const n = [...GPS.list.keys()].filter(k => k.startsWith('us:')).length;
-      BUS.note = `${n} MBTA vehicles live (GPS)${MODES_OFF.has('bus') ? '. Turn on Buses for buses too' : ''}`; }
+      BUS.note = `${n} MBTA vehicles live (GPS)${busOff() ? '. Turn on Buses for buses too' : ''}`; }
     catch(e){ BUS.note = e.message; }
     GPS.busy = false; renderBusNote(); return;
   }
@@ -1685,7 +1689,7 @@ async function refreshGps(){
     if(z < 11){ GPS.list.clear(); BUS.note = 'Berlin: zoom in to see S-Bahn, U-Bahn, trams and buses live'; renderBusNote(); return; }
     if(GPS.busy) return; GPS.busy = true;
     try{ gpsMerge(await berlinVehicles(), 'de:'); const n = [...GPS.list.keys()].filter(k => k.startsWith('de:')).length;
-      BUS.note = `${n} ${MODES_OFF.has('bus') ? 'trains and trams' : 'trains, trams and buses'} live here (VBB real-time positions)${MODES_OFF.has('bus') ? '. Turn on Buses for buses too' : ''}`; }
+      BUS.note = `${n} ${busOff() ? 'trains and trams' : 'trains, trams and buses'} live here (VBB real-time positions)${busOff() ? '. Turn on Buses for buses too' : ''}`; }
     catch(e){ BUS.note = e.message; }
     GPS.busy = false; renderBusNote(); return;
   }
@@ -1695,13 +1699,13 @@ async function refreshGps(){
     if(!RAIL.relay || RAIL.relay === 'demo'){ GPS.list.clear(); BUS.note = `Live buses and trams in ${rc[2]} are ready: they switch on once the relay is set up (no key needed for ${rc[2]}).`; renderBusNote(); return; }
     if(z < 11){ GPS.list.clear(); BUS.note = `${rc[2]}: zoom in to see buses and trams live`; renderBusNote(); return; }
     if(GPS.busy) return; GPS.busy = true;
-    try{ const res = await railGet('/vehicles?src=' + rc[0]); if(MODES_OFF.has('bus')) res.vehicles = res.vehicles.filter(v => v.tram); gpsMerge(res);
-      BUS.note = `${GPS.list.size} ${MODES_OFF.has('bus') ? 'trams' : 'buses and trams'} live in ${rc[2]} (GPS)${MODES_OFF.has('bus') ? '. Turn on Buses for buses too' : ''}`; }
+    try{ const res = await railGet('/vehicles?src=' + rc[0]); if(busOff()) res.vehicles = res.vehicles.filter(v => v.tram); gpsMerge(res);
+      BUS.note = `${GPS.list.size} ${busOff() ? 'trams' : 'buses and trams'} live in ${rc[2]} (GPS)${busOff() ? '. Turn on Buses for buses too' : ''}`; }
     catch(e){ BUS.note = rc[2] + ': ' + e.message; }
     GPS.busy = false; renderBusNote(); return;
   }
   if(regionOf(p) === 'world'){ GPS.list.clear(); BUS.note = z >= 8 ? 'No live data for this area yet. Live now: London, Finland, Helsinki, Norway, Berlin and Boston; coming: trains and buses across Britain.' : ''; renderBusNote(); return; }
-  const on = !MODES_OFF.has('bus') && TRAINS_ON && !inLondonView(p);
+  const on = !busOff() && TRAINS_ON && !inLondonView(p);
   if(!on || z < 13){ GPS.list.clear(); if(!inLondonView(p)){ BUS.note = !RAIL.relay ? 'Live trains and buses here are coming soon: they switch on once the data keys are set up. (Preview with made-up data: add ?rail=demo to the address.)' : on ? 'Zoom in to see buses' : 'Turn on Buses to see live buses here'; renderBusNote(); } return; }
   if(GPS.busy) return; GPS.busy = true;
   try{
@@ -1813,7 +1817,7 @@ function cityHere(){ const c = map.getCenter(); if(!c) return null; const p = [c
   return best; }
 // London's switches (and Buses/National Rail everywhere) vs. vehicle kinds abroad
 const exCity = () => { const [a, b, c] = EX.path; return CATALOG[a]?.countries[b]?.cities[c] || null; };
-const isSwitch = m => ['tube','overground','elizabeth','dlr','bus','bike','rail'].includes(m) || (m === 'tram' && exCity()?.name === 'London');
+const isSwitch = m => ['tube','overground','elizabeth','dlr','bike','rail'].includes(m) || ((m === 'tram' || m === 'bus') && exCity()?.name === 'London');
 const modeOn = m => isSwitch(m) ? !MODES_OFF.has(m) : !GPS_OFF.has(m);
 function renderExplore(){
   const box = $('explore'); if(box.hidden) return;
@@ -1848,7 +1852,7 @@ $('explore').addEventListener('click', e => {
 function regionOf(p){ return inLondonView(p) ? 'london' : inFinland(p) ? 'finland' : inNorway(p) ? 'norway' : inBoston(p) ? 'boston' : inBerlin(p) ? 'berlin' : relayCity(p) ? 'city' : inEdinburgh(p) ? 'edinburgh' : p[0] > 49.8 && p[0] < 60.9 && p[1] > -8.7 && p[1] < 1.9 ? 'uk' : 'world'; }
 function applyRegion(){
   const c = map.getCenter(), r = regionOf([c.lat(), c.lng()]), away = r !== 'london' && map.getZoom() >= 5;
-  document.body.classList.toggle('away', away); document.body.classList.toggle('abroad', away && r !== 'uk' && r !== 'edinburgh');
+  const wasAway = document.body.classList.contains('away'); document.body.classList.toggle('away', away); if(wasAway !== away) renderModeChips(); document.body.classList.toggle('abroad', away && r !== 'uk' && r !== 'edinburgh');
   $('ttl').textContent = !away ? 'London live trains' : inHelsinki([c.lat(), c.lng()]) && map.getZoom() >= 10 ? 'Helsinki live map' : {finland:'Finland live trains', norway:'Norway live map', boston:'Boston live map', berlin:'Berlin live map', city:(relayCity([c.lat(), c.lng()]) || [, , ''])[2] + ' live map', edinburgh:'Edinburgh live map', uk:'UK live map', world:'Live map', london:'London live trains'}[r];
   if(typeof onTrainsUpdate === 'function') onTrainsUpdate(ACTIVE.reduce((s, l) => s + (shown(l) ? l.count : 0), 0));
 }
@@ -2036,7 +2040,12 @@ function searchLines(text){
 const lineResult = (s, i) => `<li role="option" data-i="${i}" class="${i===SR.sel?'on':''}" aria-selected="${i===SR.sel}">
   <span class="dots">${symbol(s.mode === 'bus' ? 'tube' : s.mode === 'train' || s.mode === 'rail' ? 'rail' : 'tube', s.col, 18)}</span>
   <span><b>${esc(s.mode === 'bus' ? 'Bus ' + s.name : s.name + (/line|^dlr$/i.test(s.name) || s.city ? '' : ' line'))}</b><small>Show the route and its ${s.mode === 'bus' ? 'buses' : 'trains'} live</small></span></li>`;
-function pickResult(x){ if(x && x.lineHit) focusLine(x); else if(x) goStation(x); }
+function searchCityStations(text){
+  const q = text.trim().toLowerCase(); if(q.length < 2) return []; const out = [];
+  for(const d of cityData()) for(const st of d.stations || []){ const n = stName(st[1]).toLowerCase(); if(n.startsWith(q) || (q.length >= 3 && n.includes(q))) out.push({cityHit:true, st, d, score:n.startsWith(q) ? 0 : 1}); }
+  return out.sort((a, b) => a.score - b.score || b.st[4].length - a.st[4].length).slice(0, 6);
+}
+function pickResult(x){ if(!x) return; if(x.lineHit) focusLine(x); else if(x.cityHit){ $('q').value = stName(x.st[1]); SR.items = []; renderResults(); $('q').blur(); map.setZoom(Math.max(map.getZoom(), 15)); openCityStation({st:x.st, url:CITYL.cur.urls[cityData().indexOf(x.d)]}); } else goStation(x); }
 async function focusLine(x){
   unfocusLine(); $('q').value = x.mode === 'bus' ? 'Bus ' + x.name : x.name; SR.items = []; renderResults(); $('q').blur(); clearFocus();
   const box = $('station'); box.hidden = false;
@@ -2070,13 +2079,13 @@ function unfocusLine(){
 $('station').addEventListener('click', e => { if(e.target.closest('#lfClose')){ clearFocus(); unfocusLine(); $('q').value = ''; } });
 function renderResults(){
   const ul = $('sres');
-  ul.innerHTML = SR.items.map((s, i) => s.lineHit ? lineResult(s, i) : `<li role="option" data-i="${i}" class="${i===SR.sel?'on':''}" aria-selected="${i===SR.sel}">
+  ul.innerHTML = SR.items.map((s, i) => s.lineHit ? lineResult(s, i) : s.cityHit ? `<li role="option" data-i="${i}" class="${i===SR.sel?'on':''}"><span class="dots">${s.st[4].slice(0, 6).map(l => `<i style="background:${l[1] || '#888'}"></i>`).join('')}</span><span><b>${esc(stName(s.st[1]))}</b><small>${esc(s.st[4].map(l => l[0]).slice(0, 8).join(', '))}</small></span></li>` : `<li role="option" data-i="${i}" class="${i===SR.sel?'on':''}" aria-selected="${i===SR.sel}">
     <span class="dots">${[...s.lines].slice(0, 6).map(id => `<i style="background:${ink(BY[id].colour)}"></i>`).join('')}</span>
     <span><b>${esc(s.name)}</b><small>${[...s.lines].map(id => esc(BY[id].name)).join(', ')}</small></span></li>`).join('')
     || ($('q').value.trim() ? '<li class="none">No station or line found</li>' : '');
   ul.hidden = !ul.innerHTML; $('q').setAttribute('aria-expanded', String(!ul.hidden));
 }
-$('q').addEventListener('input', () => { SR.items = [...searchLines($('q').value), ...searchStations($('q').value)].slice(0, 8); SR.sel = SR.items.length ? 0 : -1; renderResults(); });
+$('q').addEventListener('input', () => { SR.items = [...searchLines($('q').value), ...(document.body.classList.contains('away') ? searchCityStations($('q').value) : searchStations($('q').value))].slice(0, 8); SR.sel = SR.items.length ? 0 : -1; renderResults(); });
 $('q').addEventListener('keydown', e => {
   const n = SR.items.length;
   if(e.key === 'ArrowDown' && n){ e.preventDefault(); SR.sel = (SR.sel + 1) % n; renderResults(); }
