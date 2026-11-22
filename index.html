@@ -1947,9 +1947,10 @@ function depGroups(rows, per = 4){
 }
 // a city station under the finger
 function cityStationAt(x, y, rad0){
-  if(PV.z < 13 || !SHOW_ST) return null; let best = null, bd = rad0 || (matchMedia('(pointer:coarse)').matches ? 20 : 12);
+  if(PV.z < 12 || !SHOW_ST) return null; let best = null, bd = rad0 || (matchMedia('(pointer:coarse)').matches ? 20 : 12);
   for(const d of cityData()) for(const st of d.stations || []){ if(!showSt(d, st)) continue; const tramOnly = st[4].every(l => l[2] === 'tram'); if(tramOnly && PV.z < 15) continue;
     const c = scr([st[2], st[3]]), k = Math.hypot(c.x - x, c.y - y) + (tramOnly ? 6 : 0); if(k < bd){ /* a tram stop next to a station: the station wins */ bd = k; best = {st, src:d.src || CITYL.cur.name, url:d.url}; } }
+  if(nrOn() && PV.z >= 12) for(const [crs, n, la, lo] of RAIL.stations){ const c = scr([la, lo]), k = Math.hypot(c.x - x, c.y - y); if(k < bd){ bd = k; best = {st:[crs, n, la, lo, [['National Rail', '#5D6670', 'train']]], src:'National Rail', url:'nr'}; } }
   return best;
 }
 // its card: lines in their colours, and live departures where a free source exists
@@ -1990,6 +1991,10 @@ async function openCityStation(hit){
           rows.push({when:now + (at - sec)*1000, cat:{tram:'Trams', metro:'Metro', ferry:'Ferries'}[pt.kind || 'tram'] || 'Trams', html:row(pt.col, pt.dest, pt.line.replace(/ Line$/, ' line') + ' · timetable', Math.max(0, Math.round((at - sec)/60)))}); }
         const seen = new Set(); rows = rows.filter(r => { const k2 = r.html; if(seen.has(k2)) return false; seen.add(k2); return true; }).slice(0, 24);
         note = 'No more departures in the next 90 minutes (timetable).';
+      } else if(url === 'nr'){ // National Rail: live departures through the relay once the rail data key is set
+        if(typeof railOn === 'function' && railOn()){ const arr = await railArrivals(st[0]);
+          rows = arr.map(a => { const l = BY[a.lineId]; return {when:now + a.timeToStation*1000, cat:'Trains', html:row(l ? ink(l.colour) : '#5D6670', a.destinationName, (l ? l.name : 'National Rail') + (a.platformName ? ' · ' + a.platformName : ''), Math.round(a.timeToStation/60))}; }); }
+        else note = 'Live National Rail departures switch on once the rail data key is added to the relay. The station and its lines are shown now.';
       } else if(/helsinki\.json/.test(url)) note = 'Live departures for HSL metro and trams need a free HSL key; the vehicles on the map are live.';
       else note = 'No timetable for this stop yet; the vehicles on the map are live where the operator shares positions.';
     }catch(e){ note = 'Departures could not be loaded right now.'; }
@@ -2208,7 +2213,15 @@ function drawNR(ctx){
     ctx.globalAlpha = 0.8; ctx.strokeStyle = dark ? '#9AA3AD' : '#5D6670'; ctx.lineWidth = w; ctx.stroke(path);
     if(PV.z >= 10){ ctx.globalAlpha = 1; ctx.strokeStyle = MAP_BG(); ctx.lineWidth = w/3; ctx.stroke(path); } }
   ctx.restore(); ctx.globalAlpha = 1;
+  // stations (National Rail ⇄ dots) from zoom 12, names close up when the map's own labels are hidden
+  if(PV.z < 12 || !SHOW_ST) return; if(!RAIL.stations){ railStations().catch(() => {}); return; }
+  const s0 = mapSize(), r = Math.max(2.5, W*0.6), names = QUIET_ON && PV.z >= 14; ctx.lineWidth = Math.max(1.5, W*0.3);
+  if(names){ ctx.font = `600 ${PV.z >= 15 ? 13 : 11.5}px "Hanken Grotesk", system-ui, sans-serif`; ctx.textBaseline = 'middle'; ctx.textAlign = 'start'; }
+  for(const [crs, n, la, lo] of RAIL.stations){ const c = scr([la, lo]); if(c.x < -20 || c.y < -20 || c.x > s0.x + 20 || c.y > s0.y + 20) continue;
+    ctx.beginPath(); ctx.arc(c.x, c.y, r, 0, 7); ctx.fillStyle = dark ? '#1b1c1f' : '#fff'; ctx.fill(); ctx.strokeStyle = dark ? '#c9ced4' : '#5D6670'; ctx.stroke();
+    if(names){ ctx.lineWidth = 3; ctx.strokeStyle = dark ? 'rgba(0,0,0,.85)' : 'rgba(255,255,255,.95)'; ctx.strokeText(n, c.x + r + 4, c.y); ctx.fillStyle = dark ? '#eee' : '#222'; ctx.fillText(n, c.x + r + 4, c.y); ctx.lineWidth = Math.max(1.5, W*0.3); } }
 }
+const nrOn = () => document.body.classList.contains('away') && !document.body.classList.contains('abroad') && !MODES_OFF.has('rail') && RAIL.stations;
 // coach routes (National Express, FlixBus, Scottish Citylink): every route on the real roads, one colour per operator. Off by default.
 const COACHNET = {on:(() => { try{ return localStorage.getItem('coachLines') === '1'; }catch(e){ return false; } })(), data:null, loading:false, path:new Map()};
 function drawCoachNet(ctx){
@@ -2580,6 +2593,8 @@ const lineResult = (s, i) => `<li role="option" data-i="${i}" class="${i===SR.se
 function searchCityStations(text){
   const q = text.trim().toLowerCase(); if(q.length < 2) return []; const out = [];
   for(const d of cityData()) for(const st of d.stations || []){ const n = stName(st[1]).toLowerCase(); if(n.startsWith(q) || (q.length >= 3 && n.includes(q))) out.push({cityHit:true, st, d, score:n.startsWith(q) ? 0 : 1}); }
+  if(typeof nrOn === 'function' && nrOn()) for(const [crs, n, la, lo] of RAIL.stations){ const k = n.toLowerCase(); if(k.startsWith(q) || (q.length >= 3 && k.includes(q)) || crs.toLowerCase() === q)
+    out.push({cityHit:true, st:[crs, n, la, lo, [['National Rail', '#5D6670', 'train']]], d:{url:'nr'}, score:crs.toLowerCase() === q ? -1 : k.startsWith(q) ? 0 : 1}); }
   return out.sort((a, b) => a.score - b.score || b.st[4].length - a.st[4].length).slice(0, 6);
 }
 function pickResult(x){ if(!x) return; if(x.lineHit) focusLine(x); else if(x.cityHit){ $('q').value = stName(x.st[1]); SR.items = []; renderResults(); $('q').blur(); map.setZoom(Math.max(map.getZoom(), 15)); openCityStation({st:x.st, url:x.d.url}); } else goStation(x); }
