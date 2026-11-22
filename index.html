@@ -1615,7 +1615,8 @@ function applyRegion(){
   if(typeof onTrainsUpdate === 'function') onTrainsUpdate(ACTIVE.reduce((s, l) => s + (shown(l) ? l.count : 0), 0));
 }
 map.addListener('idle', applyRegion);
-function renderBusNote(){ let el = $('busNote'); if(!el) return; el.textContent = BUS.note; el.hidden = !BUS.note; }
+function renderBusNote(){ if(document.body.classList.contains('away') && typeof onTrainsUpdate === 'function') onTrainsUpdate(0); // away: the status counts what's live here
+  let el = $('busNote'); if(!el) return; el.textContent = BUS.note; el.hidden = !BUS.note; }
 map.addListener('idle', () => { clearTimeout(BUS.t); BUS.t = setTimeout(() => updateBuses(), 400); }); // settle first
 
 // ---------- map options ----------
