@@ -27,6 +27,7 @@ html,body{margin:0;height:100%;background:var(--bg);color:var(--ink);font:15px/1
   background:var(--panel);border:1px solid var(--edge);border-radius:14px;box-shadow:0 6px 24px rgba(0,0,0,.2);padding:14px}
 h1{margin:0 0 10px;font-size:18px;font-weight:800;display:flex;align-items:center;gap:6px;white-space:nowrap}
 h1 .sp{flex:1}
+#ttl{overflow:hidden;text-overflow:ellipsis;min-width:0} h1 .icon{padding:6px 7px;flex:none} h1{gap:5px}
 form{display:grid;gap:8px}
 .field{display:flex;align-items:center;gap:8px;background:var(--soft);border-radius:10px;padding:0 10px}
 .field label{font-size:12px;color:var(--mute);min-width:34px;white-space:nowrap}
@@ -57,6 +58,20 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--acc);outline-of
 .mapmenu{background:var(--soft);border-radius:12px;padding:6px 12px;margin-bottom:10px;display:grid}
 .mm-row{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:8px 0;font-size:14px;cursor:pointer}
 .mm-row+.mm-row{border-top:1px solid var(--edge)}
+.explore{background:var(--soft);border-radius:12px;padding:10px 12px;margin:8px 0}
+.explore .crumb{display:flex;flex-wrap:wrap;align-items:center;gap:4px;font-size:12.5px;color:var(--mute);margin-bottom:8px}
+.explore .crumb button{border:0;background:none;padding:2px 4px;color:var(--acc,#1a73e8);font-size:12.5px;font-weight:600;cursor:pointer}
+.explore .crumb .x{margin-left:auto;color:var(--mute)}
+.explore .list{display:grid;gap:4px}
+.explore .list button{display:flex;align-items:center;justify-content:space-between;gap:8px;text-align:left;font-size:14px;padding:9px 11px;border-radius:9px}
+.explore .list button small{color:var(--mute);font-size:12px;white-space:nowrap}
+.explore .live{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--good,#188038);margin-right:6px}
+.explore .soon{background:#c9a227}
+.explore h3{margin:2px 0 6px;font-size:16px}
+.explore .opts{display:flex;flex-wrap:wrap;gap:6px;margin:6px 0}
+.explore .opts button{font-size:13px;padding:6px 10px;border-radius:99px}
+.explore .opts button[aria-pressed=false]{opacity:.45}
+.explore p{margin:6px 0 0;font-size:12.5px;color:var(--mute);line-height:1.4}
 .mm-places{padding:8px 0;border-top:1px solid var(--edge)}.mm-places+.mm-row{border-top:1px solid var(--edge)}.mm-places b{display:block;font-size:13px;font-weight:600;margin:2px 0 6px}.mm-places b small{font-weight:400;color:var(--mute)}.mm-places .pl{display:flex;flex-wrap:wrap;gap:5px;margin-bottom:8px}.mm-places .pl button{font-size:12.5px;padding:5px 10px}
 .mm-row small{display:block;color:var(--mute);font-size:12px;margin-top:1px}
 .seg2{display:flex;border:1px solid var(--edge);border-radius:8px;overflow:hidden;flex:none}
@@ -161,7 +176,7 @@ body.dark #simnote{background:#1f2a44;color:#c6dafc}
 #mModes{margin:0 0 8px}
 #legend{display:grid;gap:0}
 body.abroad #mModes [data-mode=rail]{display:none}
-body.away #legend, body.away #lgAll, body.away #sbox, body.away #mModes [data-mode=tube], body.away #mModes [data-mode=overground], body.away #mModes [data-mode=elizabeth], body.away #mModes [data-mode=dlr], body.away #mModes [data-mode=tram], body.away #mModes [data-mode=bike]{display:none} /* London-only parts, hidden elsewhere */
+body.away #legend, body.away #lgAll, body.away #sbox, body.away #mModes [data-mode=tube], body.away #mModes [data-mode=overground], body.away #mModes [data-mode=elizabeth], body.away #mModes [data-mode=dlr], body.away #mModes [data-mode=tram]{display:none} /* London-only parts, hidden elsewhere */
 .lgall{display:flex;justify-content:flex-end;gap:14px;margin:2px 0 4px}.lgall button{background:none;border:0;padding:4px 2px;color:var(--mute);font-size:12.5px;font-weight:600;cursor:pointer}.lgall button:hover{color:var(--ink)}
 .row{display:flex;align-items:center;gap:8px;padding:4px 2px;border:0;background:none;border-radius:6px;font-size:14px;text-align:left;width:100%}
 .row:hover{background:var(--soft)}
@@ -213,12 +228,14 @@ body.kiosk #map{bottom:0!important}
 <div id="map"></div>
 <div id="panel">
   <h1><span id="ttl">London live trains</span> <span class="sp"></span>
+    <button id="bPlaces" class="icon" title="Explore cities" aria-label="Explore cities around the world" aria-expanded="false"><svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="2"/><path d="M3 12h18M12 3c3 3.2 3 14.8 0 18M12 3c-3 3.2-3 14.8 0 18" fill="none" stroke="currentColor" stroke-width="1.6"/></svg></button>
     <button id="bMap" class="icon" title="Map style" aria-label="Map style" aria-expanded="false"><svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l9 5-9 5-9-5 9-5zm-9 9l9 5 9-5M3 16l9 5 9-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg></button>
     <button id="bFit" class="icon" title="Re-centre" aria-label="Re-centre the map">⌖</button>
     <button id="bKiosk" class="icon" title="Full-screen TV mode (K)" aria-label="Full-screen TV mode">⛶</button>
     <button id="bTheme" class="icon" title="Dark / light (D)" aria-label="Switch dark or light map">🌓</button>
   </h1>
   <div id="status">Loading lines…</div>
+  <div id="explore" class="explore" hidden></div>
   <div class="search">
     <div class="field"><label for="q">Find</label><input id="q" placeholder="Search a station" autocomplete="off" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="sres" enterkeyhint="search"></div>
     <ul id="sres" role="listbox" hidden></ul>
@@ -232,7 +249,6 @@ body.kiosk #map{bottom:0!important}
     <label class="mm-row"><span>Dark map</span><input type="checkbox" id="mDark" class="switch"></label>
     <label class="mm-row"><span>Show trains<small>The moving train shapes. The lines stay.</small></span><input type="checkbox" id="mIcons" class="switch"></label>
     <label class="mm-row"><span>Lines side by side<small>Where lines share track (e.g. Circle and District), draw them next to each other.</small></span><input type="checkbox" id="mLanes" class="switch"></label>
-    <div class="mm-places" id="places"></div>
   </div>
   <div class="chips" id="mModes" aria-label="Show transport types"></div>
   <div id="busNote" class="muted" hidden style="font-size:12px;margin:-2px 0 6px"></div>
@@ -297,7 +313,7 @@ const BY = Object.fromEntries(ACTIVE.map(l => [l.id, l]));
 let LAYOUT = (() => { try{ return localStorage.getItem('lineLayout') || 'simple'; }catch(e){ return 'simple'; } })();
 let TRAINS_ON = (() => { try{ return localStorage.getItem('trainsOn') !== '0' }catch(e){ return true } })();
 // which kinds of transport to show in the background (each can be switched off in the Map menu)
-const MODE_GROUPS = [['tube','Tube'], ['overground','Overground'], ['elizabeth','Elizabeth line'], ['dlr','DLR'], ['tram','Trams'], ['bus','Buses'], ['bike','Bikes'], ['rail','National Rail']];
+const MODE_GROUPS = [['tube','Tube'], ['overground','Overground'], ['elizabeth','Elizabeth line'], ['dlr','DLR'], ['tram','Trams'], ['bus','Buses'], ['bike','Bikes & scooters'], ['rail','National Rail']];
 let MODES_OFF = new Set((() => { try{ return JSON.parse(localStorage.getItem('modesOff')) || []; }catch(e){ return []; } })());
 try{ if(!localStorage.getItem('bikeInit')){ MODES_OFF.add('bike'); localStorage.setItem('modesOff', JSON.stringify([...MODES_OFF])); localStorage.setItem('bikeInit', '1'); } }catch(e){ MODES_OFF.add('bike'); } // bikes start off
 if(Q.get('bikes') === '1') MODES_OFF.delete('bike');
@@ -1056,6 +1072,7 @@ function draw(ts){
       ctx.strokeStyle = dark ? 'rgba(0,0,0,.85)' : 'rgba(255,255,255,.95)'; ctx.strokeText(txt, x, ty); ctx.fillStyle = dark ? '#ff8a80' : '#b3140f'; ctx.fillText(txt, x, ty); }
     ctx.textAlign = 'start'; }
   if(typeof drawBikes === 'function') drawBikes(ctx, s);
+  if(typeof drawShare === 'function') drawShare(ctx, s);
   if(typeof drawGps === 'function') drawGps(ctx, s, hl0, hw0, mpp); // GPS buses/trams outside London
   // the user's own train/bus: drawn larger, on top, with a ring
   for(const d of drawn) if(HL.has(d[0].key)){
@@ -1110,7 +1127,7 @@ function showTip(e){
   if(e.type === 'click' && map.getZoom() >= 13 && stationAt(e.clientX-r.left, e.clientY-r.top, matchMedia('(pointer:coarse)').matches ? 12 : 8)){ $('tip').style.display = 'none'; hover = null; return; } // a station tap
   const t = nearest(e.clientX-r.left, e.clientY-r.top); hover = t;
   const tip = $('tip');
-  if(!t){ if(typeof gpsTip === 'function' && gpsTip(e, r, tip)) return; if(typeof bikeTip === 'function' && bikeTip(e, r, tip)) return; tip.style.display='none'; return; }
+  if(!t){ if(typeof gpsTip === 'function' && gpsTip(e, r, tip)) return; if(typeof bikeTip === 'function' && bikeTip(e, r, tip)) return; if(typeof shareTip === 'function' && shareTip(e, r, tip)) return; tip.style.display='none'; return; }
   const l = BY[t.line], secs = Math.max(0, Math.round(((t.curArr??t.arr)-now())/1000));
   // TfL has no train names; tube trains have a set number and buses a registration (rail ids are trip codes)
   const vid = t.anon ? '' : t.key.slice(t.line.length + 1);
@@ -1286,7 +1303,9 @@ const SHOW_LOC = false;
 // ---------- status + legend ----------
 window.onTrainsUpdate = n => {
   if(document.body.classList.contains('away')){ // somewhere else: count what's live here
-    const gl = typeof GPS !== 'undefined' ? [...GPS.list.values()] : [], gt = gl.filter(g => g.v.train).length, rt = [...trains.values()].filter(t => t.rail && BY[t.line] && shown(BY[t.line])).length;
+    const gl = typeof GPS !== 'undefined' ? [...GPS.list.values()].filter(g => !GPS_OFF.has(vkind(g.v))) : [], gt = gl.filter(g => g.v.train).length, rt = [...trains.values()].filter(t => t.rail && BY[t.line] && shown(BY[t.line])).length;
+    const sh = typeof SHARE !== 'undefined' && SHARE.city && !MODES_OFF.has('bike') ? SHARE.city[3].reduce((n, x) => { const q = SHARE.sys.get(x[1]); return n + (q ? q.vehicles.length + [...q.stations.values()].reduce((m, d) => m + (d.open !== false && d.bikes || 0), 0) : 0); }, 0) : 0;
+    if(sh && !(gt + rt || gl.length)){ $('status').innerHTML = `<b>${sh}</b> bikes &amp; scooters to hire · updated ${new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}`; renderLegend(); return; }
     $('status').innerHTML = (gt + rt || gl.length) ? `${gt + rt ? `<b>${gt + rt}</b> trains` : ''}${gt + rt && gl.length - gt ? ' · ' : ''}${gl.length - gt ? `<b>${gl.length - gt}</b> ${(k => k.length > 1 ? k.slice(0, -1).join(', ') + ' &amp; ' + k.at(-1) : k[0])([gl.some(g => g.v.tram) && 'trams', gl.some(g => g.v.metro) && 'metros', gl.some(g => !g.v.train && !g.v.tram && !g.v.metro) && 'buses'].filter(Boolean))}` : ''} · updated ${new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit', second:'2-digit'})}` : 'Nothing live here yet';
     renderLegend(); return; }
   let nb = ACTIVE.reduce((s, l) => s + (l.mode === 'bus' && shown(l) ? l.count : 0), 0); n -= nb; if(typeof GPS !== 'undefined'){ const gt = [...GPS.list.values()].filter(g => g.v.train).length; nb += GPS.list.size - gt; n += gt; }
@@ -1331,7 +1350,7 @@ $('mModes').addEventListener('click', e => { const b = e.target.closest('[data-m
   const m = b.dataset.mode; MODES_OFF.has(m) ? MODES_OFF.delete(m) : MODES_OFF.add(m);
   try{ localStorage.setItem('modesOff', JSON.stringify([...MODES_OFF])); }catch(x){}
   for(const l of ACTIVE) l.layer && l.layer.eachLayer(p => p.setStyle(lineStyle(l)));
-  renderModeChips(); renderLegend(); if(m === 'bus') updateBuses(true); else if(m === 'bike') refreshBikes(true); else refresh().catch(()=>{}); });
+  renderModeChips(); renderLegend(); if(m === 'bus') updateBuses(true); else if(m === 'bike'){ refreshBikes(true); refreshShare(); } else refresh().catch(()=>{}); });
 
 // ---------- live buses: the routes serving the stops around the view (zoom 14+) ----------
 // TfL has no bus GPS feed; positions come from arrival predictions, like the trains.
@@ -1589,6 +1608,7 @@ function drawGps(ctx, s, hl0, hw0, mpp){
   const now = Date.now(), cosLat = Math.cos(map.getCenter().lat()*rad), label = PV.z >= 15.5;
   ctx.lineWidth = 1; ctx.font = '700 10.5px system-ui, sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
   for(const g of GPS.list.values()){
+    if(GPS_OFF.has(vkind(g.v))) continue;
     const p = gpsPos(g, now), c = scr(p); if(c.x < -30 || c.y < -30 || c.x > s.x + 30 || c.y > s.y + 30) continue;
     let ang = g.v.brg != null ? (g.v.brg - 90)*rad : g.ang ?? 0;
     if(g.v.brg == null && (g.to[0] !== g.from[0] || g.to[1] !== g.from[1])) ang = Math.atan2(-(g.to[0] - g.from[0]), (g.to[1] - g.from[1])*cosLat);
@@ -1625,14 +1645,72 @@ function gpsDemo(p){
 }
 setInterval(refreshGps, 15000);
 map.addListener('idle', () => { const c = map.getCenter(), p = [c.lat(), c.lng()]; if(!inLondonView(p)) refreshGps(); else if(GPS.list.size){ GPS.list.clear(); } });
-// quick jumps around the country
-const PLACES = [['London', 51.507, -0.128, 12], ['Manchester', 53.480, -2.243, 13], ['Birmingham', 52.479, -1.899, 13], ['Leeds', 53.797, -1.546, 13],
-  ['Liverpool', 53.405, -2.982, 13], ['Newcastle', 54.972, -1.614, 13], ['Edinburgh', 55.951, -3.196, 13], ['Glasgow', 55.861, -4.251, 13], ['Bristol', 51.454, -2.592, 13], ['Cardiff', 51.479, -3.177, 13], ['Helsinki', 60.170, 24.940, 14], ['Finland', 63.5, 26.0, 6], ['Bergen', 60.392, 5.324, 13], ['Trondheim', 63.430, 10.395, 13], ['Boston', 42.355, -71.065, 13], ['Berlin', 52.515, 13.395, 14]];
-const LIVE_NOW = new Set(['London', 'Helsinki', 'Finland', 'Bergen', 'Trondheim', 'Berlin', 'Boston']);
-const placeBtns = f => PLACES.map(([n], i) => f(n) ? `<button type="button" data-pl="${i}">${n}</button>` : '').join('');
-$('places').innerHTML = `<b>Go to · live now</b><div class="pl">${placeBtns(n => LIVE_NOW.has(n))}</div><b>Go to · rest of Britain <small>(live once the data keys are set up)</small></b><div class="pl">${placeBtns(n => !LIVE_NOW.has(n))}</div>`;
-$('places').addEventListener('click', e => { const b = e.target.closest('[data-pl]'); if(!b) return; const [, lat, lon, z] = PLACES[+b.dataset.pl];
-  map.panTo({lat, lng:lon}); map.setZoom(z); $('mapMenu').hidden = true; $('bMap').setAttribute('aria-expanded', 'false'); });
+// ---------- Explore: continent → country → city → that city's transport ----------
+// live: 'now' (works today) or 'keys' (switches on once the relay's data keys are set up). Mode ids: London's own
+// switches (tube, overground…) and, elsewhere, kinds of vehicle (train, metro, tram, bus, ferry).
+const CATALOG = [
+  {name:'Europe', countries:[
+    {name:'United Kingdom', flag:'🇬🇧', cities:[
+      {name:'London', at:[51.507, -0.128, 12], live:'now', modes:[['tube','Tube'], ['overground','Overground'], ['elizabeth','Elizabeth line'], ['dlr','DLR'], ['tram','Trams'], ['bus','Buses'], ['bike','Santander Cycles & Beryl'], ['rail','National Rail']],
+        note:'Every Tube, Overground, Elizabeth line, DLR and tram train live from TfL. Buses: zoom in. Santander Cycles docks with bikes and e-bikes.'},
+      ...[['Manchester', 53.480, -2.243], ['Birmingham', 52.479, -1.899], ['Leeds', 53.797, -1.546], ['Liverpool', 53.405, -2.982], ['Newcastle', 54.972, -1.614], ['Glasgow', 55.861, -4.251], ['Bristol', 51.454, -2.592], ['Cardiff', 51.479, -3.177]]
+        .map(([name, a, b]) => ({name, at:[a, b, 13], live:'keys', modes:[['bus','Buses'], ['rail','National Rail'], ...(['Manchester','Leeds','Birmingham','Liverpool','Bristol'].includes(name) ? [['bike','Bikes & scooters (live now)']] : [])], note:'Live buses (GPS) and National Rail trains switch on once the free data keys are set up.' + (['Manchester','Leeds','Birmingham','Liverpool','Bristol'].includes(name) ? ' Bikes and scooters for hire are live now.' : '')})),
+      {name:'Edinburgh', at:[55.951, -3.196, 13], live:'keys', modes:[['bus','Buses & trams'], ['rail','National Rail']], note:'Lothian buses and Edinburgh Trams need no key, just the relay. (Their server was down overnight.)'}]},
+    {name:'Finland', flag:'🇫🇮', cities:[
+      {name:'Helsinki', at:[60.170, 24.940, 14], live:'now', modes:[['train','Trains'], ['metro','Metro'], ['tram','Trams'], ['bus','Buses'], ['ferry','Ferries'], ['bike','City bikes & scooters']], note:'Every HSL tram, metro, bus and ferry, updated every second, plus all VR trains.'},
+      {name:'Whole country (trains)', at:[63.5, 26.0, 6], live:'now', modes:[['train','Trains']], note:'Every train in Finland by GPS (Digitraffic).'}]},
+    {name:'Norway', flag:'🇳🇴', cities:[
+      {name:'Bergen', at:[60.392, 5.324, 13], live:'now', modes:[['bus','Buses'], ['train','Trains'], ['ferry','Ferries'], ['bike','City bikes']], note:'Skyss buses and Vy trains by GPS (Entur).'},
+      {name:'Trondheim', at:[63.430, 10.395, 13], live:'now', modes:[['bus','Buses'], ['train','Trains'], ['bike','City bikes & scooters']], note:'AtB buses and trains by GPS (Entur).'}]},
+    {name:'Germany', flag:'🇩🇪', cities:[
+      {name:'Berlin', at:[52.515, 13.395, 14], live:'now', modes:[['train','S-Bahn & trains'], ['metro','U-Bahn'], ['tram','Trams'], ['bus','Buses'], ['ferry','Ferries'], ['bike','Bikes & scooters']], note:'BVG/VBB vehicles, positioned from live timings.'}]},
+    {name:'Estonia', flag:'🇪🇪', cities:[{name:'Tallinn', at:[59.437, 24.754, 14], live:'keys', modes:[['tram','Trams'], ['bus','Buses & trolleybuses']], note:'Open data, no key: switches on with the relay.'}]},
+    {name:'Poland', flag:'🇵🇱', cities:[{name:'Gdańsk', at:[54.352, 18.647, 13], live:'keys', modes:[['tram','Trams'], ['bus','Buses'], ['bike','MEVO bikes']], note:'Open data, no key: switches on with the relay.'}]},
+    {name:'Lithuania', flag:'🇱🇹', cities:[{name:'Vilnius', at:[54.687, 25.280, 13], live:'keys', modes:[['bus','Buses & trolleybuses'], ['bike','City bikes']], note:'Open data, no key: switches on with the relay.'}]}]},
+  {name:'North America', countries:[
+    {name:'United States', flag:'🇺🇸', cities:[
+      {name:'Boston', at:[42.355, -71.065, 13], live:'now', modes:[['train','Subway & commuter rail'], ['tram','Green Line & Mattapan'], ['bus','Buses'], ['bike','Bluebikes']], note:'MBTA vehicles by GPS, on the subway lines in their own colours.'}]}]},
+];
+// vehicle kinds switched off abroad (buses use the Buses switch)
+let GPS_OFF = new Set((() => { try{ return JSON.parse(localStorage.getItem('gpsOff')) || []; }catch(e){ return []; } })());
+const vkind = v => v.train ? 'train' : v.metro ? 'metro' : v.tram ? 'tram' : /ferry/i.test(v.kind || '') ? 'ferry' : 'bus';
+const EX = {path:[]}; // [continent, country, city] indexes
+function cityHere(){ const c = map.getCenter(); if(!c) return null; const p = [c.lat(), c.lng()]; let best = null, bd = Infinity;
+  CATALOG.forEach((ct, i) => ct.countries.forEach((co, j) => co.cities.forEach((ci, k) => { const d = dist(p, ci.at); const lim = ci.at[2] <= 7 ? 600000 : 40000; if(d < lim && d < bd){ bd = d; best = [i, j, k]; } })));
+  return best; }
+// London's switches (and Buses/National Rail everywhere) vs. vehicle kinds abroad
+const exCity = () => { const [a, b, c] = EX.path; return CATALOG[a]?.countries[b]?.cities[c] || null; };
+const isSwitch = m => ['tube','overground','elizabeth','dlr','bus','bike','rail'].includes(m) || (m === 'tram' && exCity()?.name === 'London');
+const modeOn = m => isSwitch(m) ? !MODES_OFF.has(m) : !GPS_OFF.has(m);
+function renderExplore(){
+  const box = $('explore'); if(box.hidden) return;
+  const [a, b, c] = EX.path, ct = CATALOG[a], co = ct && ct.countries[b], ci = co && co.cities[c];
+  const crumbs = [`<button type="button" data-ex="">🌍 World</button>`];
+  if(ct) crumbs.push(`› <button type="button" data-ex="${a}">${esc(ct.name)}</button>`);
+  if(co) crumbs.push(`› <button type="button" data-ex="${a},${b}">${co.flag} ${esc(co.name)}</button>`);
+  if(ci) crumbs.push(`› <b>${esc(ci.name)}</b>`);
+  const dot = l => `<span class="live ${l === 'now' ? '' : 'soon'}"></span>`;
+  let body;
+  if(ci) body = `<h3>${dot(ci.live)}${esc(ci.name)}</h3><div class="opts">${ci.modes.map(([m, n]) => `<button type="button" data-mode-x="${m}" aria-pressed="${modeOn(m)}">${esc(n)}</button>`).join('')}</div>
+    <p>${ci.live === 'now' ? 'Live now. ' : 'Coming soon. '}${esc(ci.note || '')}</p>`;
+  else if(co) body = `<div class="list">${co.cities.map((x, k) => `<button type="button" data-ex="${a},${b},${k}"><span>${dot(x.live)}${esc(x.name)}</span><small>${x.live === 'now' ? 'live now' : 'coming soon'}</small></button>`).join('')}</div>`;
+  else if(ct) body = `<div class="list">${ct.countries.map((x, j) => `<button type="button" data-ex="${a},${j}"><span>${x.flag} ${esc(x.name)}</span><small>${x.cities.filter(y => y.live === 'now').length ? x.cities.filter(y => y.live === 'now').length + ' live' : 'coming soon'}</small></button>`).join('')}</div>`;
+  else body = `<div class="list">${CATALOG.map((x, i) => `<button type="button" data-ex="${i}"><span>${esc(x.name)}</span><small>${x.countries.length} ${x.countries.length === 1 ? 'country' : 'countries'}</small></button>`).join('')}</div>`;
+  box.innerHTML = `<div class="crumb">${crumbs.join(' ')}<button type="button" class="x" data-ex-close aria-label="Close">✕</button></div>${body}`;
+}
+$('bPlaces').onclick = () => { const box = $('explore'); box.hidden = !box.hidden; $('bPlaces').setAttribute('aria-expanded', String(!box.hidden)); if(!box.hidden){ EX.path = cityHere() || []; renderExplore(); } };
+$('explore').addEventListener('click', e => {
+  if(e.target.closest('[data-ex-close]')){ $('explore').hidden = true; $('bPlaces').setAttribute('aria-expanded', 'false'); return; }
+  const m = e.target.closest('[data-mode-x]');
+  if(m){ const k = m.dataset.modeX;
+    if(isSwitch(k)){ const chip = document.querySelector(`#mModes [data-mode="${k}"]`); if(chip && !chip.disabled) chip.click(); else { MODES_OFF.has(k) ? MODES_OFF.delete(k) : MODES_OFF.add(k); try{ localStorage.setItem('modesOff', JSON.stringify([...MODES_OFF])); }catch(x){} } }
+    else { GPS_OFF.has(k) ? GPS_OFF.delete(k) : GPS_OFF.add(k); try{ localStorage.setItem('gpsOff', JSON.stringify([...GPS_OFF])); }catch(x){} if(typeof renderBusNote === 'function') renderBusNote(); }
+    renderExplore(); return; }
+  const b = e.target.closest('[data-ex]'); if(!b) return;
+  EX.path = b.dataset.ex === '' ? [] : b.dataset.ex.split(',').map(Number);
+  if(EX.path.length === 3){ const ci = CATALOG[EX.path[0]].countries[EX.path[1]].cities[EX.path[2]]; map.panTo({lat:ci.at[0], lng:ci.at[1]}); map.setZoom(ci.at[2]); }
+  renderExplore();
+});
 // which part of the world the map shows: London keeps the full TfL panel, elsewhere it's trimmed to what's live there
 function regionOf(p){ return inLondonView(p) ? 'london' : inFinland(p) ? 'finland' : inNorway(p) ? 'norway' : inBoston(p) ? 'boston' : inBerlin(p) ? 'berlin' : relayCity(p) ? 'city' : inEdinburgh(p) ? 'edinburgh' : p[0] > 49.8 && p[0] < 60.9 && p[1] > -8.7 && p[1] < 1.9 ? 'uk' : 'world'; }
 function applyRegion(){
@@ -1680,6 +1758,87 @@ function bikeTip(e, r, tip){
   tip.innerHTML = `<div class="tt-h">${symbol('cycle', '#EC0000', 20)}<b>Santander Cycles</b></div><div><b>${esc(best.name)}</b></div>
     <div>${best.locked ? 'Closed right now' : `${best.bikes} bike${best.bikes === 1 ? '' : 's'}${best.ebikes ? ` · ${best.ebikes} e-bike${best.ebikes === 1 ? '' : 's'}` : ''} · ${best.free} free dock${best.free === 1 ? '' : 's'}`}</div>
     <div class="tt-m">live from TfL · updated ${Math.max(0, Math.round((Date.now() - BIKES.at)/60000))} min ago</div>`;
+  tip.style.display = 'block';
+  tip.style.left = Math.max(8, Math.min(innerWidth - 258, e.clientX + 14)) + 'px'; tip.style.top = Math.max(8, Math.min(innerHeight - 150, e.clientY + 14)) + 'px';
+  return true;
+}
+// ---------- bikes & scooters for hire in other cities: open GBFS feeds (no key; read straight from the browser) ----------
+// [city, lat, lon, [[name, discovery URL, colour], ...]]. Lime publishes no open data for these cities.
+const GBFS_CITIES = [
+  ['London', 51.507, -0.128, [['Beryl cargo bikes (Hackney)', 'https://gbfs.beryl.cc/v2_2/Hackney_Cargo_Bike/gbfs.json', '#00A77F']]],
+  ['Berlin', 52.515, 13.395, [['nextbike', 'https://gbfs.nextbike.net/maps/gbfs/v2/nextbike_bn/gbfs.json', '#2A5BA8'], ['Dott', 'https://gbfs.api.ridedott.com/public/v2/berlin/gbfs.json', '#1E9BE9']]],
+  ['Helsinki', 60.170, 24.940, [['HSL city bikes', 'https://gbfs.theta.fifteen.eu/gbfs/2.2/helsinki/en/gbfs.json', '#F7B500'], ['Bird', 'https://mds.bird.co/gbfs/v2/public/helsinki/gbfs.json', '#262626']]],
+  ['Bergen', 60.392, 5.324, [['Bergen Bysykkel', 'https://gbfs.urbansharing.com/bergenbysykkel.no/gbfs.json', '#E7343F']]],
+  ['Trondheim', 63.430, 10.395, [['Trondheim Bysykkel', 'https://gbfs.urbansharing.com/trondheimbysykkel.no/gbfs.json', '#1E7BC1'], ['Dott', 'https://gbfs.api.ridedott.com/public/v2/trondheim/gbfs.json', '#1E9BE9']]],
+  ['Boston', 42.355, -71.065, [['Bluebikes', 'https://gbfs.bluebikes.com/gbfs/gbfs.json', '#0E64B4']]],
+  ['Gdańsk', 54.352, 18.647, [['MEVO', 'https://gbfs.urbansharing.com/rowermevo.pl/gbfs.json', '#E6007E']]],
+  ['Vilnius', 54.687, 25.280, [['Cyclocity', 'https://api.cyclocity.fr/contracts/vilnius/gbfs/v3/gbfs.json', '#D71920']]],
+  ['Manchester', 53.480, -2.243, [['Beryl', 'https://beryl-gbfs-production.web.app/v2_2/Greater_Manchester/gbfs.json', '#00A77F']]],
+  ['Leeds', 53.797, -1.546, [['Beryl', 'https://beryl-gbfs-production.web.app/v2_2/Leeds/gbfs.json', '#00A77F']]],
+  ['Birmingham', 52.479, -1.899, [['Beryl', 'https://beryl-gbfs-production.web.app/v2_2/West_Midlands/gbfs.json', '#00A77F'], ['Veo', 'https://cluster-prod.veoride.com/api/shares/name/bir/gbfs', '#00B7C9']]],
+  ['Liverpool', 53.405, -2.982, [['Bolt', 'https://mds.bolt.eu/gbfs/3/412/gbfs', '#2FB863']]],
+  ['Bristol', 51.454, -2.592, [['Dott', 'https://gbfs.api.ridedott.com/public/v2/bristol/gbfs.json', '#1E9BE9']]],
+];
+const SHARE = {sys:new Map(), busy:false, city:null};
+const shareCity = p => GBFS_CITIES.find(([, a, b]) => dist(p, [a, b]) < 30000);
+async function gbfsGet(u){ const r = await fetch(u, {signal:AbortSignal.timeout(10000)}); if(!r.ok) throw new Error('HTTP ' + r.status); return r.json(); }
+async function gbfsSystem([name, url, col]){
+  let s = SHARE.sys.get(url);
+  if(!s){ s = {name, col, feeds:null, types:{}, stations:new Map(), vehicles:[], infoAt:0, at:0}; SHARE.sys.set(url, s); }
+  if(!s.feeds){ const d = await gbfsGet(url), dd = d.data || {};
+    const list = dd.feeds || (dd.en || dd.nb || dd.de || dd.fi || dd.pl || dd.lt || Object.values(dd)[0] || {}).feeds || [];
+    s.feeds = Object.fromEntries(list.map(f => [f.name, f.url])); }
+  const F = s.feeds, now = Date.now();
+  if(now - s.infoAt > 3600000){ // station names/places and vehicle types: hourly
+    if(F.vehicle_types){ try{ for(const t of (await gbfsGet(F.vehicle_types)).data.vehicle_types || []) s.types[t.vehicle_type_id] = t; }catch(e){} }
+    if(F.station_information){ const d = await gbfsGet(F.station_information); s.stations = new Map((d.data.stations || []).map(x => [x.station_id, {id:x.station_id, name:(x.name && (x.name[0]?.text || x.name)) || '', p:[+x.lat, +x.lon], cap:x.capacity}])); }
+    s.infoAt = now;
+  }
+  if(F.station_status){ const d = await gbfsGet(F.station_status);
+    for(const x of d.data.stations || []){ const st = s.stations.get(x.station_id); if(!st) continue;
+      st.bikes = x.num_bikes_available ?? x.num_vehicles_available ?? 0; st.free = x.num_docks_available ?? null; st.open = x.is_renting !== false && x.is_renting !== 0;
+      st.ebikes = (x.vehicle_types_available || []).reduce((n, v) => n + (/electric/.test(s.types[v.vehicle_type_id]?.propulsion_type || '') ? v.count : 0), 0); } }
+  const vf = F.free_bike_status || F.vehicle_status;
+  if(vf){ const d = await gbfsGet(vf), list = d.data.bikes || d.data.vehicles || [];
+    s.vehicles = list.filter(v => v.lat && !v.station_id && !v.is_disabled && !v.is_reserved).map(v => { const t = s.types[v.vehicle_type_id] || {};
+      return {id:v.bike_id || v.vehicle_id, p:[+v.lat, +v.lon], scooter:/scooter/.test(t.form_factor || '') || /scooter/i.test(name + ' ' + (t.name || '')) && !/bike|bicycle/.test(t.form_factor || ''),
+        range:v.current_range_meters ?? null, fuel:v.current_fuel_percent ?? null, type:t.name || ''}; }); }
+  s.at = now; return s;
+}
+async function refreshShare(){ try{ await refreshShare0(); } finally { if(document.body.classList.contains('away') && typeof onTrainsUpdate === 'function') onTrainsUpdate(0); } }
+async function refreshShare0(){
+  const c = map.getCenter(); if(!c) return; const p = [c.lat(), c.lng()], city = shareCity(p);
+  if(MODES_OFF.has('bike') || !city || map.getZoom() < 12){ SHARE.city = null; return; }
+  if(SHARE.busy) return; SHARE.busy = true; SHARE.city = city;
+  await Promise.all(city[3].map(sys => { const s = SHARE.sys.get(sys[1]); return (!s || Date.now() - s.at > 55000) ? gbfsSystem(sys).catch(e => console.warn('gbfs', sys[0], e.message)) : null; }));
+  SHARE.busy = false;
+}
+setInterval(refreshShare, 20000); map.addListener('idle', () => refreshShare());
+function drawShare(ctx, s){
+  draw.shit = []; const city = SHARE.city; if(!city || MODES_OFF.has('bike') || PV.z < 13) return;
+  const r = PV.z >= 16 ? 7.5 : PV.z >= 15 ? 6 : PV.z >= 14 ? 4.8 : 3.5, rv = PV.z >= 16 ? 4 : PV.z >= 15 ? 3.2 : 2.5, label = PV.z >= 15;
+  ctx.font = `700 ${PV.z >= 16 ? 10 : 9}px system-ui, sans-serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  for(const sys of city[3]){ const st = SHARE.sys.get(sys[1]); if(!st) continue;
+    for(const v of st.vehicles){ const c = scr(v.p); if(c.x < -6 || c.y < -6 || c.x > s.x + 6 || c.y > s.y + 6) continue;
+      ctx.beginPath(); if(v.scooter){ ctx.rect(c.x - rv, c.y - rv, rv*2, rv*2); } else ctx.arc(c.x, c.y, rv, 0, 7);
+      ctx.fillStyle = st.col; ctx.fill(); ctx.lineWidth = 1; ctx.strokeStyle = dark ? '#111' : '#fff'; ctx.stroke(); draw.shit.push([{sys:st, v}, c.x, c.y]); }
+    for(const d of st.stations.values()){ if(d.bikes == null) continue; const c = scr(d.p); if(c.x < -10 || c.y < -10 || c.x > s.x + 10 || c.y > s.y + 10) continue;
+      const empty = !d.bikes || !d.open;
+      if(empty){ ctx.beginPath(); ctx.arc(c.x, c.y, Math.max(2, r*0.5), 0, 7); ctx.lineWidth = 1.2; ctx.strokeStyle = dark ? 'rgba(255,255,255,.35)' : 'rgba(0,0,0,.3)'; ctx.stroke(); } // empty: a faint ring
+      else { ctx.beginPath(); ctx.arc(c.x, c.y, r, 0, 7); ctx.fillStyle = st.col; ctx.fill(); ctx.lineWidth = 1.5; ctx.strokeStyle = dark ? '#111' : '#fff'; ctx.stroke();
+        if(label){ ctx.fillStyle = '#fff'; ctx.fillText(String(d.bikes), c.x, c.y + 0.5); } }
+      draw.shit.push([{sys:st, d}, c.x, c.y]); } }
+  ctx.textAlign = 'start';
+}
+function shareTip(e, r, tip){
+  const x = e.clientX - r.left, y = e.clientY - r.top, rr = matchMedia('(pointer:coarse)').matches ? 18 : 10;
+  let best = null, bd = rr; for(const [o, dx, dy] of draw.shit || []){ const k = Math.hypot(dx - x, dy - y); if(k < bd){ bd = k; best = o; } }
+  if(!best) return false;
+  const {sys, d, v} = best;
+  tip.innerHTML = `<div class="tt-h">${symbol('cycle', sys.col, 20)}<b>${esc(sys.name)}</b></div>` + (d
+    ? `<div><b>${esc(d.name)}</b></div><div>${!d.open ? 'Closed right now' : `${d.bikes} available${d.ebikes ? ` (${d.ebikes} electric)` : ''}${d.free != null ? ` · ${d.free} free dock${d.free === 1 ? '' : 's'}` : ''}`}</div>`
+    : `<div>${v.scooter ? 'E-scooter' : 'Bike'}${v.type && !/^\d+$/.test(v.type) ? ' · ' + esc(v.type) : ''}</div>${v.range != null ? `<div>Range ${Math.round(v.range/1000)} km${v.fuel != null ? ` · battery ${Math.round(v.fuel*100)}%` : ''}</div>` : ''}`)
+    + `<div class="tt-m">live · updated ${Math.max(0, Math.round((Date.now() - sys.at)/60000))} min ago</div>`;
   tip.style.display = 'block';
   tip.style.left = Math.max(8, Math.min(innerWidth - 258, e.clientX + 14)) + 'px'; tip.style.top = Math.max(8, Math.min(innerHeight - 150, e.clientY + 14)) + 'px';
   return true;
@@ -1884,7 +2043,7 @@ tick(); setInterval(tick, 1000);
 map.addListener('dragstart', () => { $('tip').style.display = 'none'; hover = null; });
 map.addListener('zoom_changed', () => { $('tip').style.display = 'none'; hover = null; });
 renderModeChips(); renderLegend(); syncMapMenu();
-if(DEBUG) window.LLT = {AUTO, autoNext: () => autoNext(), trains, ACTIVE, BY, placeTrain, segTime, refresh, map, draw, goStation, searchStations, scr, stationAt, GPS, gpsPos, BIKES};
+if(DEBUG) window.LLT = {AUTO, autoNext: () => autoNext(), trains, ACTIVE, BY, placeTrain, segTime, refresh, map, draw, goStation, searchStations, scr, stationAt, GPS, gpsPos, BIKES, SHARE};
 
 // ---------- boot ----------
 (async () => {
