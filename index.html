@@ -1124,6 +1124,7 @@ function nearest(x,y){
 const esc = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'})[c]);
 function showTip(e){
   const r = map.getDiv().getBoundingClientRect();
+  if(e.type === 'click' && document.body.classList.contains('away') && cityStationAt(e.clientX-r.left, e.clientY-r.top, matchMedia('(pointer:coarse)').matches ? 12 : 8)){ $('tip').style.display = 'none'; hover = null; return; } // a city station tap
   if(e.type === 'click' && map.getZoom() >= 13 && stationAt(e.clientX-r.left, e.clientY-r.top, matchMedia('(pointer:coarse)').matches ? 12 : 8)){ $('tip').style.display = 'none'; hover = null; return; } // a station tap
   const t = nearest(e.clientX-r.left, e.clientY-r.top); hover = t;
   const tip = $('tip');
@@ -1527,7 +1528,7 @@ async function loadCityLines(p){
     try{ const d = await (await fetch(url, {signal:AbortSignal.timeout(15000)})).json(), grid = new Map();
       d.lines.forEach((l, li) => { for(let i = 1; i < l.pts.length; i++){ const a = l.pts[i-1], b = l.pts[i], n = Math.max(1, Math.ceil(dist(a, b)/300));
         for(let k = 0; k <= n; k++){ const q = CELL(a[0] + (b[0]-a[0])*k/n, a[1] + (b[1]-a[1])*k/n); let g = grid.get(q); if(!g) grid.set(q, g = new Set()); g.add(li*100000 + i); } } });
-      d.grid = grid; CITYL.data.set(url, d); }
+      d.grid = grid; d.dupRail = /helsinki\.json/.test(url); CITYL.data.set(url, d); }
     catch(e){ CITYL.data.delete(url); console.warn('city lines', e.message); } }));
 }
 // nearest point on a line of the same kind (within 60 m), with the line's direction there
@@ -1562,6 +1563,62 @@ function drawLineSet(ctx, d){
   for(const [l, path] of d.paths){ if(GPS_OFF.has(l.kind)) continue;
     ctx.setLineDash(l.kind === 'ferry' ? [W*1.5/k, W*1.5/k] : []); ctx.strokeStyle = l.col; ctx.lineWidth = (l.kind === 'tram' ? W*0.7 : l.kind === 'ferry' ? W*0.6 : W)/k; ctx.stroke(path); }
   ctx.restore(); ctx.setLineDash([]); ctx.globalAlpha = 1;
+  // stations: dots from zoom 13 (bigger where lines meet), names from zoom 14 when the map's own labels are hidden — as in London
+  if(!d.stations || PV.z < 13) return; const s0 = mapSize(), r = Math.max(2.5, W*0.55), names = QUIET_ON && PV.z >= 14;
+  ctx.lineWidth = Math.max(1.5, W*0.3); if(names){ ctx.font = `600 ${PV.z >= 15 ? 13 : 11.5}px "Hanken Grotesk", system-ui, sans-serif`; ctx.textBaseline = 'middle'; ctx.textAlign = 'start'; }
+  for(const st of d.stations){ if(!showSt(d, st)) continue;
+    if(st[4].every(l => l[2] === 'tram') && PV.z < 15) continue; // tram stops only close up
+    const c = scr([st[2], st[3]]); if(c.x < -20 || c.y < -20 || c.x > s0.x + 20 || c.y > s0.y + 20) continue;
+    const rr = st[4].length > 1 && st[4].some(l => l[2] !== 'tram') ? r*1.35 : r;
+    ctx.beginPath(); ctx.arc(c.x, c.y, rr, 0, 7); ctx.fillStyle = dark ? '#1b1c1f' : '#fff'; ctx.fill(); ctx.strokeStyle = dark ? '#e6e6e6' : '#1b1c1f'; ctx.stroke();
+    if(names){ ctx.lineWidth = 3; ctx.strokeStyle = dark ? 'rgba(0,0,0,.85)' : 'rgba(255,255,255,.95)'; ctx.strokeText(stName(st[1]), c.x + rr + 4, c.y);
+      ctx.fillStyle = dark ? '#eee' : '#1b1c1f'; ctx.fillText(stName(st[1]), c.x + rr + 4, c.y); ctx.lineWidth = Math.max(1.5, W*0.3); } }
+}
+const showSt = (d, st) => st[4].some(l => !GPS_OFF.has(l[2])) && !(d.dupRail && st[4].every(l => l[2] === 'train'));
+const stName = n => String(n).replace(/ \((Berlin|Helsinki|Helsingfors)\)$/, '').replace(/ Bhf\b/, '').trim();
+// a city station under the finger
+function cityStationAt(x, y, rad0){
+  if(PV.z < 13) return null; let best = null, bd = rad0 || (matchMedia('(pointer:coarse)').matches ? 20 : 12);
+  for(const d of cityData()) for(const st of d.stations || []){ if(!showSt(d, st)) continue; const tramOnly = st[4].every(l => l[2] === 'tram'); if(tramOnly && PV.z < 15) continue;
+    const c = scr([st[2], st[3]]), k = Math.hypot(c.x - x, c.y - y) + (tramOnly ? 6 : 0); if(k < bd){ /* a tram stop next to a station: the station wins */ bd = k; best = {st, src:d.src || CITYL.cur.name, url:CITYL.cur.urls[cityData().indexOf(d)]}; } }
+  return best;
+}
+// its card: lines in their colours, and live departures where a free source exists
+async function openCityStation(hit){
+  const {st, url} = hit, box = $('station'); clearFocus(); FOCUS_ST = null; $('tip').style.display = 'none';
+  const kindName = {metro:'metro', train:'train', tram:'tram', ferry:'ferry'};
+  const head = `<div class="st-h"><b>${esc(stName(st[1]))}</b><button type="button" class="x" id="stClose" aria-label="Close">✕</button></div>
+    <div class="st-lines">${st[4].slice(0, 14).map(([n, col, k]) => `<span class="pill" style="--c:${col || '#888'}">${symbol(k === 'train' ? 'rail' : 'tube', col || '#888', 14)} ${esc(n)}</span>`).join('')}</div>`;
+  box.hidden = false; box.innerHTML = head + '<div class="muted">Loading departures…</div>';
+  map.panTo({lat:st[2], lng:st[3]});
+  const row = (col, to, sub, mins) => `<li><span class="sw" style="background:${col}"></span><span class="to">${esc(to)}<small>${esc(sub)}</small></span><b>${mins < 1 ? 'due' : mins + ' min'}</b></li>`;
+  const load = async () => {
+    let rows = null, note = '';
+    try{
+      const now = Date.now();
+      if(/finland\.json/.test(url)){ // Fintraffic: trains at this station
+        const j = await (await fetch(`https://rata.digitraffic.fi/api/v1/live-trains/station/${encodeURIComponent(st[0])}?minutes_before_departure=90&minutes_after_departure=0&minutes_before_arrival=0&minutes_after_arrival=0`, {signal:AbortSignal.timeout(10000)})).json();
+        const nameOf = code => { for(const d of cityData()) for(const x of d.stations || []) if(x[0] === code) return stName(x[1]); return code; };
+        rows = j.map(t => { const dep = t.timeTableRows.find(r => r.stationShortCode === st[0] && r.type === 'DEPARTURE'); if(!dep || t.cancelled) return null;
+          const when = Date.parse(dep.liveEstimateTime || dep.scheduledTime), last = t.timeTableRows[t.timeTableRows.length - 1];
+          return {when, html:row(t.commuterLineID ? '#8C4799' : '#3DAE2B', nameOf(last.stationShortCode), (t.commuterLineID ? t.commuterLineID + ' train' : t.trainType + ' ' + t.trainNumber) + (dep.commercialTrack ? ' · track ' + dep.commercialTrack : '') + (dep.differenceInMinutes > 0 ? ` · ${dep.differenceInMinutes} min late` : ''), Math.round((when - now)/60000))}; });
+      } else if(/boston\.json/.test(url)){ // MBTA predictions
+        const j = await (await fetch(`https://api-v3.mbta.com/predictions?filter[stop]=${encodeURIComponent(st[0])}&include=route,trip&sort=departure_time&page[limit]=12`, {signal:AbortSignal.timeout(10000)})).json(), inc = {};
+        for(const x of j.included || []) inc[x.type + ':' + x.id] = x.attributes;
+        rows = (j.data || []).map(p => { const a = p.attributes, rt = inc['route:' + p.relationships.route.data.id] || {}, tr = inc['trip:' + p.relationships.trip.data?.id] || {}; const when = Date.parse(a.departure_time || a.arrival_time); if(!when) return null;
+          return {when, html:row('#' + (rt.color || '888'), tr.headsign || '', rt.short_name || rt.long_name || '', Math.round((when - now)/60000))}; });
+      } else if(/berlin\.json/.test(url)){ // VBB departures
+        const id = String(st[0]).split(':').pop();
+        const j = await (await fetch(`https://v6.vbb.transport.rest/stops/${encodeURIComponent(id)}/departures?duration=40&results=12&bus=false`, {signal:AbortSignal.timeout(10000)})).json();
+        rows = (j.departures || j || []).map(x => { const when = Date.parse(x.when || x.plannedWhen); if(!when || x.cancelled) return null; const l = st[4].find(q => q[0] === x.line?.name);
+          return {when, html:row(l && l[1] || VBB_COL[x.line?.product] || '#888', x.direction || '', (x.line?.name || '') + (x.platform ? ' · platform ' + x.platform : '') + (x.delay > 60 ? ` · ${Math.round(x.delay/60)} min late` : ''), Math.round((when - now)/60000))}; });
+      } else note = 'Live departures for HSL metro and trams need a free HSL key; the vehicles on the map are live.';
+    }catch(e){ note = 'Departures could not be loaded right now.'; }
+    if(box.hidden) return;
+    rows = (rows || []).filter(r => r && r.when > Date.now() - 60000).sort((a, b) => a.when - b.when).slice(0, 8);
+    box.innerHTML = head + (rows.length ? `<ol class="deps">${rows.map(r => r.html).join('')}</ol>` : `<div class="muted">${esc(note || 'No departures listed right now.')}</div>`);
+  };
+  load(); clearInterval(focusTimer); focusTimer = setInterval(load, 30000); focusLoad = load;
 }
 async function refreshGps(){
   const c = map.getCenter(), p = [c.lat(), c.lng()], z = map.getZoom(); loadCityLines(p);
@@ -2035,6 +2092,7 @@ function follow(t, zoom = 14){ HL.clear(); if(t) HL.add(t.key); FW.t = t; if(t &
 function stopFollow(){ HL.clear(); FW.t = null; FW.tour = false; $('tourcap').hidden = true; renderFollow(); }
 $('follow').addEventListener('click', e => { if(e.target.closest('#fwStop')) stopFollow(); });
 map.addListener('click', ev => { if(!ev.pixel) return; const {x, y} = ev.pixel, coarse = matchMedia('(pointer:coarse)').matches;
+  if(document.body.classList.contains('away')){ const cs = cityStationAt(x, y); if(cs) return openCityStation(cs); return; } // abroad: the city's stations
   const onDot = stationAt(x, y, coarse ? 12 : 8); if(onDot) return goStation(onDot); // right on a dot: the station, even with a train waiting there
   const t = nearest(x, y); if(t) return follow(t, map.getZoom());
   const st = stationAt(x, y); if(st) goStation(st); });
@@ -2091,7 +2149,7 @@ tick(); setInterval(tick, 1000);
 map.addListener('dragstart', () => { $('tip').style.display = 'none'; hover = null; });
 map.addListener('zoom_changed', () => { $('tip').style.display = 'none'; hover = null; });
 renderModeChips(); renderLegend(); syncMapMenu();
-if(DEBUG) window.LLT = {AUTO, autoNext: () => autoNext(), trains, ACTIVE, BY, placeTrain, segTime, refresh, map, draw, goStation, searchStations, scr, stationAt, GPS, gpsPos, BIKES, SHARE};
+if(DEBUG) window.LLT = {AUTO, autoNext: () => autoNext(), trains, ACTIVE, BY, placeTrain, segTime, refresh, map, draw, goStation, searchStations, scr, stationAt, GPS, gpsPos, BIKES, SHARE, cityData: () => cityData()};
 
 // ---------- boot ----------
 (async () => {

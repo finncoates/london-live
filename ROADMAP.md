@@ -90,6 +90,7 @@ little value on a map), crowding (TfL crowding API is patchy), weather, social f
 | **Berlin & Brandenburg: S-Bahn, U-Bahn, trams, buses, regional trains** (VBB real-time positions, no key) in BVG/VBB colours | Live map |
 | **Bikes: Santander Cycles docks live** (TfL): bikes, e-bikes (blue dot) and free docks; tap for details; `?bikes=1`. Lime/Forest/Voi/Dott publish no open data for London | Live map |
 | **City line maps** for Helsinki (metro, trams, local trains, ferries) and Berlin (S-Bahn, U-Bahn, trams, regional, in official colours), baked from GTFS (`cities/`); vehicles snap onto their own line and face along it; Explore switches hide lines and vehicles together (Boston too) | Live map |
+| **Stations in every city**: dots + names like London; tap for live departures (Finland: Fintraffic; Boston: MBTA; Berlin: VBB). Helsinki metro/tram departures need a free HSL key | Live map |
 | **Explore menu** (globe button): continent → country → city → that city's transport switches, with what's live now and what's coming | Live map |
 | **Bikes & scooters to hire** from open GBFS feeds: Berlin (nextbike, Dott), Helsinki (city bikes, Bird), Bergen, Trondheim (+Dott), Boston (Bluebikes), Gdańsk (MEVO), Vilnius, Manchester/Leeds/Birmingham (Beryl, Veo), Liverpool (Bolt), Bristol (Dott), London (Beryl cargo bikes); docks with counts, free bikes (dots) and scooters (squares), tap for range/battery. Lime publishes open data only in other cities (none on the map yet) | Live map |
 | Slimmer lines (like a transit map layer) and slightly smaller trains | both |
