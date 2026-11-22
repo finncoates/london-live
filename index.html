@@ -1276,7 +1276,7 @@ window.LINE_OPACITY = 0.45;
 // ---------- National Rail (live via the relay in rail/worker.js; see rail/SETUP.md) ----------
 // Trains come from Darwin departure boards at the big London stations. Each operator is a "line"
 // (mode 'rail'); its drawn network is built from the stops its trains actually call at.
-const RAIL_DEFAULT_RELAY = ''; // ← set to the deployed relay address (e.g. https://london-rail.NAME.workers.dev) to switch it on for everyone
+const RAIL_DEFAULT_RELAY = 'https://london-rail.londonlivemap.workers.dev'; // ← set to the deployed relay address (e.g. https://london-rail.NAME.workers.dev) to switch it on for everyone
 const RAIL = {
   relay:(Q.get('rail') || (() => { try{ return localStorage.getItem('railRelay'); }catch(e){ return null; } })() || RAIL_DEFAULT_RELAY).replace(/\/+$/, ''),
   stations:null, byCrs:{}, state:'off', msg:'', last:0, boards:new Map(),
@@ -1287,7 +1287,13 @@ const RAIL_HUBS = 'VIC,CLJ,WAT,LBG,CHX,CST,BFR,STP,KGX,EUS,MYB,PAD,LST,FST,SRA,E
 const RAIL_COL = {NT:'#262262', TP:'#09A4EC', SR:'#1E467D', SN:'#5C9F3B', TL:'#E9438D', SW:'#24398C', SE:'#1D82D4', GW:'#0A493E', CC:'#B7007C', LE:'#D70428', GN:'#5A2C83',
   CH:'#00A7DF', GR:'#CE0E2D', VT:'#004354', EM:'#713563', HX:'#532E63', GX:'#EB1E2D', XC:'#660F21', GC:'#1D1D1B', LD:'#2B6EF5',
   HT:'#DE005C', AW:'#E10600', LM:'#00BF6F', XR:'#60399E', LO:'#FA7B05', IL:'#1E90FF'};
-const railOn = () => !!RAIL.relay;
+// relay connected; National Rail itself only once the relay reports its rail key (/health → rail:true)
+RAIL.railKey = null; // null = not checked yet
+const railOn = () => !!RAIL.relay && (RAIL.relay === 'demo' || RAIL.railKey === true);
+async function railHealth(){ if(!RAIL.relay) return; if(RAIL.relay === 'demo'){ setTimeout(refreshRail, 2500); RAIL.timer = setInterval(refreshRail, 60000); return; }
+  try{ const h = await (await fetch(RAIL.relay + '/health', {signal:AbortSignal.timeout(8000)})).json(); RAIL.railKey = !!(h.rail ?? h.configured); }catch(e){ RAIL.railKey = false; }
+  if(typeof renderModeChips === 'function') renderModeChips(); if(typeof renderRailStatus === 'function') renderRailStatus();
+  if(railOn() && !RAIL.timer){ refreshRail(); RAIL.timer = setInterval(refreshRail, 60000); } }
 // which stations to poll: London's termini/hubs in London, elsewhere the 25 nearest stations to the view
 const inLondonView = p => p[0] > 51.28 && p[0] < 51.72 && p[1] > -0.56 && p[1] < 0.35;
 function railHubs(){
@@ -1370,14 +1376,15 @@ async function railArrivals(crs){
       .filter(a => a.timeToStation < 3600);
   }catch(e){ return []; }
 }
-if(railOn()){ setTimeout(refreshRail, 2500); setInterval(refreshRail, 60000);
+railHealth();
+if(RAIL.relay){
   // moved to another part of the country: poll that area's stations straight away
   setTimeout(() => { if(typeof map !== 'undefined' && map.addListener) map.addListener('idle', () => { if(RAIL.stations && railHubs().key !== RAIL.region && map.getZoom() >= 9) refreshRail(); }); }, 3000); }
 
 // settings row in the Map menu: status, relay address, demo
 function renderRailStatus(){
   const el = document.getElementById('railRow'); if(!el) return;
-  const st = !RAIL.relay ? 'Not connected' : RAIL.relay === 'demo' ? 'Demo data (not real trains)' : RAIL.state === 'live' ? 'Live · ' + RAIL.msg : RAIL.state === 'error' ? 'Problem: ' + RAIL.msg : 'Connecting…';
+  const st = !RAIL.relay ? 'Not connected' : RAIL.relay === 'demo' ? 'Demo data (not real trains)' : RAIL.railKey === false ? 'Relay connected · waiting for the rail data key' : RAIL.state === 'live' ? 'Live · ' + RAIL.msg : RAIL.state === 'error' ? 'Problem: ' + RAIL.msg : 'Connecting…';
   el.querySelector('.rs').textContent = st;
   el.querySelector('.rs').className = 'rs ' + (RAIL.state === 'error' ? 'bad' : RAIL.state === 'live' && RAIL.relay !== 'demo' ? 'good' : '');
 }
@@ -1834,7 +1841,7 @@ async function refreshGps(){
     catch(e){ BUS.note = rc[2] + ': ' + e.message; }
     GPS.busy = false; renderBusNote(); return;
   }
-  if(regionOf(p) === 'world'){ GPS.list.clear(); BUS.note = z >= 8 ? 'No live data for this area yet. Live now: London, Finland, Helsinki, Norway, Berlin and Boston; coming: trains and buses across Britain.' : ''; renderBusNote(); return; }
+  if(regionOf(p) === 'world'){ GPS.list.clear(); BUS.note = z >= 8 ? 'No live data for this area yet. Live now: London, buses across England, Finland, Helsinki, Norway, Berlin, Boston, Tallinn, Gdańsk and Vilnius.' : ''; renderBusNote(); return; }
   const on = !busOff() && TRAINS_ON && !inLondonView(p);
   if(!on || z < 13){ GPS.list.clear(); if(!inLondonView(p)){ BUS.note = !RAIL.relay ? 'Live trains and buses here are coming soon: they switch on once the data keys are set up. (Preview with made-up data: add ?rail=demo to the address.)' : on ? 'Zoom in to see buses' : 'Turn on Buses to see live buses here'; renderBusNote(); } return; }
   if(GPS.busy) return; GPS.busy = true;
@@ -1926,7 +1933,7 @@ const CATALOG = [
       {name:'London', at:[51.507, -0.128, 12], live:'now', modes:[['tube','Tube'], ['overground','Overground'], ['elizabeth','Elizabeth line'], ['dlr','DLR'], ['tram','Trams'], ['river','River boats'], ['cable','Cable car'], ['road','Road works'], ['bus','Buses'], ['bike','Santander Cycles & Beryl'], ['rail','National Rail']],
         note:'Every Tube, Overground, Elizabeth line, DLR and tram train live from TfL. Buses: zoom in. Santander Cycles docks with bikes and e-bikes.'},
       ...[['Manchester', 53.480, -2.243], ['Birmingham', 52.479, -1.899], ['Leeds', 53.797, -1.546], ['Liverpool', 53.405, -2.982], ['Newcastle', 54.972, -1.614], ['Glasgow', 55.861, -4.251], ['Bristol', 51.454, -2.592], ['Cardiff', 51.479, -3.177]]
-        .map(([name, a, b]) => ({name, at:[a, b, 13], live:'keys', modes:[['bus','Buses'], ['rail','National Rail'], ...(['Manchester','Leeds','Birmingham','Liverpool','Bristol'].includes(name) ? [['bike','Bikes & scooters (live now)']] : [])], note:'Live buses (GPS) and National Rail trains switch on once the free data keys are set up.' + (['Manchester','Leeds','Birmingham','Liverpool','Bristol'].includes(name) ? ' Bikes and scooters for hire are live now.' : '')})),
+        .map(([name, a, b]) => ({name, at:[a, b, 14], live:'now', modes:[['bus','Buses'], ['rail','National Rail (soon)'], ...(['Manchester','Leeds','Birmingham','Liverpool','Bristol'].includes(name) ? [['bike','Bikes & scooters (live now)']] : [])], note:'Every bus live by GPS (Bus Open Data): zoom in. National Rail trains switch on once the rail data key arrives.' + (['Manchester','Leeds','Birmingham','Liverpool','Bristol'].includes(name) ? ' Bikes and scooters for hire are live now.' : '')})),
       {name:'Edinburgh', at:[55.951, -3.196, 13], live:'keys', modes:[['bus','Buses & trams'], ['rail','National Rail']], note:'Lothian buses and Edinburgh Trams need no key, just the relay. (Their server was down overnight.)'}]},
     {name:'Finland', flag:'🇫🇮', cities:[
       {name:'Helsinki', at:[60.170, 24.940, 14], live:'now', modes:[['train','Trains'], ['metro','Metro'], ['tram','Trams'], ['bus','Buses'], ['ferry','Ferries'], ['bike','City bikes & scooters']], note:'Every HSL tram, metro, bus and ferry, updated every second, plus all VR trains.'},
@@ -1936,9 +1943,9 @@ const CATALOG = [
       {name:'Trondheim', at:[63.430, 10.395, 13], live:'now', modes:[['bus','Buses'], ['train','Trains'], ['bike','City bikes & scooters']], note:'AtB buses and trains by GPS (Entur).'}]},
     {name:'Germany', flag:'🇩🇪', cities:[
       {name:'Berlin', at:[52.515, 13.395, 14], live:'now', modes:[['train','S-Bahn & trains'], ['metro','U-Bahn'], ['tram','Trams'], ['bus','Buses'], ['ferry','Ferries'], ['bike','Bikes & scooters']], note:'BVG/VBB vehicles, positioned from live timings.'}]},
-    {name:'Estonia', flag:'🇪🇪', cities:[{name:'Tallinn', at:[59.437, 24.754, 14], live:'keys', modes:[['tram','Trams'], ['bus','Buses & trolleybuses']], note:'Open data, no key: switches on with the relay.'}]},
-    {name:'Poland', flag:'🇵🇱', cities:[{name:'Gdańsk', at:[54.352, 18.647, 13], live:'keys', modes:[['tram','Trams'], ['bus','Buses'], ['bike','MEVO bikes']], note:'Open data, no key: switches on with the relay.'}]},
-    {name:'Lithuania', flag:'🇱🇹', cities:[{name:'Vilnius', at:[54.687, 25.280, 13], live:'keys', modes:[['bus','Buses & trolleybuses'], ['bike','City bikes']], note:'Open data, no key: switches on with the relay.'}]}]},
+    {name:'Estonia', flag:'🇪🇪', cities:[{name:'Tallinn', at:[59.437, 24.754, 14], live:'now', modes:[['tram','Trams'], ['bus','Buses & trolleybuses']], note:'Open data, live by GPS.'}]},
+    {name:'Poland', flag:'🇵🇱', cities:[{name:'Gdańsk', at:[54.352, 18.647, 13], live:'now', modes:[['tram','Trams'], ['bus','Buses'], ['bike','MEVO bikes']], note:'Open data, live by GPS.'}]},
+    {name:'Lithuania', flag:'🇱🇹', cities:[{name:'Vilnius', at:[54.687, 25.280, 13], live:'now', modes:[['bus','Buses & trolleybuses'], ['bike','City bikes']], note:'Open data, live by GPS.'}]}]},
   {name:'North America', countries:[
     {name:'United States', flag:'🇺🇸', cities:[
       {name:'Boston', at:[42.355, -71.065, 13], live:'now', modes:[['metro','Subway'], ['train','Commuter rail'], ['tram','Green Line & Mattapan'], ['bus','Buses'], ['ferry','Ferries'], ['bike','Bluebikes']], note:'MBTA vehicles by GPS, on the subway lines in their own colours.'}]}]},

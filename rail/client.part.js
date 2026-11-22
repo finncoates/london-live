@@ -1,7 +1,7 @@
 // ---------- National Rail (live via the relay in rail/worker.js; see rail/SETUP.md) ----------
 // Trains come from Darwin departure boards at the big London stations. Each operator is a "line"
 // (mode 'rail'); its drawn network is built from the stops its trains actually call at.
-const RAIL_DEFAULT_RELAY = ''; // ← set to the deployed relay address (e.g. https://london-rail.NAME.workers.dev) to switch it on for everyone
+const RAIL_DEFAULT_RELAY = 'https://london-rail.londonlivemap.workers.dev'; // ← set to the deployed relay address (e.g. https://london-rail.NAME.workers.dev) to switch it on for everyone
 const RAIL = {
   relay:(Q.get('rail') || (() => { try{ return localStorage.getItem('railRelay'); }catch(e){ return null; } })() || RAIL_DEFAULT_RELAY).replace(/\/+$/, ''),
   stations:null, byCrs:{}, state:'off', msg:'', last:0, boards:new Map(),
@@ -12,7 +12,13 @@ const RAIL_HUBS = 'VIC,CLJ,WAT,LBG,CHX,CST,BFR,STP,KGX,EUS,MYB,PAD,LST,FST,SRA,E
 const RAIL_COL = {NT:'#262262', TP:'#09A4EC', SR:'#1E467D', SN:'#5C9F3B', TL:'#E9438D', SW:'#24398C', SE:'#1D82D4', GW:'#0A493E', CC:'#B7007C', LE:'#D70428', GN:'#5A2C83',
   CH:'#00A7DF', GR:'#CE0E2D', VT:'#004354', EM:'#713563', HX:'#532E63', GX:'#EB1E2D', XC:'#660F21', GC:'#1D1D1B', LD:'#2B6EF5',
   HT:'#DE005C', AW:'#E10600', LM:'#00BF6F', XR:'#60399E', LO:'#FA7B05', IL:'#1E90FF'};
-const railOn = () => !!RAIL.relay;
+// relay connected; National Rail itself only once the relay reports its rail key (/health → rail:true)
+RAIL.railKey = null; // null = not checked yet
+const railOn = () => !!RAIL.relay && (RAIL.relay === 'demo' || RAIL.railKey === true);
+async function railHealth(){ if(!RAIL.relay) return; if(RAIL.relay === 'demo'){ setTimeout(refreshRail, 2500); RAIL.timer = setInterval(refreshRail, 60000); return; }
+  try{ const h = await (await fetch(RAIL.relay + '/health', {signal:AbortSignal.timeout(8000)})).json(); RAIL.railKey = !!(h.rail ?? h.configured); }catch(e){ RAIL.railKey = false; }
+  if(typeof renderModeChips === 'function') renderModeChips(); if(typeof renderRailStatus === 'function') renderRailStatus();
+  if(railOn() && !RAIL.timer){ refreshRail(); RAIL.timer = setInterval(refreshRail, 60000); } }
 // which stations to poll: London's termini/hubs in London, elsewhere the 25 nearest stations to the view
 const inLondonView = p => p[0] > 51.28 && p[0] < 51.72 && p[1] > -0.56 && p[1] < 0.35;
 function railHubs(){
@@ -95,14 +101,15 @@ async function railArrivals(crs){
       .filter(a => a.timeToStation < 3600);
   }catch(e){ return []; }
 }
-if(railOn()){ setTimeout(refreshRail, 2500); setInterval(refreshRail, 60000);
+railHealth();
+if(RAIL.relay){
   // moved to another part of the country: poll that area's stations straight away
   setTimeout(() => { if(typeof map !== 'undefined' && map.addListener) map.addListener('idle', () => { if(RAIL.stations && railHubs().key !== RAIL.region && map.getZoom() >= 9) refreshRail(); }); }, 3000); }
 
 // settings row in the Map menu: status, relay address, demo
 function renderRailStatus(){
   const el = document.getElementById('railRow'); if(!el) return;
-  const st = !RAIL.relay ? 'Not connected' : RAIL.relay === 'demo' ? 'Demo data (not real trains)' : RAIL.state === 'live' ? 'Live · ' + RAIL.msg : RAIL.state === 'error' ? 'Problem: ' + RAIL.msg : 'Connecting…';
+  const st = !RAIL.relay ? 'Not connected' : RAIL.relay === 'demo' ? 'Demo data (not real trains)' : RAIL.railKey === false ? 'Relay connected · waiting for the rail data key' : RAIL.state === 'live' ? 'Live · ' + RAIL.msg : RAIL.state === 'error' ? 'Problem: ' + RAIL.msg : 'Connecting…';
   el.querySelector('.rs').textContent = st;
   el.querySelector('.rs').className = 'rs ' + (RAIL.state === 'error' ? 'bad' : RAIL.state === 'live' && RAIL.relay !== 'demo' ? 'good' : '');
 }

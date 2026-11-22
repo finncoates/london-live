@@ -33,7 +33,7 @@ ANCHORS = ['// =================================================================
 for path in sys.argv[1:] or ['index.html', 'journey/index.html']:
     h = open(path).read()
     for old, new in EDITS:
-        if new in h: continue
+        if new in h or (old.startswith("const DWELL") and "rail:45" in h) or (old.startswith("const SPEED") and "rail:22" in h): continue
         assert h.count(old) == 1, (path, old[:70], h.count(old))
         h = h.replace(old, new)
     if START in h:
