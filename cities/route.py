@@ -11,8 +11,8 @@ class H(osmium.SimpleHandler):
     def __init__(self, box, kind='road'):
         super().__init__(); self.box = box; self.ways = []; self.kind = kind
     def way(self, w):
-        if self.kind == 'tram':
-            if w.tags.get('railway') not in RAIL or w.tags.get('service') in ('yard', 'siding'): return
+        if self.kind in ('tram', 'tramrail'):
+            if w.tags.get('railway') not in (RAIL | {'rail'} if self.kind == 'tramrail' else RAIL) or w.tags.get('service') in ('yard', 'siding'): return
             return self.keep(w)
         hw = w.tags.get('highway')
         if hw not in BUS_HW: return

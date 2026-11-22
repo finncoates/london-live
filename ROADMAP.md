@@ -128,3 +128,6 @@ little value on a map), crowding (TfL crowding API is patchy), weather, social f
 - Other countries checked 21 Nov: Switzerland (transport.opendata.ch, departure boards only, CORS ok); Germany (v6.db.transport.rest radar = live positions, keyless) didn't connect from the sandbox; Helsinki HSL live vehicles via MQTT (mqtt.hsl.fi) to try.
 - Research notes (21 Nov): no GB rail source gives GPS train positions; RealTimeTrains API (free, personal use) is the best alternative to Darwin; Tyne & Wear Metro only via an unofficial API; Glasgow Subway / Sheffield / Nottingham / Blackpool trams have no public live feed.
 - Optional OSM track geometry so lines follow real curves.
+- Done 22 Nov: every UK bus route on the map, including operators whose timetables have no route shapes (57% of South East trips: Brighton & Hove, Reading, Oxford, Arriva…): routed stop to stop along OSM roads (`cities/busnet.py` NOSHAPE mode + `cities/route.py`).
+- Done 22 Nov: trams outside London: West Midlands Metro (Birmingham), Sheffield Supertram + tram-train, Blackpool Tramway, Manchester Metrolink, all on the real track and placed from the timetable; Mersey Ferries (Liverpool). Trams switch in the menu outside London.
+- Still to do: Nottingham NET (not in Bus Open Data), Edinburgh Trams and Glasgow Subway (not in the Scotland feed), Tyne & Wear Metro.
