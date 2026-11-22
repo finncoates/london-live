@@ -196,7 +196,12 @@ async function vehicles(url, env, ctx){
       const ops = 'NATX,NXSH,MEGA,SMGB,SCMB,FLIX,FLXB,FLXO,SCLK,CTLK';
       const r = await fetch(`https://data.bus-data.dft.gov.uk/api/v1/datafeed/?operatorRef=${ops}&api_key=${encodeURIComponent(env.BODS_KEY)}`, {signal:AbortSignal.timeout(15000)});
       if(!r.ok) throw fail('Bus Open Data: HTTP ' + r.status, 502);
-      return {src, vehicles:parseSiriVm(await r.text())};
+      const out = parseSiriVm(await r.text());
+      // FlixBus (and others) that are only on bustimes.org: the whole country by operator
+      for(const op of ['FLIX', 'SCLK']){ try{
+        const b = await fetch(`https://bustimes.org/vehicles.json?operator=${op}`, {headers:{'user-agent':'london-live-map (finncoates.github.io/london-live)'}, signal:AbortSignal.timeout(8000)});
+        if(b.ok) for(const v of parseBustimes(await b.json())){ v.op = op; out.push(v); } }catch(e){} }
+      return {src, vehicles:out};
     });
   }
   if(src !== 'bods') throw fail('src must be bods, coach, bustimes, tfe, gdansk, tallinn or vilnius', 400);
@@ -235,7 +240,8 @@ function parseTfe(j){
 }
 function parseBustimes(list){
   return (list || []).filter(v => v.coordinates).map(v => { const slug = ((v.vehicle || {}).url || '').split('/')[2] || '';
-    return {id:'bt:' + v.id, line:(v.service || {}).line_name || '', op:v.operator_id || slug.split('-')[0].toUpperCase(), dest:v.destination || '',
+    const brand = ((v.vehicle || {}).name || '') + ' ' + ((v.service || {}).url || ''), named = /flix/i.test(brand) ? 'FLIX' : /megabus/i.test(brand) ? 'MEGA' : /national.express/i.test(brand) ? 'NATX' : /citylink/i.test(brand) ? 'SCLK' : '';
+    return {id:'bt:' + v.id, line:(v.service || {}).line_name || '', op:v.operator_id || slug.split('-')[0].toUpperCase() || named, dest:v.destination || '',
       lat:+v.coordinates[1], lon:+v.coordinates[0], brg:v.heading ?? null, t:Date.parse(v.datetime) || null, col:(v.vehicle || {}).colour || null, late:v.delay != null ? -v.delay : null}; })
     .filter(v => !v.t || Date.now() - v.t < 600000);
 }

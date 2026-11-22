@@ -2053,7 +2053,8 @@ async function refreshGps(){
       // every UK operator that shares positions (bustimes.org: incl. Cardiff Bus, Lothian, Translink); the government feed if that's unavailable
       try{ res = await railGet('/vehicles?src=bustimes&bbox=' + bb); if(!res.vehicles || !res.vehicles.length) throw new Error('empty'); }
       catch(e){ res = await railGet('/vehicles?src=bods&bbox=' + bb); } }
-    if(COACH.on) res.vehicles = (res.vehicles || []).filter(v => !COACH.ops.has(v.op)); // these coaches come from the nationwide coach feed
+    if(COACH.on){ const co = [...GPS.list.values()].filter(g => g.v.coach); // a coach already in the nationwide feed (same route, within 400 m): shown once
+      res.vehicles = (res.vehicles || []).filter(v => !COACH.ops.has(v.op) || !co.some(g => String(g.v.line) === String(v.line) && dist(g.to, [v.lat, v.lon]) < 400)); }
     gpsMerge(res);
     BUS.note = (coachTxt ? coachTxt + ' · ' : '') + `${[...GPS.list.keys()].filter(k => !k.startsWith('co:')).length} buses${[...GPS.list.values()].some(g => g.v.tram) ? ' and trams' : ''} here (GPS)${RAIL.relay === 'demo' ? ' · demo data' : ''}`;
   }catch(e){ BUS.note = e.message.replace(/^HTTP 503.*|.*BODS_KEY.*/, 'Live buses here are coming soon: they switch on once the bus data key is set up.'); }
