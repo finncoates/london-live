@@ -27,8 +27,10 @@ def add(p):
         a, b = p[i-1], p[i]; L = math.hypot((b[0]-a[0])*111320, (b[1]-a[1])*69000); n = max(1, int(L/25))
         for k in range(1, n+1):
             q0 = (a[0]+(b[0]-a[0])*(k-1)/n, a[1]+(b[1]-a[1])*(k-1)/n); q1 = (a[0]+(b[0]-a[0])*k/n, a[1]+(b[1]-a[1])*k/n)
-            key = (round((q0[0]+q1[0])/2/CELL), round((q0[1]+q1[1])/2/CELL/1.6))
-            near = any((key[0]+i2, key[1]+j2) in seen for i2 in (-1, 0, 1) for j2 in (-1, 0, 1))
+            ang = math.atan2(q1[0]-q0[0], (q1[1]-q0[1])*0.62) % math.pi; db = int(ang/(math.pi/8)) % 8  # direction (either way) in 8 steps
+            key = (round((q0[0]+q1[0])/2/CELL), round((q0[1]+q1[1])/2/CELL/1.6), db)
+            # same road = a nearby piece going the same way (a crossing or a side road is never 'the same')
+            near = any((key[0]+i2, key[1]+j2, (db+d2) % 8) in seen for i2 in (-1, 0, 1) for j2 in (-1, 0, 1) for d2 in (-1, 0, 1))
             if near:
                 flush(); run = []; continue
             mine.add(key)
