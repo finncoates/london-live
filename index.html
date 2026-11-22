@@ -518,36 +518,69 @@ function laneOffset(e, id){
 }
 // Line shapes (Path2D in world pixels) are built once per zoom / visible set; panning just shifts them.
 let LPATHS = null, lpathSig = '';
+// Lines sharing track (Circle + District, Overground + Elizabeth…): found by distance, so it works whatever the
+// source of each line's shape. Each shared stretch gives every line an equal slice of the usual width, side by side.
+let SHARE_C = null, shareSig = '';
+function sharedTrack(){
+  const vis = ACTIVE.filter(l => l.dchains && lineStyle(l).opacity >= 0.5 && l.mode !== 'bus');
+  const sig = vis.map(l => l.id + ':' + l.dchainsSig).join();
+  if(SHARE_C && sig === shareSig) return SHARE_C;
+  const CELLM = 40, kx = Math.cos(51.5*rad)*111320, ky = 111320, grid = new Map(), order = new Map(ACTIVE.map((l, i) => [l.id, i]));
+  const cell = (x, y) => Math.floor(x/CELLM) + ',' + Math.floor(y/CELLM);
+  for(const l of vis) for(const poly of l.dchains) for(let i = 1; i < poly.length; i++){ // samples every ~15 m, with direction
+    const a = poly[i-1], b = poly[i], ax = a[1]*kx, ay = a[0]*ky, bx = b[1]*kx, by = b[0]*ky, L = Math.hypot(bx-ax, by-ay), n = Math.max(1, Math.ceil(L/15));
+    for(let k = 0; k <= n; k++){ const x = ax + (bx-ax)*k/n, y = ay + (by-ay)*k/n, c = cell(x, y); let g = grid.get(c); if(!g) grid.set(c, g = []); g.push([x, y, (bx-ax)/(L||1), (by-ay)/(L||1), l.id]); } }
+  const out = new Map();
+  for(const l of vis) out.set(l.id, l.dchains.map(poly => { const e = [];
+    for(let i = 1; i < poly.length; i++){ const a = poly[i-1], b = poly[i], ax = a[1]*kx, ay = a[0]*ky, bx = b[1]*kx, by = b[0]*ky, L = Math.hypot(bx-ax, by-ay) || 1, ux = (bx-ax)/L, uy = (by-ay)/L;
+      const here = new Set([l.id]);
+      for(const f of [0.25, 0.5, 0.75]){ const x = ax + (bx-ax)*f, y = ay + (by-ay)*f, cx = Math.floor(x/CELLM), cy = Math.floor(y/CELLM), near = new Set();
+        for(let i2 = -1; i2 <= 1; i2++) for(let j2 = -1; j2 <= 1; j2++) for(const s of grid.get((cx+i2) + ',' + (cy+j2)) || [])
+          if(s[4] !== l.id && Math.hypot(s[0]-x, s[1]-y) < 14 && Math.abs(s[2]*ux + s[3]*uy) > 0.85) near.add(s[4]);
+        if(f === 0.25) for(const id of near) here.add(id); else for(const id of [...here]) if(id !== l.id && !near.has(id)) here.delete(id); } // shared along the whole edge
+      const ids = [...here].sort((p, q) => order.get(p) - order.get(q)); e.push([ids.length, ids.indexOf(l.id)]); }
+    return e; }));
+  SHARE_C = out; shareSig = sig; return out;
+}
 function buildPaths(z){
   const W = lineW(), mpp = 156543.03*Math.cos(51.5*rad)/2**z, R = Math.max(6, 250/mpp);
   LPATHS = new Map();
+  const simple = LAYOUT === 'simple';
+  for(const l of ACTIVE){ if(!lineStyle(l).opacity || !l.dpolys || l.rail || !simple) continue;
+    const sig = l.dpolys.length + ':' + l.dpolys.reduce((n, q) => n + q.length, 0); // joined once per shape, not per rebuild
+    if(!l.dchains || l.dchainsSig !== sig){ l.dchains = chainPolys(l.dpolys); l.dchainsSig = sig; } }
+  const SH = simple ? sharedTrack() : null;
   for(const l of ACTIVE){
     if(!lineStyle(l).opacity || !l.dpolys) continue;
-    const path = new Path2D();
-    if(LAYOUT === 'simple' && !l.rail){ const sig = l.dpolys.length + ':' + l.dpolys.reduce((n, q) => n + q.length, 0); // joined once per shape, not per rebuild
-      if(!l.dchains || l.dchainsSig !== sig){ l.dchains = chainPolys(l.dpolys); l.dchainsSig = sig; } }
-    for(const poly of (LAYOUT === 'simple' && !l.rail ? l.dchains : l.dpolys)){
+    const chains = simple && !l.rail ? l.dchains : l.dpolys, shr = SH && SH.get(l.id);
+    chains.forEach((poly, pi) => {
       const P = poly.map(p => { const w = world(p, z); return {x:w[0], y:w[1]}; }), n = P.length;
-      const eo = [];
+      const eo = [], sh = shr ? shr[pi] : null;
       for(let i=1;i<n;i++){ let ka = vkey(poly[i-1]), kb = vkey(poly[i]), sign = 1;
-        if(ka > kb){ [ka, kb] = [kb, ka]; sign = -1; }
-        const e = LANES.get(ka + '|' + kb); const off = e ? laneOffset(e, l.id) / (PV ? PV.k : 1) * sign : 0;
         const dx = P[i].x - P[i-1].x, dy = P[i].y - P[i-1].y, L = Math.hypot(dx, dy) || 1;
-        eo.push({nx:-dy/L, ny:dx/L, off}); }
+        let off = 0, cnt = 1;
+        if(sh && sh[i-1] && sh[i-1][0] > 1){ cnt = sh[i-1][0]; const canon = dx > 0 || (dx === 0 && dy > 0) ? 1 : -1; off = (sh[i-1][1] - (cnt - 1)/2) * W/cnt * canon; }
+        else if(!simple){ if(ka > kb){ [ka, kb] = [kb, ka]; sign = -1; } const e = LANES.get(ka + '|' + kb); off = e ? laneOffset(e, l.id) / (PV ? PV.k : 1) * sign : 0; }
+        eo.push({nx:-dy/L, ny:dx/L, off, cnt}); }
       const Q = P.map((p, i) => {
         const a = eo[i-1], b = eo[i];
         if(!a || !b){ const e = a || b; return {x:p.x + e.nx*e.off, y:p.y + e.ny*e.off}; }
+        const ea = a.cnt === b.cnt ? null : (i ? b : a); // where the sharing changes, follow the edge that starts here
+        if(ea) return {x:p.x + ea.nx*ea.off, y:p.y + ea.ny*ea.off};
         let nx = a.nx + b.nx, ny = a.ny + b.ny; const L = Math.hypot(nx, ny);
         if(L < 0.2) return {x:p.x + b.nx*b.off, y:p.y + b.ny*b.off};
         nx /= L; ny /= L; const cos = nx*b.nx + ny*b.ny, off = (a.off + b.off)/2 / Math.max(0.5, cos);
         return {x:p.x + nx*off, y:p.y + ny*off};
       });
-      path.moveTo(Q[0].x, Q[0].y);
-      for(let i=1;i<n-1;i++){ const a = Q[i-1], b = Q[i], c = Q[i+1];
-        path.arcTo(b.x, b.y, c.x, c.y, Math.min(R, Math.hypot(b.x-a.x, b.y-a.y)*0.45, Math.hypot(c.x-b.x, c.y-b.y)*0.45)); }
-      path.lineTo(Q[n-1].x, Q[n-1].y);
-    }
-    LPATHS.set(l, path);
+      // one path per width (1 line, shared by 2, by 3…): runs split where the count changes
+      let start = 0;
+      for(let i = 1; i < n; i++){ const cnt = eo[i-1].cnt; if(i < n-1 && eo[i].cnt === cnt) continue;
+        const key = l.id + '|' + cnt; let rec = LPATHS.get(key); if(!rec) LPATHS.set(key, rec = {l, n:cnt, path:new Path2D()});
+        const path = rec.path; path.moveTo(Q[start].x, Q[start].y);
+        for(let k = start + 1; k < i; k++){ const a = Q[k-1], b = Q[k], c = Q[k+1];
+          path.arcTo(b.x, b.y, c.x, c.y, Math.min(R, Math.hypot(b.x-a.x, b.y-a.y)*0.45, Math.hypot(c.x-b.x, c.y-b.y)*0.45)); }
+        path.lineTo(Q[i].x, Q[i].y); start = i; }
+    });
   }
 }
 // Lines are rendered once into an off-screen image a bit larger than the screen; while you pan or
@@ -579,12 +612,13 @@ function renderOff(zi, T, k){
   c.width = Math.ceil(box.w*odpr); c.height = Math.ceil(box.h*odpr);
   const g = c.getContext('2d'); g.setTransform(odpr, 0, 0, odpr, -box.x*odpr, -box.y*odpr);
   g.lineJoin = 'round'; g.lineCap = 'round'; const W = lineW(zi);
-  for(const [l, path] of LPATHS){
+  for(const {l, n:cnt, path} of LPATHS.values()){
     const op = lineStyle(l).opacity; if(!op) continue;
     // solid lines always; service problems are shown in the legend and station cards
     const bg = l.mode === 'bus' && !l.pinned; // background bus routes: thin and light
-    g.globalAlpha = op * (bg ? 0.45 : 1); g.strokeStyle = ink(l.colour); g.lineWidth = bg ? Math.max(1.5, W*0.4) : W; g.stroke(path);
-    if(PARALLEL.has(l.mode)){ g.globalAlpha = 1; g.strokeStyle = MAP_BG(); g.lineWidth = W/3; g.stroke(path); }
+    g.globalAlpha = op * (bg ? 0.45 : 1); g.strokeStyle = ink(l.colour); g.lineWidth = bg ? Math.max(1.5, W*0.4) : W/cnt; g.lineCap = cnt > 1 ? 'butt' : 'round'; g.stroke(path);
+    if(PARALLEL.has(l.mode)){ g.globalAlpha = 1; g.strokeStyle = MAP_BG(); g.lineWidth = W/cnt/3; g.stroke(path); }
+    g.lineCap = 'round';
   }
   g.setLineDash([]);
   // stations: dots from zoom 13 (bigger for interchanges), names from zoom 14 when the map's own labels are hidden
@@ -796,7 +830,7 @@ function project(path, p){
     const A=P[i-1], B=P[i], vx=(B[1]-A[1])*kx, vy=B[0]-A[0], wx=(p[1]-A[1])*kx, wy=p[0]-A[0];
     const L2 = vx*vx+vy*vy, k = L2 ? Math.max(0, Math.min(1, (vx*wx+vy*wy)/L2)) : 0;
     const q = [A[0]+(B[0]-A[0])*k, A[1]+(B[1]-A[1])*k], d = (q[0]-p[0])**2 + ((q[1]-p[1])*kx)**2;
-    if(d<bd){ bd=d; best={p:q, a:A, b:B}; }
+    if(d<bd){ bd=d; best={p:q, a:A, b:B, i, k}; }
   }
   return best;
 }
@@ -1070,7 +1104,13 @@ function draw(ts){
     [hl, hw] = size(l); if(l.mode === 'bus' && hl <= hl0){ hl = Math.max(5, hl0*0.5); hw = Math.max(2.4, hw0*0.9); } // buses: short and stubby
     const ux = cs*hl, uy = sn*hl, vx = -sn*hw, vy = cs*hw; // half-length and half-width vectors
     const r = [c.x+ux+vx, c.y+uy+vy, c.x+ux-vx, c.y+uy-vy, c.x-ux-vx, c.y-uy-vy, c.x-ux+vx, c.y-uy+vy];
-    const item = [t, c.x, c.y, c.x, c.y, r, cs, sn, hl, hw]; drawn.push(item);
+    // bent along the track: the stretch of the path the train covers (life-size length when zoomed in)
+    let body = null;
+    if(pos.path && on.i && hl*mpp < pos.path.len*0.9){ const P = pos.path.pts, C = pos.path.cum, s0 = C[on.i-1] + (C[on.i]-C[on.i-1])*on.k, half = hl*mpp;
+      const a0 = Math.max(0, s0 - half), a1 = Math.min(pos.path.len, s0 + half), at = d0 => { let j = 1; while(j < C.length-1 && C[j] < d0) j++; const f = (d0 - C[j-1])/((C[j]-C[j-1]) || 1); return [P[j-1][0] + (P[j][0]-P[j-1][0])*f, P[j-1][1] + (P[j][1]-P[j-1][1])*f]; };
+      const pts = [at(a0)]; for(let j = 1; j < C.length; j++) if(C[j] > a0 && C[j] < a1) pts.push(P[j]); pts.push(at(a1));
+      if(pts.length > 2){ const ox = lane ? lane.x : 0, oy = lane ? lane.y : 0; body = pts.map(q => { const w = scr(q); return [w.x + ox, w.y + oy]; }); } }
+    const item = [t, c.x, c.y, c.x, c.y, r, cs, sn, hl, hw, body]; drawn.push(item);
     if(!byLine.has(l)) byLine.set(l, []); byLine.get(l).push(item);
   }
   // "Show trains" off: no train shapes (your own train, if any, still shows)
@@ -1083,18 +1123,21 @@ function draw(ts){
   ctx.globalAlpha = dim ? 0.35 : 1;
   if(!LOW){
   ctx.strokeStyle = dark ? 'rgba(0,0,0,.9)' : 'rgba(255,255,255,.95)'; ctx.lineWidth = 2;
-  ctx.beginPath(); for(const d of drawn) rect(d[5]); ctx.stroke();
+  ctx.beginPath(); for(const d of drawn) if(!d[10]) rect(d[5]); ctx.stroke();
+  ctx.lineCap = 'butt'; for(const d of drawn) if(d[10]){ ctx.beginPath(); d[10].forEach((q, i) => i ? ctx.lineTo(q[0], q[1]) : ctx.moveTo(q[0], q[1])); ctx.lineWidth = d[9]*2 + 3; ctx.stroke(); } ctx.lineWidth = 3;
   }
   ctx.lineWidth = 1;
   for(const [l, items] of byLine){
     ctx.globalAlpha = dim && !l.pinned ? (LF.id ? 0.15 : 0.3) : 1;
     ctx.fillStyle = ctx.strokeStyle = l.colour==='#000000'&&dark ? '#e6e6e6' : l.colour;
-    ctx.beginPath(); for(const d of items) rect(d[5]); ctx.fill(); if(!LOW) ctx.stroke(); // stroke rounds the corners
+    ctx.beginPath(); for(const d of items) if(!d[10]) rect(d[5]); ctx.fill(); if(!LOW) ctx.stroke(); // stroke rounds the corners
+    ctx.lineCap = 'butt'; for(const d of items) if(d[10]){ ctx.beginPath(); d[10].forEach((q, i) => i ? ctx.lineTo(q[0], q[1]) : ctx.moveTo(q[0], q[1])); ctx.lineWidth = d[9]*2; ctx.stroke(); } ctx.lineWidth = 1;
     if(PARALLEL.has(l.mode)){ // centre stripe, like the line itself
       ctx.fillStyle = MAP_BG(); ctx.beginPath();
-      for(const [, x, y, , , , cs, sn, hl, hw] of items){ const ux=cs*(hl-hw*1.2), uy=sn*(hl-hw*1.2), vx=-sn*hw/3, vy=cs*hw/3;
+      for(const [, x, y, , , , cs, sn, hl, hw, body] of items){ if(body) continue; const ux=cs*(hl-hw*1.2), uy=sn*(hl-hw*1.2), vx=-sn*hw/3, vy=cs*hw/3;
         ctx.moveTo(x+ux+vx, y+uy+vy); ctx.lineTo(x+ux-vx, y+uy-vy); ctx.lineTo(x-ux-vx, y-uy-vy); ctx.lineTo(x-ux+vx, y-uy+vy); ctx.closePath(); }
       ctx.fill();
+      ctx.strokeStyle = MAP_BG(); for(const d of items) if(d[10]){ ctx.beginPath(); d[10].forEach((q, k) => k ? ctx.lineTo(q[0], q[1]) : ctx.moveTo(q[0], q[1])); ctx.lineWidth = d[9]*2/3; ctx.stroke(); }
     }
   }
   ctx.globalAlpha = 1;
