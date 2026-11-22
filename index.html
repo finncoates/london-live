@@ -179,7 +179,7 @@ body.dark #simnote{background:#1f2a44;color:#c6dafc}
 #mModes{margin:0 0 8px}
 #legend{display:grid;gap:0}
 body.abroad #mModes [data-mode=rail]{display:none}
-body.away #legend, body.away #lgAll, body.away #sbox, body.away #mModes [data-mode=tube], body.away #mModes [data-mode=overground], body.away #mModes [data-mode=elizabeth], body.away #mModes [data-mode=dlr], body.away #mModes [data-mode=tram], body.away #mModes [data-mode=river], body.away #mModes [data-mode=cable], body.away #mModes [data-mode=road]{display:none} /* London-only parts, hidden elsewhere */
+body.away #legend, body.away #lgAll, body.away #sbox, body.abroad #nrbox, body.away #mModes [data-mode=tube], body.away #mModes [data-mode=overground], body.away #mModes [data-mode=elizabeth], body.away #mModes [data-mode=dlr], body.away #mModes [data-mode=tram], body.away #mModes [data-mode=river], body.away #mModes [data-mode=cable], body.away #mModes [data-mode=road]{display:none} /* London-only parts, hidden elsewhere */
 .lgall{display:flex;justify-content:flex-end;gap:14px;margin:2px 0 4px}.lgall button{background:none;border:0;padding:4px 2px;color:var(--mute);font-size:12.5px;font-weight:600;cursor:pointer}.lgall button:hover{color:var(--ink)}
 .row{display:flex;align-items:center;gap:8px;padding:4px 2px;border:0;background:none;border-radius:6px;font-size:14px;text-align:left;width:100%}
 .row:hover{background:var(--soft)}
@@ -1426,7 +1426,23 @@ function renderStatusBox(){
     : `<button type="button" class="sb" id="sbT" aria-expanded="${sboxOpen}"><b>${bad.length} line${bad.length > 1 ? 's' : ''} with problems</b><span>${sboxOpen ? 'Hide' : 'Details'}</span></button>`
       + (sboxOpen ? `<div class="sbl">${bad.map(l => { const s = lineStatus(l.id); return `<div class="sbi"><div class="sbh"><span class="sw" style="background:${ink(l.colour)}"></span><b>${esc(l.name)}</b>${statusBadge(l.id)}</div>${s.reasons.map(r => `<p>${esc(r)}</p>`).join('')}</div>`; }).join('')}</div>` : '');
 }
-$('sbox').addEventListener('click', e => { if(e.target.closest('#sbT')){ sboxOpen = !sboxOpen; renderStatusBox(); } });
+$('sbox').addEventListener('click', e => { if(e.target.closest('#sbT')){ sboxOpen = !sboxOpen; renderStatusBox(); } if(e.target.closest('#nrT')){ NRS.open = !NRS.open; renderNrStatus(); } });
+// National Rail operators' service status (TfL, no key): problems listed, otherwise one line
+const NRS = {list:[], open:false};
+async function refreshNrStatus(){
+  try{ const d = await get('/Line/Mode/national-rail/Status');
+    NRS.list = d.map(l => { const ss = (l.lineStatuses || []).map(x => ({lv:SEV_LEVEL(x.statusSeverity), text:x.statusSeverityDescription, why:(x.reason || '').trim()})).sort((a, b) => b.lv - a.lv)[0] || {lv:0};
+      return {name:l.name, ...ss}; }); renderNrStatus(); }catch(e){}
+}
+function renderNrStatus(){
+  let el = $('nrbox'); if(!el){ el = document.createElement('div'); el.id = 'nrbox'; $('sbox').after(el); }
+  if(!NRS.list.length){ el.innerHTML = ''; return; }
+  const bad = NRS.list.filter(x => x.lv).sort((a, b) => b.lv - a.lv);
+  el.innerHTML = !bad.length ? '<div class="sb ok">✓ National Rail: good service on all operators</div>'
+    : `<button type="button" class="sb" id="nrT" aria-expanded="${NRS.open}"><b>National Rail: ${bad.length} operator${bad.length > 1 ? 's' : ''} with problems</b><span>${NRS.open ? 'Hide' : 'Details'}</span></button>`
+      + (NRS.open ? `<div class="sbl">${bad.map(x => `<div class="sbi"><div class="sbh">${symbol('rail', '#1D5BA0', 14)}<b>${esc(x.name)}</b><span class="st st${x.lv}">${esc(x.text)}</span></div>${x.why ? `<p>${esc(x.why.replace(/^[^:]{2,40}:\s*/, ''))}</p>` : ''}</div>`).join('')}</div>` : '');
+}
+setTimeout(refreshNrStatus, 2500); setInterval(refreshNrStatus, 180000);
 window.onStatus = () => { renderLegend(); if(focusLoad && !$('station').hidden) focusLoad(); }; // the open station card shows line problems too
 // show / hide every line at once (hide all, then tap one = just that line)
 $('lgAll').addEventListener('click', e => { const b = e.target.closest('[data-all]'); if(!b) return; const on = b.dataset.all === '1';
