@@ -1433,6 +1433,7 @@ const NRS = {list:[], open:false};
 async function refreshNrStatus(){
   try{ const d = await get('/Line/Mode/national-rail/Status');
     NRS.list = d.map(l => { const ss = (l.lineStatuses || []).map(x => ({lv:SEV_LEVEL(x.statusSeverity), text:x.statusSeverityDescription, why:(x.reason || '').trim()})).sort((a, b) => b.lv - a.lv)[0] || {lv:0};
+      ss.why = (ss.why || '').replace(/(https?:)?\/\/\S+/g, '').replace(/\s+/g, ' ').trim(); if(ss.why.length < 8) ss.why = ''; // links only: dropped
       return {name:l.name, ...ss}; }); renderNrStatus(); }catch(e){}
 }
 function renderNrStatus(){
