@@ -1873,10 +1873,11 @@ async function refreshGps(){
       catch(e){ GPS.direct = false; throw new Error('Edinburgh\'s live bus data isn\'t answering right now.'); }
     }
     else if(!RAIL.relay) throw new Error('Live buses here are coming soon: they switch on once the data keys are set up.');
-    else if(inEdinburgh(p)) res = await railGet('/vehicles?src=tfe');
     else { const b = map.getBounds(), sw = b.getSouthWest(), ne = b.getNorthEast();
-      const w = Math.min(0.5, ne.lng() - sw.lng())/2, h = Math.min(0.34, ne.lat() - sw.lat())/2;
-      res = await railGet(`/vehicles?src=bods&bbox=${(p[1]-w).toFixed(3)},${(p[0]-h).toFixed(3)},${(p[1]+w).toFixed(3)},${(p[0]+h).toFixed(3)}`); }
+      const w = Math.min(0.5, ne.lng() - sw.lng())/2, h = Math.min(0.34, ne.lat() - sw.lat())/2, bb = `${(p[1]-w).toFixed(3)},${(p[0]-h).toFixed(3)},${(p[1]+w).toFixed(3)},${(p[0]+h).toFixed(3)}`;
+      // every UK operator that shares positions (bustimes.org: incl. Cardiff Bus, Lothian, Translink); the government feed if that's unavailable
+      try{ res = await railGet('/vehicles?src=bustimes&bbox=' + bb); if(!res.vehicles || !res.vehicles.length) throw new Error('empty'); }
+      catch(e){ res = await railGet('/vehicles?src=bods&bbox=' + bb); } }
     gpsMerge(res);
     BUS.note = `${GPS.list.size} buses${[...GPS.list.values()].some(g => g.v.tram) ? ' and trams' : ''} here (GPS)${RAIL.relay === 'demo' ? ' · demo data' : ''}`;
   }catch(e){ BUS.note = e.message.replace(/^HTTP 503.*|.*BODS_KEY.*/, 'Live buses here are coming soon: they switch on once the bus data key is set up.'); }
@@ -1895,7 +1896,11 @@ function gpsMerge(res, prefix){
 // glide from the last position to the new one over the update interval
 const gpsPos = (g, now) => { const k = Math.min(1, (now - g.t0)/(g.dur || 15000)), e = k*(2 - k); return [g.from[0] + (g.to[0] - g.from[0])*e, g.from[1] + (g.to[1] - g.from[1])*e]; };
 const OP_NAMES = {NATX:'National Express', NXWM:'National Express West Midlands', FMAN:'First Manchester', FBRI:'First West of England', FLDS:'First Leeds', FCYM:'First Cymru', FGLA:'First Glasgow', SCMN:'Stagecoach', SCGH:'Stagecoach', SCMY:'Stagecoach Merseyside', SCNH:'Stagecoach', SCOX:'Stagecoach', SCEM:'Stagecoach', SCCU:'Stagecoach', SCWW:'Stagecoach', SYRK:'Stagecoach Yorkshire', ARBB:'Arriva', AMSY:'Arriva North West', ANWE:'Arriva North West', AMID:'Arriva Midlands', AYKS:'Arriva Yorkshire', TNXB:'Transdev', TDTR:'Transdev', BNSM:'Bee Network (Stagecoach)', BNML:'Bee Network (Metroline)', BNGN:'Bee Network (Go North West)', BNDB:'Bee Network (Diamond)', BNFM:'Bee Network (First)', CBUS:'Cardiff Bus', NWPT:'Newport Bus', GNEL:'Go North East', GOEA:'Go East Anglia', BLAC:'Blackpool Transport', RBTS:'Reading Buses', BRTB:'Brighton & Hove', NOCT:'Nottingham City Transport', MBTO:'Metro', 'TfE':'Lothian / Edinburgh Trams'};
+Object.assign(OP_NAMES, {LOTH:'Lothian Buses', NELB:'Lothian Country', ECBU:'East Coast Buses', SCFI:'Stagecoach Fife', BORD:'Borders Buses', GDR:'Glider (Translink)', MET:'Translink Metro', ULB:'Ulsterbus', FGL:'First Glasgow', MCGL:'McGill\'s', SCLK:'Scottish Citylink', CTLK:'Scottish Citylink', MEGA:'Megabus', SMGB:'Megabus', FLIX:'FlixBus', NXSH:'National Express'});
 const opName = op => OP_NAMES[op] || op;
+// long-distance coaches: their own look and name
+const COACHES = {NATX:['National Express', '#D2232A'], NXSH:['National Express', '#D2232A'], MEGA:['Megabus', '#0057B8'], SMGB:['Megabus', '#0057B8'], FLIX:['FlixBus', '#73D700'], SCLK:['Scottish Citylink', '#F7B500'], CTLK:['Scottish Citylink', '#F7B500']};
+const coachOf = v => COACHES[v.op] || (/megabus/i.test(v.op + ' ' + (v.line || '')) ? COACHES.MEGA : null);
 const OP_COL = ['#E4002B', '#0057B8', '#00843D', '#F4A300', '#6D2077', '#00A3AD', '#D0006F', '#5B6770'];
 const opCol = op => { let h = 0; for(const ch of op || '') h = (h*31 + ch.charCodeAt(0)) >>> 0; return OP_COL[h % OP_COL.length]; };
 function drawGps(ctx, s, hl0, hw0, mpp){
@@ -1920,13 +1925,16 @@ function drawGps(ctx, s, hl0, hw0, mpp){
     const tram = g.v.tram || g.v.metro, kind = vkind(g.v), mode = KIND_MODE[kind] || 'bus', [len, wid] = REAL_SIZE[mode] || REAL_SIZE.tube; // same sizes as London
     let hl = Math.max(hl0, len/2/mpp), hw = Math.max(hw0, wid/2/mpp);
     if(mode === 'bus' && hl <= hl0){ hl = Math.max(5, hl0*0.5); hw = Math.max(2.4, hw0*0.9); }
+    const coach = coachOf(g.v); if(coach){ hl = Math.max(hl*1.35, 13/2/mpp); }
     if(g.v.freight){ hl *= 0.8; }
     const cs = Math.cos(ang), sn = Math.sin(ang), ux = cs*hl, uy = sn*hl, vx = -sn*hw, vy = cs*hw;
     ctx.beginPath(); ctx.moveTo(c.x+ux+vx, c.y+uy+vy); ctx.lineTo(c.x+ux-vx, c.y+uy-vy); ctx.lineTo(c.x-ux-vx, c.y-uy-vy); ctx.lineTo(c.x-ux+vx, c.y-uy+vy); ctx.closePath();
-    ctx.fillStyle = g.v.col || (tram ? '#7A1F3D' : opCol(g.v.op)); ctx.strokeStyle = dark ? 'rgba(0,0,0,.9)' : 'rgba(255,255,255,.95)'; ctx.lineWidth = 2; ctx.stroke(); ctx.fill();
+    ctx.fillStyle = coach ? '#fff' : g.v.col || (tram ? '#7A1F3D' : opCol(g.v.op)); ctx.strokeStyle = coach ? coach[1] : dark ? 'rgba(0,0,0,.9)' : 'rgba(255,255,255,.95)'; ctx.lineWidth = 2; ctx.stroke(); ctx.fill();
+    if(coach){ const ux2 = cs*hl*0.85, uy2 = sn*hl*0.85, vx2 = -sn*hw*0.45, vy2 = cs*hw*0.45; ctx.beginPath(); // coach: white with a band in the brand colour
+      ctx.moveTo(c.x+ux2+vx2, c.y+uy2+vy2); ctx.lineTo(c.x+ux2-vx2, c.y+uy2-vy2); ctx.lineTo(c.x-ux2-vx2, c.y-uy2-vy2); ctx.lineTo(c.x-ux2+vx2, c.y-uy2+vy2); ctx.closePath(); ctx.fillStyle = coach[1]; ctx.fill(); }
     if(PARALLEL.has(mode)){ const ux2 = cs*(hl-hw*1.2), uy2 = sn*(hl-hw*1.2), vx2 = -sn*hw/3, vy2 = cs*hw/3; ctx.beginPath(); // centre stripe, like London's double-line trains
       ctx.moveTo(c.x+ux2+vx2, c.y+uy2+vy2); ctx.lineTo(c.x+ux2-vx2, c.y+uy2-vy2); ctx.lineTo(c.x-ux2-vx2, c.y-uy2-vy2); ctx.lineTo(c.x-ux2+vx2, c.y-uy2+vy2); ctx.closePath(); ctx.fillStyle = MAP_BG(); ctx.fill(); }
-    if(label){ ctx.lineWidth = 3; ctx.strokeText(g.v.line, c.x, c.y - hw - 9); ctx.fillStyle = dark ? '#eee' : '#222'; ctx.fillText(g.v.line, c.x, c.y - hw - 9); }
+    if(label || coach){ const txt = coach ? coach[0] + (g.v.line ? ' ' + g.v.line : '') : g.v.line; if(coach && !label && PV.z < 13) { draw.ghit.push([g, c.x, c.y]); continue; } ctx.lineWidth = 3; ctx.strokeStyle = dark ? 'rgba(0,0,0,.85)' : 'rgba(255,255,255,.95)'; ctx.strokeText(txt, c.x, c.y - hw - 9); ctx.fillStyle = coach ? coach[1] : dark ? '#eee' : '#222'; ctx.fillText(txt, c.x, c.y - hw - 9); }
     draw.ghit.push([g, c.x, c.y]);
   }
   ctx.globalAlpha = 1; ctx.textAlign = 'start';
@@ -1965,8 +1973,9 @@ function gpsTip(e, r, tip){
   const v = best.v, age = v.t ? Math.max(0, Math.round((Date.now() - v.t)/1000)) : null;
   if(e.type === 'click' && vkind(v) === 'bus') showBusRoute(best); else if(e.type === 'click'){ BROUTE.polys = null; BROUTE.key = ''; }
   const kind = v.train ? (v.freight ? 'freight train' : 'train') : v.kind || (v.tram ? 'tram' : 'bus'), col = v.col || (v.tram ? '#7A1F3D' : opCol(v.op));
-  const ico = v.train ? 'rail' : v.metro ? 'metrog' : vkind(v) === 'tram' ? 'tramg' : vkind(v) === 'ferry' ? 'ferryg' : vkind(v) === 'bus' ? 'busg' : 'tube';
-  tip.innerHTML = `<div class="tt-h">${symbol(ico, col, 20)}<b>${esc(v.line)} ${v.train && /\d/.test(v.line) ? '' : kind}</b></div>
+  const coach = coachOf(v);
+  const ico = coach ? 'busg' : v.train ? 'rail' : v.metro ? 'metrog' : vkind(v) === 'tram' ? 'tramg' : vkind(v) === 'ferry' ? 'ferryg' : vkind(v) === 'bus' ? 'busg' : 'tube';
+  tip.innerHTML = coach ? `<div class="tt-h">${symbol('busg', coach[1], 20)}<b>${esc(coach[0])} coach${v.line ? ' ' + esc(v.line) : ''}</b></div>${v.dest ? `<div>To <b>${esc(v.dest)}</b></div>` : ''}<div class="tt-m">long-distance coach${age != null ? ` · position ${age < 90 ? age + ' s' : Math.round(age/60) + ' min'} ago` : ''}</div>` : `<div class="tt-h">${symbol(ico, col, 20)}<b>${esc(v.line)} ${v.train && /\d/.test(v.line) ? '' : kind}</b></div>
     ${v.dest ? `<div>${v.from ? esc(v.from) + ' → ' : 'To '}<b>${esc(v.dest)}</b></div>` : ''}${v.speed != null ? `<div>${Math.round(v.speed)} km/h${v.late != null ? ` · ${v.late <= -90 ? Math.round(-v.late/60) + ' min late' : v.late >= 90 ? Math.round(v.late/60) + ' min early' : 'on time'}` : ''}</div>` : ''}
     <div class="tt-m">${esc(opName(v.op || ''))}${v.sched ? ' · position from the timetable (no live feed)' : v.est ? ' · position from live timings' : ''}${age != null ? ` · position ${age < 90 ? age + ' s' : Math.round(age/60) + ' min'} ago` : ''}</div>`;
   tip.style.display = 'block';

@@ -178,7 +178,18 @@ async function vehicles(url, env, ctx){
     const r = await fetch(OPEN[src][0], {signal:AbortSignal.timeout(8000)}); if(!r.ok) throw fail(src + ': HTTP ' + r.status, 502);
     return {src, vehicles:OPEN[src][1](await r.text())};
   });
-  if(src !== 'bods') throw fail('src must be bods, tfe, gdansk, tallinn or vilnius', 400);
+  if(src === 'bustimes'){ // bustimes.org: every UK operator that shares positions (incl. Cardiff Bus, Lothian, Translink), cached and rounded to be polite
+    const b = (url.searchParams.get('bbox') || '').split(',').map(Number);
+    if(b.length !== 4 || b.some(x => !isFinite(x)) || b[2] <= b[0] || b[3] <= b[1]) throw fail('bbox=minLon,minLat,maxLon,maxLat required', 400);
+    if(b[2] - b[0] > 0.6 || b[3] - b[1] > 0.4) throw fail('area too big: zoom in', 400);
+    const r2 = x => (Math.round(x*50)/50).toFixed(2), bb = [Math.floor(b[0]*50)/50, Math.floor(b[1]*50)/50, Math.ceil(b[2]*50)/50, Math.ceil(b[3]*50)/50].map(r2);
+    return cached('bt:' + bb.join(), 20, ctx, async () => {
+      const r = await fetch(`https://bustimes.org/vehicles.json?xmin=${bb[0]}&ymin=${bb[1]}&xmax=${bb[2]}&ymax=${bb[3]}`, {headers:{'user-agent':'london-live-map (finncoates.github.io/london-live)'}, signal:AbortSignal.timeout(10000)});
+      if(!r.ok) throw fail('bustimes: HTTP ' + r.status, 502);
+      return {src, vehicles:parseBustimes(await r.json())};
+    });
+  }
+  if(src !== 'bods') throw fail('src must be bods, bustimes, tfe, gdansk, tallinn or vilnius', 400);
   if(!env.BODS_KEY) throw fail('BODS_KEY secret is not set on the worker', 503);
   // bounding box, rounded so nearby viewers share the cache; at most ~0.5° × 0.35° (a city)
   const b = (url.searchParams.get('bbox') || '').split(',').map(Number);
@@ -211,6 +222,12 @@ const unesc = s => s.replace(/&amp;/g, '&').replace(/&apos;/g, "'").replace(/&qu
 function parseTfe(j){
   return (j.vehicles || []).filter(v => v.latitude && v.longitude && v.service_name).map(v => ({id:'tfe:' + v.vehicle_id, line:String(v.service_name), op:'TfE',
     dest:v.destination || '', lat:+v.latitude, lon:+v.longitude, brg:v.heading ?? null, t:v.last_gps_fix ? v.last_gps_fix*1000 : null, tram:v.vehicle_type === 'tram'}));
+}
+function parseBustimes(list){
+  return (list || []).filter(v => v.coordinates).map(v => { const slug = ((v.vehicle || {}).url || '').split('/')[2] || '';
+    return {id:'bt:' + v.id, line:(v.service || {}).line_name || '', op:v.operator_id || slug.split('-')[0].toUpperCase(), dest:v.destination || '',
+      lat:+v.coordinates[1], lon:+v.coordinates[0], brg:v.heading ?? null, t:Date.parse(v.datetime) || null, col:(v.vehicle || {}).colour || null, late:v.delay != null ? -v.delay : null}; })
+    .filter(v => !v.t || Date.now() - v.t < 600000);
 }
 function parseGdansk(txt){
   return (JSON.parse(txt).vehicles || []).filter(v => v.lat && v.lon).map(v => ({id:'gda:' + v.vehicleId, line:String(v.routeShortName || ''), op:'ZTM Gdańsk', dest:v.headsign || '',
@@ -254,4 +271,4 @@ function corsHeaders(request, env){
 function json(data, status, cors, maxAge){
   return new Response(JSON.stringify(data), {status, headers:{'content-type':'application/json', ...(maxAge ? {'cache-control':`public, max-age=${maxAge}`} : {}), ...cors}});
 }
-export const _test = {normaliseBoard, mergeTrains, toMs, stop, parseSiriVm, parseTfe, parseGdansk, parseTallinn, parseVilnius};
+export const _test = {normaliseBoard, mergeTrains, toMs, stop, parseSiriVm, parseTfe, parseGdansk, parseTallinn, parseVilnius, parseBustimes};

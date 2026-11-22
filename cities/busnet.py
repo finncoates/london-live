@@ -3,7 +3,9 @@
 import sys, zipfile, csv, io, json, math, os, collections
 zf, outdir = sys.argv[1], sys.argv[2]; os.makedirs(outdir, exist_ok=True)
 z = zipfile.ZipFile(zf); rd = lambda n: csv.DictReader(io.TextIOWrapper(z.open(n), 'utf-8-sig'))
-bus_routes = {r['route_id'] for r in rd('routes.txt') if r['route_type'] in ('3', '700', '200', '702', '704', '715')}
+COACH_NOC = {'NATX', 'MEGA', 'SMGB', 'FLIX', 'CTLK', 'SCTL', 'SCLK', 'NXSH'}  # long-distance coaches: not local bus routes
+coach_ag = {a['agency_id'] for a in rd('agency.txt') if (a.get('agency_noc') or '') in COACH_NOC or any(w in a['agency_name'] for w in ('National Express', 'Megabus', 'FlixBus', 'Citylink'))}
+bus_routes = {r['route_id'] for r in rd('routes.txt') if r['route_type'] in ('3', '700', '702', '704', '715') and r.get('agency_id') not in coach_ag}
 shapes = set()
 for t in rd('trips.txt'):
     if t['route_id'] in bus_routes and t.get('shape_id'): shapes.add(t['shape_id'])
