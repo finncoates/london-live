@@ -190,6 +190,14 @@ async function vehicles(url, env, ctx){
       return {src, vehicles:parseBustimes(await r.json())};
     });
   }
+  if(src === 'stop'){ // a bus stop's next departures anywhere in Britain (bustimes.org: timetable + live predictions), cached 45 s
+    const id = (url.searchParams.get('id') || '').replace(/[^A-Za-z0-9]/g, '').slice(0, 20); if(!id) throw fail('id required', 400);
+    return cached('stop:' + id, 45, ctx, async () => {
+      const r = await fetch(`https://bustimes.org/stops/${id}/departures`, {headers:{'user-agent':'london-live-map (finncoates.github.io/london-live)'}, signal:AbortSignal.timeout(8000)});
+      if(!r.ok) throw fail('bustimes: HTTP ' + r.status, 502);
+      return {src, id, departures:parseStopDeps(await r.text())};
+    });
+  }
   if(src === 'coach'){ // every long-distance coach in England (National Express, Megabus, FlixBus…), the whole country at once
     if(!env.BODS_KEY) throw fail('BODS_KEY secret is not set on the worker', 503);
     return cached('coach', 30, ctx, async () => {
@@ -204,7 +212,7 @@ async function vehicles(url, env, ctx){
       return {src, vehicles:out};
     });
   }
-  if(src !== 'bods') throw fail('src must be bods, coach, bustimes, tfe, gdansk, tallinn or vilnius', 400);
+  if(src !== 'bods') throw fail('src must be bods, coach, stop, bustimes, tfe, gdansk, tallinn or vilnius', 400);
   if(!env.BODS_KEY) throw fail('BODS_KEY secret is not set on the worker', 503);
   // bounding box, rounded so nearby viewers share the cache; at most ~0.5° × 0.35° (a city)
   const b = (url.searchParams.get('bbox') || '').split(',').map(Number);
@@ -244,6 +252,15 @@ function parseBustimes(list){
     return {id:'bt:' + v.id, line:(v.service || {}).line_name || '', op:v.operator_id || slug.split('-')[0].toUpperCase() || named, dest:v.destination || '',
       lat:+v.coordinates[1], lon:+v.coordinates[0], brg:v.heading ?? null, t:Date.parse(v.datetime) || null, col:(v.vehicle || {}).colour || null, late:v.delay != null ? -v.delay : null}; })
     .filter(v => !v.t || Date.now() - v.t < 600000);
+}
+// bustimes.org departures fragment: rows of [line, destination, scheduled hh:mm, expected hh:mm or '']
+function parseStopDeps(html){
+  const out = [], strip = x => x.replace(/<[^>]*>/g, ' ').replace(/&shy;|&nbsp;/g, '').replace(/&amp;/g, '&').replace(/&#39;/g, "'").replace(/\s+/g, ' ').trim();
+  const date = (html.match(/name="date" value="([\d-]+)"/) || [])[1] || null;
+  for(const row of html.split(/<tr>/).slice(1)){ const td = row.split(/<td[^>]*>/).slice(1).map(c => c.split('</td>')[0]); if(td.length < 3) continue;
+    const line = strip(td[0]), dest = strip(td[1].split('<div class="vehicle">')[0]), sched = strip(td[2]), exp = td[3] ? strip(td[3]) : '';
+    if(/^\d{1,2}:\d{2}$/.test(sched)) out.push({line, dest, sched, exp:/^\d{1,2}:\d{2}$/.test(exp) ? exp : '', live:/^\d{1,2}:\d{2}$/.test(exp), date}); }
+  return out.slice(0, 20);
 }
 function parseGdansk(txt){
   return (JSON.parse(txt).vehicles || []).filter(v => v.lat && v.lon).map(v => ({id:'gda:' + v.vehicleId, line:String(v.routeShortName || ''), op:'ZTM Gdańsk', dest:v.headsign || '',

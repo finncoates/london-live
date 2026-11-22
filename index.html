@@ -2126,7 +2126,7 @@ const coachOf = v => COACHES[v.op] || (/megabus/i.test(v.op + ' ' + (v.line || '
 const OP_COL = ['#E4002B', '#0057B8', '#00843D', '#F4A300', '#6D2077', '#00A3AD', '#D0006F', '#5B6770'];
 const opCol = op => { let h = 0; for(const ch of op || '') h = (h*31 + ch.charCodeAt(0)) >>> 0; return OP_COL[h % OP_COL.length]; };
 function drawGps(ctx, s, hl0, hw0, mpp){
-  draw.ghit = []; if(TRAINS_ON && document.body.classList.contains('away') && !document.body.classList.contains('abroad')) drawNR(ctx); drawCoachNet(ctx); if(TRAINS_ON && document.body.classList.contains('away') && map.getCenter()){ const mc = [map.getCenter().lat(), map.getCenter().lng()]; drawBusNet(ctx); if(CITYL.cur && CITYL.cur.box(mc)) drawCityLines(ctx); } if(!GPS.list.size || !SHOW_ICONS || !TRAINS_ON) return;
+  draw.ghit = []; if(TRAINS_ON && document.body.classList.contains('away') && !document.body.classList.contains('abroad')){ drawNR(ctx); drawUKStops(ctx); } drawCoachNet(ctx); if(TRAINS_ON && document.body.classList.contains('away') && map.getCenter()){ const mc = [map.getCenter().lat(), map.getCenter().lng()]; drawBusNet(ctx); if(CITYL.cur && CITYL.cur.box(mc)) drawCityLines(ctx); } if(!GPS.list.size || !SHOW_ICONS || !TRAINS_ON) return;
   const now = Date.now(), cosLat = Math.cos(map.getCenter().lat()*rad), label = PV.z >= 15.5;
   // bus routes abroad: where each bus has driven (thin, light, like London's bus routes), and the tapped bus's whole route
   if(!busOff() && !GPS_OFF.has('bus') && PV.z >= 13){ const W = lineW(), look = lineLook('bus', W); ctx.lineJoin = 'round'; ctx.lineCap = 'round';
@@ -2222,6 +2222,40 @@ function drawNR(ctx){
     if(names){ ctx.lineWidth = 3; ctx.strokeStyle = dark ? 'rgba(0,0,0,.85)' : 'rgba(255,255,255,.95)'; ctx.strokeText(n, c.x + r + 4, c.y); ctx.fillStyle = dark ? '#eee' : '#222'; ctx.fillText(n, c.x + r + 4, c.y); ctx.lineWidth = Math.max(1.5, W*0.3); } }
 }
 const nrOn = () => document.body.classList.contains('away') && !document.body.classList.contains('abroad') && !MODES_OFF.has('rail') && RAIL.stations;
+// bus stops outside London (Bus Open Data timetables, 0.05° tiles): small markers from zoom 16; tap for the next buses
+const UKST = {tiles:new Map()};
+function ukStopTiles(){ const b = map.getBounds(); if(!b) return []; const sw = b.getSouthWest(), ne = b.getNorthEast(), out = [];
+  for(let la = Math.floor(sw.lat()*20); la <= Math.floor(ne.lat()*20); la++) for(let lo = Math.floor(sw.lng()*20); lo <= Math.floor(ne.lng()*20); lo++) out.push(la + '_' + lo);
+  return out.length > 16 ? [] : out; }
+function ukStopsHere(){ const out = []; if(PV.z < 16 || busOff() || GPS_OFF.has('bus')) return out;
+  for(const t of ukStopTiles()){ if(!UKST.tiles.has(t)){ UKST.tiles.set(t, null); fetch('cities/stops/' + t + '.json').then(r => r.ok ? r.json() : null).then(j => { UKST.tiles.set(t, j); }).catch(() => UKST.tiles.set(t, false)); continue; }
+    const d = UKST.tiles.get(t); if(d) for(const st of d.stops) out.push([st, d]); }
+  return out; }
+function drawUKStops(ctx){
+  const L = ukStopsHere(); if(!L.length) return; const s0 = mapSize();
+  for(const [st] of L){ const c = scr([st[2], st[3]]); if(c.x < -10 || c.y < -10 || c.x > s0.x + 10 || c.y > s0.y + 10) continue;
+    ctx.beginPath(); ctx.arc(c.x, c.y, 4.2, 0, 7); ctx.fillStyle = '#DC241F'; ctx.fill(); ctx.lineWidth = 1.5; ctx.strokeStyle = dark ? '#111' : '#fff'; ctx.stroke(); }
+}
+function ukStopAt(x, y){ let best = null, bd = matchMedia('(pointer:coarse)').matches ? 18 : 10;
+  for(const [st, d] of ukStopsHere()){ const c = scr([st[2], st[3]]), k = Math.hypot(c.x - x, c.y - y); if(k < bd){ bd = k; best = [st, d]; } } return best; }
+function openUKStop([st, d]){
+  const box = $('station'); unfocusLine(); clearFocus(); $('tip').style.display = 'none'; box.hidden = false;
+  const routes = st[4].map(i => d.routes[i]);
+  const head = `<div class="st-h"><b>${esc(st[1])}</b><button type="button" class="x" id="stClose" aria-label="Close">✕</button></div>
+    <div class="st-lines">${[...new Map(routes.map(r => [r[0], r])).values()].sort((a, b) => String(a[0]).localeCompare(String(b[0]), undefined, {numeric:true})).slice(0, 24).map(r => `<span class="pill" style="--c:${r[2] ? '#' + r[2] : '#DC241F'}">${esc(r[0])}</span>`).join('')}</div>`;
+  box.innerHTML = head + '<div class="muted">Loading departures…</div>';
+  const load = async () => { if(box.hidden) return; let html = '';
+    try{ const j = await railGet('/vehicles?src=stop&id=' + encodeURIComponent(st[0])); if(box.hidden) return;
+      const P = Object.fromEntries(new Intl.DateTimeFormat('en-GB', {timeZone:'Europe/London', hour:'2-digit', minute:'2-digit', hourCycle:'h23'}).formatToParts(new Date()).map(x => [x.type, x.value])), now = +P.hour*60 + +P.minute;
+      const mins = t => { const [h, m] = t.split(':').map(Number); let d = h*60 + m - now; if(d < -720) d += 1440; return d; };
+      const rows = (j.departures || []).map(x => { const t = x.exp || x.sched, m = mins(t), r = routes.find(q => String(q[0]) === String(x.line)), col = r && r[2] ? '#' + r[2] : '#DC241F';
+        const late = x.exp && x.exp !== x.sched ? ` · due ${x.sched}` : '';
+        return m < -1 ? '' : `<li><span class="sw" style="background:${col}"></span><span class="to">${esc(x.dest)}<small>${esc(x.line)}${r ? ' · ' + esc(r[1]) : ''}${x.live ? ' · live' : ' · timetable'}${late}</small></span><b>${m < 1 ? 'due' : m < 60 ? m + ' min' : t}</b></li>`; }).filter(Boolean).slice(0, 14);
+      html = rows.length ? `<div class="dep-h">Buses</div><ol class="deps">${rows.join('')}</ol>` : '<div class="muted">No more buses listed today.</div>';
+    }catch(e){ html = '<div class="muted">Departures could not be loaded right now.</div>'; }
+    box.innerHTML = head + html; };
+  load(); clearInterval(focusTimer); focusTimer = setInterval(load, 30000); focusLoad = load;
+}
 // coach routes (National Express, FlixBus, Scottish Citylink): every route on the real roads, one colour per operator. Off by default.
 const COACHNET = {on:(() => { try{ return localStorage.getItem('coachLines') === '1'; }catch(e){ return false; } })(), data:null, loading:false, path:new Map()};
 function drawCoachNet(ctx){
@@ -2779,7 +2813,7 @@ function follow(t, zoom = 14){ HL.clear(); if(t) HL.add(t.key); FW.t = t; if(t &
 function stopFollow(){ if(FW.pinned){ FW.pinned.pinned = false; FW.pinned = null; LANES = null; linesSig = ''; } HL.clear(); FW.t = null; FW.tour = false; $('tourcap').hidden = true; renderFollow(); }
 $('follow').addEventListener('click', e => { if(e.target.closest('#fwStop')) stopFollow(); });
 map.addListener('click', ev => { if(!ev.pixel) return; const {x, y} = ev.pixel, coarse = matchMedia('(pointer:coarse)').matches;
-  if(document.body.classList.contains('away')){ const cs = cityStationAt(x, y); if(cs) return openCityStation(cs); } // abroad: the city's stations first
+  if(document.body.classList.contains('away')){ const cs = cityStationAt(x, y); if(cs) return openCityStation(cs); const us = ukStopAt(x, y); if(us) return openUKStop(us); } // abroad: the city's stations first
   const onDot = stationAt(x, y, coarse ? 12 : 8); if(onDot) return goStation(onDot);
   const bs = busStopAt(x, y); if(bs) return openBusStop(bs); // right on a dot: the station, even with a train waiting there
   const t = nearest(x, y); if(t) return follow(t, map.getZoom());
@@ -2851,7 +2885,7 @@ tick(); setInterval(tick, 1000);
 map.addListener('dragstart', () => { $('tip').style.display = 'none'; hover = null; });
 map.addListener('zoom_changed', () => { $('tip').style.display = 'none'; hover = null; });
 renderModeChips(); renderLegend(); syncMapMenu();
-if(DEBUG) window.LLT = {RV: () => RIVER_E, st: () => ({coach:COACH.on, cn:COACH.n, busOff:busOff(), TRAINS_ON, away:document.body.classList.contains("away"), GPS_OFF:[...GPS_OFF], MODES_OFF:[...MODES_OFF], note:BUS.note, size:GPS.list.size}), AUTO, autoNext: () => autoNext(), trains, ACTIVE, BY, placeTrain, segTime, refresh, map, draw, goStation, searchStations, scr, stationAt, GPS, gpsPos, BIKES, SHARE, cityData: () => cityData(), stationExtras, BUS, ROADS, LP: () => LPATHS};
+if(DEBUG) window.LLT = {ukStops: () => ukStopsHere(), ukStopAt: (x, y) => ukStopAt(x, y), RV: () => RIVER_E, st: () => ({coach:COACH.on, cn:COACH.n, busOff:busOff(), TRAINS_ON, away:document.body.classList.contains("away"), GPS_OFF:[...GPS_OFF], MODES_OFF:[...MODES_OFF], note:BUS.note, size:GPS.list.size}), AUTO, autoNext: () => autoNext(), trains, ACTIVE, BY, placeTrain, segTime, refresh, map, draw, goStation, searchStations, scr, stationAt, GPS, gpsPos, BIKES, SHARE, cityData: () => cityData(), stationExtras, BUS, ROADS, LP: () => LPATHS};
 
 // ---------- boot ----------
 (async () => {
