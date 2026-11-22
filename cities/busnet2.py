@@ -9,9 +9,12 @@ import numpy as np
 LON = lambda a, b: 51.28 < a < 51.70 and -0.52 < b < 0.34  # London has TfL's own bus routes
 COACH_NOC = {'NATX', 'MEGA', 'SMGB', 'FLIX', 'CTLK', 'SCTL', 'SCLK', 'NXSH'}
 
+COACH_NAMES = {'National Express', 'Megabus', 'megabus', 'FlixBus', 'Flixbus', 'Scottish Citylink', 'Citylink'}
+def is_coach(a):  # long-distance coaches only: National Express West Midlands / Coventry are city buses and stay on the bus map
+    return (a.get('agency_noc') or '') in COACH_NOC or a['agency_name'].strip() in COACH_NAMES
 def feed_routes(zf):
     z = zipfile.ZipFile(zf); rd = lambda n: csv.DictReader(io.TextIOWrapper(z.open(n), 'utf-8-sig'))
-    coach = {a['agency_id'] for a in rd('agency.txt') if (a.get('agency_noc') or '') in COACH_NOC or any(w in a['agency_name'] for w in ('National Express', 'Megabus', 'FlixBus', 'Citylink'))}
+    coach = {a['agency_id'] for a in rd('agency.txt') if is_coach(a)}
     bus = {r['route_id'] for r in rd('routes.txt') if r['route_type'] in ('3', '700', '702', '704', '715') and r.get('agency_id') not in coach}
     shapes = set(); pick = collections.defaultdict(list)
     for t in rd('trips.txt'):
@@ -79,14 +82,14 @@ def match(pbf, out, zips):
         out_ = [j]
         while out_[-1] != i: out_.append(came[out_[-1]])
         return out_[::-1]
-    edges = set(); raw = []; cache = {}; stats = collections.Counter()
+    edges = set(); raw = []; cache = {}; stats = collections.Counter(); OFFS = collections.Counter()
     def addpath(ns):
         for a, b in zip(ns, ns[1:]):
             if a != b: edges.add((a, b) if a < b else (b, a))
     def link(i, j, d):  # road path between two snapped nodes
         if j in nbr(i): addpath([i, j]); return True
         key = (i, j) if i < j else (j, i); ns = cache.get(key, 0)
-        if ns == 0: ns = cache[key] = astar(key[0], key[1], 2.0 * d + 80) or astar(key[0], key[1], 4.0 * d + 300)
+        if ns == 0: ns = cache[key] = astar(key[0], key[1], 1.3 * d + 30)  # the road the shape follows, not a detour round a missing link
         if ns: addpath(ns); return True
         return False
     for n_, (kind, p) in enumerate(polys):
@@ -98,37 +101,42 @@ def match(pbf, out, zips):
                 for t in range(1, n + 1): pts.append((a[0] + (b[0]-a[0])*t/n, a[1] + (b[1]-a[1])*t/n))
             pts = [q for q in pts if not LON(*q)]
             if len(pts) < 2: continue
-            X = np.array([(q[0]*111320, q[1]*111320*k) for q in pts]); dd, ii = R.tree.query(X, distance_upper_bound=35)
+            X = np.array([(q[0]*111320, q[1]*111320*k) for q in pts]); DD, II = R.tree.query(X, k=6, distance_upper_bound=35)
             last = None; miss = []  # last matched (point, node); unmatched points since then
-            for q, d0, i in zip(pts, dd, ii):
-                if not d0 < 35: stats['off road'] += 1; miss.append(q); continue
-                i = int(i)
-                if last is not None and last[1] != i:
-                    lq = last[0]; dist = math.hypot((q[0]-lq[0])*111320, (q[1]-lq[1])*111320*k)
-                    if dist < 400 and link(last[1], i, dist): stats['matched'] += 1
-                    else:
-                        seq_ = [lq] + miss + [q]; raw.extend(zip(seq_, seq_[1:])); stats['raw'] += 1
-                elif last is None and miss:
-                    raw.extend(zip(miss + [q], (miss + [q])[1:]))
-                last = (q, i); miss = []
+            for q, dds, iis in zip(pts, DD, II):
+                cands = [int(i) for d0, i in zip(dds, iis) if d0 < 35]
+                if not cands: stats['off road'] += 1; miss.append(q); continue
+                if last is None: last = (q, cands[0]); miss = []; continue
+                lq = last[0]; dist = math.hypot((q[0]-lq[0])*111320, (q[1]-lq[1])*111320*k)
+                # stay on the road we're on: the nearest candidate reachable along the roads from the last one
+                hit = None
+                if dist < 400:
+                    for c in cands:
+                        if c == last[1] or link(last[1], c, dist): hit = c; break
+                if hit is not None: stats['matched'] += 1; last = (q, hit)
+                else:
+                    seq_ = [lq] + miss + [q]; raw.extend(zip(seq_, seq_[1:])); stats['raw'] += 1; last = (q, cands[0])
+                miss = []
             if miss and last is not None: seq_ = [last[0]] + miss; raw.extend(zip(seq_, seq_[1:]))
         else:  # stops only: road path stop to stop
             for a, b in zip(p, p[1:]):
                 if LON(*a) or LON(*b): continue
                 S = R.near(a, 40); T = R.near(b, 40)
                 d = math.hypot((b[0]-a[0])*111320, (b[1]-a[1])*111320*k)
-                if not S or not T: stats['stop off road'] += 1; continue
+                if not S or not T: stats['stop off road'] += 1; OFFS[(round((a if not S else b)[0], 1), round((a if not S else b)[1], 1))] += 1; continue
                 key = (a, b); ns = cache.get(key, 0)
                 if ns == 0:
                     ns = None; best = None
                     si = min(S, key=lambda n: (lat[n]-a[0])**2 + ((lon[n]-a[1])*k)**2); ti = min(T, key=lambda n: (lat[n]-b[0])**2 + ((lon[n]-b[1])*k)**2)
                     ns = cache[key] = astar(si, ti, 2.5 * d + 400)
                 if ns: addpath(ns); stats['stop hops'] += 1
-                else: stats['stop hops failed'] += 1
+                else:
+                    stats['stop hops failed'] += 1
+                    if d < 600: raw.append((a, b))  # short hop with no road found: drawn straight rather than missing
     # node ids -> coordinates (graph is per region; coordinates make edges comparable across regions)
     E = {(round(lat[a], 6), round(lon[a], 6), round(lat[b], 6), round(lon[b], 6)) for a, b in edges}
     pickle.dump({'edges': E, 'raw': raw}, open(out, 'wb'))
-    print('edges', len(E), 'raw', len(raw), dict(stats), flush=True)
+    print('edges', len(E), 'raw', len(raw), dict(stats), 'stops off road by area', OFFS.most_common(6), flush=True)
 
 def dp(p, eps):
     if len(p) < 3: return p
@@ -177,13 +185,50 @@ def tiles(outdir, files):
     for u in list(adj):  # closed loops
         for v in adj[u]:
             if ((u, v) if u < v else (v, u)) not in used: lines.append(walk(u, v))
-    # raw pieces (where no road matched): keep those not alongside a matched road
-    cell = lambda q: (round(q[0] / 0.0004), round(q[1] / 0.0006))
-    near = set(cell(u) for u in adj)
-    rawkeep = []
+    # raw pieces (where no road matched): every bit of a bus route farther than 20 m from the drawn roads is drawn as published,
+    # so nothing a bus drives is ever missing (strict: sampled every 8 m against the matched road segments themselves)
+    from scipy.spatial import cKDTree
+    import numpy as np
+    kx = 111320*0.6
+    S = []; SD = []
+    for u in adj:
+        for v in adj[u]:
+            if u < v:
+                L = math.hypot((u[0]-v[0])*111320, (u[1]-v[1])*kx); n = max(1, int(L // 8))
+                ux, uy = (v[1]-u[1])*kx/(L or 1), (v[0]-u[0])*111320/(L or 1)
+                for t in range(n + 1): S.append(((u[0] + (v[0]-u[0])*t/n)*111320, (u[1] + (v[1]-u[1])*t/n)*kx)); SD.append((ux, uy))
+    tree = cKDTree(np.array(S)) if S else None; SD = np.array(SD)
+    rawkeep = []; cur = None
     for a, b in raw:
-        m = ((a[0]+b[0])/2, (a[1]+b[1])/2); c = cell(m)
-        if not any((c[0]+i, c[1]+j) in near for i in (-1, 0, 1) for j in (-1, 0, 1)): rawkeep.append([a, b])
+        L = math.hypot((b[0]-a[0])*111320, (b[1]-a[1])*kx)
+        if cur is not None and math.hypot((cur[-1][0]-a[0])*111320, (cur[-1][1]-a[1])*kx) > 12: cur = None  # not a continuation
+        if L > 1500: cur = None; continue  # a jump in the data, not a road
+        n = max(1, int(L // 8)); qs = [(a[0] + (b[0]-a[0])*t/n, a[1] + (b[1]-a[1])*t/n) for t in range(n + 1)]
+        if tree is not None and L > 0:  # covered = a drawn road within 20 m running the same way (a side road meeting it doesn't count)
+            rx, ry = (b[1]-a[1])*kx/L, (b[0]-a[0])*111320/L
+            nb = tree.query_ball_point(np.array([(q[0]*111320, q[1]*kx) for q in qs]), 20)
+            far = [not any(abs(SD[j][0]*rx + SD[j][1]*ry) > 0.8 for j in js) for js in nb]
+        else: far = [True]*len(qs)
+        def nearS(q):  # the nearest drawn point: uncovered pieces start and end exactly on the road they leave / rejoin
+            if tree is None: return q
+            dd, j = tree.query((q[0]*111320, q[1]*kx)); return (S[j][0]/111320, S[j][1]/kx) if dd < 30 else q
+        prevq = None
+        for q, f in zip(qs, far):
+            if f:
+                if cur is not None and cur[-1] == q: prevq = q; continue
+                if cur is not None and math.hypot((cur[-1][0]-q[0])*111320, (cur[-1][1]-q[1])*kx) < 12: cur.append(q)
+                else:
+                    cur = ([nearS(prevq), prevq] if prevq is not None else [nearS(q)]) + [q]; rawkeep.append(cur)
+            else:
+                if cur is not None and math.hypot((cur[-1][0]-q[0])*111320, (cur[-1][1]-q[1])*kx) < 12: cur.append(q); cur.append(nearS(q))
+                cur = None
+            prevq = q
+    def straightjump(r):  # a long dead-straight piece off every road = a jump in the published shape, not a road
+        L = math.hypot((r[0][0]-r[-1][0])*111320, (r[0][1]-r[-1][1])*kx)
+        if L < 300: return False
+        ax, ay, bx, by = r[0][1]*kx, r[0][0]*111320, r[-1][1]*kx, r[-1][0]*111320
+        return max(abs((bx-ax)*(ay-q[0]*111320) - (ax-q[1]*kx)*(by-ay))/L for q in r) < 8
+    rawkeep = [r for r in rawkeep if len(r) > 1 and math.hypot((r[0][0]-r[-1][0])*111320, (r[0][1]-r[-1][1])*kx) > 10 and not straightjump(r)]
     T = collections.defaultdict(list)
     tk = lambda q: f"{math.floor(q[0]*10)}_{math.floor(q[1]*10)}"
     for line in [dp(l, 2.5) for l in lines] + rawkeep:

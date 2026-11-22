@@ -1601,7 +1601,7 @@ function renderModeChips(){
     const has = m === 'bus' || m === 'bike' || m === 'road' || ACTIVE.some(l => l.mode === m) || (m === 'rail' && typeof railOn === 'function' && railOn());
     const off = m === 'bus' && document.body.classList.contains('away') ? GPS_OFF.has('bus') : MODES_OFF.has(m);
     return `<button type="button" class="chip2" data-mode="${m}" aria-pressed="${has && !off}" ${has ? '' : 'disabled title="Coming soon"'}>${m === 'bus' && document.body.classList.contains('away') ? symbol('busg', '#DC241F', 16) : symbol(GROUP_SYM[m][0], GROUP_SYM[m][1], 16)}${name}${has ? '' : ' <small>soon</small>'}</button>`;
-  }).join('')}</div></div>`).join('') + awayKindChips();
+  }).join('')}${cat === 'Buses' ? `<button type="button" class="chip2" data-coachlines="1" aria-pressed="${COACHNET.on}">${symbol('busg', '#D2232A', 16)}Coach routes</button>` : ''}</div></div>`).join('') + awayKindChips();
 }
 // outside London: trams / metro / ferries of the city on screen get their own switches (vehicles and lines together)
 const KIND_CHIP = {tram:['Trams', 'tramg', '#00985F'], metro:['Metro', 'metrog', '#FF6319'], ferry:['Ferries', 'ferryg', '#00B9E4']};
@@ -1616,6 +1616,8 @@ function awayKindChips(){
   const ks = awayKindsHere(); AWAY_KINDS = ks.join(); if(!ks.length) return '';
   return `<div class="mcat" data-cat="Trams & metro"><div class="mcat-h">${ks.map(k => KIND_CHIP[k][0]).join(' & ')}</div><div class="chips">${ks.map(k => `<button type="button" class="chip2" data-gkind="${k}" aria-pressed="${!GPS_OFF.has(k)}">${symbol(KIND_CHIP[k][1], KIND_CHIP[k][2], 16)}${KIND_CHIP[k][0]}</button>`).join('')}</div></div>`;
 }
+$('mModes').addEventListener('click', e => { if(!e.target.closest('[data-coachlines]')) return;
+  COACHNET.on = !COACHNET.on; try{ localStorage.setItem('coachLines', COACHNET.on ? '1' : '0'); }catch(x){} renderModeChips(); });
 $('mModes').addEventListener('click', e => { const gk = e.target.closest('[data-gkind]');
   if(gk){ const k = gk.dataset.gkind; GPS_OFF.has(k) ? GPS_OFF.delete(k) : GPS_OFF.add(k); try{ localStorage.setItem('gpsOff', JSON.stringify([...GPS_OFF])); }catch(x){} renderModeChips(); if(typeof renderBusNote === 'function') renderBusNote(); return; } });
 $('mModes').addEventListener('click', e => { const b = e.target.closest('[data-mode]'); if(!b || b.disabled) return;
@@ -2064,7 +2066,7 @@ const coachOf = v => COACHES[v.op] || (/megabus/i.test(v.op + ' ' + (v.line || '
 const OP_COL = ['#E4002B', '#0057B8', '#00843D', '#F4A300', '#6D2077', '#00A3AD', '#D0006F', '#5B6770'];
 const opCol = op => { let h = 0; for(const ch of op || '') h = (h*31 + ch.charCodeAt(0)) >>> 0; return OP_COL[h % OP_COL.length]; };
 function drawGps(ctx, s, hl0, hw0, mpp){
-  draw.ghit = []; if(TRAINS_ON && document.body.classList.contains('away') && map.getCenter()){ const mc = [map.getCenter().lat(), map.getCenter().lng()]; drawBusNet(ctx); if(CITYL.cur && CITYL.cur.box(mc)) drawCityLines(ctx); } if(!GPS.list.size || !SHOW_ICONS || !TRAINS_ON) return;
+  draw.ghit = []; drawCoachNet(ctx); if(TRAINS_ON && document.body.classList.contains('away') && map.getCenter()){ const mc = [map.getCenter().lat(), map.getCenter().lng()]; drawBusNet(ctx); if(CITYL.cur && CITYL.cur.box(mc)) drawCityLines(ctx); } if(!GPS.list.size || !SHOW_ICONS || !TRAINS_ON) return;
   const now = Date.now(), cosLat = Math.cos(map.getCenter().lat()*rad), label = PV.z >= 15.5;
   // bus routes abroad: where each bus has driven (thin, light, like London's bus routes), and the tapped bus's whole route
   if(!busOff() && !GPS_OFF.has('bus') && PV.z >= 13){ const W = lineW(), look = lineLook('bus', W); ctx.lineJoin = 'round'; ctx.lineCap = 'round';
@@ -2132,6 +2134,21 @@ function busRoadAng(v, prev){
   const ref = v.brg != null ? (v.brg - 90)*rad : prev; // which way along the road
   if(ref != null && Math.cos(best - ref) < 0) best += Math.PI;
   return best;
+}
+// coach routes (National Express, FlixBus, Scottish Citylink): every route on the real roads, one colour per operator. Off by default.
+const COACHNET = {on:(() => { try{ return localStorage.getItem('coachLines') === '1'; }catch(e){ return false; } })(), data:null, loading:false, path:new Map()};
+function drawCoachNet(ctx){
+  if(!COACHNET.on || !TRAINS_ON || PV.z < 5) return;
+  if(!COACHNET.data){ if(!COACHNET.loading){ COACHNET.loading = true; fetch('cities/coachnet.json').then(r => r.json()).then(j => { COACHNET.data = j; }).catch(() => { COACHNET.loading = false; }); } return; }
+  const zc = Math.floor(PV.z), k = 2 ** (PV.z - zc), W = lineW();
+  ctx.save(); ctx.translate(PV.ox, PV.oy); ctx.scale(k, k); ctx.lineJoin = 'round'; ctx.lineCap = 'round';
+  const ops = Object.entries(COACHNET.data.ops);
+  ops.forEach(([op, d], oi) => { const key = op + '@' + zc; let path = COACHNET.path.get(key);
+    if(!path){ path = new Path2D(); for(const poly of d.lines) poly.forEach((q, i) => { const w = world(q, zc); i ? path.lineTo(w[0], w[1]) : path.moveTo(w[0], w[1]); }); COACHNET.path.set(key, path); }
+    ctx.globalAlpha = 0.85; ctx.strokeStyle = d.col; ctx.lineWidth = Math.max(1.5, W*0.55)/k;
+    ctx.setLineDash([W*2.2/k, W*0.9/k]); ctx.lineDashOffset = -oi*W*1.1/k; // operators sharing a motorway interleave their dashes, so each stays visible
+    ctx.stroke(path); });
+  ctx.setLineDash([]); ctx.restore(); ctx.globalAlpha = 1;
 }
 // the tapped bus's route: from the timetable where we have it (Manchester), otherwise the road it has driven
 const BROUTE = {polys:null, key:'', col:'#DC241F'};
