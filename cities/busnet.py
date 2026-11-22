@@ -45,6 +45,7 @@ if os.environ.get('MERGE') == '1':  # roads already in the tiles (other regions/
                 q0, q1 = poly[i-1], poly[i]; ang = math.atan2(q1[0]-q0[0], (q1[1]-q0[1])*0.62) % math.pi
                 seen.add((round((q0[0]+q1[0])/2/CELL), round((q0[1]+q1[1])/2/CELL/1.6), int(ang/(math.pi/8)) % 8))
 cur, pts, n = None, [], 0
+if os.environ.get('NOSHAPE') == '1': shapes = set()
 with z.open('shapes.txt') as f:
     for s in csv.DictReader(io.TextIOWrapper(f, 'utf-8-sig')):
         sid = s['shape_id']
@@ -53,6 +54,52 @@ with z.open('shapes.txt') as f:
             cur, pts = sid, []
         if sid in shapes: pts.append((int(s['shape_pt_sequence']), float(s['shape_pt_lat']), float(s['shape_pt_lon'])))
     if cur in shapes and len(pts) > 1: pts.sort(); add([(a, b) for _, a, b in pts]); n += 1
+if os.environ.get('NOSHAPE') == '1':  # operators that publish no route shapes: draw the route stop to stop
+    LON = lambda a, b: 51.28 < a < 51.70 and -0.52 < b < 0.34  # London has TfL's own bus routes
+    pick = collections.defaultdict(list)
+    for t in rd('trips.txt'):
+        if t['route_id'] in bus_routes and not t.get('shape_id'):
+            g = pick[(t['route_id'], t.get('direction_id', ''))]
+            if len(g) < 4: g.append(t['trip_id'])
+    want = {tid for g in pick.values() for tid in g}
+    seq = collections.defaultdict(list)
+    with z.open('stop_times.txt') as f:
+        for s in csv.DictReader(io.TextIOWrapper(f, 'utf-8-sig')):
+            if s['trip_id'] in want: seq[s['trip_id']].append((int(s['stop_sequence']), s['stop_id']))
+    need = {sid for v in seq.values() for _, sid in v}
+    stp = {s['stop_id']: (float(s['stop_lat']), float(s['stop_lon'])) for s in rd('stops.txt') if s['stop_id'] in need and s.get('stop_lat')}
+    done = set(); m = 0; PAIR = {}; ROUTED = [0, 0]; R = None
+    if os.environ.get('PBF'):
+        sys.path.insert(0, os.path.dirname(os.path.abspath(__file__))); from route import Router
+        la = [q[0] for q in stp.values() if not LON(*q)]; lo = [q[1] for q in stp.values() if not LON(*q)]
+        R = Router(os.environ['PBF'], (min(la) - 0.02, min(lo) - 0.03, max(la) + 0.02, max(lo) + 0.03))
+    for tid, v in seq.items():
+        v.sort(); key = tuple(sid for _, sid in v)
+        if key in done: continue
+        done.add(key); p0 = [stp[sid] for sid in key if sid in stp]
+        p = []  # follow the roads between stops (straight only where no road path is found)
+        for q0, q1 in zip(p0, p0[1:]):
+            if LON(*q0) or LON(*q1): seg = None
+            else:
+                pk = (q0, q1); seg = PAIR.get(pk, 0)
+                if seg == 0: seg = PAIR[pk] = R.path(q0, q1) if R else None
+                if seg is None: ROUTED[1] += 1
+                else: ROUTED[0] += 1
+            if not p: p.append(q0)
+            if seg: p.extend(seg[1:])
+            elif math.hypot((q1[0]-q0[0])*111320, (q1[1]-q0[1])*69000) > 700: p.extend([None, q1])  # no road found: leave a gap, never a chord across town
+            else: p.append(q1)
+        part = []
+        for q in p:
+            if q is None or LON(*q): 
+                if len(part) > 1: add(part)
+                part = []
+            elif not part or math.hypot((q[0]-part[-1][0])*111320, (q[1]-part[-1][1])*69000) < 4000: part.append(q)
+            else:
+                if len(part) > 1: add(part)
+                part = [q]
+        if len(part) > 1: add(part); m += 1
+    print('stop-to-stop routes', m, 'road-routed pairs', ROUTED[0], 'straight', ROUTED[1])
 tot = 0
 for t, polys in tiles.items():
     fn = os.path.join(outdir, t + '.json'); old = json.load(open(fn)) if os.path.exists(fn) else []
