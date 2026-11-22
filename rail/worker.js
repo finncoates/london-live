@@ -23,6 +23,7 @@
 //                                 (what the live map needs to place trains)
 //   GET /vehicles?src=bods&bbox=minLon,minLat,maxLon,maxLat → live bus positions (England)
 //   GET /vehicles?src=tfe       → Edinburgh buses and trams
+//   GET /vehicles?src=gdansk|tallinn|vilnius → those cities' buses and trams (open data, no key; they don't allow browsers directly)
 //   GET /metrolink              → Manchester Metrolink departures by stop
 
 const DEFAULT_BOARD_URL = 'https://api1.raildata.org.uk/1010-live-departure-board-dep1_2/LDBWS/api/20220120/GetDepBoardWithDetails/{crs}?numRows=10';
@@ -171,7 +172,13 @@ async function vehicles(url, env, ctx){
     if(!r.ok) throw fail('Edinburgh: HTTP ' + r.status, 502);
     return {src, vehicles:parseTfe(await r.json())};
   });
-  if(src !== 'bods') throw fail('src must be bods or tfe', 400);
+  const OPEN = {gdansk:['https://ckan2.multimediagdansk.pl/gpsPositions?v=2', parseGdansk], tallinn:['https://transport.tallinn.ee/gps.txt', parseTallinn],
+    vilnius:['https://www.stops.lt/vilnius/gps_full.txt', parseVilnius]};
+  if(OPEN[src]) return cached(src, 15, ctx, async () => {
+    const r = await fetch(OPEN[src][0], {signal:AbortSignal.timeout(8000)}); if(!r.ok) throw fail(src + ': HTTP ' + r.status, 502);
+    return {src, vehicles:OPEN[src][1](await r.text())};
+  });
+  if(src !== 'bods') throw fail('src must be bods, tfe, gdansk, tallinn or vilnius', 400);
   if(!env.BODS_KEY) throw fail('BODS_KEY secret is not set on the worker', 503);
   // bounding box, rounded so nearby viewers share the cache; at most ~0.5° × 0.35° (a city)
   const b = (url.searchParams.get('bbox') || '').split(',').map(Number);
@@ -204,6 +211,22 @@ function parseTfe(j){
   return (j.vehicles || []).filter(v => v.latitude && v.longitude && v.service_name).map(v => ({id:'tfe:' + v.vehicle_id, line:String(v.service_name), op:'TfE',
     dest:v.destination || '', lat:+v.latitude, lon:+v.longitude, brg:v.heading ?? null, t:v.last_gps_fix ? v.last_gps_fix*1000 : null, tram:v.vehicle_type === 'tram'}));
 }
+function parseGdansk(txt){
+  return (JSON.parse(txt).vehicles || []).filter(v => v.lat && v.lon).map(v => ({id:'gda:' + v.vehicleId, line:String(v.routeShortName || ''), op:'ZTM Gdańsk', dest:v.headsign || '',
+    lat:+v.lat, lon:+v.lon, brg:v.direction ?? null, t:Date.parse(v.generated) || null, tram:+v.routeShortName < 100 && v.routeShortName !== '', late:v.delay != null ? -v.delay : null}));
+}
+// Tallinn: type (1 trolleybus, 2 bus, 3 tram), route, lon×1e6, lat×1e6, -, heading, vehicle, -, -, destination
+function parseTallinn(txt){
+  return txt.split('\n').map(l => l.trim().split(',')).filter(a => a.length >= 10 && +a[2] && +a[3]).map(a => ({id:'tln:' + a[6], line:(a[0] === '3' ? '' : a[0] === '1' ? 'T' : '') + a[1], op:'TLT ' + ({1:'trolleybus', 2:'bus', 3:'tram'}[a[0]] || ''),
+    dest:a[9] || '', lat:+a[3]/1e6, lon:+a[2]/1e6, brg:a[5] === '' ? null : +a[5], t:null, tram:a[0] === '3'}));
+}
+// Vilnius: CSV with a header (Transportas, Marsrutas, ..., Ilguma = lon×1e6, Platuma = lat×1e6, Azimutas, ..., KryptiesPavadinimas)
+function parseVilnius(txt){
+  const rows = txt.trim().split('\n').map(l => l.split(',')), h = rows.shift() || [], ix = n => h.indexOf(n);
+  const I = {type:ix('Transportas'), route:ix('Marsrutas'), car:ix('MasinosNumeris'), lon:ix('Ilguma'), lat:ix('Platuma'), az:ix('Azimutas'), late:ix('NuokrypisSekundemis'), dest:ix('KryptiesPavadinimas')};
+  return rows.filter(a => +a[I.lat] && +a[I.lon]).map(a => ({id:'vno:' + a[I.car], line:a[I.route] || '', op:/trol/i.test(a[I.type]) ? 'Vilnius trolleybus' : 'Vilnius bus', dest:I.dest >= 0 ? a[I.dest] || '' : '',
+    lat:+a[I.lat]/1e6, lon:+a[I.lon]/1e6, brg:a[I.az] === '' ? null : +a[I.az], t:null, late:I.late >= 0 && a[I.late] !== '' ? -a[I.late] : null}));
+}
 // Manchester Metrolink: platform departure boards (no positions) → [{stop, dir, line, trams:[{dest, wait, status}]}]
 async function metrolink(env, ctx){
   if(!env.TFGM_KEY) throw fail('TFGM_KEY secret is not set on the worker', 503);
@@ -230,4 +253,4 @@ function corsHeaders(request, env){
 function json(data, status, cors, maxAge){
   return new Response(JSON.stringify(data), {status, headers:{'content-type':'application/json', ...(maxAge ? {'cache-control':`public, max-age=${maxAge}`} : {}), ...cors}});
 }
-export const _test = {normaliseBoard, mergeTrains, toMs, stop, parseSiriVm, parseTfe};
+export const _test = {normaliseBoard, mergeTrains, toMs, stop, parseSiriVm, parseTfe, parseGdansk, parseTallinn, parseVilnius};

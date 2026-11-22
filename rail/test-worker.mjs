@@ -61,4 +61,13 @@ let [v3, ml] = await get2('/metrolink');
 ok(v3 === 200 && ml.platforms[0].trams.length === 2 && ml.platforms[0].trams[0].wait === 4, 'Metrolink: platform departures');
 [v3] = await get2('/metrolink', {}); ok(v3 === 503, 'Metrolink: missing key → 503');
 let [, hh] = await get2('/health'); ok(hh.bods && hh.metrolink && !hh.rail, 'health lists what is switched on');
+
+// ---- open city feeds (no key) ----
+import {_test as T} from './worker.js';
+const g = T.parseGdansk(JSON.stringify({vehicles:[{vehicleId:1, routeShortName:'255', headsign:'Łostowice', lat:54.3, lon:18.56, direction:45, delay:-13, generated:'2026-11-22T06:34:25Z'}, {vehicleId:2, routeShortName:'8', lat:54.35, lon:18.6}, {vehicleId:3}]}));
+ok(g.length === 2 && g[0].line === '255' && g[0].late === 13 && g[1].tram, 'Gdańsk: buses + trams parsed');
+const tl = T.parseTallinn('3,T1,24669050,59461310,,321,98,Z,111,Kadriorg\n2,5,24700000,59440000,,90,1234,Z,0,Viru\nbad');
+ok(tl.length === 2 && tl[0].tram && Math.abs(tl[0].lat - 59.46131) < 1e-6 && tl[1].dest === 'Viru', 'Tallinn: trams + buses parsed');
+const vn = T.parseVilnius('Transportas,Marsrutas,ReisoID,MasinosNumeris,Ilguma,Platuma,Greitis,Azimutas,ReisoPradziaMinutemis,NuokrypisSekundemis,MatavimoLaikas,MasinosTipas,KryptiesTipas,KryptiesPavadinimas\nTroleibusai,4,1,1234,25280000,54680000,20,90,400,60,1,a,b,Žirmūnai');
+ok(vn.length === 1 && vn[0].op === 'Vilnius trolleybus' && vn[0].dest === 'Žirmūnai' && vn[0].late === -60, 'Vilnius: trolleybus parsed');
 console.log(process.exitCode ? 'SOME TESTS FAILED' : 'all relay tests passed');

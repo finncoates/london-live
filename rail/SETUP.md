@@ -41,7 +41,8 @@ The same worker also serves live vehicles outside London. Add any of these as mo
 - `BODS_KEY` — buses with GPS positions everywhere in England. Free and instant: register at
   https://data.bus-data.dft.gov.uk (Account → API key).
 - `TFGM_KEY` — Manchester Metrolink departures. Free: https://developer.tfgm.com → subscribe to the Metrolink product.
-- Edinburgh buses and trams (Lothian / Edinburgh Trams) need no key: they work as soon as the relay is connected.
+- Edinburgh buses and trams (Lothian / Edinburgh Trams), and Tallinn, Gdańsk and Vilnius, need no key: they work as soon as the relay is connected.
+  (Finland, Helsinki, Norway and Boston don't need the relay at all: they already work.)
 Check `…/health`: it lists which ones are switched on (`"bods":true`, `"metrolink":true`).
 On the live map, turn on **Buses** and zoom into a town (Map menu → **Go to** jumps to the big cities).
 
