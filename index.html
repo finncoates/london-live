@@ -1807,7 +1807,7 @@ async function bostonVehicles(){
 const GPS_SRC = ['fi:', 'hsl:', 'no:', 'us:', 'de:', 'sch:', 'co:'];
 function gpsOnly(...keep){ for(const k of [...GPS.list.keys()]){ const src = GPS_SRC.find(x => k.startsWith(x)) || 'uk'; if(!keep.includes(src)) GPS.list.delete(k); } }
 // ---- Berlin & Brandenburg: S-Bahn, U-Bahn, trams, buses, regional trains (VBB "radar": real-time positions, no key) ----
-const inOslo = p => p[0] > 59.75 && p[0] < 60.10 && p[1] > 10.45 && p[1] < 11.05;
+const inOslo = p => p[0] > 59.75 && p[0] < 60.10 && p[1] > 10.45 && p[1] < 11.05, inBergen = p => p[0] > 60.25 && p[0] < 60.50 && p[1] > 5.15 && p[1] < 5.50, inTrondheim = p => p[0] > 63.35 && p[0] < 63.48 && p[1] > 10.20 && p[1] < 10.60;
 const inBerlin = p => p[0] > 52.2 && p[0] < 52.8 && p[1] > 12.9 && p[1] < 13.9;
 const VBB_COL = {suburban:'#008D4F', subway:'#115D91', tram:'#CC0A22', bus:'#A5027D', regional:'#E30613', express:'#7F7F7F', ferry:'#0080BA'};
 async function berlinVehicles(){
@@ -1877,7 +1877,7 @@ const CITYL = {list:[{name:'Helsinki', box:p => inHelsinki(p), urls:['cities/hel
   {name:'Edinburgh', box:p => p[0] > 55.88 && p[0] < 56.02 && p[1] > -3.45 && p[1] < -3.05, urls:['cities/edinburgh.json']},
   {name:'Glasgow', box:p => p[0] > 55.80 && p[0] < 55.92 && p[1] > -4.40 && p[1] < -4.15, urls:['cities/glasgow.json']},
   {name:'Nottingham', box:p => p[0] > 52.86 && p[0] < 53.06 && p[1] > -1.35 && p[1] < -1.05, urls:['cities/nottingham.json']},
-  {name:'Newcastle', box:p => p[0] > 54.85 && p[0] < 55.10 && p[1] > -1.80 && p[1] < -1.35, urls:['cities/tyneandwear.json']}, {name:'Boston', box:p => inBoston(p), urls:['cities/boston.json']}, {name:'Oslo', box:p => inOslo(p), urls:['cities/oslo.json']}], cur:null, data:new Map()};
+  {name:'Newcastle', box:p => p[0] > 54.85 && p[0] < 55.10 && p[1] > -1.80 && p[1] < -1.35, urls:['cities/tyneandwear.json']}, {name:'Boston', box:p => inBoston(p), urls:['cities/boston.json']}, {name:'Oslo', box:p => inOslo(p), urls:['cities/oslo.json']}, {name:'Bergen', box:p => inBergen(p), urls:['cities/bergen.json']}, {name:'Trondheim', box:p => inTrondheim(p), urls:['cities/trondheim.json']}], cur:null, data:new Map()};
 const cityData = () => CITYL.cur ? CITYL.cur.urls.map(u => CITYL.data.get(u)).filter(d => d && d.grid) : [];
 const CELL = (la, lo) => Math.floor(la*200) + ',' + Math.floor(lo*100); // ~550 m × 600 m
 async function loadCityLines(p){
@@ -2014,7 +2014,7 @@ async function openCityStation(hit){
         const j = await (await fetch(`https://v6.vbb.transport.rest/stops/${encodeURIComponent(id)}/departures?duration=40&results=40`, {signal:AbortSignal.timeout(10000)})).json();
         rows = (j.departures || j || []).map(x => { const when = Date.parse(x.when || x.plannedWhen); if(!when || x.cancelled) return null; const l = st[4].find(q => q[0] === x.line?.name);
           return {when, cat:{suburban:'S-Bahn', subway:'U-Bahn', tram:'Trams', bus:'Buses', regional:'Regional trains', express:'Long-distance trains', ferry:'Ferries'}[x.line?.product] || 'Other', html:row(l && l[1] || VBB_COL[x.line?.product] || '#888', x.direction || '', (x.line?.name || '') + (x.platform ? ' · platform ' + x.platform : '') + (x.delay > 60 ? ` · ${Math.round(x.delay/60)} min late` : ''), Math.round((when - now)/60000))}; });
-      } else if(/oslo\.json/.test(url)){ // Entur (Ruter, Vy…): live departures, keyless
+      } else if(/(oslo|bergen|trondheim)\.json/.test(url)){ // Entur (Ruter, Skyss, AtB, Vy…): live departures, keyless
         const ec = 'estimatedCalls(numberOfDepartures:40,timeRange:5400){expectedDepartureTime realtime quay{publicCode} destinationDisplay{frontText} serviceJourney{line{publicCode transportMode}}}', q = `{stopPlace(id:${JSON.stringify(String(st[0]))}){${ec} parent{${ec}}}}`; // the whole interchange (metro + tram + bus at Jernbanetorget)
         const j = await (await fetch('https://api.entur.io/journey-planner/v3/graphql', {signal:AbortSignal.timeout(10000), method:'POST', headers:{'Content-Type':'application/json', 'ET-Client-Name':'finncoates-londonlive'}, body:JSON.stringify({query:q})})).json();
         rows = (j.data?.stopPlace?.parent?.estimatedCalls || j.data?.stopPlace?.estimatedCalls || []).map(x => { const when = Date.parse(x.expectedDepartureTime); if(!when) return null; const ln = x.serviceJourney?.line || {}, l = st[4].find(q => q[0] === ln.publicCode);
@@ -2216,7 +2216,7 @@ function busnetTiles(){
 }
 const BUSNET_COL = {berlin:['#A5027D', '#D04FAE'], boston:['#E0A000', '#FFC72C'], helsinki:['#007AC9', '#3AA0E8'], oslo:['#E60000', '#FF5A5A']};
 function drawBusNet(ctx){
-  if(busOff() || GPS_OFF.has('bus') || PV.z < 12) return; const c = map.getCenter(); if(!c) return; const rg = regionOf([c.lat(), c.lng()]); { if(rg !== 'uk' && rg !== 'edinburgh' && rg !== 'london' && rg !== 'berlin' && rg !== 'boston' && !(rg === 'finland' && inHelsinki([c.lat(), c.lng()])) && !(rg === 'norway' && inOslo([c.lat(), c.lng()])) && !CITYL.cur?.name?.match(/Manchester/)) return; } // Berlin, Boston, Helsinki: from their own timetables
+  if(busOff() || GPS_OFF.has('bus') || PV.z < 12) return; const c = map.getCenter(); if(!c) return; const rg = regionOf([c.lat(), c.lng()]); { if(rg !== 'uk' && rg !== 'edinburgh' && rg !== 'london' && rg !== 'berlin' && rg !== 'boston' && !(rg === 'finland' && inHelsinki([c.lat(), c.lng()])) && !(rg === 'norway' && [inOslo, inBergen, inTrondheim].some(f => f([c.lat(), c.lng()]))) && !CITYL.cur?.name?.match(/Manchester/)) return; } // Berlin, Boston, Helsinki: from their own timetables
   const zc = Math.floor(PV.z), k = 2 ** (PV.z - zc), look = lineLook('bus', lineW());
   const O = orgAt(zc); ctx.save(); localView(ctx, O, k); ctx.globalAlpha = dark ? Math.min(1, look.alpha*1.4) : look.alpha; ctx.strokeStyle = (BUSNET_COL[rg === 'finland' ? 'helsinki' : rg === 'norway' ? 'oslo' : rg] || ['#DC241F', '#E8574F'])[dark ? 1 : 0]; /* the colour of the city's own buses (Berlin purple, Boston yellow, Helsinki blue); red in Britain */ ctx.lineWidth = look.w/k; ctx.lineJoin = 'round'; ctx.lineCap = 'round';
   const ldn = regionOf([c.lat(), c.lng()]) === 'london';
@@ -2382,8 +2382,8 @@ const CATALOG = [
       {name:'Whole country (trains)', at:[63.5, 26.0, 6], live:'now', modes:[['train','Trains']], note:'Every train in Finland by GPS (Digitraffic).'}]},
     {name:'Norway', flag:'🇳🇴', cities:[
       {name:'Oslo', at:[59.913, 10.750, 13], live:'now', modes:[['metro','T-bane'], ['tram','Trams'], ['bus','Buses'], ['train','Trains'], ['ferry','Ferries'], ['bike','City bikes']], note:'Ruter T-bane, trams, buses and ferries and Vy trains by GPS (Entur); live departures at every station.'},
-      {name:'Bergen', at:[60.392, 5.324, 13], live:'now', modes:[['bus','Buses'], ['train','Trains'], ['ferry','Ferries'], ['bike','City bikes']], note:'Skyss buses and Vy trains by GPS (Entur).'},
-      {name:'Trondheim', at:[63.430, 10.395, 13], live:'now', modes:[['bus','Buses'], ['train','Trains'], ['bike','City bikes & scooters']], note:'AtB buses and trains by GPS (Entur).'}]},
+      {name:'Bergen', at:[60.392, 5.324, 13], live:'now', modes:[['tram','Bybanen'], ['bus','Buses'], ['train','Trains'], ['ferry','Ferries'], ['bike','City bikes']], note:'Skyss Bybanen, buses and ferries and Vy trains by GPS (Entur); live departures at every stop.'},
+      {name:'Trondheim', at:[63.430, 10.395, 13], live:'now', modes:[['tram','Tram'], ['bus','Buses'], ['train','Trains'], ['ferry','Ferries'], ['bike','City bikes & scooters']], note:'AtB tram, buses and boats and Vy trains by GPS (Entur); live departures at every stop.'}]},
     {name:'Germany', flag:'🇩🇪', cities:[
       {name:'Berlin', at:[52.515, 13.395, 14], live:'now', modes:[['train','S-Bahn & trains'], ['metro','U-Bahn'], ['tram','Trams'], ['bus','Buses'], ['ferry','Ferries'], ['bike','Bikes & scooters']], note:'BVG/VBB vehicles, positioned from live timings.'}]},
     {name:'Estonia', flag:'🇪🇪', cities:[{name:'Tallinn', at:[59.437, 24.754, 14], live:'now', modes:[['tram','Trams'], ['bus','Buses & trolleybuses']], note:'Open data, live by GPS.'}]},
@@ -2445,7 +2445,7 @@ function applyRegion(){
   const wasEdge = document.body.classList.contains('edge'), edge = !away && inLondonEdge([c.lat(), c.lng()]); // just outside Greater London: London's panel, the town's own buses
   document.body.classList.toggle('away', away); document.body.classList.toggle('abroad', abroad); document.body.classList.toggle('edge', edge);
   if(wasAway !== away || wasAbroad !== abroad || wasEdge !== edge){ renderModeChips(); if(typeof refreshGps === 'function') refreshGps(); }
-  $('ttl').textContent = !away ? 'London live trains' : inHelsinki([c.lat(), c.lng()]) && map.getZoom() >= 10 ? 'Helsinki live map' : inOslo([c.lat(), c.lng()]) && map.getZoom() >= 10 ? 'Oslo live map' : {finland:'Finland live trains', norway:'Norway live map', boston:'Boston live map', berlin:'Berlin live map', city:(relayCity([c.lat(), c.lng()]) || [, , ''])[2] + ' live map', edinburgh:'Edinburgh live map', uk:'UK live map', world:'Live map', london:'London live trains'}[r];
+  $('ttl').textContent = !away ? 'London live trains' : inHelsinki([c.lat(), c.lng()]) && map.getZoom() >= 10 ? 'Helsinki live map' : inOslo([c.lat(), c.lng()]) && map.getZoom() >= 10 ? 'Oslo live map' : inBergen([c.lat(), c.lng()]) && map.getZoom() >= 10 ? 'Bergen live map' : inTrondheim([c.lat(), c.lng()]) && map.getZoom() >= 10 ? 'Trondheim live map' : {finland:'Finland live trains', norway:'Norway live map', boston:'Boston live map', berlin:'Berlin live map', city:(relayCity([c.lat(), c.lng()]) || [, , ''])[2] + ' live map', edinburgh:'Edinburgh live map', uk:'UK live map', world:'Live map', london:'London live trains'}[r];
   if(r === 'uk' && map.getZoom() >= 11){ const p = [c.lat(), c.lng()]; let best = null, bd = 15000; // the town in view, when it's one Explore knows
     for(const ct of CATALOG) for(const co of ct.countries) for(const ci of co.cities){ if(ci.at[2] <= 7 || ci.name === 'London') continue; const d = dist(p, ci.at); if(d < bd){ bd = d; best = ci; } }
     if(best) $('ttl').textContent = best.name + ' live map';
