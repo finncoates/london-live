@@ -196,7 +196,7 @@ body.away #mapMenu .ldn-only, body.away #mapMenu .ldn-txt, body:not(.away) #mapM
 .sbi{background:var(--soft);border-radius:10px;padding:8px 10px}
 .sbh{display:flex;align-items:center;gap:6px;font-size:13px}
 .sbh .sw{width:14px;height:5px;border-radius:3px}
-.sbi p{margin:4px 0 0;font-size:12.5px;color:var(--mute)}
+.sbi p{margin:4px 0 0;font-size:12.5px;color:var(--mute)} .sbi p a{color:var(--acc);text-decoration:none}
 .row .n{color:var(--mute);font-variant-numeric:tabular-nums;font-size:13px}
 .row.off{opacity:.38}
 #clock{position:fixed;right:16px;bottom:30px;z-index:1000;font-weight:800;font-size:30px;font-variant-numeric:tabular-nums;color:var(--ink);text-shadow:0 0 8px var(--bg);display:none}
@@ -1577,6 +1577,8 @@ const NRS = {list:[], open:false};
 async function refreshNrStatus(){
   try{ const d = await get('/Line/Mode/national-rail/Status');
     NRS.list = d.map(l => { const ss = (l.lineStatuses || []).map(x => ({lv:SEV_LEVEL(x.statusSeverity), text:x.statusSeverityDescription, why:(x.reason || '').trim()})).sort((a, b) => b.lv - a.lv)[0] || {lv:0};
+      const link = ((ss.why || '').match(/https:\/\/www\.nationalrail\.co\.uk\/\S+/) || [])[0] || ''; // often the only 'reason': the National Rail disruption page
+      ss.where = link ? decodeURIComponent((link.replace(/\/+$/, '').split('/').pop() || '')).replace(/-\d{6,8}$/, '').replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase()) : ''; ss.link = link;
       ss.why = (ss.why || '').replace(/(https?:)?\/\/\S+/g, '').replace(/\s+/g, ' ').trim(); if(ss.why.length < 8) ss.why = ''; // links only: dropped
       return {name:l.name, ...ss}; }); renderNrStatus(); }catch(e){}
 }
@@ -1586,7 +1588,7 @@ function renderNrStatus(){
   const bad = NRS.list.filter(x => x.lv).sort((a, b) => b.lv - a.lv);
   el.innerHTML = !bad.length ? '<div class="sb ok">✓ National Rail: good service on all operators</div>'
     : `<button type="button" class="sb" id="nrT" aria-expanded="${NRS.open}"><b>National Rail: ${bad.length} operator${bad.length > 1 ? 's' : ''} with problems</b><span>${NRS.open ? 'Hide' : 'Details'}</span></button>`
-      + (NRS.open ? `<div class="sbl">${bad.map(x => `<div class="sbi"><div class="sbh">${symbol('rail', '#1D5BA0', 14)}<b>${esc(x.name)}</b><span class="st st${x.lv}">${esc(x.text)}</span></div>${x.why ? `<p>${esc(x.why.replace(/^[^:]{2,40}:\s*/, ''))}</p>` : ''}</div>`).join('')}</div>` : '');
+      + (NRS.open ? `<div class="sbl">${bad.map(x => `<div class="sbi"><div class="sbh">${symbol('rail', '#1D5BA0', 14)}<b>${esc(x.name)}</b><span class="st st${x.lv}">${esc(x.text)}</span></div>${x.why ? `<p>${esc(x.why.replace(/^[^:]{2,40}:\s*/, ''))}</p>` : x.link ? `<p>${x.where ? 'Around ' + esc(x.where) + ' · ' : ''}<a href="${esc(x.link)}" target="_blank" rel="noopener">details on National Rail ↗</a></p>` : ''}</div>`).join('')}</div>` : '');
 }
 setTimeout(refreshNrStatus, 2500); setInterval(refreshNrStatus, 180000);
 window.onStatus = () => { renderLegend(); if(focusLoad && !$('station').hidden) focusLoad(); }; // the open station card shows line problems too
