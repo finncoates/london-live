@@ -658,5 +658,65 @@
 "#7E8BA3",
 "#97A6BF"
 ]
+},
+{
+"id": "n-reseau-rtca-3642e2",
+"name": "Carcassonne Agglo",
+"box": [
+43.057,
+2.135,
+43.426,
+2.704
+],
+"url": "cities/fr-n-reseau-rtca-3642e2.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "n-horaires-theoriques-et-temps-ree-92d6f3",
+"name": "Grand Calais Terres et Mers",
+"box": [
+50.844,
+1.687,
+51.0,
+1.999
+],
+"url": "cities/fr-n-horaires-theoriques-et-temps-ree-92d6f3.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "luxembourg",
+"name": "Luxembourg",
+"box": [
+49.54,
+6.018,
+49.697,
+6.249
+],
+"url": "cities/lu-luxembourg.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "n-start-horaires-du-reseau-de-lagg-f21157",
+"name": "Thonon Agglomération",
+"box": [
+46.17,
+6.217,
+46.417,
+6.562
+],
+"url": "cities/fr-n-start-horaires-du-reseau-de-lagg-f21157.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
 }
 ]
