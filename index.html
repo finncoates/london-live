@@ -2107,7 +2107,9 @@ async function refreshGps(){
     if(!RAIL.relay || RAIL.relay === 'demo'){ GPS.list.clear(); BUS.note = `Live buses and trams in ${rc[2]} are ready: they switch on once the relay is set up (no key needed for ${rc[2]}).`; renderBusNote(); return; }
     if(z < 11){ GPS.list.clear(); BUS.note = `${rc[2]}: zoom in to see buses and trams live`; renderBusNote(); return; }
     if(GPS.busy) return; GPS.busy = true;
-    try{ const res = await railGet('/vehicles?src=' + rc[0]); if(busOff()) res.vehicles = res.vehicles.filter(v => v.tram); gpsMerge(res);
+    try{ const res = await railGet('/vehicles?src=' + rc[0]); if(busOff()) res.vehicles = res.vehicles.filter(v => v.tram);
+      { const tl = cityData().flatMap(d => d.lines).filter(l => l.kind === 'tram'); for(const v of res.vehicles) if(v.tram && !v.col){ const l = tl.find(l => String(l.name).replace(/^T/, '') === String(v.line).replace(/^T/, '')) || tl[0]; if(l) v.col = l.col; } } // trams in their line's colour, as the lines are drawn
+      gpsMerge(res);
       BUS.note = `${GPS.list.size} ${(t => busOff() ? 'trams' : t ? 'buses and trams' : 'buses and trolleybuses')([...GPS.list.values()].some(g => g.v.tram))} live in ${rc[2]} (GPS)${busOff() ? '. Turn on Buses for buses too' : ''}`; }
     catch(e){ BUS.note = rc[2] + ': ' + e.message; }
     GPS.busy = false; renderBusNote(); return;
