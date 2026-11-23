@@ -1,19 +1,43 @@
-# Rebuild the shared bus tiles (cities/busnet) that French cities touch: each = the tile as it was before any French city
-# (git, BASE in fr_build.py) + every French city's own routes there (cities/.build/<city>/busnet). fr_build.py does this
-# for the city it builds; this script redoes it for the given cities (or all) without rebuilding them.
-#   python -I cities/fr_merge.py [city ...]
-import os, sys, json, subprocess
+# Rebuild the shared bus tiles (cities/busnet) that French networks touch. Each tile = the tile as it was before any French
+# network (git, BASE) + every French network's own routes there (cities/.build/<network>/busnet), with each road drawn
+# once: a stretch of route that runs along a road already drawn (within ~11 m, either direction) is left out, so a road
+# served by the city's buses and by intercity coaches isn't drawn two or three times over.
+# Networks with their own city file (trams, metros) go first, then the rest by name, so the result doesn't depend on order.
+#   python -I cities/fr_merge.py [network ...]      (no names: every network)
+import os, sys, json, math, subprocess
 HERE = os.path.dirname(os.path.abspath(__file__)); BASE = '6c9aa8ce'; root = os.path.join(HERE, '.build')
-cities = sys.argv[1:] or [c for c in os.listdir(root) if os.path.isdir(os.path.join(root, c, 'busnet'))]
-tiles = {fn for c in cities if os.path.isdir(os.path.join(root, c, 'busnet')) for fn in os.listdir(os.path.join(root, c, 'busnet'))}
+nets = [c for c in os.listdir(root) if os.path.isdir(os.path.join(root, c, 'busnet'))]
+want = sys.argv[1:] or nets
+cityfile = {c for c in nets if os.path.exists(os.path.join(HERE, f'fr-{c}.json'))}
+order = sorted(nets, key=lambda c: (c not in cityfile, c))
+tiles = {fn for c in want if os.path.isdir(os.path.join(root, c, 'busnet')) for fn in os.listdir(os.path.join(root, c, 'busnet'))}
+CY, CX = 0.0001, 0.00015                      # ~11 m cells
+def cells_along(p, step=5):
+    for (a, b), (c, d) in zip(p, p[1:]):
+        L = math.hypot((c - a)*111320, (d - b)*111320*math.cos(math.radians(a))); n = max(1, int(L/step))
+        for k in range(n + 1):
+            yield math.floor((a + (c - a)*k/n)/CY), math.floor((b + (d - b)*k/n)/CX)
+def covered(seg, mark):
+    return all(c in mark for c in cells_along(seg, 8))
 for fn in sorted(tiles):
     base = subprocess.run(['git', '-C', HERE, 'show', f'{BASE}:cities/busnet/{fn}'], capture_output=True, text=True)
-    merged = json.loads(base.stdout) if base.returncode == 0 else []; have = {json.dumps(p) for p in merged}
-    for c in sorted(os.listdir(root)):
+    out = json.loads(base.stdout) if base.returncode == 0 else []; mark = set()
+    def draw(p):
+        out.append(p)
+        for y, x in cells_along(p):
+            for dy in (-1, 0, 1):
+                for dx in (-1, 0, 1): mark.add((y + dy, x + dx))
+    for p in out[:]: out.pop(0); draw(p)
+    for c in order:
         f2 = os.path.join(root, c, 'busnet', fn)
-        if os.path.exists(f2):
-            for p in json.load(open(f2)):
-                k = json.dumps(p)
-                if k not in have: have.add(k); merged.append(p)
-    json.dump(merged, open(os.path.join(HERE, 'busnet', fn), 'w'), separators=(',', ':'))
-print(len(tiles), 'tiles rebuilt for', ', '.join(cities))
+        if not os.path.exists(f2): continue
+        for p in json.load(open(f2)):
+            run = [p[0]]
+            for q in p[1:]:
+                if covered([run[-1], q], mark):
+                    if len(run) > 1: draw(run)
+                    run = [q]
+                else: run.append(q)
+            if len(run) > 1: draw(run)
+    json.dump(out, open(os.path.join(HERE, 'busnet', fn), 'w'), separators=(',', ':'))
+print(len(tiles), 'tiles rebuilt for', len(want), 'networks')

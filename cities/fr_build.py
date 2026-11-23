@@ -15,6 +15,7 @@ ap = argparse.ArgumentParser(); ap.add_argument('id'); ap.add_argument('name'); 
 ap.add_argument('--agency'); ap.add_argument('--box'); ap.add_argument('--bus', default='#7E8BA3,#97A6BF'); ap.add_argument('--work')
 ap.add_argument('--types', help='override the type map, e.g. "0:tram,1:metro"'); ap.add_argument('--nobus', action='store_true')
 ap.add_argument('--drop', help='regex of line names to leave out (e.g. ^TER$: drawn by the national rail map)')
+ap.add_argument('--nolines', action='store_true', help='buses only (no city line file, no map entry of its own)')
 ap.add_argument('--roads', default='auto', help='bus routes matched onto OpenStreetMap roads: auto (when the shapes are missing or only join the stops), on, off')
 ap.add_argument('--kind', help='NAME=kind,... e.g. "ORLYVAL=metro"'); ap.add_argument('--rename', help='NAME=New name,...')
 a = ap.parse_args()
@@ -81,9 +82,52 @@ tmap = a.types or ','.join(f'{t}:{kind(t)}' for t in types if kind(t))
 has_shapes = 'shapes.txt' in zipfile.ZipFile(sub).namelist()
 colours = sum(1 for r in routes if (r.get('route_color') or '').strip() not in ('', 'FFFFFF', 'ffffff', '000000'))
 report = {'id':a.id, 'name':a.name, 'routes':len(routes), 'types':dict(types), 'typemap':tmap, 'shapes':has_shapes, 'coloured_routes':colours, 'box':box}
+def shape_quality():
+    zz = zipfile.ZipFile(sub); rr = lambda n: csv.DictReader(io.TextIOWrapper(zz.open(n), 'utf-8-sig'))
+    if 'shapes.txt' not in zz.namelist(): return None
+    bus = {r['route_id'] for r in rr('routes.txt') if r['route_type'] in ('3', '11', '700', '702', '704', '715')}
+    bs = {t.get('shape_id') for t in rr('trips.txt') if t['route_id'] in bus and t.get('shape_id')}
+    if not bs: return None
+    gaps = []; last = {}
+    for q in rr('shapes.txt'):
+        if q['shape_id'] not in bs: continue
+        p = (float(q['shape_pt_lat']), float(q['shape_pt_lon'])); o = last.get(q['shape_id']); last[q['shape_id']] = p
+        if o: gaps.append(math.hypot((p[0]-o[0])*111320, (p[1]-o[1])*111320*math.cos(math.radians(p[0]))))
+    gaps.sort(); return gaps[len(gaps)//2] if gaps else None
+def shapeless_share():  # bus trips with no shape at all (Strasbourg: most of them): those routes would be missing
+    zz = zipfile.ZipFile(sub); rr = lambda n: csv.DictReader(io.TextIOWrapper(zz.open(n), 'utf-8-sig'))
+    bus = {r['route_id'] for r in rr('routes.txt') if r['route_type'] in ('3', '11', '700', '702', '704', '715')}
+    t = [bool(x.get('shape_id')) for x in rr('trips.txt') if x['route_id'] in bus]
+    return (len(t) - sum(t))/len(t) if t else 0
+def region_pbf():  # the smallest Geofabrik extract that covers the whole city
+    od = os.path.join(HERE, '.build', 'osm'); os.makedirs(od, exist_ok=True); ix = os.path.join(od, 'index-v1.json')
+    if not os.path.exists(ix): urllib.request.urlretrieve('https://download.geofabrik.de/index-v1.json', ix)
+    def inside(pt, poly):
+        x, y, c = pt[1], pt[0], False
+        for ring in poly:
+            for (x1, y1), (x2, y2) in zip(ring, ring[1:]):
+                if (y1 > y) != (y2 > y) and x < (x2 - x1)*(y - y1)/(y2 - y1) + x1: c = not c
+        return c
+    best = None
+    for f in json.load(open(ix, encoding='utf-8'))['features']:
+        g = f.get('geometry'); url = f['properties'].get('urls', {}).get('pbf')
+        if not g or not url: continue
+        polys = g['coordinates'] if g['type'] == 'MultiPolygon' else [g['coordinates']]
+        if not f['properties'].get('parent'): continue  # a whole continent (Europe: 30 GB) is never the answer
+        if any(inside(((S + N)/2, (W + E)/2), pl) for pl in polys):  # the city's centre (Lille's area reaches into Belgium)
+            xs = [c[0] for pl in polys for c in pl[0]]; ys = [c[1] for pl in polys for c in pl[0]]; area = (max(xs)-min(xs))*(max(ys)-min(ys))
+            if not best or area < best[0]: best = (area, url, f['properties']['id'])
+    if not best: return None
+    fn = os.path.join(od, best[2].replace('/', '_') + '.osm.pbf')
+    if not os.path.exists(fn):
+        req = urllib.request.Request(best[1], headers={'user-agent':'LondonLive/1.0 (+https://github.com/finncoates/london-live)'})
+        with urllib.request.urlopen(req, timeout=1800) as r, open(fn + '.part', 'wb') as f: shutil.copyfileobj(r, f)
+        os.replace(fn + '.part', fn)
+    return fn
 jf = os.path.join(HERE, f'fr-{a.id}.json')
 env = dict(os.environ, USE_ROUTE_COLOR='1' if colours else '0', PYTHONIOENCODING='utf-8')
-if tmap and has_shapes:
+if a.nolines: d = {'lines':[], 'stations':[]}; tmap = ''
+elif tmap and has_shapes:
     subprocess.run([sys.executable, '-I', os.path.join(HERE, 'gtfs_lines.py'), sub, jf, tmap, '', box], check=True, env=env)
     subprocess.run([sys.executable, '-I', os.path.join(HERE, 'gtfs_stations.py'), sub, jf, tmap, box], check=True, env=env)
     d = json.load(open(jf, encoding='utf-8'))
@@ -102,6 +146,21 @@ if tmap and has_shapes:
         d['lines'] = [l for l in d['lines'] if l['name'] not in white]
         d['stations'] = [st[:4] + [[x for x in st[4] if x[0] not in white]] for st in d.get('stations', []) if any(x[0] not in white for x in st[4])]
         json.dump(d, open(jf, 'w', encoding='utf-8'), separators=(',', ':'), ensure_ascii=False); report['dropped_white'] = sorted(white)
+elif tmap and not has_shapes and (pbf0 := None) is None and any(int(r['route_type']) in (0, 1, 4) or 900 <= int(r['route_type']) < 1000 for r in routes):
+    # no shapes (Montpellier, Lille, Le Mans): each stop-to-stop hop routed along OpenStreetMap's tram / metro track
+    tl = {}
+    for r in routes:
+        t = int(r['route_type']); k = 'tram' if t == 0 or 900 <= t < 1000 else 'metro' if t == 1 else 'ferry' if t == 4 else None
+        c = (r.get('route_color') or '').strip()
+        if k and r.get('route_short_name') and c and c.lower() not in ('ffffff', '000000'): tl[r['route_short_name']] = [r['route_short_name'], '#' + c.upper(), k]
+        elif k and r.get('route_short_name'): tl[r['route_short_name']] = [r['route_short_name'], {'tram':'#00985F', 'metro':'#FF6319', 'ferry':'#00B9E4'}[k], k]
+    pbf0 = region_pbf(); op = (agencies and list(agencies.values())[0]) or a.name
+    if pbf0 and tl:
+        subprocess.run([sys.executable, '-I', os.path.join(HERE, 'gtfs_tram_osm.py'), sub, pbf0, jf, json.dumps(tl), op, box], check=True, env=env)
+        d = json.load(open(jf, encoding='utf-8')); report['lines_routed'] = 'OpenStreetMap track (no shapes in the timetable)'
+    else: d = {'lines':[], 'stations':[]}; json.dump(d, open(jf, 'w', encoding='utf-8'))
+elif os.path.exists(jf) and json.load(open(jf, encoding='utf-8')).get('lines'):
+    d = json.load(open(jf, encoding='utf-8')); report['lines_kept'] = 'existing file (routed along OpenStreetMap track)'
 else:
     d = {'lines':[], 'stations':[]}; json.dump(d, open(jf, 'w', encoding='utf-8'))
     if tmap and not has_shapes: report['warning'] = 'no route shapes: lines not drawn'
@@ -109,68 +168,26 @@ report['lines'] = sorted({(l['name'], l['kind'], l['col']) for l in d['lines']})
 
 # 4. buses: built into a folder of their own, then merged into the shared tiles. Routes follow the timetable's shapes, or,
 # when it has none or they only join the stops with straight lines (Nantes), are matched onto OpenStreetMap's roads.
-def shape_quality():
-    zz = zipfile.ZipFile(sub); rr = lambda n: csv.DictReader(io.TextIOWrapper(zz.open(n), 'utf-8-sig'))
-    if 'shapes.txt' not in zz.namelist(): return None
-    bus = {r['route_id'] for r in rr('routes.txt') if r['route_type'] in ('3', '11', '700', '702', '704', '715')}
-    bs = {t.get('shape_id') for t in rr('trips.txt') if t['route_id'] in bus and t.get('shape_id')}
-    if not bs: return None
-    gaps = []; last = {}
-    for q in rr('shapes.txt'):
-        if q['shape_id'] not in bs: continue
-        p = (float(q['shape_pt_lat']), float(q['shape_pt_lon'])); o = last.get(q['shape_id']); last[q['shape_id']] = p
-        if o: gaps.append(math.hypot((p[0]-o[0])*111320, (p[1]-o[1])*111320*math.cos(math.radians(p[0]))))
-    gaps.sort(); return gaps[len(gaps)//2] if gaps else None
-def region_pbf():  # the smallest Geofabrik extract that covers the whole city
-    od = os.path.join(HERE, '.build', 'osm'); os.makedirs(od, exist_ok=True); ix = os.path.join(od, 'index-v1.json')
-    if not os.path.exists(ix): urllib.request.urlretrieve('https://download.geofabrik.de/index-v1.json', ix)
-    def inside(pt, poly):
-        x, y, c = pt[1], pt[0], False
-        for ring in poly:
-            for (x1, y1), (x2, y2) in zip(ring, ring[1:]):
-                if (y1 > y) != (y2 > y) and x < (x2 - x1)*(y - y1)/(y2 - y1) + x1: c = not c
-        return c
-    best = None
-    for f in json.load(open(ix, encoding='utf-8'))['features']:
-        g = f.get('geometry'); url = f['properties'].get('urls', {}).get('pbf')
-        if not g or not url: continue
-        polys = g['coordinates'] if g['type'] == 'MultiPolygon' else [g['coordinates']]
-        if all(any(inside(pt, pl) for pl in polys) for pt in [(S, W), (S, E), (N, W), (N, E)]):
-            xs = [c[0] for pl in polys for c in pl[0]]; ys = [c[1] for pl in polys for c in pl[0]]; area = (max(xs)-min(xs))*(max(ys)-min(ys))
-            if not best or area < best[0]: best = (area, url, f['properties']['id'])
-    if not best: return None
-    fn = os.path.join(od, best[2].replace('/', '_') + '.osm.pbf')
-    if not os.path.exists(fn):
-        req = urllib.request.Request(best[1], headers={'user-agent':'LondonLive/1.0 (+https://github.com/finncoates/london-live)'})
-        with urllib.request.urlopen(req, timeout=1800) as r, open(fn + '.part', 'wb') as f: shutil.copyfileobj(r, f)
-        os.replace(fn + '.part', fn)
-    return fn
 if not a.nobus:
     bdir = os.path.join(work, 'busnet'); shutil.rmtree(bdir, ignore_errors=True)
-    gap = shape_quality(); report['bus_shape_gap_m'] = gap and round(gap)
-    roads = a.roads == 'on' or (a.roads == 'auto' and (gap is None or gap > 120))
+    gap = shape_quality(); share = shapeless_share(); report['bus_shape_gap_m'] = gap and round(gap); report['bus_trips_without_shape'] = round(share, 3)
+    roads = a.roads == 'on' or (a.roads == 'auto' and (gap is None or gap > 120 or share > 0.03))
     if roads and (pbf := region_pbf()):
         edges = os.path.join(work, 'edges.pkl'); report['bus_roads'] = os.path.basename(pbf)
         subprocess.run([sys.executable, '-I', os.path.join(HERE, 'busnet2.py'), 'match', pbf, edges, sub], check=True, env=env)
         subprocess.run([sys.executable, '-I', os.path.join(HERE, 'busnet2.py'), 'tiles', bdir, edges], check=True, env=dict(env, NO_RAW='1' if gap is None or gap > 120 else '0'))
     elif has_shapes:
         subprocess.run([sys.executable, '-I', os.path.join(HERE, 'citybus.py'), sub, bdir, str(S), str(W), str(N), str(E)], check=True, env=env)
-    # each shared tile = what it held before any French city was added (from git) + every French city's routes there,
-    # so building a city again replaces its own routes instead of piling a second copy on top
-    nt = 0; root = os.path.dirname(work)
-    for fn in (os.listdir(bdir) if os.path.isdir(bdir) else []):
-        base = subprocess.run(['git', '-C', HERE, 'show', f'{BASE}:cities/busnet/{fn}'], capture_output=True, text=True)
-        merged = json.loads(base.stdout) if base.returncode == 0 else []; have = {json.dumps(p) for p in merged}
-        for city in sorted(os.listdir(root)):
-            f2 = os.path.join(root, city, 'busnet', fn)
-            if os.path.exists(f2):
-                for p in json.load(open(f2)):
-                    k = json.dumps(p)
-                    if k not in have: have.add(k); merged.append(p)
-        json.dump(merged, open(os.path.join(HERE, 'busnet', fn), 'w'), separators=(',', ':')); nt += 1
+    # the shared tiles are rebuilt from every French network's routes, each road once (fr_merge.py)
+    nt = len(os.listdir(bdir)) if os.path.isdir(bdir) else 0
+    if nt: subprocess.run([sys.executable, '-I', os.path.join(HERE, 'fr_merge.py'), a.id], check=True, env=env)
     report['bus_tiles'] = nt
 
-# 5. the city's entry for the map
+# 5. the city's entry for the map (bus-only networks have none: the France-wide entry covers their buses). An area much
+# bigger than a city (a department's boats, a stray far-off stop) gets none either: it would cover other places.
+if not a.nolines and (N - S > 1.0 or E - W > 1.4) and not a.box: report['no_entry'] = f'area too big ({N-S:.1f}° x {E-W:.1f}°)'
+if a.nolines or report.get('no_entry'):
+    print(json.dumps(report, ensure_ascii=False)); sys.exit(0)
 ix = os.path.join(HERE, 'fr-index.json'); idx = json.load(open(ix, encoding='utf-8')) if os.path.exists(ix) else []
 idx = [c for c in idx if c['id'] != a.id] + [{'id':a.id, 'name':a.name, 'box':[round(S, 3), round(W, 3), round(N, 3), round(E, 3)], 'url':f'cities/fr-{a.id}.json', 'bus':a.bus.split(',')}]
 json.dump(idx, open(ix, 'w', encoding='utf-8'), ensure_ascii=False, indent=0)

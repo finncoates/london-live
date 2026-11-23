@@ -2024,7 +2024,12 @@ const CITYL = {list:[{name:'Helsinki', box:p => inHelsinki(p), urls:['cities/fin
 // France: each city's network from its own open timetable (transport.data.gouv.fr: cities/fr_build.py), official line
 // colours, its bus map and one colour for its buses. Smaller areas first, so a town inside a bigger network's box is found.
 fetch('cities/fr-index.json').then(r => r.ok ? r.json() : []).then(list => { list.sort((a, b) => (a.box[2] - a.box[0])*(a.box[3] - a.box[1]) - (b.box[2] - b.box[0])*(b.box[3] - b.box[1]));
-  for(const c of list) CITYL.list.push({name:c.name, box:p => p[0] > c.box[0] && p[0] < c.box[2] && p[1] > c.box[1] && p[1] < c.box[3], urls:[c.url], bus:c.bus}); }).catch(() => {});
+  for(const c of list) CITYL.list.push({name:c.name, box:p => p[0] > c.box[0] && p[0] < c.box[2] && p[1] > c.box[1] && p[1] < c.box[3], urls:[c.url], bus:c.bus});
+  CITYL.list.push({name:'France', box:p => inFrance(p), urls:[], bus:['#7E8BA3', '#97A6BF']}); }).catch(() => {}); // everywhere else in France: its towns' and intercity buses (cities/busnet)
+// mainland France and Corsica, roughly (~10 km): a rectangle would take in Belgium, Switzerland, Spain and southern England
+const FR_POLY = [[[51.12, 2.54], [50.75, 3.22], [50.12, 4.22], [49.96, 4.86], [49.55, 5.82], [49.47, 6.37], [49.17, 6.86], [49.06, 7.92], [48.97, 8.23], [48.6, 7.83], [47.6, 7.58], [47.47, 7.0], [47.02, 6.47], [46.56, 6.1], [46.16, 6.14], [46.4, 6.83], [46.0, 7.02], [45.85, 6.95], [45.15, 7.13], [44.75, 7.0], [44.16, 7.7], [43.78, 7.53], [43.05, 6.25], [43.25, 5.25], [43.38, 4.55], [43.35, 3.45], [42.95, 3.08], [42.42, 3.2], [42.43, 2.0], [42.68, 0.7], [42.78, -0.3], [43.0, -1.0], [43.36, -1.8], [44.6, -1.3], [45.6, -1.3], [46.3, -1.85], [47.2, -2.65], [47.6, -3.4], [47.7, -4.45], [48.4, -4.95], [48.85, -3.5], [48.65, -1.9], [49.72, -1.98], [49.68, -1.2], [49.32, -0.85], [49.5, 0.08], [49.96, 1.2], [50.22, 1.55], [50.96, 1.78]],
+  [[43.05, 9.45], [42.0, 9.58], [41.33, 9.25], [41.6, 8.72], [42.3, 8.52], [42.68, 8.95]]];
+const inFrance = p => FR_POLY.some(poly => { let c = false; for(let i = 0, j = poly.length - 1; i < poly.length; j = i++){ const [y1, x1] = poly[i], [y2, x2] = poly[j]; if((y1 > p[0]) !== (y2 > p[0]) && p[1] < (x2 - x1)*(p[0] - y1)/(y2 - y1) + x1) c = !c; } return c; });
 const cityData = () => CITYL.cur ? CITYL.cur.urls.map(u => CITYL.data.get(u)).filter(d => d && d.grid) : [];
 const CELL = (la, lo) => Math.floor(la*200) + ',' + Math.floor(lo*100); // ~550 m × 600 m
 async function loadCityLines(p){
@@ -2347,7 +2352,7 @@ const coachOf = v => COACHES[v.op] || (/megabus/i.test(v.op + ' ' + (v.line || '
 const OP_COL = ['#E4002B', '#0057B8', '#00843D', '#F4A300', '#6D2077', '#00A3AD', '#D0006F', '#5B6770'];
 const opCol = op => { let h = 0; for(const ch of op || '') h = (h*31 + ch.charCodeAt(0)) >>> 0; return OP_COL[h % OP_COL.length]; };
 function drawGps(ctx, s, hl0, hw0, mpp){
-  draw.ghit = []; STL.boxes = []; STL.nr = []; if(TRAINS_ON && document.body.classList.contains('away') && !document.body.classList.contains('abroad')){ drawNR(ctx); drawUKStops(ctx); } drawCoachNet(ctx); if(TRAINS_ON && document.body.classList.contains('away') && map.getCenter()){ const mc = [map.getCenter().lat(), map.getCenter().lng()]; drawBusNet(ctx); if(CITYL.cur && CITYL.cur.box(mc)) drawCityLines(ctx); flushNrNames(ctx); } else if(TRAINS_ON && document.body.classList.contains('edge')){ drawUKStops(ctx); drawBusNet(ctx); } /* just outside Greater London: its own stops and routes */ else if(TRAINS_ON && !MODES_OFF.has('bus') && PV.z >= 14) drawBusNet(ctx); /* London with buses on: the routes just outside Greater London too */ if(!GPS.list.size || !SHOW_ICONS || !TRAINS_ON) return;
+  draw.ghit = []; STL.boxes = []; STL.nr = []; if(TRAINS_ON && document.body.classList.contains('away') && !document.body.classList.contains('abroad')){ drawNR(ctx); drawUKStops(ctx); } else if(TRAINS_ON && document.body.classList.contains('abroad') && map.getCenter() && inFrance([map.getCenter().lat(), map.getCenter().lng()])) drawNR(ctx); /* France: SNCF's whole passenger network, as Britain's */ drawCoachNet(ctx); if(TRAINS_ON && document.body.classList.contains('away') && map.getCenter()){ const mc = [map.getCenter().lat(), map.getCenter().lng()]; drawBusNet(ctx); if(CITYL.cur && CITYL.cur.box(mc)) drawCityLines(ctx); flushNrNames(ctx); } else if(TRAINS_ON && document.body.classList.contains('edge')){ drawUKStops(ctx); drawBusNet(ctx); } /* just outside Greater London: its own stops and routes */ else if(TRAINS_ON && !MODES_OFF.has('bus') && PV.z >= 14) drawBusNet(ctx); /* London with buses on: the routes just outside Greater London too */ if(!GPS.list.size || !SHOW_ICONS || !TRAINS_ON) return;
   if(window.__TTV && __TTV.world && __TTV.ferries) drawTTLines(ctx); // abroad: the routes the timetable vehicles are on, as lines under them
   const LBOX = []; const now = Date.now(), cosLat = Math.cos(map.getCenter().lat()*rad), label = PV.z >= 15.5;
   // bus routes abroad: where each bus has driven (thin, light, like London's bus routes), and the tapped bus's whole route
@@ -2442,6 +2447,7 @@ function busRoadAng(v, prev){
 }
 // the National Rail network (OpenStreetMap main and branch lines): a grey double line, like London's rail lines; live trains need the rail data key
 const NRNET = {tiles:new Map(), path:new Map(), all:null, loading:false, n:0};
+const FRST = {list:null, loading:false}; // France's passenger stations (cities/fr-gares.json, SNCF)
 function nrPolysets(z){ const polysets = []; // the National Rail map tiles for the view (fetched as needed)
   if(z < 9){ if(!NRNET.all){ if(!NRNET.loading){ NRNET.loading = true; fetch('cities/nr/all.json').then(r => r.json()).then(j => { NRNET.all = j; NRNET.n++; }).catch(() => { NRNET.loading = false; }); } return polysets; } polysets.push(['all', NRNET.all]); }
   else { const b = map.getBounds(); if(!b) return polysets; const sw = b.getSouthWest(), ne = b.getNorthEast();
@@ -2652,6 +2658,7 @@ function drawTTLines(ctx){
   for(const {s, pts} of TTV.ferries.values()){ const m = s[0], kind = /FERRY/.test(m) ? 'ferry' : /BUS|COACH/.test(m) ? 'bus' : /TRAM/.test(m) ? 'tram' : /SUBWAY|METRO/.test(m) ? 'metro' : 'train';
     if(drawn && (drawn.has(kind + '|' + s[2]) || (kind === 'tram' && drawn.has('metro|' + s[2])))) continue;
     if(kind === 'bus' && CITYL.cur?.bus) continue; // the city's bus map already draws every bus road, in one colour (as London)
+    if(kind === 'train' && inFrance(s[3].slice(2))) continue; // France's whole rail network is drawn (cities/nr): trains run on it
     if(GPS_OFF.has(kind) || (kind === 'bus' && busOff())) continue; const col = s[1] && /^[0-9a-f]{6}$/i.test(s[1]) ? inkA('#' + s[1].toLowerCase()) : {ferry:'#00A0E2', train:'#5D6670', tram:'#7A1F3D', metro:'#0E4C92', bus:'#DC241F'}[kind];
     const P = pts.map(scr); if(!P.some(q => q.x > -50 && q.y > -50 && q.x < s0.x + 50 && q.y < s0.y + 50)) continue;
     const k = kind + '|' + col; (groups.get(k) || groups.set(k, []).get(k)).push(P); }
@@ -2702,10 +2709,12 @@ function drawNR(ctx){
   if(PV.z >= 10 && w*k >= 2.5){ ctx.globalAlpha = 1; ctx.strokeStyle = MAP_BG(); ctx.lineWidth = w/3; for(const path of drawNR.inner) ctx.stroke(path); } drawNR.inner = []; // the double line only once it's wide enough to read as two (gaps after every outline, so lines meeting at tile edges and junctions stay open)
   ctx.restore(); ctx.globalAlpha = 1;
   // stations (National Rail ⇄ dots) from zoom 12, names close up when the map's own labels are hidden
-  if(PV.z < 12 || !SHOW_ST) return; if(!RAIL.stations){ railStations().catch(() => {}); return; }
+  if(PV.z < 12 || !SHOW_ST) return; const mc0 = map.getCenter(), fr = mc0 && inFrance([mc0.lat(), mc0.lng()]);
+  if(fr && !FRST.list){ if(!FRST.loading){ FRST.loading = true; fetch('cities/fr-gares.json').then(r => r.json()).then(j => { FRST.list = j; }).catch(() => { FRST.loading = false; }); } return; } // France: SNCF's passenger stations
+  if(!fr && !RAIL.stations){ railStations().catch(() => {}); return; }
   const s0 = mapSize(), r = Math.max(2.5, W*0.6), names = QUIET_ON && PV.z >= 14; ctx.lineWidth = Math.max(1.5, W*0.3);
   if(names){ ctx.font = `600 ${PV.z >= 15 ? 13 : 11.5}px "Hanken Grotesk", system-ui, sans-serif`; ctx.textBaseline = 'middle'; ctx.textAlign = 'start'; }
-  for(const st of RAIL.stations){ const [crs, n, la, lo] = st; let c = scr([la, lo]); if(c.x < -20 || c.y < -20 || c.x > s0.x + 20 || c.y > s0.y + 20) continue; c = scr(nrSnap(st, polysets)); // on its line
+  for(const st of (fr ? FRST.list : RAIL.stations)){ const [crs, n, la, lo] = st; let c = scr([la, lo]); if(c.x < -20 || c.y < -20 || c.x > s0.x + 20 || c.y > s0.y + 20) continue; c = scr(nrSnap(st, polysets)); // on its line
     ctx.beginPath(); ctx.arc(c.x, c.y, r, 0, 7); ctx.fillStyle = dark ? '#1b1c1f' : '#fff'; ctx.fill(); ctx.strokeStyle = dark ? '#c9ced4' : '#5D6670'; ctx.stroke();
     if(names) STL.nr.push([n, c.x + r + 4, c.y, ctx.font, c.x - r - 4]); } // names drawn after the city's own stations (see flushNrNames)
 }
