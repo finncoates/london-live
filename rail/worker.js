@@ -43,13 +43,14 @@ export default {
     if(request.method !== 'GET') return json({error:'GET only'}, 405, cors);
     try{
       if(url.pathname === '/' || url.pathname === '/health')
-        return json({ok:true, configured:!!env.RDM_KEY, rail:!!env.RDM_KEY, bods:!!env.BODS_KEY, tfe:true, metrolink:!!env.TFGM_KEY, tfl:true, tflKey:!!env.TFL_KEY,
+        return json({ok:true, configured:!!env.RDM_KEY, rail:!!env.RDM_KEY, bods:!!env.BODS_KEY, tfe:true, metrolink:!!env.TFGM_KEY, tfl:true, tflKey:!!env.TFL_KEY, darwin:!!env.DARWIN_URL,
           boardUrl:(env.BOARD_URL || DEFAULT_BOARD_URL).replace(/\?.*$/, '')}, 200, cors);
       if(url.pathname === '/vehicles') return json(await vehicles(url, env, ctx), 200, cors, 10);
       if(url.pathname === '/metrolink') return json(await metrolink(env, ctx), 200, cors, 20);
       if(url.pathname.startsWith('/tfl/')) return await tfl(url, env, cors);
       if(url.pathname.startsWith('/transitous/')) return await transitous(url, cors);
       if(url.pathname === '/tt') return await ttTile(url, cors);
+      if(url.pathname === '/darwin/trains') return await darwinTrains(url, env, cors);
       if(!env.RDM_KEY) return json({error:'RDM_KEY secret is not set on the worker'}, 503, cors);
       if(url.pathname === '/board'){
         const crs = cleanCrs(url.searchParams.get('crs'));
@@ -381,6 +382,19 @@ async function ttTile(url, cors){
     all = await w; }
   const out = want.includes('all') ? all : all.filter(s => want.some(m => TT_MODES[m].test(s[0])));
   return json({tile:[la, lo], at:bucket, vehicles:out}, 200, cors, 60); }
+
+// ---------- Darwin (every train's real running), from the London Live Darwin server (rail/darwin) ----------
+// Set DARWIN_URL (e.g. http://SERVER-IP:8080) and RELAY_TOKEN (the same secret as on the server). Answers are kept 20 s.
+const DW_MEM = new Map();
+async function darwinTrains(url, env, cors){
+  if(!env.DARWIN_URL) return json({error:'DARWIN_URL is not set on the relay'}, 503, cors);
+  const b = (url.searchParams.get('bbox') || '').split(',').map(Number); if(b.length !== 4 || !b.every(isFinite)) return json({error:'bbox=minLat,minLon,maxLat,maxLon required'}, 400, cors);
+  const q = b.map((x, i) => (i < 2 ? Math.floor(x*4) : Math.ceil(x*4))/4).join(','), hit = DW_MEM.get(q); // rounded to 0.25°, so nearby views share an answer
+  if(hit && Date.now() - hit.t < 20000) return new Response(hit.body, {headers:{'content-type':'application/json', 'cache-control':'public, max-age=20', ...cors}});
+  const r = await fetch(env.DARWIN_URL.replace(/\/+$/, '') + '/trains?bbox=' + q, {headers:{'x-relay-token':env.RELAY_TOKEN || ''}, signal:AbortSignal.timeout(10000)});
+  if(!r.ok) throw fail('Darwin server: HTTP ' + r.status, 502);
+  const body = await r.text(); DW_MEM.set(q, {t:Date.now(), body}); if(DW_MEM.size > 300) DW_MEM.delete(DW_MEM.keys().next().value);
+  return new Response(body, {headers:{'content-type':'application/json', 'cache-control':'public, max-age=20', ...cors}}); }
 
 // ---------- helpers ----------
 const cleanCrs = s => (s || '').trim().toUpperCase().replace(/[^A-Z]/g, '').slice(0, 3) || null;

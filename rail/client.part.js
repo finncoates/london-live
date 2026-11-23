@@ -20,7 +20,7 @@ const abroadAt = n => { const k = String(n || '').toLowerCase().normalize('NFD')
 RAIL.railKey = null; // null = not checked yet
 const railOn = () => !!RAIL.relay && (RAIL.relay === 'demo' || RAIL.railKey === true);
 async function railHealth(){ if(!RAIL.relay) return; if(RAIL.relay === 'demo'){ setTimeout(refreshRail, 2500); RAIL.timer = setInterval(refreshRail, 60000); return; }
-  try{ const h = await (await fetch(RAIL.relay + '/health', {signal:AbortSignal.timeout(8000)})).json(); RAIL.railKey = !!(h.rail ?? h.configured); window.__tflRelay = h.tfl ? RAIL.relay + '/tfl' : null; }catch(e){ RAIL.railKey = false; } // (TfL data through the relay: one shared copy for everyone)
+  try{ const h = await (await fetch(RAIL.relay + '/health', {signal:AbortSignal.timeout(8000)})).json(); RAIL.railKey = !!(h.rail ?? h.configured); RAIL.darwin = !!h.darwin; window.__tflRelay = h.tfl ? RAIL.relay + '/tfl' : null; }catch(e){ RAIL.railKey = false; } // (TfL data through the relay: one shared copy for everyone)
   if(typeof renderModeChips === 'function') renderModeChips(); if(typeof renderRailStatus === 'function') renderRailStatus();
   if(railOn() && !RAIL.timer){ refreshRail(); RAIL.timer = setInterval(refreshRail, 60000); } }
 // which stations to poll: London's termini/hubs in London, elsewhere the 25 nearest stations to the view
@@ -65,7 +65,11 @@ async function refreshRail(){
     await railStations();
     if(RAIL.busy) return; const hubs = railHubs(); RAIL.region = hubs.key;
     if(!hubs.list.length){ RAIL.msg = 'no stations near'; return; }
-    RAIL.busy = true; let res; try{ res = await railGet('/trains?crs=' + hubs.list.join(',')); } finally { RAIL.busy = false; }
+    RAIL.busy = true; let res; try{
+      // Darwin (every train's real running) when the relay has it; otherwise the departure boards of the stations around
+      if(RAIL.darwin){ res = await railGet('/darwin/trains?bbox=' + railBox()).catch(() => null); RAIL.src = res && (res.trains || []).length ? 'darwin' : 'boards'; }
+      if(!res || !(res.trains || []).length) res = await railGet('/trains?crs=' + hubs.list.join(','));
+    } finally { RAIL.busy = false; }
     const t0 = Date.now(), seen = new Set(); let newStops = false;
     // every hub station's board lists the same train again, starting from that station: keep one listing per train
     // (the one starting furthest back, which knows the most stops), and keep its key from refresh to refresh
@@ -99,6 +103,9 @@ async function refreshRail(){
   if(typeof renderLegend === 'function') renderLegend();
   if(typeof renderRailStatus === 'function') renderRailStatus();
 }
+// the view (and a margin round it) as minLat,minLon,maxLat,maxLon, for Darwin
+function railBox(){ try{ const b = map.getBounds(), sw = b.getSouthWest(), ne = b.getNorthEast(), dy = (ne.lat() - sw.lat())*0.4 + 0.05, dx = (ne.lng() - sw.lng())*0.4 + 0.08;
+  return [sw.lat() - dy, sw.lng() - dx, ne.lat() + dy, ne.lng() + dx].map(x => x.toFixed(3)).join(','); }catch(e){ return '51.2,-0.6,51.8,0.4'; } }
 // a station's National Rail departures (for station cards / journey legs), cached 30 s
 async function railBoard(crs){
   const c = RAIL.boards.get(crs); if(c && Date.now() - c.t < 30000) return c.d;
