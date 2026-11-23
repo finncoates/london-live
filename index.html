@@ -2590,7 +2590,7 @@ async function refreshTT(){
       if(code === 'XX' && col && /^[0-9a-f]{6}$/i.test(col)) l.colour = '#' + col;
       for(const c of [a, z]) if(!l.stops[c]) l.stops[c] = RAIL.byCrs[c];
       const key = 'nr:tt:' + trip; let t = trains.get(key); if(!t){ t = {key, rail:true, tt:true}; trains.set(key, t); }
-      Object.assign(t, {line:l.id, ahead:[[a, dep], [z, arr]], prev:a, next:z, arr, towards:'', loc:'Position from the timetable', seen:now}); n++; }
+      Object.assign(t, {line:l.id, ahead:[[a, dep], [z, arr]], prev:a, next:z, arr, towards:t.towards || '', loc:'Position from the timetable', seen:now}); n++; }
     TTV.n = n; TTV.at = now; RAIL.ttN = n;
     if(RAIL.state === 'live'){ RAIL.msg = `${RAIL.liveN || 0} trains${RAIL.src === 'darwin' ? ' (Darwin)' : ''}${n ? ' · ' + n + ' more from the timetable' : ''}`; if(typeof renderRailStatus === 'function') renderRailStatus(); }
     for(const l of ACTIVE) if(l.rail) l.count = 0; for(const t of trains.values()) if(t.rail && BY[t.line]) BY[t.line].count++;
@@ -3356,8 +3356,14 @@ function renderFollow(){
   set('tcNext', l.stops[next] ? esc(lstName(l, next)) + ' · ' + fmtDue(t.curArr ?? t.arr) : '–');
   const d = trainDepth(t), dw = $('tcDepW'); if(dw){ dw.hidden = !d; if(d) set('tcDep', esc(depthText(d))); }
   if(me && t.d) set('tcYou', fmtDist(dist(me, t.d)));
-  const ah = (t.ahead || []).filter(a => a[1] > now() - 20000), i = ah.findIndex(a => a[0] === next);
-  set('tcList', ah.slice(i + 1, i + 4).map(a => `<li><span>${esc(lstName(l, a[0]))}</span><b>${fmtDue(a[1])}</b></li>`).join(''));
+  // a train placed from the timetable only knows its current stretch: ask for its whole trip (destination and the stops after)
+  if(t.tt && !t.tripAsk && RAIL.relay){ t.tripAsk = true; const trip = t.key.replace(/^nr:tt:/, '');
+    fetch(RAIL.relay + '/transitous/api/v5/trip?tripId=' + encodeURIComponent(trip), {signal:AbortSignal.timeout(20000)}).then(r => r.ok ? r.json() : null).then(j => { const L0 = j && j.legs && j.legs[0]; if(!L0) return;
+      t.towards = L0.headsign || L0.to?.name || ''; t.tripStops = [...(L0.intermediateStops || []), L0.to].filter(Boolean).map(s => [String(s.name || '').replace(/ (Rail|Train) Station$/i, ''), Date.parse(s.arrival || s.scheduledArrival || s.departure || '')]);
+      if(FW.t === t){ $('follow').dataset.k = ''; renderFollow(); } }).catch(() => {}); }
+  if(t.tripStops){ const up = t.tripStops.filter(s => s[1] > now() + 30000 && cleanName(s[0]) !== lstName(l, next)); set('tcList', up.slice(0, 3).map(s => `<li><span>${esc(s[0])}</span><b>${fmtDue(s[1])}</b></li>`).join('')); }
+  else { const ah = (t.ahead || []).filter(a => a[1] > now() - 20000), i = ah.findIndex(a => a[0] === next);
+  set('tcList', ah.slice(i + 1, i + 4).map(a => `<li><span>${esc(lstName(l, a[0]))}</span><b>${fmtDue(a[1])}</b></li>`).join('')); }
   const li = $('tcList'); if(li) li.hidden = !li.innerHTML;
   if(FW.tour){ const c = $('tourcap'); c.hidden = false; c.innerHTML = `<b style="color:${boardCol ? boardCol(x.colour) : x.colour}">${esc(x.line)}</b>${esc(x.to)}<small>${esc(x.next)}</small>`; }
 }
@@ -3620,7 +3626,7 @@ tick(); setInterval(tick, 1000);
 map.addListener('dragstart', () => { $('tip').style.display = 'none'; hover = null; });
 map.addListener('zoom_changed', () => { $('tip').style.display = 'none'; hover = null; });
 renderModeChips(); renderLegend(); syncMapMenu();
-if(DEBUG) window.LLT = {nrTrackPath, esChain, refreshTT, TTV, nrOnly: () => nrOnlyStations(), ghit: () => draw.ghit || [], STL, ukStops: () => ukStopsHere(), ukStopAt: (x, y) => ukStopAt(x, y), RV: () => RIVER_E, st: () => ({coach:COACH.on, cn:COACH.n, busOff:busOff(), TRAINS_ON, away:document.body.classList.contains("away"), GPS_OFF:[...GPS_OFF], MODES_OFF:[...MODES_OFF], note:BUS.note, size:GPS.list.size}), AUTO, autoNext: () => autoNext(), trains, ACTIVE, BY, placeTrain, segTime, refresh, map, draw, goStation, searchStations, scr, stationAt, GPS, gpsPos, BIKES, SHARE, cityData: () => cityData(), stationExtras, BUS, ROADS, LP: () => LPATHS};
+if(DEBUG) window.LLT = {nrTrackPath, esChain, refreshTT, TTV, follow:(t, z) => follow(t, z), nrOnly: () => nrOnlyStations(), ghit: () => draw.ghit || [], STL, ukStops: () => ukStopsHere(), ukStopAt: (x, y) => ukStopAt(x, y), RV: () => RIVER_E, st: () => ({coach:COACH.on, cn:COACH.n, busOff:busOff(), TRAINS_ON, away:document.body.classList.contains("away"), GPS_OFF:[...GPS_OFF], MODES_OFF:[...MODES_OFF], note:BUS.note, size:GPS.list.size}), AUTO, autoNext: () => autoNext(), trains, ACTIVE, BY, placeTrain, segTime, refresh, map, draw, goStation, searchStations, scr, stationAt, GPS, gpsPos, BIKES, SHARE, cityData: () => cityData(), stationExtras, BUS, ROADS, LP: () => LPATHS};
 
 // ---------- boot ----------
 (async () => {
