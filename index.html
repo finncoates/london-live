@@ -1345,6 +1345,7 @@ function symbol(kind, c, s = 16){
   if(kind==='walk') return o + `<circle cx="13.5" cy="3.8" r="2.3" fill="${c}"/><path d="M11 8.2l3.2-1 2.4 3.6 3 1.2M12.6 8.6l-1.7 6.6 3.7 3.4.9 4.6M10.9 15.2l-2.6 3.3-3.3 1.2" fill="none" stroke="${c}" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
   if(kind==='tubeLogo') return o + `<circle cx="12" cy="12" r="7" fill="none" stroke="#DC241F" stroke-width="3.6"/><rect x="1" y="9.6" width="22" height="4.8" rx=".6" fill="#0019A8"/></svg>`;
   if(kind==='metrog') return o + `<rect x="3" y="3" width="18" height="18" rx="4" fill="${c}"/><path d="M7 17V7.5l5 6 5-6V17" fill="none" stroke="#fff" stroke-width="2.2" stroke-linejoin="round"/></svg>`;
+  if(kind==='stopg') return o + `<circle cx="12" cy="12" r="6.5" fill="${c}" stroke="${dark ? '#111' : '#fff'}" stroke-width="2.5"/></svg>`; // a bus stop, as on the map
   if(kind==='busg') return o + `<rect x="4" y="3" width="16" height="16" rx="3.5" fill="${c}"/><rect x="6.5" y="6" width="11" height="6" rx="1" fill="#fff"/><circle cx="8" cy="15.5" r="1.3" fill="#fff"/><circle cx="16" cy="15.5" r="1.3" fill="#fff"/><rect x="6" y="19" width="3" height="2.5" rx="1" fill="${c}"/><rect x="15" y="19" width="3" height="2.5" rx="1" fill="${c}"/></svg>`;
   if(kind==='tramg') return o + `<path d="M8 2.5h8M12 2.5v3" stroke="${c}" stroke-width="1.8" stroke-linecap="round"/><rect x="5" y="5.5" width="14" height="13" rx="3" fill="${c}"/><rect x="7.3" y="8" width="9.4" height="5" rx="1" fill="#fff"/><circle cx="9" cy="15.8" r="1.1" fill="#fff"/><circle cx="15" cy="15.8" r="1.1" fill="#fff"/><path d="M8 18.5l-2 3M16 18.5l2 3" stroke="${c}" stroke-width="1.8" stroke-linecap="round"/></svg>`;
   if(kind==='ferryg') return o + `<path d="M3 15h18l-2.5 4.5h-13z" fill="${c}"/><rect x="7" y="9" width="10" height="5" rx="1" fill="${c}"/><path d="M12 4v5" stroke="${c}" stroke-width="2"/><path d="M2 21.5c2 0 2-1 4-1s2 1 4 1 2-1 4-1 2 1 4 1 2-1 4-1" fill="none" stroke="${c}" stroke-width="1.3"/></svg>`;
@@ -1563,14 +1564,14 @@ const SHOW_LOC = false;
 // ---------- status + legend ----------
 window.onTrainsUpdate = n => {
   if(document.body.classList.contains('away')){ // somewhere else: count what's live here
-    const bnd = map.getBounds(), gl = typeof GPS !== 'undefined' ? [...GPS.list.values()].filter(g => !GPS_OFF.has(vkind(g.v)) && (!g.v.coach || !bnd || bnd.contains({lat:g.to[0], lng:g.to[1]}))) : [], /* coaches: the ones in view (the note counts them all) */ gt = gl.filter(g => g.v.train).length, rt = [...trains.values()].filter(t => t.rail && BY[t.line] && shown(BY[t.line])).length;
+    const bnd = map.getBounds(), gl = typeof GPS !== 'undefined' ? [...GPS.list.values()].filter(g => !gOff(g.v) && (!g.v.coach || !bnd || bnd.contains({lat:g.to[0], lng:g.to[1]}))) : [], /* coaches: the ones in view (the note counts them all) */ gt = gl.filter(g => g.v.train).length, rt = [...trains.values()].filter(t => t.rail && BY[t.line] && shown(BY[t.line])).length;
     const sh = typeof SHARE !== 'undefined' && SHARE.city && !MODES_OFF.has('bike') ? SHARE.city[3].reduce((n, x) => { const q = SHARE.sys.get(x[1]); return n + (q ? q.vehicles.length + [...q.stations.values()].reduce((m, d) => m + (d.open !== false && d.bikes || 0), 0) : 0); }, 0) : 0;
     if(sh && !(gt + rt || gl.length)){ $('status').innerHTML = `<b>${sh}</b> bikes &amp; scooters to hire · updated ${new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}`; renderLegend(); return; }
-    $('status').innerHTML = (gt + rt || gl.length) ? `${gt + rt ? `<b>${gt + rt}</b> train${gt + rt === 1 ? '' : 's'}` : ''}${gt + rt && gl.length - gt ? ' · ' : ''}${gl.length - gt ? `<b>${gl.length - gt}</b> ${(k => k.length > 1 ? k.slice(0, -1).join(', ') + ' &amp; ' + k.at(-1) : k[0])([gl.some(g => g.v.tram) && 'trams', gl.some(g => g.v.metro) && 'metros', gl.some(g => !g.v.train && !g.v.tram && !g.v.metro && !g.v.coach && vkind(g.v) !== 'ferry') && 'buses', gl.some(g => vkind(g.v) === 'ferry') && 'ferries', gl.some(g => g.v.coach) && 'coaches'].filter(Boolean).map(w => gl.length - gt === 1 ? {buses:'bus', coaches:'coach', trams:'tram', metros:'metro', ferries:'ferry'}[w] : w))}` : ''} · updated ${new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit', second:'2-digit'})}` : GPS_OFF.has('bus') && !document.body.classList.contains('abroad') ? 'Buses and coaches are switched off' : !document.body.classList.contains('abroad') && map.getZoom() < 6 ? 'Zoom in to see buses, coaches and trams live' : !document.body.classList.contains('abroad') ? 'Nothing on the move here right now' : /zoom in/i.test(BUS.note) ? 'Zoom in to see what’s live here' : 'Nothing live here yet';
+    $('status').innerHTML = (gt + rt || gl.length) ? `${gt + rt ? `<b>${gt + rt}</b> train${gt + rt === 1 ? '' : 's'}` : ''}${gt + rt && gl.length - gt ? ' · ' : ''}${gl.length - gt ? `<b>${gl.length - gt}</b> ${(k => k.length > 1 ? k.slice(0, -1).join(', ') + ' &amp; ' + k.at(-1) : k[0])([gl.some(g => g.v.tram) && 'trams', gl.some(g => g.v.metro) && 'metros', gl.some(g => !g.v.train && !g.v.tram && !g.v.metro && !g.v.coach && vkind(g.v) !== 'ferry') && 'buses', gl.some(g => vkind(g.v) === 'ferry') && 'ferries', gl.some(g => g.v.coach) && 'coaches'].filter(Boolean).map(w => gl.length - gt === 1 ? {buses:'bus', coaches:'coach', trams:'tram', metros:'metro', ferries:'ferry'}[w] : w))}` : ''} · updated ${new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit', second:'2-digit'})}` : GPS_OFF.has('bus') && !document.body.classList.contains('abroad') ? (GPS_OFF.has('coach') ? 'Buses and coaches are switched off' : 'Buses are switched off') : !document.body.classList.contains('abroad') && map.getZoom() < 6 ? 'Zoom in to see buses, coaches and trams live' : !document.body.classList.contains('abroad') ? 'Nothing on the move here right now' : /zoom in/i.test(BUS.note) ? 'Zoom in to see what’s live here' : 'Nothing live here yet';
     if(sh && (gt + rt || gl.length)) $('status').innerHTML = $('status').innerHTML.replace(' · updated', ` · <b>${sh}</b> bikes &amp; scooters · updated`); // hire bikes too
     renderLegend(); return; }
   let nb = ACTIVE.reduce((s, l) => s + (l.mode === 'bus' && shown(l) ? l.count : 0), 0); n -= nb; let nc = 0; if(typeof GPS !== 'undefined'){ const L = [...GPS.list.values()], gt = L.filter(g => g.v.train).length, b = map.getBounds();
-    nc = L.filter(g => g.v.coach && b && b.contains({lat:g.to[0], lng:g.to[1]})).length; nb += L.filter(g => !g.v.train && !g.v.coach && !GPS_OFF.has(vkind(g.v))).length; n += gt; }
+    nc = L.filter(g => g.v.coach && !gOff(g.v) && b && b.contains({lat:g.to[0], lng:g.to[1]})).length; nb += L.filter(g => !g.v.train && !g.v.coach && !GPS_OFF.has(vkind(g.v))).length; n += gt; }
   $('status').innerHTML = `<b>${n}</b> train${n === 1 ? '' : 's'}${nb ? ` · <b>${nb}</b> bus${nb === 1 ? '' : 'es'}` : ''}${nc ? ` · <b>${nc}</b> coach${nc === 1 ? '' : 'es'}` : ''} · updated ${new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit', second:'2-digit'})}`;
   renderLegend();
 };
@@ -1630,7 +1631,7 @@ function renderModeChips(){
     const has = m === 'bus' || m === 'bike' || m === 'road' || ACTIVE.some(l => l.mode === m) || (m === 'rail' && typeof railOn === 'function' && railOn()) || nrLines;
     const off = m === 'bus' && (document.body.classList.contains('away') || document.body.classList.contains('edge')) ? GPS_OFF.has('bus') : MODES_OFF.has(m);
     return `<button type="button" class="chip2" data-mode="${m}" aria-pressed="${has && !off}" ${has ? '' : 'disabled title="Coming soon"'}>${m === 'bus' && (document.body.classList.contains('away') || document.body.classList.contains('edge')) ? symbol('busg', '#DC241F', 16) : symbol(GROUP_SYM[m][0], GROUP_SYM[m][1], 16)}${name}${has ? (nrLines ? (ni ? ' <small>lines</small>' : ' <small>lines · live trains soon</small>') : '') : ' <small>soon</small>'}</button>`;
-  }).join('')}${cat === 'Buses' && !document.body.classList.contains('abroad') ? `<button type="button" class="chip2" data-coachlines="1" aria-pressed="${COACHNET.on}">${symbol('busg', '#D2232A', 16)}Coach routes</button>` : ''}</div></div>`).join('') + awayKindChips();
+  }).join('')}${cat === 'Buses' && !document.body.classList.contains('abroad') ? `<button type="button" class="chip2" data-gkind="stops" aria-pressed="${!GPS_OFF.has('stops')}">${symbol('stopg', '#DC241F', 16)}Bus stops</button><button type="button" class="chip2" data-gkind="coach" aria-pressed="${!GPS_OFF.has('coach')}">${symbol('busg', '#D2232A', 16)}Coaches</button><button type="button" class="chip2" data-coachlines="1" aria-pressed="${COACHNET.on}">${symbol('busg', '#D2232A', 16)}Coach routes</button>` : ''}</div></div>`).join('') + awayKindChips();
 }
 // outside London: trams / metro / ferries of the city on screen get their own switches (vehicles and lines together)
 const KIND_CHIP = {train:['Trains', 'rail', '#8C4799'], tram:['Trams', 'tramg', '#00985F'], metro:['Metro', 'metrog', '#FF6319'], ferry:['Ferries', 'ferryg', '#00B9E4']};
@@ -1648,7 +1649,7 @@ function awayKindChips(){
 $('mModes').addEventListener('click', e => { if(!e.target.closest('[data-coachlines]')) return;
   COACHNET.on = !COACHNET.on; try{ localStorage.setItem('coachLines', COACHNET.on ? '1' : '0'); }catch(x){} renderModeChips(); });
 $('mModes').addEventListener('click', e => { const gk = e.target.closest('[data-gkind]');
-  if(gk){ const k = gk.dataset.gkind; GPS_OFF.has(k) ? GPS_OFF.delete(k) : GPS_OFF.add(k); try{ localStorage.setItem('gpsOff', JSON.stringify([...GPS_OFF])); }catch(x){} renderModeChips(); if(typeof renderBusNote === 'function') renderBusNote(); return; } });
+  if(gk){ const k = gk.dataset.gkind; GPS_OFF.has(k) ? GPS_OFF.delete(k) : GPS_OFF.add(k); try{ localStorage.setItem('gpsOff', JSON.stringify([...GPS_OFF])); }catch(x){} renderModeChips(); if(k === 'coach'){ COACH.at = 0; refreshGps(); if(typeof updateBuses === 'function') updateBuses(true); } /* coaches: fetched again (or cleared) now, and the counts follow */ if(typeof renderBusNote === 'function') renderBusNote(); return; } });
 $('mModes').addEventListener('click', e => { const b = e.target.closest('[data-mode]'); if(!b || b.disabled) return;
   const m = b.dataset.mode;
   if(m === 'bus' && (document.body.classList.contains('away') || document.body.classList.contains('edge'))){ GPS_OFF.has('bus') ? GPS_OFF.delete('bus') : GPS_OFF.add('bus'); if(document.body.classList.contains('edge')){ GPS_OFF.has('bus') ? MODES_OFF.add('bus') : MODES_OFF.delete('bus'); try{ localStorage.setItem('modesOff', JSON.stringify([...MODES_OFF])); }catch(x){} updateBuses(true); } /* at London's edge: one Buses switch for both (and the bus count in the status line follows) */ try{ localStorage.setItem('gpsOff', JSON.stringify([...GPS_OFF])); }catch(x){} renderModeChips(); refreshGps(); return; } MODES_OFF.has(m) ? MODES_OFF.delete(m) : MODES_OFF.add(m);
@@ -1660,11 +1661,17 @@ $('mModes').addEventListener('click', e => { const b = e.target.closest('[data-m
 // ---------- live buses: the routes serving the stops around the view (zoom 14+) ----------
 // TfL has no bus GPS feed; positions come from arrival predictions, like the trains.
 const BUS = {at:null, z:0, busy:false, ids:[], note:'', again:false, lastRef:0, t:0};
+// Buses off but Bus stops on (London, zoom 16+): just the stops around the view, so they can be tapped for the next buses
+async function londonStopsOnly(p){
+  if(BUS.sat && dist(BUS.sat, p) < 200) return; BUS.sat = p;
+  try{ const res = await get(`/StopPoint?lat=${p[0].toFixed(5)}&lon=${p[1].toFixed(5)}&radius=350&stopTypes=NaptanPublicBusCoachTram&modes=bus&returnLines=true`);
+    BUS.stops = (res.stopPoints || []).map(x => ({id:x.naptanId, name:x.commonName, letter:x.stopLetter || x.indicator || '', p:[x.lat, x.lon], lines:(x.lines || []).map(l => l.name)})); }catch(e){ BUS.sat = null; }
+}
 async function updateBuses(force){
   const z = map.getZoom(), c0 = map.getCenter(), away = !inTfLArea([c0.lat(), c0.lng()]), on = !MODES_OFF.has('bus') && TRAINS_ON && !away;
   if(!on || z < 14){
     const had = BUS.ids.length; if(had){ for(const l of ACTIVE) if(l.mode === 'bus') l.near = false; BUS.ids = []; BUS.at = null; LANES = null; linesSig = ''; }
-    if(!away){ BUS.note = on ? 'Zoom in to see buses' : ''; renderBusNote(); } else if(force) refreshGps(); if(force || had) window.onTrainsUpdate(ACTIVE.reduce((s, l) => s + (shown(l) ? l.count : 0), 0)); return;
+    if(!away){ BUS.note = on ? 'Zoom in to see buses' : ''; renderBusNote(); if(!on && TRAINS_ON && z >= 16 && !stopsOff()) londonStopsOnly([c0.lat(), c0.lng()]); } else if(force) refreshGps(); if(force || had) window.onTrainsUpdate(ACTIVE.reduce((s, l) => s + (shown(l) ? l.count : 0), 0)); return;
   }
   const c = map.getCenter(), p = [c.lat(), c.lng()];
   if(!force && BUS.at && dist(BUS.at, p) < 350 && Math.round(z) === BUS.z) return;
@@ -2063,7 +2070,7 @@ const NO_OPEN_GPS = [[[55.75, -4.55, 55.98, -4.0], 'First Glasgow does not share
 const COACH = {on:false, at:0, ops:new Set(['NATX', 'NXSH', 'MEGA', 'SMGB', 'SCMB', 'FLIX', 'FLXB', 'SCLK', 'CTLK']), n:0};
 async function refreshCoaches(p, z){
   const gb = p[0] > 49.8 && p[0] < 60.9 && p[1] > -8.7 && p[1] < 1.9;
-  if(!gb || ((document.body.classList.contains('away') || document.body.classList.contains('edge')) ? GPS_OFF.has('bus') : false) || !TRAINS_ON || !RAIL.relay || RAIL.relay === 'demo' || z < 6){ COACH.on = false; for(const k of [...GPS.list.keys()]) if(k.startsWith('co:')) GPS.list.delete(k); return ''; }
+  if(!gb || GPS_OFF.has('coach') || !TRAINS_ON || !RAIL.relay || RAIL.relay === 'demo' || z < 6){ COACH.on = false; for(const k of [...GPS.list.keys()]) if(k.startsWith('co:')) GPS.list.delete(k); return ''; }
   if(COACH.pending) await COACH.pending.catch(() => {}); // another refresh is already fetching: use its result
   else if(Date.now() - COACH.at > 25000){ COACH.at = Date.now();
     try{ const r = await (COACH.pending = railGet('/vehicles?src=coach')).finally(() => { COACH.pending = null; }); for(const v of r.vehicles || []){ v.id = 'co:' + v.id; v.coach = true; }
@@ -2200,7 +2207,7 @@ function drawGps(ctx, s, hl0, hw0, mpp){
     ctx.globalAlpha = 1; }
   ctx.lineWidth = 1; ctx.font = '700 10.5px system-ui, sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
   for(const g of GPS.list.values()){
-    if(GPS_OFF.has(vkind(g.v))) continue;
+    if(gOff(g.v)) continue;
     ctx.globalAlpha = (LF.city && !lfMatch(g)) || LF.id ? 0.2 : !g.v.line && !g.v.dest && !g.v.coach && vkind(g.v) === 'bus' ? 0.45 : 1; // a bus out of service: faded
     const p = gpsPos(g, now), c = scr(p); if(c.x < -30 || c.y < -30 || c.x > s.x + 30 || c.y > s.y + 30) continue;
     let ang = g.v.segAng != null ? g.v.segAng : g.v.brg != null ? (g.v.brg - 90)*rad : g.ang ?? 0; // on a known line: its direction
@@ -2328,7 +2335,7 @@ const UKST = {tiles:new Map()};
 function ukStopTiles(){ const b = map.getBounds(); if(!b) return []; const sw = b.getSouthWest(), ne = b.getNorthEast(), out = [];
   for(let la = Math.floor(sw.lat()*20); la <= Math.floor(ne.lat()*20); la++) for(let lo = Math.floor(sw.lng()*20); lo <= Math.floor(ne.lng()*20); lo++) out.push(la + '_' + lo);
   return out.length > 16 ? [] : out; }
-function ukStopsHere(){ const out = []; if(PV.z < 16 || busOff() || GPS_OFF.has('bus')) return out;
+function ukStopsHere(){ const out = []; if(PV.z < 16 || stopsOff()) return out;
   for(const t of ukStopTiles()){ if(!UKST.tiles.has(t)){ UKST.tiles.set(t, null); fetch('cities/stops/' + t + '.json').then(r => r.ok ? r.json() : null).then(j => { UKST.tiles.set(t, j); }).catch(() => UKST.tiles.set(t, false)); continue; }
     const d = UKST.tiles.get(t); if(d) for(const st of d.stops) out.push([st, d]); }
   return out; }
@@ -2441,6 +2448,8 @@ const CATALOG = [
 // vehicle kinds switched off abroad (buses use the Buses switch)
 let GPS_OFF = new Set((() => { try{ return JSON.parse(localStorage.getItem('gpsOff')) || []; }catch(e){ return []; } })());
 const vkind = v => v.train ? 'train' : v.metro ? 'metro' : v.tram ? 'tram' : /ferry/i.test(v.kind || '') ? 'ferry' : 'bus';
+const gOff = v => GPS_OFF.has(v.coach ? 'coach' : vkind(v)); // coaches have their own switch (next to Buses)
+const stopsOff = () => GPS_OFF.has('stops'); // bus stop markers (London and the rest of the UK)
 const EX = {path:[]}; // [continent, country, city] indexes
 function cityHere(){ const c = map.getCenter(); if(!c) return null; const p = [c.lat(), c.lng()]; let best = null, bd = Infinity;
   CATALOG.forEach((ct, i) => ct.countries.forEach((co, j) => co.cities.forEach((ci, k) => { const d = dist(p, ci.at); const lim = ci.at[2] <= 7 ? 600000 : 40000; if(d < lim && d < bd){ bd = d; best = [i, j, k]; } })));
@@ -2637,7 +2646,7 @@ function shareTip(e, r, tip){
 }
 // bus stops (zoom 16+, Buses on): small red markers with the stop letter; tap for its next buses
 function drawBusStops(ctx, s){
-  draw.sthit = []; if(MODES_OFF.has('bus') || !BUS.stops || PV.z < 16 || document.body.classList.contains('away')) return;
+  draw.sthit = []; if(stopsOff() || !BUS.stops || PV.z < 16 || document.body.classList.contains('away')) return;
   ctx.font = '700 8.5px system-ui, sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
   for(const st of BUS.stops){ const c = scr(st.p); if(c.x < -10 || c.y < -10 || c.x > s.x + 10 || c.y > s.y + 10) continue;
     ctx.beginPath(); ctx.arc(c.x, c.y, 6.5, 0, 7); ctx.fillStyle = '#DC241F'; ctx.fill(); ctx.lineWidth = 1.5; ctx.strokeStyle = '#fff'; ctx.stroke();
