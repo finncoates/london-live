@@ -2058,7 +2058,7 @@ async function refreshGps(){
     gpsOnly('fi:', 'hsl:'); if(GPS.busy) return; GPS.busy = true;
     let hsl = '';
     if(inHelsinki(p) && z >= 12){ try{ await hslWatch(); for(const [k, g] of GPS.list) if(k.startsWith('hsl:') && Date.now() - g.seen > 60000) GPS.list.delete(k);
-      const n = [...GPS.list.keys()].filter(k => k.startsWith('hsl:')).length; hsl = ` · ${n} ${n === 1 ? 'vehicle' : `trams, metros${busOff() ? '' : ', buses'} and ferries`} in view (HSL, live every second)${busOff() ? '. Turn on Buses for buses too' : ''}`; }catch(e){ hsl = ' · Helsinki live feed: ' + e.message; } }
+      const n = [...GPS.list.keys()].filter(k => k.startsWith('hsl:')).length; if(n) refreshGps.hn = 0; if(!n && (refreshGps.hn = (refreshGps.hn || 0) + 1) <= 4){ hsl = ' · Helsinki trams, metro and buses: connecting…'; clearTimeout(refreshGps.ht); refreshGps.ht = setTimeout(refreshGps, 3000); } /* just connected: count again shortly */ else hsl = ` · ${n} ${n === 1 ? 'vehicle' : `trams, metros${busOff() ? '' : ', buses'} and ferries`} in view (HSL, live every second)${busOff() ? '. Turn on Buses for buses too' : ''}`; }catch(e){ hsl = ' · Helsinki live feed: ' + e.message; } }
     else { hslStop(); if(inHelsinki(p)) hsl = ' · zoom in for Helsinki trams, metro and buses'; }
     try{ gpsMerge(await finlandTrains(), 'fi:'); const n = [...GPS.list.keys()].filter(k => k.startsWith('fi:')).length; BUS.note = `${n} trains moving in Finland (live GPS)${hsl}`; }
     catch(e){ BUS.note = e.message; }
@@ -2207,10 +2207,11 @@ function busnetTiles(){
   for(let la = Math.floor(sw.lat()*10); la <= Math.floor(ne.lat()*10); la++) for(let lo = Math.floor(sw.lng()*10); lo <= Math.floor(ne.lng()*10); lo++) out.push(la + '_' + lo);
   return out.length > 30 ? [] : out;
 }
+const BUSNET_COL = {berlin:['#A5027D', '#D04FAE'], boston:['#E0A000', '#FFC72C'], helsinki:['#007AC9', '#3AA0E8']};
 function drawBusNet(ctx){
-  if(busOff() || GPS_OFF.has('bus') || PV.z < 12) return; const c = map.getCenter(); if(!c || regionOf([c.lat(), c.lng()]) !== 'uk' && regionOf([c.lat(), c.lng()]) !== 'edinburgh' && regionOf([c.lat(), c.lng()]) !== 'london' && !CITYL.cur?.name?.match(/Manchester/)) return;
+  if(busOff() || GPS_OFF.has('bus') || PV.z < 12) return; const c = map.getCenter(); if(!c) return; const rg = regionOf([c.lat(), c.lng()]); { if(rg !== 'uk' && rg !== 'edinburgh' && rg !== 'london' && rg !== 'berlin' && rg !== 'boston' && !(rg === 'finland' && inHelsinki([c.lat(), c.lng()])) && !CITYL.cur?.name?.match(/Manchester/)) return; } // Berlin, Boston, Helsinki: from their own timetables
   const zc = Math.floor(PV.z), k = 2 ** (PV.z - zc), look = lineLook('bus', lineW());
-  const O = orgAt(zc); ctx.save(); localView(ctx, O, k); ctx.globalAlpha = dark ? Math.min(1, look.alpha*1.4) : look.alpha; ctx.strokeStyle = dark ? '#E8574F' : '#DC241F'; ctx.lineWidth = look.w/k; ctx.lineJoin = 'round'; ctx.lineCap = 'round';
+  const O = orgAt(zc); ctx.save(); localView(ctx, O, k); ctx.globalAlpha = dark ? Math.min(1, look.alpha*1.4) : look.alpha; ctx.strokeStyle = (BUSNET_COL[rg === 'finland' ? 'helsinki' : rg] || ['#DC241F', '#E8574F'])[dark ? 1 : 0]; /* the colour of the city's own buses (Berlin purple, Boston yellow, Helsinki blue); red in Britain */ ctx.lineWidth = look.w/k; ctx.lineJoin = 'round'; ctx.lineCap = 'round';
   const ldn = regionOf([c.lat(), c.lng()]) === 'london';
   for(const t of busnetTiles()){
     if(ldn && !BUSNET.tiles.has(t)){ const [a, b] = t.split('_').map(Number); if([[a, b], [a + 1, b], [a, b + 1], [a + 1, b + 1]].every(([y, x]) => inGreaterLondon([y/10, x/10]))) { BUSNET.tiles.set(t, []); continue; } } // deep inside London: TfL's routes, no tile
