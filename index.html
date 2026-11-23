@@ -2198,7 +2198,7 @@ function drawGps(ctx, s, hl0, hw0, mpp){
   ctx.lineWidth = 1; ctx.font = '700 10.5px system-ui, sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
   for(const g of GPS.list.values()){
     if(GPS_OFF.has(vkind(g.v))) continue;
-    ctx.globalAlpha = LF.city && !lfMatch(g) ? 0.2 : !g.v.line && !g.v.dest && !g.v.coach && vkind(g.v) === 'bus' ? 0.45 : 1; // a bus out of service: faded
+    ctx.globalAlpha = (LF.city && !lfMatch(g)) || LF.id ? 0.2 : !g.v.line && !g.v.dest && !g.v.coach && vkind(g.v) === 'bus' ? 0.45 : 1; // a bus out of service: faded
     const p = gpsPos(g, now), c = scr(p); if(c.x < -30 || c.y < -30 || c.x > s.x + 30 || c.y > s.y + 30) continue;
     let ang = g.v.segAng != null ? g.v.segAng : g.v.brg != null ? (g.v.brg - 90)*rad : g.ang ?? 0; // on a known line: its direction
     if(g.v.segAng == null && g.v.brg == null && (g.to[0] !== g.from[0] || g.to[1] !== g.from[1])) ang = Math.atan2(-(g.to[0] - g.from[0]), (g.to[1] - g.from[1])*cosLat);
