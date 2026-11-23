@@ -1931,7 +1931,7 @@ async function srvSetup(){
     for(const [id, f] of Object.entries(h.feeds || {})){ if(!f.box || f.error && !f.vehicles) continue;
       if(SRV.feeds[id]){ const x = SRV.feeds[id].entry; x[1] = f.box; x[4] = new RegExp(f.tt || '^$', 'i'); x[5] = new RegExp(f.ttModes || 'BUS'); continue; } // known: just keep its settings current
       SRV.feeds[id] = f; LIVE_ABROAD.push(f.entry = [f.name.replace(/ \(.*\)$/, ''), f.box, () => { const b = map.getBounds(), sw = b.getSouthWest(), ne = b.getNorthEast(); return `${RAIL.relay}/srv/rt?feed=${id}&bbox=${[sw.lat(), sw.lng(), ne.lat(), ne.lng()].map(x => x.toFixed(2)).join(',')}`; },
-        j => (j.vehicles || []).map(v => ({id:'la:' + id + ':' + v.id, line:v.line || '', op:v.op || f.name, dest:'', lat:v.lat, lon:v.lon, brg:v.bearing ? v.bearing : null, t:v.at || null, kind:v.kind, tram:v.kind === 'tram', metro:v.kind === 'metro', train:v.kind === 'train', col:v.col || null})),
+        j => (j.vehicles || []).map(v => ({id:'la:' + id + ':' + v.id, line:v.line || '', op:v.op || f.name, dest:'', lat:v.lat, lon:v.lon, brg:v.bearing ? v.bearing : null, t:v.at || null, kind:v.kind, tram:v.kind === 'tram', metro:v.kind === 'metro', train:v.kind === 'train', col:v.kind === 'bus' && CITYL.cur?.bus ? CITYL.cur.bus[0] : v.col ? inkA(v.col.toLowerCase()) : null})), // buses in the city's one bus colour, as the timetable's
         new RegExp(f.tt || '^$', 'i'), new RegExp(f.ttModes || 'BUS')]); } }
   catch(e){ console.warn('server', e); } }
 // live ferries (AIS, from the server): every passenger ship and fast ferry in view, where it really is
@@ -2039,7 +2039,7 @@ async function loadCityLines(p){
     try{ const d = await (await fetch(url, {signal:AbortSignal.timeout(15000)})).json(), grid = new Map();
       d.lines.forEach((l, li) => { for(let i = 1; i < l.pts.length; i++){ const a = l.pts[i-1], b = l.pts[i], n = Math.max(1, Math.ceil(dist(a, b)/300));
         for(let k = 0; k <= n; k++){ const q = CELL(a[0] + (b[0]-a[0])*k/n, a[1] + (b[1]-a[1])*k/n); let g = grid.get(q); if(!g) grid.set(q, g = new Set()); g.add(li*100000 + i); } } });
-      d.grid = grid; d.url = url; d.dupRail = /helsinki\.json/.test(url); CITYL.data.set(url, d); }
+      d.grid = grid; d.url = url; d.dupRail = /helsinki\.json/.test(url); d.tramMain = /fr-/.test(url) && !d.lines.some(l => l.kind === 'metro'); CITYL.data.set(url, d); }
     catch(e){ CITYL.data.delete(url); console.warn('city lines', e.message); } }));
 }
 const lineKey = n => String(n).toLowerCase().replace(/\s+line$/, '').trim();
@@ -2121,7 +2121,7 @@ function drawLineSet(ctx, d){
   ctx.lineWidth = Math.max(1.5, W*0.3); if(names){ ctx.font = `600 ${PV.z >= 15 ? 13 : 11.5}px "Hanken Grotesk", system-ui, sans-serif`; ctx.textBaseline = 'middle'; ctx.textAlign = 'start'; }
   const bnd = map.getBounds(), sw = bnd && bnd.getSouthWest(), ne = bnd && bnd.getNorthEast(), named = [];
   for(const st of d.stations){ if(sw && (st[2] < sw.lat() - 0.01 || st[2] > ne.lat() + 0.01 || st[3] < sw.lng() - 0.01 || st[3] > ne.lng() + 0.01)) continue; if(!showSt(d, st)) continue;
-    if(st[4].every(l => l[2] === 'tram') && PV.z < 15) continue; // tram stops only close up
+    if(st[4].every(l => l[2] === 'tram') && PV.z < (d.tramMain ? 13 : 15)) continue; // tram stops only close up, unless trams are the city's main network (Bordeaux, Montpellier: no metro)
     const c = scr([st[2], st[3]]); if(c.x < -20 || c.y < -20 || c.x > s0.x + 20 || c.y > s0.y + 20) continue;
     const rr = st[4].length > 1 && st[4].some(l => l[2] !== 'tram') ? r*1.35 : r;
     ctx.beginPath(); ctx.arc(c.x, c.y, rr, 0, 7); ctx.fillStyle = dark ? '#1b1c1f' : '#fff'; ctx.fill(); ctx.strokeStyle = dark ? '#e6e6e6' : '#1b1c1f'; ctx.stroke();
