@@ -42,6 +42,10 @@ if(env.AISSTREAM_KEY) AIS.run(env.AISSTREAM_KEY, JSON.parse(env.AIS_BOXES || '[[
 const FEEDS = new Map();
 try{ for(const f of JSON.parse(fs.readFileSync(path.join(here, 'feeds.json'), 'utf8')).feeds){ const F = new Feed(f, env); if(F.enabled && !(env.FEEDS_OFF || '').split(',').includes(f.id)){ FEEDS.set(f.id, F); F.run(); } } }
 catch(e){ console.warn('feeds', e.message); }
+// each feed's area as learnt from its vehicles is kept across restarts (feed-boxes.json), so the map finds it straight away
+const BOXF = path.join(here, 'feed-boxes.json');
+try{ const bx = JSON.parse(fs.readFileSync(BOXF, 'utf8')); for(const [id, F] of FEEDS) if(!F.cfg.box && bx[id]) F.box = bx[id]; }catch(e){}
+setInterval(() => { try{ fs.writeFileSync(BOXF, JSON.stringify(Object.fromEntries([...FEEDS].filter(([, F]) => F.box).map(([id, F]) => [id, F.box])))); }catch(e){} }, 300000);
 console.log('feeds on:', [...FEEDS.keys()].join(', ') || 'none', '· ferries:', env.AISSTREAM_KEY ? 'on' : 'off (no AISSTREAM_KEY)');
 async function consume(){
   if(!env.DARWIN_BOOTSTRAP){ console.warn('DARWIN_BOOTSTRAP not set: Darwin off (serving saved state only)'); return; }

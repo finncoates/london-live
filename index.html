@@ -1943,7 +1943,7 @@ async function refreshShips(){
     gpsMerge({vehicles:vs}, 'ais:'); SRV.shipsAt = Date.now(); }
   catch(e){} }
 setInterval(refreshShips, 20000); map.addListener('idle', () => { clearTimeout(SRV.st); SRV.st = setTimeout(refreshShips, 1200); });
-setTimeout(srvSetup, 4000); setTimeout(srvSetup, 15000); setInterval(srvSetup, 600000);
+setTimeout(srvSetup, 4000); setTimeout(srvSetup, 15000); setInterval(srvSetup, 120000); // (feeds whose area is learnt a little later still join within two minutes)
 function gpsOnly(...keep){ keep.push('ais:'); for(const k of [...GPS.list.keys()]){ const src = GPS_SRC.find(x => k.startsWith(x)) || 'uk'; if(!keep.includes(src)) GPS.list.delete(k); } } // (live ferries stay everywhere)
 // ---- Berlin & Brandenburg: S-Bahn, U-Bahn, trams, buses, regional trains (VBB "radar": real-time positions, no key) ----
 const inOslo = p => p[0] > 59.75 && p[0] < 60.10 && p[1] > 10.45 && p[1] < 11.05, inBergen = p => p[0] > 60.25 && p[0] < 60.50 && p[1] > 5.15 && p[1] < 5.50, inTrondheim = p => p[0] > 63.35 && p[0] < 63.48 && p[1] > 10.20 && p[1] < 10.60;
