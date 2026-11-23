@@ -14,7 +14,7 @@
 param(
   [Parameter(Mandatory = $true)][string]$Ip,
   [string]$Key = "$HOME\.ssh\id_rsa",
-  [string]$User = 'ubuntu',
+  [string]$User = 'opc',      # Oracle Linux; 'ubuntu' on Ubuntu images
   [switch]$KeysOnly,
   [switch]$NoPrompt
 )

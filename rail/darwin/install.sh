@@ -1,15 +1,22 @@
 #!/usr/bin/env bash
-# Install the London Live server (Darwin trains, live ferries, live city feeds) on a fresh Ubuntu machine (Oracle Cloud free tier).
-# Safe to run again: it updates the code and keeps the settings.
-# Run as the default user (ubuntu):  bash install.sh
+# Install the London Live server (Darwin trains, live ferries, live city feeds) on a fresh Oracle Cloud free-tier machine:
+# Ubuntu (user ubuntu) or Oracle Linux (user opc). Safe to run again: it updates the code and keeps the settings.
+# Run as the default user:  bash install.sh
 # Settings: connect.ps1 (on the PC) puts them in /etc/london-live-darwin.env, or by hand: sudo nano /etc/london-live-darwin.env
 set -euo pipefail
-sudo apt-get update -y
-sudo apt-get install -y git curl ca-certificates
-if ! command -v node >/dev/null || [ "$(node -p 'process.versions.node.split(".")[0]')" -lt 20 ]; then
-  curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash -
-  sudo apt-get install -y nodejs
+node_ok(){ command -v node >/dev/null && [ "$(node -p 'process.versions.node.split(".")[0]')" -ge 20 ]; }
+if command -v apt-get >/dev/null; then # Ubuntu / Debian
+  sudo apt-get update -y
+  sudo apt-get install -y git curl ca-certificates cron
+  node_ok || { curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash -; sudo apt-get install -y nodejs; }
+else # Oracle Linux / RHEL
+  sudo dnf install -y git curl ca-certificates cronie
+  sudo systemctl enable --now crond
+  node_ok || { sudo dnf module reset -y nodejs && sudo dnf module enable -y nodejs:22 && sudo dnf install -y nodejs npm; } || true
+  node_ok || { curl -fsSL https://rpm.nodesource.com/setup_22.x | sudo bash -; sudo dnf install -y nodejs; }
 fi
+node_ok || { echo "Couldn't install Node.js 20+"; exit 1; }
+NODE=$(command -v node)
 cd ~
 [ -d london-live ] || git clone --depth 1 https://github.com/finncoates/london-live.git
 cd london-live && git pull --ff-only
@@ -45,7 +52,7 @@ Wants=network-online.target
 User=$USER
 WorkingDirectory=$HOME/london-live/rail/darwin
 EnvironmentFile=/etc/london-live-darwin.env
-ExecStart=/usr/bin/node server.mjs
+ExecStart=$NODE server.mjs
 Restart=always
 RestartSec=10
 
@@ -54,12 +61,18 @@ WantedBy=multi-user.target
 EOF
 sudo systemctl daemon-reload
 sudo systemctl enable --now london-live-darwin
-# open port 80 (the relay calls http://IP.sslip.io, port 80, which goes to the server on 8080) in Ubuntu's own firewall:
+# open port 80 (the relay calls http://IP.sslip.io, port 80, which goes to the server on 8080) in the machine's own firewall:
 # Oracle's images block everything but SSH by default. (Oracle's Security List needs port 80 open too: see SETUP.md.)
-sudo DEBIAN_FRONTEND=noninteractive apt-get install -y iptables-persistent >/dev/null 2>&1 || true
-for port in 80 8080; do sudo iptables -C INPUT -p tcp --dport $port -j ACCEPT 2>/dev/null || sudo iptables -I INPUT 5 -p tcp --dport $port -j ACCEPT; done
-sudo iptables -t nat -C PREROUTING -p tcp --dport 80 -j REDIRECT --to-port 8080 2>/dev/null || sudo iptables -t nat -A PREROUTING -p tcp --dport 80 -j REDIRECT --to-port 8080
-sudo netfilter-persistent save >/dev/null 2>&1 || true
+if command -v firewall-cmd >/dev/null && sudo firewall-cmd --state >/dev/null 2>&1; then # Oracle Linux: firewalld
+  sudo firewall-cmd --permanent --add-port=80/tcp --add-port=8080/tcp >/dev/null
+  sudo firewall-cmd --permanent --query-forward-port=port=80:proto=tcp:toport=8080 >/dev/null 2>&1 || sudo firewall-cmd --permanent --add-forward-port=port=80:proto=tcp:toport=8080 >/dev/null
+  sudo firewall-cmd --reload >/dev/null
+else # Ubuntu: iptables
+  sudo DEBIAN_FRONTEND=noninteractive apt-get install -y iptables-persistent >/dev/null 2>&1 || true
+  for port in 80 8080; do sudo iptables -C INPUT -p tcp --dport $port -j ACCEPT 2>/dev/null || sudo iptables -I INPUT 5 -p tcp --dport $port -j ACCEPT; done
+  sudo iptables -t nat -C PREROUTING -p tcp --dport 80 -j REDIRECT --to-port 8080 2>/dev/null || sudo iptables -t nat -A PREROUTING -p tcp --dport 80 -j REDIRECT --to-port 8080
+  sudo netfilter-persistent save >/dev/null 2>&1 || true
+fi
 # keep the code current: pull and restart every night at 04:10
 ( crontab -l 2>/dev/null | grep -v london-live-update; echo "10 4 * * * cd $HOME/london-live && git pull --ff-only -q && cd rail/darwin && npm ci --omit=dev --silent && sudo systemctl restart london-live-darwin # london-live-update" ) | crontab -
 sudo systemctl restart london-live-darwin
