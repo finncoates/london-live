@@ -2734,6 +2734,7 @@ function searchLines(text){
       const lk = (g.v.coach ? 'c' : 'b') + ':' + n; // a local bus and a coach can share a number (e.g. 700)
       if((k === q || (q.length >= 2 && k.startsWith(q))) && !live.has(lk)) live.set(lk, {lineHit:true, city:true, live:true, name:n, col:g.v.col || opCol(g.v.op), mode:'bus', coach:!!g.v.coach, exact:k === q, op:g.v.coach ? (coachOf(g.v) || [g.v.op])[0] : opName(g.v.op)}); }
     out.push(...live.values()); }
+  if(document.body.classList.contains('edge')) for(let i = out.length - 1; i >= 0; i--) if(out[i].bus && out.some(o => o.live && !o.coach && String(o.name).toLowerCase() === String(out[i].name).toLowerCase())) out.splice(i, 1); // Watford, Epping…: the local bus, not a guessed TfL route of the same number
   return out.sort((a, b) => b.exact - a.exact || !!a.coach - !!b.coach).slice(0, 4); // local buses before coaches of the same number
 }
 const lineResult = (s, i) => `<li role="option" data-i="${i}" class="${i===SR.sel?'on':''}" aria-selected="${i===SR.sel}">
