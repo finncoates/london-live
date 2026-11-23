@@ -11,7 +11,11 @@ const RAIL_HUBS = 'VIC,CLJ,WAT,LBG,CHX,CST,BFR,STP,KGX,EUS,MYB,PAD,LST,FST,SRA,E
 // Operator colours (brand-like, approximate)
 const RAIL_COL = {NT:'#262262', TP:'#09A4EC', SR:'#1E467D', SN:'#5C9F3B', TL:'#E9438D', SW:'#24398C', SE:'#1D82D4', GW:'#0A493E', CC:'#B7007C', LE:'#D70428', GN:'#5A2C83',
   CH:'#00A7DF', GR:'#CE0E2D', VT:'#004354', EM:'#713563', HX:'#532E63', GX:'#EB1E2D', XC:'#660F21', GC:'#1D1D1B', LD:'#2B6EF5',
-  HT:'#DE005C', AW:'#E10600', LM:'#00BF6F', XR:'#60399E', LO:'#FA7B05', IL:'#1E90FF'};
+  HT:'#DE005C', AW:'#E10600', LM:'#00BF6F', XR:'#60399E', LO:'#FA7B05', IL:'#1E90FF', ES:'#FFD300'};
+// Eurostar's stations abroad (the boards give only their names and codes): placed so its trains can be shown on the live map
+const RAIL_ABROAD = {'paris nord':[48.8809, 2.3553], 'brussels midi':[50.8357, 4.3363], 'bruxelles midi':[50.8357, 4.3363], 'brussels south':[50.8357, 4.3363], 'lille europe':[50.6393, 3.0757],
+  'amsterdam centraal':[52.3791, 4.9003], 'rotterdam centraal':[51.9249, 4.4690], 'marne la vallee':[48.8701, 2.7826], 'calais frethun':[50.9013, 1.8111]};
+const abroadAt = n => { const k = String(n || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z ]+/g, ' ').replace(/\s+/g, ' ').trim(); const hit = Object.keys(RAIL_ABROAD).find(x => k.startsWith(x)); return hit ? RAIL_ABROAD[hit] : null; };
 // relay connected; National Rail itself only once the relay reports its rail key (/health → rail:true)
 RAIL.railKey = null; // null = not checked yet
 const railOn = () => !!RAIL.relay && (RAIL.relay === 'demo' || RAIL.railKey === true);
@@ -63,19 +67,30 @@ async function refreshRail(){
     if(!hubs.list.length){ RAIL.msg = 'no stations near'; return; }
     RAIL.busy = true; let res; try{ res = await railGet('/trains?crs=' + hubs.list.join(',')); } finally { RAIL.busy = false; }
     const t0 = Date.now(), seen = new Set(); let newStops = false;
-    for(const tr of res.trains || []){
+    // every hub station's board lists the same train again, starting from that station: keep one listing per train
+    // (the one starting furthest back, which knows the most stops), and keep its key from refresh to refresh
+    const list = (res.trains || []).filter(tr => tr.calls && tr.calls.length).sort((a, b) => a.calls[0][1] - b.calls[0][1]);
+    const taken = new Set(), gk = new Map(), kept = [];
+    for(const tr of list){ const ks = tr.calls.map(c => [tr.opCode + '|' + (tr.destCrs || tr.dest) + '|' + c[0], Math.round(c[1]/60000)]);
+      if(ks.some(([k, m]) => taken.has(k + '|' + (m - 1)) || taken.has(k + '|' + m) || taken.has(k + '|' + (m + 1)))) continue;
+      for(const [k, m] of ks) taken.add(k + '|' + m); tr.gks = ks.map(([k, m]) => k + '|' + m); kept.push(tr); }
+    for(const tr of kept){ if(typeof nrTrackPath === 'function' && tr.destCrs && !RAIL.byCrs[tr.destCrs]){ const p = abroadAt(tr.dest); // Eurostar: its stop abroad
+        if(p) RAIL.byCrs[tr.destCrs] = {n:tr.dest, p, foreign:true}; } }
+    for(const tr of kept){
       const l = railLine(tr.opCode, tr.op);
       const calls = tr.calls.filter(c => RAIL.byCrs[c[0]]); if(calls.length < 2 || calls.at(-1)[1] < t0 - 120000) continue;
       for(const [crs] of calls) if(!l.stops[crs]){ l.stops[crs] = RAIL.byCrs[crs]; newStops = true; }
       // draw the network from consecutive stops (once per pair)
       for(let i = 1; i < calls.length; i++){ const a = calls[i-1][0], b = calls[i][0], k = a < b ? a + b : b + a;
         if(!l.edges.has(k)){ l.edges.add(k); if(typeof nrTrackPath !== 'function'){ l.polys.push([RAIL.byCrs[a].p, RAIL.byCrs[b].p]); LANES = null; linesSig = ''; } } } // live map: no lines of their own, the trains run on the National Rail network map
-      const key = 'nr:' + tr.id; let t = trains.get(key);
+      const old = tr.gks.map(k => (RAIL.gk || new Map()).get(k)).find(k => k && trains.has(k)), key = old || 'nr:' + tr.id; let t = trains.get(key);
+      for(const k of tr.gks) gk.set(k, key);
       if(!t){ t = {key, rail:true}; trains.set(key, t); }
       Object.assign(t, {line:l.id, ahead:calls.map(c => [c[0], c[1]]), prev:calls[0][0], next:calls[1][0], arr:calls[1][1],
         towards:tr.dest || '', loc:tr.reason || '', seen:t0}); seen.add(key);
     }
-    for(const [k, t] of trains) if(t.rail && !seen.has(k) && t0 - t.seen > 150000) trains.delete(k);
+    RAIL.gk = gk;
+    for(const [k, t] of trains) if(t.rail && !seen.has(k) && t0 - t.seen > 150000 && ((t.ahead?.at(-1)?.[1] ?? 0) < t0 - 60000 || t0 - t.seen > 45*60000)) trains.delete(k); // gone from every board: kept to its last stop (e.g. a Eurostar after St Pancras)
     for(const l of ACTIVE) if(l.rail) l.count = 0;
     for(const t of trains.values()) if(t.rail && BY[t.line]) BY[t.line].count++;
     if(newStops){ if(typeof STATIONS !== 'undefined') STATIONS = null; if(typeof STIDX !== 'undefined') STIDX = null; } // station search/near-you indexes
