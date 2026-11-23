@@ -2,3 +2,5 @@
 name = "london-rail"
 main = "worker.js"
 compatibility_date = "2026-11-01"
+preview_urls = false # as set in the Cloudflare dashboard
+keep_vars = true # keep settings made in the Cloudflare dashboard (e.g. BOARD_URL); secrets are always kept

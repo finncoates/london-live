@@ -330,7 +330,8 @@ async function tfl(url, env, cors){
           r = new Response(await up.text(), {status:up.status, headers:{'content-type':up.headers.get('content-type') || 'application/json', 'cache-control':'public, max-age=' + ttl}});
           if(up.ok && cache) await cache.put(cacheKey, r.clone()).catch(() => {}); }
         const v = {t:Date.now(), status:r.status, type:r.headers.get('content-type') || 'application/json', body:await r.text()};
-        if(v.status === 200){ TFL_MEM.set(key, v); if(TFL_MEM.size > 3000) TFL_MEM.delete(TFL_MEM.keys().next().value); }
+        if(v.status === 429) v.t = Date.now() - Math.max(0, ttl - 10)*1000; // TfL said "too many": don't ask again for 10 s (the pages then ask TfL directly)
+        if(v.status === 200 || v.status === 429){ TFL_MEM.set(key, v); if(TFL_MEM.size > 3000) TFL_MEM.delete(TFL_MEM.keys().next().value); }
         return v; })().finally(() => TFL_WAIT.delete(key));
       TFL_WAIT.set(key, wait); }
     hit = await wait; }
