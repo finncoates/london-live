@@ -2590,7 +2590,7 @@ async function refreshTT(){
       // (keyed by trip and time: a bus passing three stops in the window has three), and older ones go once all are in
       const fresh = new Set(), add = r => { for(const s of r?.vehicles || []) if(s[9] && s[6] > now){ const k = s[8] + '|' + s[5]; fresh.add(k); if(TTV.ferries?.has(k)) continue; const pts = decodePoly(s[9]); if(pts.length > 1) (TTV.ferries ||= new Map()).set(k, {s, pts}); } };
       if(!TTV.world) TTV.ferries = new Map();
-      const res = await Promise.all(tiles.map(([la, lo]) => railGet(`/tt?la=${la}&lo=${lo}&s=${tiles.sz}&modes=${modes}&z=${zq < 7 ? 6 : zq < 9 ? 8 : Math.min(14, zq + 1)}`).then(r => (add(r), r)).catch(() => null)));
+      const res = await Promise.all(tiles.map(([la, lo]) => railGet(`/tt?la=${la}&lo=${lo}&s=${tiles.sz}&modes=${modes}&z=${zq < 7 ? 6 : zq < 9 ? 8 : Math.min(14, zq + 1)}`).then(r => { add(r); TTV.world = true; clearTimeout(TTV.dt); TTV.dt = setTimeout(ttTick, 50); return r; }).catch(() => null))); // vehicles appear as each tile lands
       for(const k of [...TTV.ferries.keys()]) if(!fresh.has(k)) TTV.ferries.delete(k);
       TTV.n = TTV.ferries.size; TTV.at = now; TTV.world = true;
       BUS.note = (TTV.esLive && Date.now() - TTV.esLive < 120000 ? `${TTV.esN} Renfe trains live · ` : '') + (TTV.cityLive && Date.now() - TTV.cityLive.at < 120000 ? `${TTV.cityLive.n} ${TTV.cityLive.name} ${TTV.cityLive.name === 'Toronto' ? 'buses and streetcars' : TTV.cityLive.what || 'buses'} live · ` : '') + `${TTV.n} ${zq < 7 ? 'high-speed and intercity trains' : zq < 9 ? 'trains' : 'trains, trams' + (zq >= 14 ? ', buses' : '') + ' and ferries'} here, placed from the timetable (Transitous open data${(TTV.esLive && Date.now() - TTV.esLive < 120000) || (TTV.cityLive && Date.now() - TTV.cityLive.at < 120000) ? '' : '; no live positions here yet'})${zq < 7 ? ' · zoom in for regional trains' : zq < 9 ? ' · zoom in for trams and metros' : zq < 14 ? ' · zoom in for buses' : ''}`;
@@ -2648,7 +2648,7 @@ function drawTTLines(ctx){
     if(look.stripe && look.w >= 2.5){ ctx.setLineDash([]); ctx.globalAlpha = 1; ctx.strokeStyle = MAP_BG(); ctx.lineWidth = look.w/3; ctx.stroke(); } }
   ctx.restore(); }
 // every 2 s: each ferry's place along its route now (a vehicle like the GPS ones, so it's drawn, tapped and toggled the same way)
-setInterval(() => { if(!TTV.ferries || !TRAINS_ON || inTfLArea([map.getCenter().lat(), map.getCenter().lng()])) return; const now = Date.now(), seen = new Set();
+function ttTick(){ if(!TTV.ferries || !TRAINS_ON || inTfLArea([map.getCenter().lat(), map.getCenter().lng()])) return; const now = Date.now(), seen = new Set();
   const liveKinds = new Set(); for(const [k, g] of GPS.list) if(k.startsWith('la:')) liveKinds.add(g.v.kind || 'bus'); // what the city's live feed actually has (Amsterdam's has no metro, Rotterdam's does)
   const best = new Map(); for(const e of TTV.ferries.values()){ const d = e.s[5], a = e.s[6], off = now < d ? d - now : now > a ? now - a : 0; if(off > 60000) continue; // one stretch per journey: the one it's on now
     const t = e.s[8], b = best.get(t); if(!b || off < b.off) best.set(t, {e, off}); }
@@ -2667,8 +2667,11 @@ setInterval(() => { if(!TTV.ferries || !TRAINS_ON || inTfLArea([map.getCenter().
       segAng:Math.atan2(-(B[0]-A[0]), (B[1]-A[1])*Math.cos(A[0]*rad))};
     if(!g){ g = {from:p, to:p, t0:now, dur:2000}; GPS.list.set(id, g); } else { g.from = gpsPos(g, now); g.to = p; g.t0 = now; g.dur = 2000; }
     g.v = v; g.seen = now; }
-  for(const k of [...GPS.list.keys()]) if(k.startsWith('tf:') && !seen.has(k)) GPS.list.delete(k); }, 2000);
-setInterval(refreshTT, 60000); setTimeout(refreshTT, 6000); setTimeout(refreshTT, 20000); map.addListener('idle', () => { clearTimeout(TTV.t); TTV.t = setTimeout(refreshTT, 1500); });
+  for(const k of [...GPS.list.keys()]) if(k.startsWith('tf:') && !seen.has(k)) GPS.list.delete(k); }
+setInterval(ttTick, 2000);
+// start as soon as the relay is known (not when the street map has finished loading, which can take seconds), and again after each move
+setInterval(refreshTT, 60000); for(const ms of [600, 1500, 3000, 6000, 20000]) setTimeout(refreshTT, ms);
+map.addListener('idle', () => { clearTimeout(TTV.t); TTV.t = setTimeout(refreshTT, 500); });
 // National Rail stations in London with no Tube/Overground/Elizabeth/DLR/tram station beside them (those have their own dots and cards)
 function nrOnlyStations(){ if(!RAIL.stations){ railStations().then(() => { NRNET.n++; }).catch(() => {}); return []; } let k = 0; for(const l of ACTIVE) if(l.mode !== 'bus' && l.stops) for(const _ in l.stops) k++; if(nrOnlyStations.c && nrOnlyStations.k === k) return nrOnlyStations.c; // (cheap enough: re-done only as TfL's stations load)
   const tfl = stationIndex(); if(tfl.length < 200) return []; nrOnlyStations.k = k; // TfL's stations not loaded yet
