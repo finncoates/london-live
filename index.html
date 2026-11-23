@@ -455,12 +455,20 @@ function world(p, z){ const sc = 256*2**z, s = Math.sin(p[0]*rad);
 const W1 = [51.5, 0.0];
 let PV = null; // {z (real, fractional), zi (integer target), k = 2^(z-zi), ox, oy}: screen = world(p, z) + offset
 function viewNow(){
-  const zi = map.getZoom(), r = toScreen(W0), r1 = toScreen(W1);
-  const w0 = world(W0, 0), w1 = world(W1, 0), sc = (r1.x - r.x)/(w1[0] - w0[0]);
-  const z = sc > 0 && isFinite(sc) ? Math.log2(sc) : zi, w = world(W0, z);
+  // reference points near the view (fixed London points are millions of pixels away when zoomed in elsewhere, and lose precision)
+  const zi = map.getZoom(), c = map.getCenter(), A = c ? [c.lat(), c.lng()] : W0, B = [A[0], A[1] + 360/2**Math.max(0, zi)];
+  const r = toScreen(A), r1 = toScreen(B), w0 = world(A, 0), w1 = world(B, 0), sc = (r1.x - r.x)/(w1[0] - w0[0]);
+  const z = sc > 0 && isFinite(sc) ? Math.log2(sc) : zi, w = world(A, z);
   return PV = {z, zi, k:2**(z - zi), ox:r.x - w[0], oy:r.y - w[1]};
 }
 const scr = p => { const w = world(p, PV.z); return {x:w[0] + PV.ox, y:w[1] + PV.oy}; };
+// cached line shapes are built in world pixels relative to a nearby origin: raw world pixels pass 2^24 from zoom 17 up,
+// where the canvas (32-bit floats) loses them and the lines vanish. The origin moves (and caches rebuild) after 150 km.
+const ORG = {p:null, id:0};
+function orgAt(zc){ const c = map.getCenter(), here = c ? [c.lat(), c.lng()] : W0; if(!ORG.p || dist(ORG.p, here) > 150000){ ORG.p = here; ORG.id++; }
+  const w = world(ORG.p, zc); return [Math.round(w[0]), Math.round(w[1])]; }
+const wl = (q, zc, O) => { const w = world(q, zc); return [w[0] - O[0], w[1] - O[1]]; };
+function localView(ctx, O, k){ ctx.translate(PV.ox + O[0]*k, PV.oy + O[1]*k); ctx.scale(k, k); }
 
 function buildLanes(){
   // 1. per line: hide non-stop "express" edges where the same line also has a stopping route alongside
@@ -1904,8 +1912,9 @@ function drawCityLines(ctx){ for(const d of cityData()) drawLineSet(ctx, d); }
 function drawLineSet(ctx, d){
   // line shapes are built once per whole zoom level (world pixels) and then just moved/scaled: cheap every frame
   const zc = Math.floor(PV.z), k = 2 ** (PV.z - zc), W = lineW(), order = {ferry:0, train:1, tram:2, metro:3}, kb = Math.round(k*4);
-  if(d.pz !== zc + ':' + kb){ const SH = cityShare(d); d.paths = [];
-    [...d.lines.keys()].sort((a, b) => order[d.lines[a].kind] - order[d.lines[b].kind]).forEach(li => { const l = d.lines[li], sh = SH[li], P = l.pts.map(q => world(q, zc)), n = P.length;
+  const O = orgAt(zc);
+  if(d.pz !== zc + ':' + kb + ':' + ORG.id){ const SH = cityShare(d); d.paths = [];
+    [...d.lines.keys()].sort((a, b) => order[d.lines[a].kind] - order[d.lines[b].kind]).forEach(li => { const l = d.lines[li], sh = SH[li], P = l.pts.map(q => wl(q, zc, O)), n = P.length;
       // where lines of the same kind share track: each gets a slice of the width, side by side (as in London)
       const off = j => { const e = sh[j]; return e && e[0] > 1 ? (e[1] - (e[0] - 1)/2) * W/e[0]/k : 0; };
       const Q = P.map((p, i) => { const a = i ? i - 1 : 0, b = Math.min(n - 1, i ? i : 1), j = Math.min(i, n - 2), dx = P[b][0] - P[a][0], dy = P[b][1] - P[a][1], L = Math.hypot(dx, dy) || 1;
@@ -1916,8 +1925,8 @@ function drawLineSet(ctx, d){
       for(let i = 1; i < n; i++){ const c = sh[i-1] ? sh[i-1][0] : 1; if(i < n - 1 && (sh[i] ? sh[i][0] : 1) === c) continue;
         const path = new Path2D(); path.moveTo(Q[start][0], Q[start][1]); for(let j = start + 1; j <= i; j++) path.lineTo(Q[j][0], Q[j][1]);
         d.paths.push([l, path, c]); start = i; } });
-    d.pz = zc + ':' + kb; }
-  ctx.save(); ctx.translate(PV.ox, PV.oy); ctx.scale(k, k);
+    d.pz = zc + ':' + kb + ':' + ORG.id; }
+  ctx.save(); localView(ctx, O, k);
   ctx.lineJoin = 'round';
   for(const [l, path, cnt] of d.paths){ if(GPS_OFF.has(l.kind)) continue; const look = lineLook(l.kind, W), c = cnt || 1;
     ctx.globalAlpha = look.alpha * (LF.city ? (l.name === LF.city ? 1 : 0.12) : 1);
@@ -2173,12 +2182,12 @@ function busnetTiles(){
 function drawBusNet(ctx){
   if(busOff() || GPS_OFF.has('bus') || PV.z < 12) return; const c = map.getCenter(); if(!c || regionOf([c.lat(), c.lng()]) !== 'uk' && regionOf([c.lat(), c.lng()]) !== 'edinburgh' && !CITYL.cur?.name?.match(/Manchester/)) return;
   const zc = Math.floor(PV.z), k = 2 ** (PV.z - zc), look = lineLook('bus', lineW());
-  ctx.save(); ctx.translate(PV.ox, PV.oy); ctx.scale(k, k); ctx.globalAlpha = dark ? Math.min(1, look.alpha*1.4) : look.alpha; ctx.strokeStyle = dark ? '#E8574F' : '#DC241F'; ctx.lineWidth = look.w/k; ctx.lineJoin = 'round'; ctx.lineCap = 'round';
+  const O = orgAt(zc); ctx.save(); localView(ctx, O, k); ctx.globalAlpha = dark ? Math.min(1, look.alpha*1.4) : look.alpha; ctx.strokeStyle = dark ? '#E8574F' : '#DC241F'; ctx.lineWidth = look.w/k; ctx.lineJoin = 'round'; ctx.lineCap = 'round';
   for(const t of busnetTiles()){
     if(!BUSNET.tiles.has(t)){ BUSNET.tiles.set(t, null); fetch('cities/busnet/' + t + '.json', {signal:AbortSignal.timeout(10000)}).then(r => r.ok ? r.json() : []).then(j => { BUSNET.tiles.set(t, j); }).catch(() => BUSNET.tiles.set(t, [])); continue; }
     const polys = BUSNET.tiles.get(t); if(!polys || !polys.length) continue;
-    const key = t + '@' + zc; let path = BUSNET.path.get(key);
-    if(!path){ path = new Path2D(); for(const poly of polys) poly.forEach((q, i) => { const w = world(q, zc); i ? path.lineTo(w[0], w[1]) : path.moveTo(w[0], w[1]); }); BUSNET.path.set(key, path); if(BUSNET.path.size > 200) BUSNET.path.delete(BUSNET.path.keys().next().value); }
+    const key = t + '@' + zc + ':' + ORG.id; let path = BUSNET.path.get(key);
+    if(!path){ path = new Path2D(); for(const poly of polys) poly.forEach((q, i) => { const w = wl(q, zc, O); i ? path.lineTo(w[0], w[1]) : path.moveTo(w[0], w[1]); }); BUSNET.path.set(key, path); if(BUSNET.path.size > 200) BUSNET.path.delete(BUSNET.path.keys().next().value); }
     ctx.stroke(path); }
   ctx.restore(); ctx.globalAlpha = 1;
 }
@@ -2209,10 +2218,10 @@ function drawNR(ctx){
     for(let la = Math.floor(sw.lat()*2); la <= Math.floor(ne.lat()*2); la++) for(let lo = Math.floor(sw.lng()*2); lo <= Math.floor(ne.lng()*2); lo++){ const t = la + '_' + lo;
       if(!NRNET.tiles.has(t)){ NRNET.tiles.set(t, null); fetch('cities/nr/' + t + '.json').then(r => r.ok ? r.json() : []).then(j => NRNET.tiles.set(t, j)).catch(() => NRNET.tiles.set(t, [])); continue; }
       const ps = NRNET.tiles.get(t); if(ps && ps.length) polysets.push([t, ps]); } }
-  ctx.save(); ctx.translate(PV.ox, PV.oy); ctx.scale(k, k); ctx.lineJoin = 'round'; ctx.lineCap = 'round';
+  const O = orgAt(zc); ctx.save(); localView(ctx, O, k); ctx.lineJoin = 'round'; ctx.lineCap = 'round';
   const w = Math.max(1.6, W*(PV.z >= 12 ? 0.95 : 0.75))/k;
-  for(const [t, ps] of polysets){ const key = t + '@' + zc; let path = NRNET.path.get(key);
-    if(!path){ path = new Path2D(); for(const poly of ps) poly.forEach((q, i) => { const p2 = world(q, zc); i ? path.lineTo(p2[0], p2[1]) : path.moveTo(p2[0], p2[1]); }); NRNET.path.set(key, path); if(NRNET.path.size > 120) NRNET.path.delete(NRNET.path.keys().next().value); }
+  for(const [t, ps] of polysets){ const key = t + '@' + zc + ':' + ORG.id; let path = NRNET.path.get(key);
+    if(!path){ path = new Path2D(); for(const poly of ps) poly.forEach((q, i) => { const p2 = wl(q, zc, O); i ? path.lineTo(p2[0], p2[1]) : path.moveTo(p2[0], p2[1]); }); NRNET.path.set(key, path); if(NRNET.path.size > 120) NRNET.path.delete(NRNET.path.keys().next().value); }
     ctx.globalAlpha = 0.8; ctx.strokeStyle = dark ? '#9AA3AD' : '#5D6670'; ctx.lineWidth = w; ctx.stroke(path);
     if(PV.z >= 10){ ctx.globalAlpha = 1; ctx.strokeStyle = MAP_BG(); ctx.lineWidth = w/3; ctx.stroke(path); } }
   ctx.restore(); ctx.globalAlpha = 1;
@@ -2266,10 +2275,10 @@ function drawCoachNet(ctx){
   if(!COACHNET.on || !TRAINS_ON || PV.z < 5) return;
   if(!COACHNET.data){ if(!COACHNET.loading){ COACHNET.loading = true; fetch('cities/coachnet.json').then(r => r.json()).then(j => { COACHNET.data = j; }).catch(() => { COACHNET.loading = false; }); } return; }
   const zc = Math.floor(PV.z), k = 2 ** (PV.z - zc), W = lineW();
-  ctx.save(); ctx.translate(PV.ox, PV.oy); ctx.scale(k, k); ctx.lineJoin = 'round'; ctx.lineCap = 'round';
+  const O = orgAt(zc); ctx.save(); localView(ctx, O, k); ctx.lineJoin = 'round'; ctx.lineCap = 'round';
   const ops = Object.entries(COACHNET.data.ops);
-  ops.forEach(([op, d], oi) => { const key = op + '@' + zc; let path = COACHNET.path.get(key);
-    if(!path){ path = new Path2D(); for(const poly of d.lines) poly.forEach((q, i) => { const w = world(q, zc); i ? path.lineTo(w[0], w[1]) : path.moveTo(w[0], w[1]); }); COACHNET.path.set(key, path); }
+  ops.forEach(([op, d], oi) => { const key = op + '@' + zc + ':' + ORG.id; let path = COACHNET.path.get(key);
+    if(!path){ path = new Path2D(); for(const poly of d.lines) poly.forEach((q, i) => { const w = wl(q, zc, O); i ? path.lineTo(w[0], w[1]) : path.moveTo(w[0], w[1]); }); COACHNET.path.set(key, path); if(COACHNET.path.size > 80) COACHNET.path.delete(COACHNET.path.keys().next().value); }
     ctx.globalAlpha = 0.85; ctx.strokeStyle = d.col; ctx.lineWidth = Math.max(1.5, W*0.55)/k;
     ctx.setLineDash([W*2.2/k, W*0.9/k]); ctx.lineDashOffset = -oi*W*1.1/k; // operators sharing a motorway interleave their dashes, so each stays visible
     ctx.stroke(path); });
