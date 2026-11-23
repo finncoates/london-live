@@ -2434,6 +2434,7 @@ function applyRegion(){
     else if(!RAIL.stations) railStations().catch(() => {});
     else { let st = null, sd = 2500; for(const x of RAIL.stations){ if(Math.abs(x[2] - p[0]) > 0.03) continue; const d = dist(p, [x[2], x[3]]); if(d < sd){ sd = d; st = x; } } // else the town of the nearest railway station
       if(st) $('ttl').textContent = st[1].replace(/\s*\(.*\)$/, '').replace(/\s+(Central|General|Parkway|Interchange|International|Priory|Paragon|Exchange|Junction|High Street|Town|City|Low Level|High Level|(North|South|East|West)( Street)?)$/i, '') + ' live map'; } }
+  document.title = !away ? 'London Live Trains' : $('ttl').textContent.replace(/\b\w/g, c => c.toUpperCase()); // the browser tab says where too
   { const t = $('ttl'), fit = m => { t.style.fontSize = ''; for(let f = 17; f >= m && t.scrollWidth > t.clientWidth + 1; f--) t.style.fontSize = f + 'px'; return t.scrollWidth <= t.clientWidth + 1; };
     if(!fit(14) && / map$/.test(t.textContent)){ t.textContent = t.textContent.replace(/ map$/, ''); fit(13); } } // long names shrink a little rather than being cut off
   $('bFit').title = away ? 'Near me (tap again: the area around you)' : 'Near me (tap again: all of London)';
