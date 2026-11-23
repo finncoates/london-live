@@ -15,6 +15,7 @@ ap = argparse.ArgumentParser(); ap.add_argument('id'); ap.add_argument('name'); 
 ap.add_argument('--agency'); ap.add_argument('--box'); ap.add_argument('--bus', default='#7E8BA3,#97A6BF'); ap.add_argument('--work')
 ap.add_argument('--types', help='override the type map, e.g. "0:tram,1:metro"'); ap.add_argument('--nobus', action='store_true')
 ap.add_argument('--drop', help='regex of line names to leave out (e.g. ^TER$: drawn by the national rail map)')
+ap.add_argument('--country', default='fr', help='two-letter prefix of the city file (fr-paris.json, nl-amsterdam.json)')
 ap.add_argument('--nolines', action='store_true', help='buses only (no city line file, no map entry of its own)')
 ap.add_argument('--roads', default='auto', help='bus routes matched onto OpenStreetMap roads: auto (when the shapes are missing or only join the stops), on, off')
 ap.add_argument('--kind', help='NAME=kind,... e.g. "ORLYVAL=metro"'); ap.add_argument('--rename', help='NAME=New name,...')
@@ -125,7 +126,7 @@ def region_pbf():  # the smallest Geofabrik extract that covers the whole city
         with urllib.request.urlopen(req, timeout=1800) as r, open(fn + '.part', 'wb') as f: shutil.copyfileobj(r, f)
         os.replace(fn + '.part', fn)
     return fn
-jf = os.path.join(HERE, f'fr-{a.id}.json')
+jf = os.path.join(HERE, f'{a.country}-{a.id}.json')
 env = dict(os.environ, USE_ROUTE_COLOR='1' if colours else '0', PYTHONIOENCODING='utf-8')
 if a.nolines: d = {'lines':[], 'stations':[]}; tmap = ''
 elif tmap and has_shapes:
@@ -190,6 +191,6 @@ if not a.nolines and (N - S > 1.0 or E - W > 1.4) and not a.box: report['no_entr
 if a.nolines or report.get('no_entry'):
     print(json.dumps(report, ensure_ascii=False)); sys.exit(0)
 ix = os.path.join(HERE, 'fr-index.json'); idx = json.load(open(ix, encoding='utf-8')) if os.path.exists(ix) else []
-idx = [c for c in idx if c['id'] != a.id] + [{'id':a.id, 'name':a.name, 'box':[round(S, 3), round(W, 3), round(N, 3), round(E, 3)], 'url':f'cities/fr-{a.id}.json', 'bus':a.bus.split(',')}]
+idx = [c for c in idx if c['id'] != a.id] + [{'id':a.id, 'name':a.name, 'box':[round(S, 3), round(W, 3), round(N, 3), round(E, 3)], 'url':f'cities/{a.country}-{a.id}.json', 'bus':a.bus.split(',')}]
 json.dump(idx, open(ix, 'w', encoding='utf-8'), ensure_ascii=False, indent=0)
 print(json.dumps(report, ensure_ascii=False))

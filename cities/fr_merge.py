@@ -8,7 +8,7 @@ import os, sys, json, math, subprocess
 HERE = os.path.dirname(os.path.abspath(__file__)); BASE = '6c9aa8ce'; root = os.path.join(HERE, '.build')
 nets = [c for c in os.listdir(root) if os.path.isdir(os.path.join(root, c, 'busnet'))]
 want = sys.argv[1:] or nets
-cityfile = {c for c in nets if os.path.exists(os.path.join(HERE, f'fr-{c}.json'))}
+cityfile = {c for c in nets if any(os.path.exists(os.path.join(HERE, f'{cc}-{c}.json')) for cc in ('fr', 'nl', 'be', 'de', 'ch', 'lu', 'es', 'it', 'at', 'pt'))}
 order = sorted(nets, key=lambda c: (c not in cityfile, c))
 tiles = {fn for c in want if os.path.isdir(os.path.join(root, c, 'busnet')) for fn in os.listdir(os.path.join(root, c, 'busnet'))}
 CY, CX = 0.0001, 0.00015                      # ~11 m cells
