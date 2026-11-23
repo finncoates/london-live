@@ -27,7 +27,7 @@ html,body{margin:0;height:100%;background:var(--bg);color:var(--ink);font:15px/1
   background:var(--panel);border:1px solid var(--edge);border-radius:14px;box-shadow:0 6px 24px rgba(0,0,0,.2);padding:14px}
 h1{margin:0 0 10px;font-size:18px;font-weight:800;display:flex;align-items:center;gap:6px;white-space:nowrap}
 h1 .sp{flex:1}
-#ttl{overflow:hidden;text-overflow:ellipsis;min-width:0} h1 .icon{padding:6px 7px;flex:none} h1{gap:5px}
+#mapMenu i.ldn-txt, #mapMenu i.away-txt{font-style:normal} #ttl{overflow:hidden;text-overflow:ellipsis;min-width:0} h1 .icon{padding:6px 7px;flex:none} h1{gap:5px}
 form{display:grid;gap:8px}
 .field{display:flex;align-items:center;gap:8px;background:var(--soft);border-radius:10px;padding:0 10px}
 .field label{font-size:12px;color:var(--mute);min-width:34px;white-space:nowrap}
@@ -182,7 +182,7 @@ body.dark #simnote{background:#1f2a44;color:#c6dafc}
 #mModes{margin:0 0 8px}
 #legend{display:grid;gap:0}
 body.abroad #mModes [data-mode=rail]{display:none}
-body.away #mapMenu .ldn-only, body.away #legend, body.away #lgAll, body.away #sbox, body.abroad #nrbox, body.away #mModes .mcat[data-cat^='Tube'], body.away #mModes .mcat[data-cat='Boats'], body.away #mModes .mcat[data-cat='Road works'], body.abroad #mModes .mcat[data-cat='National Rail'], body.away #mModes [data-mode=tube], body.away #mModes [data-mode=overground], body.away #mModes [data-mode=elizabeth], body.away #mModes [data-mode=dlr], body.away #mModes [data-mode=tram], body.away #mModes [data-mode=river], body.away #mModes [data-mode=cable], body.away #mModes [data-mode=road]{display:none} /* London-only parts, hidden elsewhere */
+body.away #mapMenu .ldn-only, body.away #mapMenu .ldn-txt, body:not(.away) #mapMenu .away-txt, body.away #legend, body.away #lgAll, body.away #sbox, body.abroad #nrbox, body.away #mModes .mcat[data-cat^='Tube'], body.away #mModes .mcat[data-cat='Boats'], body.away #mModes .mcat[data-cat='Road works'], body.abroad #mModes .mcat[data-cat='National Rail'], body.away #mModes [data-mode=tube], body.away #mModes [data-mode=overground], body.away #mModes [data-mode=elizabeth], body.away #mModes [data-mode=dlr], body.away #mModes [data-mode=tram], body.away #mModes [data-mode=river], body.away #mModes [data-mode=cable], body.away #mModes [data-mode=road]{display:none} /* London-only parts, hidden elsewhere */
 .lgall{display:flex;justify-content:flex-end;gap:14px;margin:2px 0 4px}.lgall button{background:none;border:0;padding:4px 2px;color:var(--mute);font-size:12.5px;font-weight:600;cursor:pointer}.lgall button:hover{color:var(--ink)}
 .row{display:flex;align-items:center;gap:8px;padding:4px 2px;border:0;background:none;border-radius:6px;font-size:14px;text-align:left;width:100%}
 .row:hover{background:var(--soft)}
@@ -253,7 +253,7 @@ body.kiosk #map{bottom:0!important}
       <div class="seg2" role="group" aria-label="Map style"><button data-ms="google">Google Maps</button><button data-ms="original">Original</button></div></div>
     <label class="mm-row"><span>Hide places &amp; labels<small>Shops, landmarks, stations and area names. Street names stay.</small></span><input type="checkbox" id="mQuiet" class="switch"></label>
     <label class="mm-row"><span>Dark map</span><input type="checkbox" id="mDark" class="switch"></label>
-    <label class="mm-row ldn-only"><span>Show trains<small>The moving train shapes. The lines stay.</small></span><input type="checkbox" id="mIcons" class="switch"></label>
+    <label class="mm-row"><span><i class="ldn-txt">Show trains</i><i class="away-txt">Show vehicles</i><small><i class="ldn-txt">The moving train shapes.</i><i class="away-txt">The moving trams, buses and coaches.</i> The lines stay.</small></span><input type="checkbox" id="mIcons" class="switch"></label>
     <label class="mm-row"><span>Show stations<small>Station dots and names on the lines (zoom in).</small></span><input type="checkbox" id="mStations" class="switch"></label>
     <label class="mm-row ldn-only"><span>Step-free view<small>Stations with lift access to the platforms in blue, others faded (TfL data; zoom in).</small></span><input type="checkbox" id="mSF" class="switch"></label>
     <label class="mm-row ldn-only"><span>Lines side by side<small>Where lines share track (e.g. Circle and District), draw them next to each other.</small></span><input type="checkbox" id="mLanes" class="switch"></label>
@@ -2892,7 +2892,7 @@ tick(); setInterval(tick, 1000);
 map.addListener('dragstart', () => { $('tip').style.display = 'none'; hover = null; });
 map.addListener('zoom_changed', () => { $('tip').style.display = 'none'; hover = null; });
 renderModeChips(); renderLegend(); syncMapMenu();
-if(DEBUG) window.LLT = {ukStops: () => ukStopsHere(), ukStopAt: (x, y) => ukStopAt(x, y), RV: () => RIVER_E, st: () => ({coach:COACH.on, cn:COACH.n, busOff:busOff(), TRAINS_ON, away:document.body.classList.contains("away"), GPS_OFF:[...GPS_OFF], MODES_OFF:[...MODES_OFF], note:BUS.note, size:GPS.list.size}), AUTO, autoNext: () => autoNext(), trains, ACTIVE, BY, placeTrain, segTime, refresh, map, draw, goStation, searchStations, scr, stationAt, GPS, gpsPos, BIKES, SHARE, cityData: () => cityData(), stationExtras, BUS, ROADS, LP: () => LPATHS};
+if(DEBUG) window.LLT = {ghit: () => draw.ghit || [], ukStops: () => ukStopsHere(), ukStopAt: (x, y) => ukStopAt(x, y), RV: () => RIVER_E, st: () => ({coach:COACH.on, cn:COACH.n, busOff:busOff(), TRAINS_ON, away:document.body.classList.contains("away"), GPS_OFF:[...GPS_OFF], MODES_OFF:[...MODES_OFF], note:BUS.note, size:GPS.list.size}), AUTO, autoNext: () => autoNext(), trains, ACTIVE, BY, placeTrain, segTime, refresh, map, draw, goStation, searchStations, scr, stationAt, GPS, gpsPos, BIKES, SHARE, cityData: () => cityData(), stationExtras, BUS, ROADS, LP: () => LPATHS};
 
 // ---------- boot ----------
 (async () => {
