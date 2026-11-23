@@ -26,14 +26,18 @@ if command -v apt-get >/dev/null; then # Ubuntu / Debian
   node_ok || { curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash -; sudo apt-get install -y nodejs; }
 else # Oracle Linux / RHEL
   node_ok || node_tarball
-  command -v git >/dev/null && command -v crontab >/dev/null || sudo dnf install -y --setopt=install_weak_deps=False git-core cronie
-  sudo systemctl enable --now crond
 fi
 node_ok || { echo "Couldn't install Node.js 20+"; exit 1; }
 NODE=$(command -v node)
 cd ~
-[ -d london-live ] || git clone --depth 1 https://github.com/finncoates/london-live.git
-cd london-live && git pull --ff-only
+# the code: git if the machine has it, otherwise GitHub's download (no package manager needed)
+if [ -d london-live/.git ] && command -v git >/dev/null; then (cd london-live && git pull --ff-only)
+elif command -v git >/dev/null && [ ! -d london-live ]; then git clone --depth 1 https://github.com/finncoates/london-live.git
+else
+  curl -fsSL https://codeload.github.com/finncoates/london-live/tar.gz/refs/heads/main -o /tmp/ll.tgz
+  mkdir -p london-live && tar -xzf /tmp/ll.tgz -C london-live --strip-components=1 && rm -f /tmp/ll.tgz
+fi
+cd london-live
 cd rail/darwin && npm ci --omit=dev
 # settings file (secrets), readable only by root and the service
 if [ ! -f /etc/london-live-darwin.env ]; then
@@ -89,6 +93,24 @@ else # Ubuntu: iptables
   sudo netfilter-persistent save >/dev/null 2>&1 || true
 fi
 # keep the code current: pull and restart every night at 04:10
-( crontab -l 2>/dev/null | grep -v london-live-update; echo "10 4 * * * PATH=/opt/node/bin:/usr/local/bin:/usr/bin:/bin; cd $HOME/london-live && git pull --ff-only -q && cd rail/darwin && npm ci --omit=dev --silent && sudo systemctl restart london-live-darwin # london-live-update" ) | crontab -
+# keep the code current: a systemd timer reruns this script every night at 04:10 (it updates and restarts)
+cp -f "$HOME/london-live/rail/darwin/install.sh" "$HOME/london-live-update.sh"
+sudo tee /etc/systemd/system/london-live-update.service >/dev/null <<UNIT
+[Service]
+Type=oneshot
+User=$USER
+Environment=PATH=/opt/node/bin:/usr/local/bin:/usr/bin:/bin
+WorkingDirectory=$HOME
+ExecStart=/bin/bash $HOME/london-live-update.sh
+UNIT
+sudo tee /etc/systemd/system/london-live-update.timer >/dev/null <<'UNIT'
+[Timer]
+OnCalendar=*-*-* 04:10
+Persistent=true
+[Install]
+WantedBy=timers.target
+UNIT
+sudo systemctl daemon-reload && sudo systemctl enable --now london-live-update.timer >/dev/null
+if command -v crontab >/dev/null; then ( crontab -l 2>/dev/null | grep -v london-live-update || true ) | crontab -; fi
 sudo systemctl restart london-live-darwin
 echo "Installed. Check: curl http://localhost:8080/health"
