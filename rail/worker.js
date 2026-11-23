@@ -236,7 +236,8 @@ function parseSiriVm(xml){
     if(seen.has(id)) continue; seen.add(id);
     const brg = tag(x, 'Bearing');
     const t = Date.parse(tag(x, 'RecordedAtTime') || '') || null; if(t && Date.now() - t > 600000) continue; // no report for 10 min: parked / off service
-    out.push({id, line:tag(x, 'PublishedLineName') || tag(x, 'LineRef') || '', op:tag(x, 'OperatorRef') || '', dest:unesc(tag(x, 'DestinationName') || '').replace(/_/g, ' '),
+    const op = tag(x, 'OperatorRef') || ''; if(/^(test|dummy)/i.test(op)) continue; // operators' test feeds
+    out.push({id, line:tag(x, 'PublishedLineName') || tag(x, 'LineRef') || '', op, dest:unesc(tag(x, 'DestinationName') || '').replace(/_/g, ' ').replace(/^Destination$/i, ''),
       lat:Math.round(lat*1e5)/1e5, lon:Math.round(lon*1e5)/1e5, brg:brg == null ? null : +brg, t});
   }
   return out;
@@ -251,7 +252,7 @@ function parseBustimes(list){
     const brand = ((v.vehicle || {}).name || '') + ' ' + ((v.service || {}).url || ''), named = /flix/i.test(brand) ? 'FLIX' : /megabus/i.test(brand) ? 'MEGA' : /national.express/i.test(brand) ? 'NATX' : /citylink/i.test(brand) ? 'SCLK' : '';
     return {id:'bt:' + v.id, line:(v.service || {}).line_name || '', op:v.operator_id || slug.split('-')[0].toUpperCase() || named, dest:v.destination || '',
       lat:+v.coordinates[1], lon:+v.coordinates[0], brg:v.heading ?? null, t:Date.parse(v.datetime) || null, col:(v.vehicle || {}).colour || null, late:v.delay != null ? -v.delay : null}; })
-    .filter(v => !v.t || Date.now() - v.t < 600000);
+    .filter(v => (!v.t || Date.now() - v.t < 600000) && !/^(test|dummy)/i.test(v.op));
 }
 // bustimes.org departures fragment: rows of [line, destination, scheduled hh:mm, expected hh:mm or '']
 function parseStopDeps(html){
