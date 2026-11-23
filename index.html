@@ -2398,6 +2398,7 @@ function applyRegion(){
     if(best) $('ttl').textContent = best.name + ' live map'; }
   { const t = $('ttl'), fit = () => { t.style.fontSize = ''; for(let f = 17; f >= 15 && t.scrollWidth > t.clientWidth + 1; f--) t.style.fontSize = f + 'px'; return t.scrollWidth <= t.clientWidth + 1; };
     if(!fit() && / map$/.test(t.textContent)){ t.textContent = t.textContent.replace(/ map$/, ''); fit(); } } // long names shrink a little rather than being cut off
+  $('bFit').title = away ? 'Near me (tap again: the area around you)' : 'Near me (tap again: all of London)';
   $('q').placeholder = !away ? 'Search a station or line (e.g. 172)' : abroad ? 'Search a station or line' : 'Search a station or route (e.g. X1)';
   if(typeof onTrainsUpdate === 'function') onTrainsUpdate(ACTIVE.reduce((s, l) => s + (shown(l) ? l.count : 0), 0));
 }
@@ -2883,7 +2884,9 @@ $('bKiosk').onclick = () => document.body.classList.toggle('kiosk');
 // ⌖: near me (your position, nearest station's departures); tap again for the whole network
 let nearMode = false, nearWatch = null;
 $('bFit').onclick = () => {
-  if(nearMode || !navigator.geolocation){ nearMode = false; if(nearWatch != null){ navigator.geolocation.clearWatch(nearWatch); nearWatch = null; } me = null; map.panTo(LL(HOME[0])); map.setZoom(Math.round(HOME[1])); return; }
+  if(nearMode || !navigator.geolocation){ nearMode = false; if(nearWatch != null){ navigator.geolocation.clearWatch(nearWatch); nearWatch = null; } const was = me; me = null;
+    if(document.body.classList.contains('away') && was){ map.panTo(LL(was)); map.setZoom(12); return; } // outside London: the area around you, not London
+    map.panTo(LL(HOME[0])); map.setZoom(Math.round(HOME[1])); return; }
   $('bFit').textContent = '…';
   navigator.geolocation.getCurrentPosition(pos => { $('bFit').textContent = '⌖'; nearMode = true;
     me = [pos.coords.latitude, pos.coords.longitude]; meAcc = pos.coords.accuracy || 0;
