@@ -2701,7 +2701,7 @@ const lineResult = (s, i) => `<li role="option" data-i="${i}" class="${i===SR.se
 function searchCityStations(text){
   const q = text.trim().toLowerCase(); if(q.length < 2) return []; const out = [];
   for(const d of cityData()) for(const st of d.stations || []){ const n = stName(st[1]).toLowerCase(); if(n.startsWith(q) || (q.length >= 3 && n.includes(q))) out.push({cityHit:true, st, d, score:n.startsWith(q) ? 0 : 1}); }
-  if(typeof nrOn === 'function' && nrOn()) for(const [crs, n, la, lo] of RAIL.stations){ const k = n.toLowerCase(); if(k.startsWith(q) || (q.length >= 3 && k.includes(q)) || crs.toLowerCase() === q)
+  if(typeof nrOn === 'function' && nrOn()) for(const [crs, n, la, lo] of RAIL.stations){ const k = n.toLowerCase(); if(k.startsWith(q) || (q.length >= 4 && k.includes(q)) || crs.toLowerCase() === q)
     out.push({cityHit:true, st:[crs, n, la, lo, [['National Rail', '#5D6670', 'train']]], d:{url:'nr'}, score:crs.toLowerCase() === q ? -1 : k.startsWith(q) ? 0 : 1}); }
   const c = map.getCenter(), here = c ? [c.lat(), c.lng()] : [0, 0]; // same match: the nearer one first
   return out.sort((a, b) => a.score - b.score || (dist(here, [a.st[2], a.st[3]]) > 60000) - (dist(here, [b.st[2], b.st[3]]) > 60000) || b.st[4].length - a.st[4].length).slice(0, 6);
