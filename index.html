@@ -2107,7 +2107,7 @@ async function refreshGps(){
     if(z < 11){ GPS.list.clear(); BUS.note = `${rc[2]}: zoom in to see buses and trams live`; renderBusNote(); return; }
     if(GPS.busy) return; GPS.busy = true;
     try{ const res = await railGet('/vehicles?src=' + rc[0]); if(busOff()) res.vehicles = res.vehicles.filter(v => v.tram); gpsMerge(res);
-      BUS.note = `${GPS.list.size} ${busOff() ? 'trams' : 'buses and trams'} live in ${rc[2]} (GPS)${busOff() ? '. Turn on Buses for buses too' : ''}`; }
+      BUS.note = `${GPS.list.size} ${(t => busOff() ? 'trams' : t ? 'buses and trams' : 'buses and trolleybuses')([...GPS.list.values()].some(g => g.v.tram))} live in ${rc[2]} (GPS)${busOff() ? '. Turn on Buses for buses too' : ''}`; }
     catch(e){ BUS.note = rc[2] + ': ' + e.message; }
     GPS.busy = false; renderBusNote(); return;
   }
@@ -2216,7 +2216,7 @@ function busnetTiles(){
 }
 const BUSNET_COL = {berlin:['#A5027D', '#D04FAE'], boston:['#E0A000', '#FFC72C'], helsinki:['#007AC9', '#3AA0E8'], oslo:['#E60000', '#FF5A5A']};
 function drawBusNet(ctx){
-  if(busOff() || GPS_OFF.has('bus') || PV.z < 12) return; const c = map.getCenter(); if(!c) return; const rg = regionOf([c.lat(), c.lng()]); { if(rg !== 'uk' && rg !== 'edinburgh' && rg !== 'london' && rg !== 'berlin' && rg !== 'boston' && !(rg === 'finland' && inHelsinki([c.lat(), c.lng()])) && !(rg === 'norway' && [inOslo, inBergen, inTrondheim].some(f => f([c.lat(), c.lng()]))) && !CITYL.cur?.name?.match(/Manchester/)) return; } // Berlin, Boston, Helsinki: from their own timetables
+  if(busOff() || GPS_OFF.has('bus') || PV.z < 12) return; const c = map.getCenter(); if(!c) return; const rg = regionOf([c.lat(), c.lng()]); { if(rg !== 'uk' && rg !== 'edinburgh' && rg !== 'london' && rg !== 'berlin' && rg !== 'boston' && !(rg === 'finland' && inHelsinki([c.lat(), c.lng()])) && !(rg === 'norway' && [inOslo, inBergen, inTrondheim].some(f => f([c.lat(), c.lng()]))) && !(rg === 'city' && relayCity([c.lat(), c.lng()])[0] === 'vilnius') && !CITYL.cur?.name?.match(/Manchester/)) return; } // Berlin, Boston, Helsinki: from their own timetables
   const zc = Math.floor(PV.z), k = 2 ** (PV.z - zc), look = lineLook('bus', lineW());
   const O = orgAt(zc); ctx.save(); localView(ctx, O, k); ctx.globalAlpha = dark ? Math.min(1, look.alpha*1.4) : look.alpha; ctx.strokeStyle = (BUSNET_COL[rg === 'finland' ? 'helsinki' : rg === 'norway' ? 'oslo' : rg] || ['#DC241F', '#E8574F'])[dark ? 1 : 0]; /* the colour of the city's own buses (Berlin purple, Boston yellow, Helsinki blue); red in Britain */ ctx.lineWidth = look.w/k; ctx.lineJoin = 'round'; ctx.lineCap = 'round';
   const ldn = regionOf([c.lat(), c.lng()]) === 'london';
