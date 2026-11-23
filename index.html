@@ -2638,8 +2638,9 @@ function searchLines(text){
     for(const l of ACTIVE){ if(l.mode === 'bus' && !l.layer) continue; const n = l.name.toLowerCase();
       if(n === q || n.startsWith(q) || (q.length >= 3 && n.includes(q)) || (alias && alias[1] === l.mode && !seen.has(l.id))){ out.push({lineHit:true, id:l.id, name:l.name, col:l.colour, mode:l.mode, exact:n === q}); seen.add(l.id); } }
     if(/^[a-z]{0,2}\d{1,3}[a-z]?$/i.test(q) && !seen.has(q)) out.push({lineHit:true, id:q, name:q.toUpperCase(), col:'#DC241F', mode:'bus', exact:true, bus:true});
-  } else for(const d of cityData()){ const names = new Map(); for(const l of d.lines) if(!names.has(l.name)) names.set(l.name, l);
-    for(const [n, l] of names){ const k = String(n).toLowerCase(); if(k === q || k.startsWith(q)) out.push({lineHit:true, city:true, name:n, col:l.col, mode:l.kind, exact:k === q}); } }
+  } else { const sys = q.length >= 3 && /^(tram|trams|metro|metrolink|supertram|subway|nexus|net|luas|light rail)/.test(q); // the system's name: all its lines
+    for(const d of cityData()){ const names = new Map(); for(const l of d.lines) if(!names.has(l.name)) names.set(l.name, l);
+    for(const [n, l] of names){ const k = String(n).toLowerCase(); if(k === q || k.startsWith(q) || (sys && l.kind !== 'train' && l.kind !== 'ferry')) out.push({lineHit:true, city:true, name:n, col:l.col, mode:l.kind, exact:k === q}); } } }
   if(document.body.classList.contains('away') && typeof GPS !== 'undefined'){ // live buses and coaches in the area: by route number
     const live = new Map(); for(const g of GPS.list.values()){ if(vkind(g.v) !== 'bus' || g.v.line == null) continue; const n = String(g.v.line), k = n.toLowerCase();
       const lk = (g.v.coach ? 'c' : 'b') + ':' + n; // a local bus and a coach can share a number (e.g. 700)
@@ -2655,7 +2656,8 @@ function searchCityStations(text){
   for(const d of cityData()) for(const st of d.stations || []){ const n = stName(st[1]).toLowerCase(); if(n.startsWith(q) || (q.length >= 3 && n.includes(q))) out.push({cityHit:true, st, d, score:n.startsWith(q) ? 0 : 1}); }
   if(typeof nrOn === 'function' && nrOn()) for(const [crs, n, la, lo] of RAIL.stations){ const k = n.toLowerCase(); if(k.startsWith(q) || (q.length >= 3 && k.includes(q)) || crs.toLowerCase() === q)
     out.push({cityHit:true, st:[crs, n, la, lo, [['National Rail', '#5D6670', 'train']]], d:{url:'nr'}, score:crs.toLowerCase() === q ? -1 : k.startsWith(q) ? 0 : 1}); }
-  return out.sort((a, b) => a.score - b.score || b.st[4].length - a.st[4].length).slice(0, 6);
+  const c = map.getCenter(), here = c ? [c.lat(), c.lng()] : [0, 0]; // same match: the nearer one first
+  return out.sort((a, b) => a.score - b.score || (dist(here, [a.st[2], a.st[3]]) > 60000) - (dist(here, [b.st[2], b.st[3]]) > 60000) || b.st[4].length - a.st[4].length).slice(0, 6);
 }
 function pickResult(x){ if(!x) return; if(x.lineHit) focusLine(x); else if(x.cityHit){ $('q').value = stName(x.st[1]); SR.items = []; renderResults(); $('q').blur(); map.setZoom(Math.max(map.getZoom(), 15)); openCityStation({st:x.st, url:x.d.url}); } else goStation(x); }
 async function focusLine(x){
