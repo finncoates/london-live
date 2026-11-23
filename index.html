@@ -2259,7 +2259,7 @@ function nrPolysets(z){ const polysets = []; // the National Rail map tiles for 
       const ps = NRNET.tiles.get(t); if(ps && ps.length) polysets.push([t, ps]); } }
   return polysets; }
 // London: the National Rail network under the TfL lines (grey double line, as elsewhere), until live National Rail trains arrive with the rail data key
-const nrLondon = () => !document.body.classList.contains('away') && !MODES_OFF.has('rail') && !(typeof railOn === 'function' && railOn());
+const nrLondon = () => !document.body.classList.contains('away') && !!map.getCenter() && inLondonView([map.getCenter().lat(), map.getCenter().lng()]) && !MODES_OFF.has('rail') && !(typeof railOn === 'function' && railOn());
 function drawNRWorld(g, zi, W){
   if(!nrLondon() || zi < 9) return; const sets = nrPolysets(zi); if(!sets.length) return;
   g.save(); g.lineJoin = 'round'; g.lineCap = 'round'; const w = Math.max(1.6, W*(zi >= 12 ? 0.95 : 0.75));
