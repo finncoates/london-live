@@ -243,7 +243,7 @@ body.kiosk #map{bottom:0!important}
   <div id="status">Loading lines…</div>
   <div id="explore" class="explore" hidden></div>
   <div class="search">
-    <div class="field"><label for="q">Find</label><input id="q" placeholder="Search a station or line (e.g. 172, Victoria)" autocomplete="off" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="sres" enterkeyhint="search"></div>
+    <div class="field"><label for="q">Find</label><input id="q" placeholder="Search a station or line (e.g. 172)" autocomplete="off" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="sres" enterkeyhint="search"></div>
     <ul id="sres" role="listbox" hidden></ul>
   </div>
   <div id="station" hidden></div>
@@ -2379,7 +2379,12 @@ function applyRegion(){
   document.body.classList.toggle('away', away); document.body.classList.toggle('abroad', abroad);
   if(wasAway !== away || wasAbroad !== abroad){ renderModeChips(); if(typeof refreshGps === 'function') refreshGps(); }
   $('ttl').textContent = !away ? 'London live trains' : inHelsinki([c.lat(), c.lng()]) && map.getZoom() >= 10 ? 'Helsinki live map' : {finland:'Finland live trains', norway:'Norway live map', boston:'Boston live map', berlin:'Berlin live map', city:(relayCity([c.lat(), c.lng()]) || [, , ''])[2] + ' live map', edinburgh:'Edinburgh live map', uk:'UK live map', world:'Live map', london:'London live trains'}[r];
-  $('q').placeholder = !away ? 'Search a station or line (e.g. 172, Victoria)' : abroad ? 'Search a station or line' : 'Search a station or route (e.g. York, X1)';
+  if(r === 'uk' && map.getZoom() >= 11){ const p = [c.lat(), c.lng()]; let best = null, bd = 15000; // the town in view, when it's one Explore knows
+    for(const ct of CATALOG) for(const co of ct.countries) for(const ci of co.cities){ if(ci.at[2] <= 7 || ci.name === 'London') continue; const d = dist(p, ci.at); if(d < bd){ bd = d; best = ci; } }
+    if(best) $('ttl').textContent = best.name + ' live map'; }
+  { const t = $('ttl'), fit = () => { t.style.fontSize = ''; for(let f = 17; f >= 15 && t.scrollWidth > t.clientWidth + 1; f--) t.style.fontSize = f + 'px'; return t.scrollWidth <= t.clientWidth + 1; };
+    if(!fit() && / map$/.test(t.textContent)){ t.textContent = t.textContent.replace(/ map$/, ''); fit(); } } // long names shrink a little rather than being cut off
+  $('q').placeholder = !away ? 'Search a station or line (e.g. 172)' : abroad ? 'Search a station or line' : 'Search a station or route (e.g. X1)';
   if(typeof onTrainsUpdate === 'function') onTrainsUpdate(ACTIVE.reduce((s, l) => s + (shown(l) ? l.count : 0), 0));
 }
 map.addListener('idle', applyRegion);
@@ -2559,7 +2564,7 @@ function roadTip(e, r, tip){
 }
 function renderBusNote(){ if(document.body.classList.contains('away') && typeof onTrainsUpdate === 'function') onTrainsUpdate(0); // away: the status counts what's live here
   let el = $('busNote'); if(!el) return; const away = document.body.classList.contains('away');
-  const t = BUS.note + (away && COACH.on && COACH.n ? (BUS.note ? ' · ' : '') + COACH.n + ' coaches on the road across Britain (live)' : '');
+  const t = BUS.note + (away && !document.body.classList.contains('abroad') && COACH.on && COACH.n ? (BUS.note ? ' · ' : '') + COACH.n + ' coaches on the road across Britain (live)' : '');
   el.textContent = t; el.hidden = !t; }
 map.addListener('idle', () => { clearTimeout(BUS.t); BUS.t = setTimeout(() => updateBuses(), 400); }); // settle first
 
