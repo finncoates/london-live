@@ -2160,7 +2160,7 @@ async function refreshGps(){
 const LIVE_TRAMS = {'LOTH:T50':'Edinburgh Trams'};
 function gpsMerge(res, prefix){
     const now = Date.now();
-    for(const v of res.vehicles || []){ const lt = LIVE_TRAMS[v.op + ':' + v.line]; if(lt){ v.tram = true; v.kind = 'tram'; v.line = lt; v.op = 'Edinburgh Trams'; LIVE_TRAMS.seen = now; }
+    for(const v of res.vehicles || []){ const lt = LIVE_TRAMS[v.op + ':' + v.line]; if(lt){ v.tram = true; v.kind = 'tram'; v.line = lt; v.op = 'Edinburgh Trams'; if(!LIVE_TRAMS.seen || now - LIVE_TRAMS.seen > 120000) for(const [k, g] of [...GPS.list]) if(k.startsWith('sch:') && g.v.tram && inEdinburgh(g.to)) GPS.list.delete(k); /* live trams arrived: drop the timetable ones at once */ LIVE_TRAMS.seen = now; }
     }
     for(const v of res.vehicles || []){ const sn = snapGps(v); if(sn){ v.lat = sn.lat; v.lon = sn.lon; v.segAng = sn.ang; if(sn.col) v.col = sn.col; }
       let g = GPS.list.get(v.id);
