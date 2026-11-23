@@ -1990,6 +1990,14 @@ async function loadCityLines(p){
       d.grid = grid; d.url = url; d.dupRail = /helsinki\.json/.test(url); CITYL.data.set(url, d); }
     catch(e){ CITYL.data.delete(url); console.warn('city lines', e.message); } }));
 }
+const lineKey = n => String(n).toLowerCase().replace(/\s+line$/, '').trim();
+// where lines share track they are drawn side by side: the screen offset (px) of a vehicle's own line there, so it sits on its lane
+function laneShift(v, p){
+  const kind = vkind(v); if(kind === 'bus' || kind === 'ferry') return null;
+  const sn = snapGps({lat:p[0], lon:p[1], kind, tram:v.tram, metro:v.metro, train:v.train, line:v.line}); if(!sn || !sn.d) return null;
+  const e = cityShare(sn.d)[sn.li]?.[sn.i - 1]; if(!e || e[0] <= 1) return null;
+  const o = (e[1] - (e[0] - 1)/2)*lineW()/e[0], A = scr(sn.l.pts[sn.i - 1]), B = scr(sn.l.pts[sn.i]), dx = B.x - A.x, dy = B.y - A.y, L = Math.hypot(dx, dy) || 1, canon = (dx > 0 || (dx === 0 && dy > 0)) ? 1 : -1;
+  return {x:-dy/L*o*canon, y:dx/L*o*canon}; }
 // nearest point on a line of the same kind (within 60 m), with the line's direction there
 function snapGps(v){
   const sets = cityData(); if(!sets.length) return null;
@@ -2002,8 +2010,8 @@ function snapGps(v){
     for(const code of g){ if(seen.has(code)) continue; seen.add(code); const li = Math.floor(code/100000), i = code % 100000, l = d.lines[li]; if(!ok(l)) continue;
       const a = l.pts[i-1], b = l.pts[i], ax = (a[1]-v.lon)*kx, ay = (a[0]-v.lat)*ky, bx = (b[1]-v.lon)*kx, by = (b[0]-v.lat)*ky;
       const dx = bx-ax, dy = by-ay, L2 = dx*dx + dy*dy || 1e-9, t = Math.max(0, Math.min(1, -(ax*dx + ay*dy)/L2)), px = ax + dx*t, py = ay + dy*t, dd = Math.hypot(px, py);
-      const same = l.name && v.line && l.name.toLowerCase() === String(v.line).toLowerCase(); // prefer the vehicle's own line
-      if(dd - (same ? 25 : 0) < bd){ bd = dd - (same ? 25 : 0); best = {lat:v.lat + py/ky, lon:v.lon + px/kx, l, i, col:same ? l.col : null}; } } } }
+      const same = l.name && v.line && lineKey(l.name) === lineKey(v.line); // prefer the vehicle's own line ('Yellow' is the 'Yellow Line')
+      if(dd - (same ? 25 : 0) < bd){ bd = dd - (same ? 25 : 0); best = {lat:v.lat + py/ky, lon:v.lon + px/kx, l, i, li, d, col:same ? l.col : null}; } } } }
   if(best){ // direction over ~60 m each side (ignores the little kinks inside stations)
     const P = best.l.pts; let i0 = best.i - 1, i1 = best.i;
     while(i0 > 0 && dist(P[i0], [best.lat, best.lon]) < 60) i0--;
@@ -2300,6 +2308,7 @@ function drawGps(ctx, s, hl0, hw0, mpp){
     if(vkind(g.v) === 'bus' && g.v.segAng == null && !g.v.sn && PV.z >= 11 && now - (g.raT || 0) > 1500){ g.raT = now; const ra = g.v.coach ? coachRoadAng(g.v, g.ang) : busRoadAng(g.v, g.ang); if(ra != null) g.v.segAng = ra; } // not yet known: once the road map is in
     ctx.globalAlpha = (LF.city && !lfMatch(g)) || LF.id ? 0.2 : !g.v.line && !g.v.dest && !g.v.coach && vkind(g.v) === 'bus' ? 0.45 : 1; // a bus out of service: faded
     const p = gpsPos(g, now), c = scr(p); if(c.x < -30 || c.y < -30 || c.x > s.x + 30 || c.y > s.y + 30) continue;
+    if((g.v.tram || g.v.metro) && PV.z >= 12){ const sh = laneShift(g.v, p); if(sh){ c.x += sh.x; c.y += sh.y; } } // on its own line where lines run side by side
     let ang = g.v.segAng != null ? g.v.segAng : g.v.brg != null ? (g.v.brg - 90)*rad : g.ang ?? 0; // on a known line: its direction
     if(g.v.segAng == null && g.v.brg == null && (g.to[0] !== g.from[0] || g.to[1] !== g.from[1])) ang = Math.atan2(-(g.to[0] - g.from[0]), (g.to[1] - g.from[1])*cosLat);
     g.ang = ang;
