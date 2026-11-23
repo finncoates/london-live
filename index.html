@@ -2430,6 +2430,7 @@ function applyRegion(){
   if(r === 'uk' && map.getZoom() >= 11){ const p = [c.lat(), c.lng()]; let best = null, bd = 15000; // the town in view, when it's one Explore knows
     for(const ct of CATALOG) for(const co of ct.countries) for(const ci of co.cities){ if(ci.at[2] <= 7 || ci.name === 'London') continue; const d = dist(p, ci.at); if(d < bd){ bd = d; best = ci; } }
     if(best) $('ttl').textContent = best.name + ' live map';
+    else if(map.getZoom() < 13){} // zoomed out: a region, not one town
     else if(!RAIL.stations) railStations().catch(() => {});
     else { let st = null, sd = 2500; for(const x of RAIL.stations){ if(Math.abs(x[2] - p[0]) > 0.03) continue; const d = dist(p, [x[2], x[3]]); if(d < sd){ sd = d; st = x; } } // else the town of the nearest railway station
       if(st) $('ttl').textContent = st[1].replace(/\s*\(.*\)$/, '').replace(/\s+(Central|General|Parkway|Interchange|International|Priory|Paragon|Exchange|Junction|High Street|Town|City|Low Level|High Level|(North|South|East|West)( Street)?)$/i, '') + ' live map'; } }
