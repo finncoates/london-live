@@ -1856,12 +1856,15 @@ function schedVehicles(){
   const today = P.year + P.month + P.day, sec = +P.hour*3600 + +P.minute*60 + +P.second, y = new Date(Date.now() - 864e5);
   const Q2 = Object.fromEntries(new Intl.DateTimeFormat('en-GB', {timeZone:'Europe/London', year:'numeric', month:'2-digit', day:'2-digit'}).formatToParts(y).map(x => [x.type, x.value])), yday = Q2.year + Q2.month + Q2.day;
   const out = [];
-  for(const d of sets){ const S = d.sched; if(d.op === 'Edinburgh Trams' && LIVE_TRAMS.seen && Date.now() - LIVE_TRAMS.seen < 120000) continue; // live GPS trams instead
+  for(const d of sets){ const S = d.sched; if(d.op === 'Edinburgh Trams' && LIVE_TRAMS.seen && Date.now() - LIVE_TRAMS.seen < 120000 && LIVE_TRAMS.n >= (LIVE_TRAMS.sn || 0)*0.6) continue; // live GPS trams instead (when the live feed has most of them)
     for(const [day, t] of [[today, sec], [yday, sec + 86400]]){ const li = schedDay(S, day); if(li == null) continue;
       for(const [pi, t0] of S.lists[li]){ const pt = S.patterns[pi], el = t - t0; if(el < 0 || el > pt.off[pt.off.length-1]) continue;
         let i = 1; while(i < pt.off.length - 1 && pt.off[i] < el) i++;
         const f = Math.max(0, Math.min(1, (el - pt.off[i-1]) / ((pt.off[i] - pt.off[i-1]) || 1))), q = alongHop(d, pt, i, f);
         out.push({id:'sch:' + pi + ':' + t0, line:pt.line.replace(/ Line$/, ''), op:pt.op || d.op || 'Metrolink', dest:pt.dest, lat:q[0], lon:q[1], segAng:q[2], brg:null, t:null, tram:(pt.kind || 'tram') === 'tram', metro:pt.kind === 'metro', kind:pt.kind || 'tram', col:pt.col, sched:true}); } } }
+  { const e = out.filter(v => v.op === 'Edinburgh Trams').length; if(e) LIVE_TRAMS.sn = e; } // how many trams the timetable has out (to judge the live feed)
+  { const live = [...GPS.list.entries()].filter(([k, g]) => !k.startsWith('sch:') && g.v.op === 'Edinburgh Trams' && Date.now() - g.seen < 120000).map(([, g]) => g.to); // a tram already shown live: not again from the timetable
+    if(live.length) for(let i = out.length - 1; i >= 0; i--) if(out[i].op === 'Edinburgh Trams' && live.some(p => dist(p, [out[i].lat, out[i].lon]) < 700)) out.splice(i, 1); }
   gpsMerge({vehicles:out}, 'sch:');
   const ids = new Set(out.map(v => v.id)); for(const k of [...GPS.list.keys()]) if(k.startsWith('sch:') && !ids.has(k)) GPS.list.delete(k); // finished or replaced by live GPS
   if(document.body.classList.contains('away') && typeof onTrainsUpdate === 'function') onTrainsUpdate(0);
@@ -2160,8 +2163,9 @@ async function refreshGps(){
 const LIVE_TRAMS = {'LOTH:T50':'Edinburgh Trams'};
 function gpsMerge(res, prefix){
     const now = Date.now();
-    for(const v of res.vehicles || []){ const lt = LIVE_TRAMS[v.op + ':' + v.line]; if(lt){ v.tram = true; v.kind = 'tram'; v.line = lt; v.op = 'Edinburgh Trams'; if(!LIVE_TRAMS.seen || now - LIVE_TRAMS.seen > 120000) for(const [k, g] of [...GPS.list]) if(k.startsWith('sch:') && g.v.tram && inEdinburgh(g.to)) GPS.list.delete(k); /* live trams arrived: drop the timetable ones at once */ LIVE_TRAMS.seen = now; }
+    for(const v of res.vehicles || []){ const lt = LIVE_TRAMS[v.op + ':' + v.line]; if(lt){ v.tram = true; v.kind = 'tram'; v.line = lt; v.op = 'Edinburgh Trams'; LIVE_TRAMS.seen = now; }
     }
+    { const n = (res.vehicles || []).filter(v => v.op === 'Edinburgh Trams').length; if(n){ LIVE_TRAMS.n = n; if(n >= (LIVE_TRAMS.sn || 0)*0.6) for(const [k, g] of [...GPS.list]) if(k.startsWith('sch:') && g.v.op === 'Edinburgh Trams') GPS.list.delete(k); } } // live trams covering most of them: drop the timetable ones at once
     for(const v of res.vehicles || []){ const sn = snapGps(v); if(sn){ v.lat = sn.lat; v.lon = sn.lon; v.segAng = sn.ang; if(sn.col) v.col = sn.col; }
       let g = GPS.list.get(v.id);
       if(vkind(v) === 'bus' && !sn){ const ra = busRoadAng(v, g ? g.ang : null); if(ra != null) v.segAng = ra; } // parallel to its road, moving or at rest
