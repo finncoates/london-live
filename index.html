@@ -2751,7 +2751,9 @@ function searchCityStations(text){
   if(typeof nrOn === 'function' && nrOn()) for(const [crs, n, la, lo] of RAIL.stations){ const k = n.toLowerCase(); if(k.startsWith(q) || (q.length >= 4 && k.includes(q)) || crs.toLowerCase() === q)
     out.push({cityHit:true, st:[crs, n, la, lo, [['National Rail', '#5D6670', 'train']]], d:{url:'nr'}, score:crs.toLowerCase() === q ? -1 : k.startsWith(q) ? 0 : 1}); }
   const c = map.getCenter(), here = c ? [c.lat(), c.lng()] : [0, 0]; // same match: the nearer one first
-  return out.sort((a, b) => a.score - b.score || (dist(here, [a.st[2], a.st[3]]) > 60000) - (dist(here, [b.st[2], b.st[3]]) > 60000) || b.st[4].length - a.st[4].length).slice(0, 6);
+  out.sort((a, b) => a.score - b.score || (dist(here, [a.st[2], a.st[3]]) > 60000) - (dist(here, [b.st[2], b.st[3]]) > 60000) || b.st[4].length - a.st[4].length);
+  const kept = []; for(const x of out){ if(kept.some(k => stName(k.st[1]).toLowerCase() === stName(x.st[1]).toLowerCase() && dist([k.st[2], k.st[3]], [x.st[2], x.st[3]]) < 400)) continue; kept.push(x); } // one entry per station (two timetables can both list it)
+  return kept.slice(0, 6);
 }
 function pickResult(x){ if(!x) return; if(x.placeHit){ $('q').value = ''; SR.items = []; renderResults(); $('q').blur(); clearFocus(); unfocusLine(); map.panTo({lat:x.ci.at[0], lng:x.ci.at[1]}); map.setZoom(x.ci.at[2]); return; } if(x.lineHit) focusLine(x); else if(x.cityHit){ $('q').value = stName(x.st[1]); SR.items = []; renderResults(); $('q').blur(); map.setZoom(Math.max(map.getZoom(), 15)); openCityStation({st:x.st, url:x.d.url}); } else goStation(x); }
 async function focusLine(x){
