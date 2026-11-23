@@ -2690,7 +2690,7 @@ function searchCityStations(text){
   const c = map.getCenter(), here = c ? [c.lat(), c.lng()] : [0, 0]; // same match: the nearer one first
   return out.sort((a, b) => a.score - b.score || (dist(here, [a.st[2], a.st[3]]) > 60000) - (dist(here, [b.st[2], b.st[3]]) > 60000) || b.st[4].length - a.st[4].length).slice(0, 6);
 }
-function pickResult(x){ if(!x) return; if(x.lineHit) focusLine(x); else if(x.cityHit){ $('q').value = stName(x.st[1]); SR.items = []; renderResults(); $('q').blur(); map.setZoom(Math.max(map.getZoom(), 15)); openCityStation({st:x.st, url:x.d.url}); } else goStation(x); }
+function pickResult(x){ if(!x) return; if(x.placeHit){ $('q').value = ''; SR.items = []; renderResults(); $('q').blur(); clearFocus(); unfocusLine(); map.panTo({lat:x.ci.at[0], lng:x.ci.at[1]}); map.setZoom(x.ci.at[2]); return; } if(x.lineHit) focusLine(x); else if(x.cityHit){ $('q').value = stName(x.st[1]); SR.items = []; renderResults(); $('q').blur(); map.setZoom(Math.max(map.getZoom(), 15)); openCityStation({st:x.st, url:x.d.url}); } else goStation(x); }
 async function focusLine(x){
   unfocusLine(); const gen = (focusLine.gen = (focusLine.gen || 0) + 1); $('q').value = x.mode === 'bus' ? (x.coach ? (x.op || 'Coach') + ' ' : 'Bus ') + x.name : x.name; SR.items = []; renderResults(); $('q').blur(); clearFocus();
   const box = $('station'); box.hidden = false;
@@ -2728,13 +2728,26 @@ function unfocusLine(){
 $('station').addEventListener('click', e => { if(e.target.closest('#lfClose')){ clearFocus(); unfocusLine(); $('q').value = ''; } });
 function renderResults(){
   const ul = $('sres');
-  ul.innerHTML = SR.items.map((s, i) => s.lineHit ? lineResult(s, i) : s.cityHit ? `<li role="option" data-i="${i}" class="${i===SR.sel?'on':''}"><span class="dots">${s.st[4].slice(0, 6).map(l => `<i style="background:${l[1] || '#888'}"></i>`).join('')}</span><span><b>${esc(stName(s.st[1]))}</b><small>${esc(s.st[4].map(l => l[0]).slice(0, 8).join(', '))}</small></span></li>` : `<li role="option" data-i="${i}" class="${i===SR.sel?'on':''}" aria-selected="${i===SR.sel}">
+  ul.innerHTML = SR.items.map((s, i) => s.placeHit ? `<li role="option" data-i="${i}" class="${i===SR.sel?'on':''}"><span class="dots"><i style="background:#1a73e8"></i></span><span><b>${esc(s.ci.name)}</b><small>Go to ${esc(s.ci.name)}'s live map${s.country ? ' · ' + esc(s.country) : ''}</small></span></li>` : s.lineHit ? lineResult(s, i) : s.cityHit ? `<li role="option" data-i="${i}" class="${i===SR.sel?'on':''}"><span class="dots">${s.st[4].slice(0, 6).map(l => `<i style="background:${l[1] || '#888'}"></i>`).join('')}</span><span><b>${esc(stName(s.st[1]))}</b><small>${esc(s.st[4].map(l => l[0]).slice(0, 8).join(', '))}</small></span></li>` : `<li role="option" data-i="${i}" class="${i===SR.sel?'on':''}" aria-selected="${i===SR.sel}">
     <span class="dots">${[...s.lines].slice(0, 6).map(id => `<i style="background:${ink(BY[id].colour)}"></i>`).join('')}</span>
     <span><b>${esc(s.name)}</b><small>${[...s.lines].map(id => esc(BY[id].name)).join(', ')}</small></span></li>`).join('')
     || ($('q').value.trim() ? `<li class="none">${document.body.classList.contains('away') && /^[a-z]{0,3}\d{1,3}[a-z]{0,2}$/i.test($('q').value.trim()) ? `No bus or coach on route ${esc($('q').value.trim().toUpperCase())} is out in this area right now` : 'No station or line found'}</li>` : '');
   ul.hidden = !ul.innerHTML; $('q').setAttribute('aria-expanded', String(!ul.hidden));
 }
-$('q').addEventListener('input', () => { SR.items = [...searchLines($('q').value), ...(document.body.classList.contains('away') ? searchCityStations($('q').value) : searchStations($('q').value))].slice(0, 8); SR.sel = SR.items.length ? 0 : -1; renderResults(); });
+// in London: National Rail stations elsewhere too (e.g. 'Brighton', 'Gatwick', 'MAN'), after London's own
+function searchNrElsewhere(text, have){
+  const q = text.trim().toLowerCase(); if(q.length < 3 && !/^[a-z]{3}$/.test(q)) return []; if(!RAIL.stations){ railStations().then(() => $('q').dispatchEvent(new Event('input'))).catch(() => {}); return []; }
+  const names = new Set(have.map(x => (x.name || '').toLowerCase().replace(/\s+(underground|dlr|rail)? ?station$/, '')));
+  return RAIL.stations.filter(([crs, n]) => { const k = n.toLowerCase(); return (k.startsWith(q) || crs.toLowerCase() === q || (q.length >= 4 && k.includes(q))) && !names.has(k); })
+    .map(x => [x, x[0].toLowerCase() === q || x[1].toLowerCase() === q ? 0 : x[1].toLowerCase().startsWith(q) ? 1 : 2]).sort((a, b) => a[1] - b[1] || a[0][1].length - b[0][1].length).map(x => x[0]).slice(0, 4)
+    .map(([crs, n, la, lo]) => ({cityHit:true, st:[crs, n, la, lo, [['National Rail', '#5D6670', 'train']]], d:{url:'nr'}}));
+}
+// places in Explore ('Edinburgh', 'Helsinki'): go to that city's live map
+function searchPlaces(text){ const q = text.trim().toLowerCase(); if(q.length < 3) return []; const here = cityHere(), out = [];
+  CATALOG.forEach((ct, i) => ct.countries.forEach((co, j) => co.cities.forEach((ci, k) => { const n = ci.name.toLowerCase(); if((n === q || (q.length >= 4 && n.startsWith(q))) && !(here && here[0] === i && here[1] === j && here[2] === k && map.getZoom() >= 11)) out.push({placeHit:true, ci, country:co.name, exact:n === q}); })));
+  return out.sort((a, b) => b.exact - a.exact).slice(0, 2); }
+$('q').addEventListener('input', () => { const away = document.body.classList.contains('away'), L = searchLines($('q').value), S = away ? searchCityStations($('q').value) : searchStations($('q').value);
+  SR.items = [...searchPlaces($('q').value), ...L, ...S, ...(away || L.length + S.length >= 6 ? [] : searchNrElsewhere($('q').value, S))].slice(0, 8); SR.sel = SR.items.length ? 0 : -1; renderResults(); });
 $('q').addEventListener('keydown', e => {
   const n = SR.items.length;
   if(e.key === 'ArrowDown' && n){ e.preventDefault(); SR.sel = (SR.sel + 1) % n; renderResults(); }
