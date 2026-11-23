@@ -37,3 +37,25 @@ Rebuild (e.g. after timetable changes):
 | busnet/ (Berlin, Boston, Helsinki) | Bus routes from each city's own GTFS shapes (VBB https://www.vbb.de/gtfs, MBTA https://cdn.mbta.com/MBTA_GTFS.zip, HSL https://infopalvelut.storage.hsldev.com/gtfs/hsl.zip), each road segment once, same 0.1° tiles: `citybus.py feed.zip cities/busnet s w n e` (Berlin 52.2 12.9 52.8 13.9, Boston 41.9 -71.8 42.9 -70.5, Helsinki 59.95 24.3 60.45 25.4). Drawn in the colour of the city's buses |
 | greater_london.json / .py | Greater London's boundary (OpenStreetMap relation 175342, simplified to ~30 m). `busnet2.py` and `busstops.py` leave out only what is inside it (TfL's own routes and stops), so towns at London's edge (Watford, Dartford, Epsom…) are in `busnet/` and `stops/`; the page uses a ~200 m version to decide when a zoomed-in view is 'London' |
 | stops/ | Every bus stop outside London (Bus Open Data GTFS stops + the routes calling there, `busstops.py`; Northern Ireland from the OpenDataNI Translink stop list), 0.05° tiles. Departures come live from the relay (`/vehicles?src=stop&id=<ATCO>`, bustimes.org departures, cached 45 s). |
+
+## Countries abroad drawn like London (France, the Netherlands, Belgium)
+
+Every city is built from the operators' own open timetables with the same few tools; downloads and each network's own
+bus routes and stops are kept in `cities/.build/<network>/` (git-ignored), so any network can be rebuilt on its own and
+the shared tiles are always remade from all of them (never a second copy on top).
+
+| Step | Tool | What it makes |
+|---|---|---|
+| A city or network | `fr_build.py <id> <Name> <gtfs url or zip> [--country nl] [--agency REGEX] [--box s,w,n,e] [--nolines] [--roads on]` | `<cc>-<id>.json` (metro / tram / local train / ferry / cable / funicular lines in the timetable's colours + stations), its entry in `fr-index.json`, its bus routes and bus stops. Lines without shapes are routed on OpenStreetMap track (`gtfs_tram_osm.py`); bus routes without shapes, or whose shapes only join the stops, are matched onto OpenStreetMap roads (`busnet2.py`) using the smallest Geofabrik extract holding the city |
+| Every French network | `fr_all.py` | all of transport.data.gouv.fr's urban and intercity networks (regional bundles, national operators and school-only networks left out); resumable, logs to `.build/fr_all.log` |
+| Again, with options | `fr_redo.py "--roads on" <id> …` | rebuilds named networks (e.g. ones whose shapes turned out to be straight lines) |
+| Bus map tiles | `fr_merge.py` | `busnet/` tiles = Britain's (git, before France) + every network's routes, each road once (~11 m) |
+| Bus stops | `fr_stops.py` (`stops_backfill.py` for networks built before stops were saved) | `stops/` tiles; tapping one shows Transitous departures |
+| A country's railway | `fr_rail.py` (France: SNCF's line shapes and stations), `rail_gtfs.py <cc> feed.zip box` (from a timetable's train shapes: the Netherlands), `osm_rail.py <cc> country.osm.pbf box` (from OpenStreetMap: Belgium) | `.build/rail/<cc>.json`, then `rail_tiles.py` remakes `nr/` (Britain's + every country's) and `<cc>-stations.json` / `fr-gares.json` |
+| Bikes and scooters | `fr_gbfs.py` | `gbfs-fr.json` (every open GBFS system by town) and `gbfs-fr-hosts.json` (the relay's `/gbfs` passes only these) |
+| Big national timetables | `gtfs_split.py` | one small GTFS per operator group in a single pass |
+
+Sources: France — transport.data.gouv.fr (every network), SNCF open data (railway, stations), gtfs.bus-tracker.fr (Lyon's
+TCL); the Netherlands — OVapi (gtfs.ovapi.nl, all operators); Belgium — SNCB, STIB, De Lijn and TEC open GTFS; OpenStreetMap
+(Geofabrik extracts) for track and roads. Live vehicles come from the London Live server's `feeds.json` (137 French
+GTFS-realtime feeds, OVapi), departures and trip destinations from Transitous.
