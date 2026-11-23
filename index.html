@@ -2255,18 +2255,19 @@ function ukStopAt(x, y){ let best = null, bd = matchMedia('(pointer:coarse)').ma
   for(const [st, d] of ukStopsHere()){ const c = scr([st[2], st[3]]), k = Math.hypot(c.x - x, c.y - y); if(k < bd){ bd = k; best = [st, d]; } } return best; }
 function openUKStop([st, d]){
   const box = $('station'); unfocusLine(); clearFocus(); $('tip').style.display = 'none'; box.hidden = false;
-  const routes = st[4].map(i => d.routes[i]);
+  const routes = st[4].map(i => d.routes[i]).filter(Boolean);
   focusMarker = new google.maps.Marker({position:{lat:st[2], lng:st[3]}, map, zIndex:50, clickable:false, icon:{path:google.maps.SymbolPath.CIRCLE, scale:11, fillColor:'#fff', fillOpacity:.25, strokeColor:'#DC241F', strokeWeight:3}});
-  const head = `<div class="st-h"><b>${esc(st[1])}</b><button type="button" class="x" id="stClose" aria-label="Close">✕</button></div>
+  const head0 = () => `<div class="st-h"><b>${esc(st[1])}</b><button type="button" class="x" id="stClose" aria-label="Close">✕</button></div>
     <div class="st-lines">${[...new Map(routes.map(r => [r[0], r])).values()].sort((a, b) => String(a[0]).localeCompare(String(b[0]), undefined, {numeric:true})).slice(0, 24).map(r => `<span class="pill" style="--c:${r[2] ? '#' + r[2] : '#DC241F'}">${esc(r[0])}</span>`).join('')}</div>`;
-  box.innerHTML = head + '<div class="muted">Loading departures…</div>';
+  let head = head0(); box.innerHTML = head + '<div class="muted">Loading departures…</div>';
   const load = async () => { if(box.hidden) return; let html = '';
     try{ const j = await railGet('/vehicles?src=stop&id=' + encodeURIComponent(st[0])); if(box.hidden) return;
+      if(!st[4].length && !routes.length){ for(const x of j.departures || []) if(x.line && !routes.some(r => r[0] === x.line)) routes.push([x.line, '', '']); head = head0(); } // stops listed without their routes (Northern Ireland): from the departures
       const P = Object.fromEntries(new Intl.DateTimeFormat('en-GB', {timeZone:'Europe/London', hour:'2-digit', minute:'2-digit', hourCycle:'h23'}).formatToParts(new Date()).map(x => [x.type, x.value])), now = +P.hour*60 + +P.minute;
       const mins = t => { const [h, m] = t.split(':').map(Number); let d = h*60 + m - now; if(d < -720) d += 1440; return d; };
       const rows = (j.departures || []).map(x => { const t = x.exp || x.sched, m = mins(t), r = routes.find(q => String(q[0]) === String(x.line)), col = r && r[2] ? '#' + r[2] : '#DC241F';
         const late = x.exp && x.exp !== x.sched ? ` · due ${x.sched}` : '';
-        return m < -1 ? '' : `<li><span class="sw" style="background:${col}"></span><span class="to">${esc(x.dest)}<small>${esc(x.line)}${r ? ' · ' + esc(r[1]) : ''}${x.live ? ' · live' : ' · timetable'}${late}</small></span><b>${m < 1 ? 'due' : m < 60 ? m + ' min' : t}</b></li>`; }).filter(Boolean).slice(0, 14);
+        return m < -1 ? '' : `<li><span class="sw" style="background:${col}"></span><span class="to">${esc(x.dest)}<small>${esc(x.line)}${r && r[1] ? ' · ' + esc(r[1]) : ''}${x.live ? ' · live' : ' · timetable'}${late}</small></span><b>${m < 1 ? 'due' : m < 60 ? m + ' min' : t}</b></li>`; }).filter(Boolean).slice(0, 14);
       html = rows.length ? `<div class="dep-h">Buses</div><ol class="deps">${rows.join('')}</ol>` : '<div class="muted">No more buses listed today.</div>';
     }catch(e){ html = '<div class="muted">Departures could not be loaded right now.</div>'; }
     box.innerHTML = head + html; };

@@ -256,7 +256,7 @@ function parseBustimes(list){
 }
 // bustimes.org departures fragment: rows of [line, destination, scheduled hh:mm, expected hh:mm or '']
 function parseStopDeps(html){
-  const out = [], strip = x => x.replace(/<[^>]*>/g, ' ').replace(/&shy;|&nbsp;/g, '').replace(/&amp;/g, '&').replace(/&#39;/g, "'").replace(/\s+/g, ' ').trim();
+  const out = [], strip = x => x.replace(/<[^>]*>/g, ' ').replace(/&shy;|&nbsp;/g, '').replace(/&#x([0-9a-f]+);/gi, (m, h) => String.fromCodePoint(parseInt(h, 16))).replace(/&#(\d+);/g, (m, d) => String.fromCodePoint(+d)).replace(/&quot;/g, '"').replace(/&amp;/g, '&').replace(/\s+/g, ' ').trim();
   const date = (html.match(/name="date" value="([\d-]+)"/) || [])[1] || null;
   for(const row of html.split(/<tr>/).slice(1)){ const td = row.split(/<td[^>]*>/).slice(1).map(c => c.split('</td>')[0]); if(td.length < 3) continue;
     const line = strip(td[0]), dest = strip(td[1].split('<div class="vehicle">')[0]), sched = strip(td[2]), exp = td[3] ? strip(td[3]) : '';
