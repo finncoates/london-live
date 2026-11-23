@@ -2279,7 +2279,7 @@ function nrSnap(st, sets){ const key = st[0]; if(NRNET.snap?.has(key)) return NR
       if(d < bd){ bd = d; best = q; } } }
   const out = best || [la, lo]; if(seen) (NRNET.snap || (NRNET.snap = new Map())).set(key, out); return out; }
 // National Rail stations in London with no Tube/Overground/Elizabeth/DLR/tram station beside them (those have their own dots and cards)
-function nrOnlyStations(){ if(!RAIL.stations){ railStations().then(() => { NRNET.n++; }).catch(() => {}); return []; } const k = ACTIVE.filter(l => l.mode !== 'bus' && l.stops).length; if(nrOnlyStations.c && nrOnlyStations.k === k) return nrOnlyStations.c; // (cheap: called every frame)
+function nrOnlyStations(){ if(!RAIL.stations){ railStations().then(() => { NRNET.n++; }).catch(() => {}); return []; } let k = 0; for(const l of ACTIVE) if(l.mode !== 'bus' && l.stops) for(const _ in l.stops) k++; if(nrOnlyStations.c && nrOnlyStations.k === k) return nrOnlyStations.c; // (cheap enough: re-done only as TfL's stations load)
   const tfl = stationIndex(); if(tfl.length < 200) return []; nrOnlyStations.k = k; // TfL's stations not loaded yet
   return nrOnlyStations.c = RAIL.stations.filter(x => x[2] > 51.2 && x[2] < 51.8 && x[3] > -0.7 && x[3] < 0.45 && !tfl.some(t => Math.abs(t.p[0] - x[2]) < 0.003 && dist(t.p, [x[2], x[3]]) < 220)); }
 function drawNR(ctx){
