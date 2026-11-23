@@ -948,6 +948,9 @@ function roundCorners(poly){
 // A station's spot on the drawn line (nearest curve point), with the line's direction there
 function snapAt(l, id){
   if(l.snapCache[id]) return l.snapCache[id];
+  if(l.rail && typeof nrNear === 'function'){ const P = l.stops[id].p; nrTiles(P, P); const k = nrNear(P, 150); // National Rail: on the network map's track, lying along it
+    if(!k) return {p:P, a:null, b:null}; const q = NRG.pos.get(k), nb = NRG.adj.get(k).map(e => NRG.pos.get(e[0])).find(x => dist(x, q) > 1);
+    return l.snapCache[id] = {p:q, a:nb || null, b:nb ? q : null}; }
   const P = l.stops[id].p; let best = {p:P, a:null, b:null}, bd = 250;
   for(const c of l.curves) for(let i=0;i<c.length;i++){
     const d = dist(c[i],P);
@@ -972,6 +975,7 @@ function resolve(l, id, name){
 // Path between two stations along the line geometry (falls back to straight line)
 function trackPath(l, a, b){
   const key = a+'>'+b; if(l.pathCache[key]) return l.pathCache[key];
+  if(l.rail && typeof nrTrackPath === 'function') return nrTrackPath(l, a, b); // National Rail: along the real track of the network map
   const A = l.stops[a]?.p, B = l.stops[b]?.p; if(!A||!B) return null;
   if(l.skip && l.vk && l.vk[a] && l.vk[b]){ const ka = l.vk[a], kb = l.vk[b], sk = l.skip.get(ka < kb ? ka+'|'+kb : kb+'|'+ka);
     if(sk){ const pts = fitLine(l, [A, ...(ka < kb ? sk : sk.slice().reverse()).slice(1, -1), B]);
@@ -1519,7 +1523,7 @@ async function refreshRail(){
       for(const [crs] of calls) if(!l.stops[crs]){ l.stops[crs] = RAIL.byCrs[crs]; newStops = true; }
       // draw the network from consecutive stops (once per pair)
       for(let i = 1; i < calls.length; i++){ const a = calls[i-1][0], b = calls[i][0], k = a < b ? a + b : b + a;
-        if(!l.edges.has(k)){ l.edges.add(k); l.polys.push([RAIL.byCrs[a].p, RAIL.byCrs[b].p]); LANES = null; linesSig = ''; } }
+        if(!l.edges.has(k)){ l.edges.add(k); if(typeof nrTrackPath !== 'function'){ l.polys.push([RAIL.byCrs[a].p, RAIL.byCrs[b].p]); LANES = null; linesSig = ''; } } } // live map: no lines of their own, the trains run on the National Rail network map
       const key = 'nr:' + tr.id; let t = trains.get(key);
       if(!t){ t = {key, rail:true}; trains.set(key, t); }
       Object.assign(t, {line:l.id, ahead:calls.map(c => [c[0], c[1]]), prev:calls[0][0], next:calls[1][0], arr:calls[1][1],
@@ -2345,8 +2349,8 @@ function nrPolysets(z){ const polysets = []; // the National Rail map tiles for 
       if(!NRNET.tiles.has(t)){ NRNET.tiles.set(t, null); fetch('cities/nr/' + t + '.json').then(r => r.ok ? r.json() : []).then(j => { NRNET.tiles.set(t, j); NRNET.n++; }).catch(() => NRNET.tiles.set(t, [])); continue; }
       const ps = NRNET.tiles.get(t); if(ps && ps.length) polysets.push([t, ps]); } }
   return polysets; }
-// London: the National Rail network under the TfL lines (grey double line, as elsewhere), until live National Rail trains arrive with the rail data key
-const nrLondon = () => !document.body.classList.contains('away') && !!map.getCenter() && inLondonView([map.getCenter().lat(), map.getCenter().lng()]) && !MODES_OFF.has('rail') && !(typeof railOn === 'function' && railOn());
+// London: the National Rail network under the TfL lines (grey double line, as elsewhere); live National Rail trains run on it
+const nrLondon = () => !document.body.classList.contains('away') && !!map.getCenter() && inLondonView([map.getCenter().lat(), map.getCenter().lng()]) && !MODES_OFF.has('rail');
 function drawNRWorld(g, zi, W){
   if(!nrLondon() || zi < 9) return; const sets = nrPolysets(zi); if(!sets.length) return;
   g.save(); g.lineJoin = 'round'; g.lineCap = 'round'; const w = Math.max(1.6, W*(zi >= 12 ? 0.95 : 0.75));
@@ -2366,6 +2370,51 @@ function nrSnap(st, sets){ const key = st[0]; if(NRNET.snap?.has(key)) return NR
       const dx = (B[1] - A[1])*kx, dy = B[0] - A[0], L2 = dx*dx + dy*dy || 1e-12, t2 = Math.max(0, Math.min(1, ((lo - A[1])*kx*dx + (la - A[0])*dy)/L2)), q = [A[0] + dy*t2, A[1] + (B[1] - A[1])*t2], d = Math.hypot((q[1] - lo)*kx, q[0] - la);
       if(d < bd){ bd = d; best = q; } } }
   const out = best || [la, lo]; if(seen) (NRNET.snap || (NRNET.snap = new Map())).set(key, out); return out; }
+// Live National Rail trains run on this same network (not on lines of their own): the way between two stations
+// along the real track, found in a graph of the map's line pieces (joined where they meet), once per pair.
+const NRG = {adj:new Map(), pos:new Map(), grid:new Map(), ends:[], tiles:new Set(), paths:new Map(), seq:0};
+const nrNodeKey = p => p[0].toFixed(5) + ',' + p[1].toFixed(5);
+const nrCell = (la, lo) => Math.floor(la*500) + ':' + Math.floor(lo*300); // ~220 m cells
+function nrNode(p, poly){ const k = nrNodeKey(p); if(!NRG.pos.has(k)){ NRG.pos.set(k, p); NRG.adj.set(k, []); const c = nrCell(p[0], p[1]); (NRG.grid.get(c) || NRG.grid.set(c, []).get(c)).push([k, poly]); } return k; }
+function nrLink(a, b, d){ if(a === b) return; NRG.adj.get(a).push([b, d]); NRG.adj.get(b).push([a, d]); }
+function nrNear(p, r, skipPoly){ // nearest graph point within r metres (optionally not on the same piece of line)
+  const la = p[0], lo = p[1], c0 = Math.floor(la*500), c1 = Math.floor(lo*300), n = Math.ceil(r/200); let best = null, bd = r;
+  for(let i = -n; i <= n; i++) for(let j = -n; j <= n; j++) for(const [k, poly] of NRG.grid.get((c0 + i) + ':' + (c1 + j)) || []){ if(poly === skipPoly) continue; const d = dist(p, NRG.pos.get(k)); if(d < bd){ bd = d; best = k; } }
+  return best; }
+function nrAddTile(t, ps){
+  if(NRG.tiles.has(t)) return; NRG.tiles.add(t); const ends = [];
+  for(const poly of ps){ const id = ++NRG.seq; let prev = null;
+    for(const q of poly){ const k = nrNode(q, id); if(prev) nrLink(prev, k, dist(NRG.pos.get(prev), q)); prev = k; }
+    if(poly.length > 1){ ends.push([poly[0], id]); ends.push([poly[poly.length-1], id]); } }
+  NRG.ends.push(...ends);
+  // join each piece's ends to the line they meet (junctions, and pieces cut at tile edges), for the new tile and its neighbours
+  const [ta, tb] = t.split('_').map(Number);
+  for(const [p, id] of NRG.ends){ if(p[0]*2 < ta - 0.05 || p[0]*2 > ta + 1.05 || p[1]*2 < tb - 0.05 || p[1]*2 > tb + 1.05) continue;
+    const k = nrNodeKey(p), m = nrNear(p, 45, id); if(m && !NRG.adj.get(k).some(e => e[0] === m)) nrLink(k, m, dist(p, NRG.pos.get(m))); }
+  NRG.paths.clear(); }
+function nrTiles(A, B){ // the map tiles between two stations: true once all are here (fetches the missing ones)
+  let ok = true; const la0 = Math.floor(Math.min(A[0], B[0])*2), la1 = Math.floor(Math.max(A[0], B[0])*2), lo0 = Math.floor(Math.min(A[1], B[1])*2), lo1 = Math.floor(Math.max(A[1], B[1])*2);
+  for(let la = la0; la <= la1; la++) for(let lo = lo0; lo <= lo1; lo++){ const t = la + '_' + lo;
+    if(!NRNET.tiles.has(t)){ NRNET.tiles.set(t, null); fetch('cities/nr/' + t + '.json').then(r => r.ok ? r.json() : []).then(j => { NRNET.tiles.set(t, j); NRNET.n++; }).catch(() => NRNET.tiles.set(t, [])); }
+    const ps = NRNET.tiles.get(t); if(ps == null) ok = false; else nrAddTile(t, ps); }
+  return ok; }
+function nrTrackPath(l, a, b){
+  const A = l.stops[a]?.p, B = l.stops[b]?.p; if(!A || !B) return null;
+  const key = a + '>' + b; if(NRG.paths.has(key)) return l.pathCache[key] = NRG.paths.get(key);
+  if(!nrTiles(A, B)) return null; // still loading: the train waits at its station for a moment
+  const s = nrNear(A, 400), g = nrNear(B, 400), straight = dist(A, B); let pts = null;
+  if(s && g){ // shortest way along the track (A*), not much longer than the straight line
+    const D = new Map([[s, 0]]), P = new Map(), H = [[dist(NRG.pos.get(s), B), s]], G = NRG.pos.get(g), lim = straight*2.5 + 4000;
+    const push = x => { H.push(x); let i = H.length - 1; while(i){ const j = (i - 1) >> 1; if(H[j][0] <= H[i][0]) break; [H[i], H[j]] = [H[j], H[i]]; i = j; } };
+    const pop = () => { const top = H[0], last = H.pop(); if(H.length){ H[0] = last; let i = 0; for(;;){ const l2 = 2*i + 1, r2 = l2 + 1; let m = i; if(l2 < H.length && H[l2][0] < H[m][0]) m = l2; if(r2 < H.length && H[r2][0] < H[m][0]) m = r2; if(m === i) break; [H[i], H[m]] = [H[m], H[i]]; i = m; } } return top; };
+    let steps = 0;
+    while(H.length && steps++ < 200000){ const [, u] = pop(); if(u === g) break; const du = D.get(u); if(du > lim) continue;
+      for(const [v, w] of NRG.adj.get(u)){ const nd = du + w; if(nd < (D.get(v) ?? Infinity)){ D.set(v, nd); P.set(v, u); push([nd + dist(NRG.pos.get(v), G), v]); } } }
+    if(P.has(g) || s === g){ pts = []; for(let v = g; v; v = P.get(v)) pts.push(NRG.pos.get(v)); pts.reverse(); }
+  }
+  if(!pts || pts.length < 2) pts = [nrNear(A, 400) ? NRG.pos.get(nrNear(A, 400)) : A, nrNear(B, 400) ? NRG.pos.get(nrNear(B, 400)) : B]; // no joined track found: straight, but from track to track
+  const cum = [0]; for(let i = 1; i < pts.length; i++) cum.push(cum[i-1] + dist(pts[i-1], pts[i]));
+  const path = {pts, cum, len:cum[cum.length-1]}; NRG.paths.set(key, path); return l.pathCache[key] = path; }
 // National Rail stations in London with no Tube/Overground/Elizabeth/DLR/tram station beside them (those have their own dots and cards)
 function nrOnlyStations(){ if(!RAIL.stations){ railStations().then(() => { NRNET.n++; }).catch(() => {}); return []; } let k = 0; for(const l of ACTIVE) if(l.mode !== 'bus' && l.stops) for(const _ in l.stops) k++; if(nrOnlyStations.c && nrOnlyStations.k === k) return nrOnlyStations.c; // (cheap enough: re-done only as TfL's stations load)
   const tfl = stationIndex(); if(tfl.length < 200) return []; nrOnlyStations.k = k; // TfL's stations not loaded yet
