@@ -2358,7 +2358,7 @@ function renderExplore(){
   else body = `<div class="list">${CATALOG.map((x, i) => `<button type="button" data-ex="${i}"><span>${esc(x.name)}</span><small>${x.countries.length} ${x.countries.length === 1 ? 'country' : 'countries'}</small></button>`).join('')}</div>`;
   box.innerHTML = `<div class="crumb">${crumbs.join(' ')}<button type="button" class="x" data-ex-close aria-label="Close">✕</button></div>${body}`;
 }
-$('bPlaces').onclick = () => { const box = $('explore'); box.hidden = !box.hidden; $('bPlaces').setAttribute('aria-expanded', String(!box.hidden)); if(!box.hidden){ EX.path = cityHere() || []; renderExplore(); } };
+$('bPlaces').onclick = () => { const box = $('explore'); box.hidden = !box.hidden; $('bPlaces').setAttribute('aria-expanded', String(!box.hidden)); if(!box.hidden){ const h = cityHere() || []; EX.path = map.getZoom() >= 10 ? h : h.slice(0, 2); renderExplore(); } }; // zoomed out: open at the country, not one town
 $('explore').addEventListener('click', e => {
   if(e.target.closest('[data-ex-close]')){ $('explore').hidden = true; $('bPlaces').setAttribute('aria-expanded', 'false'); return; }
   const m = e.target.closest('[data-mode-x]');
