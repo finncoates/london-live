@@ -1570,7 +1570,7 @@ window.onTrainsUpdate = n => {
     if(sh && (gt + rt || gl.length)) $('status').innerHTML = $('status').innerHTML.replace(' · updated', ` · <b>${sh}</b> bikes &amp; scooters · updated`); // hire bikes too
     renderLegend(); return; }
   let nb = ACTIVE.reduce((s, l) => s + (l.mode === 'bus' && shown(l) ? l.count : 0), 0); n -= nb; let nc = 0; if(typeof GPS !== 'undefined'){ const L = [...GPS.list.values()], gt = L.filter(g => g.v.train).length, b = map.getBounds();
-    nc = L.filter(g => g.v.coach && b && b.contains({lat:g.to[0], lng:g.to[1]})).length; nb += L.filter(g => !g.v.train && !g.v.coach).length; n += gt; }
+    nc = L.filter(g => g.v.coach && b && b.contains({lat:g.to[0], lng:g.to[1]})).length; nb += L.filter(g => !g.v.train && !g.v.coach && !GPS_OFF.has(vkind(g.v))).length; n += gt; }
   $('status').innerHTML = `<b>${n}</b> train${n === 1 ? '' : 's'}${nb ? ` · <b>${nb}</b> bus${nb === 1 ? '' : 'es'}` : ''}${nc ? ` · <b>${nc}</b> coach${nc === 1 ? '' : 'es'}` : ''} · updated ${new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit', second:'2-digit'})}`;
   renderLegend();
 };
