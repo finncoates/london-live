@@ -2162,7 +2162,7 @@ const OP_COL = ['#E4002B', '#0057B8', '#00843D', '#F4A300', '#6D2077', '#00A3AD'
 const opCol = op => { let h = 0; for(const ch of op || '') h = (h*31 + ch.charCodeAt(0)) >>> 0; return OP_COL[h % OP_COL.length]; };
 function drawGps(ctx, s, hl0, hw0, mpp){
   draw.ghit = []; if(TRAINS_ON && document.body.classList.contains('away') && !document.body.classList.contains('abroad')){ drawNR(ctx); drawUKStops(ctx); } drawCoachNet(ctx); if(TRAINS_ON && document.body.classList.contains('away') && map.getCenter()){ const mc = [map.getCenter().lat(), map.getCenter().lng()]; drawBusNet(ctx); if(CITYL.cur && CITYL.cur.box(mc)) drawCityLines(ctx); } else if(TRAINS_ON && !MODES_OFF.has('bus') && PV.z >= 14) drawBusNet(ctx); /* London with buses on: the routes just outside Greater London too */ if(!GPS.list.size || !SHOW_ICONS || !TRAINS_ON) return;
-  const now = Date.now(), cosLat = Math.cos(map.getCenter().lat()*rad), label = PV.z >= 15.5;
+  const LBOX = []; const now = Date.now(), cosLat = Math.cos(map.getCenter().lat()*rad), label = PV.z >= 15.5;
   // bus routes abroad: where each bus has driven (thin, light, like London's bus routes), and the tapped bus's whole route
   if(!busOff() && !GPS_OFF.has('bus') && PV.z >= 13){ const W = lineW(), look = lineLook('bus', W); ctx.lineJoin = 'round'; ctx.lineCap = 'round';
     /* (no per-bus GPS trails: straight hops between GPS fixes cut across blocks; the bus route map shows the roads) */
@@ -2190,7 +2190,9 @@ function drawGps(ctx, s, hl0, hw0, mpp){
       ctx.moveTo(c.x+ux2+vx2, c.y+uy2+vy2); ctx.lineTo(c.x+ux2-vx2, c.y+uy2-vy2); ctx.lineTo(c.x-ux2-vx2, c.y-uy2-vy2); ctx.lineTo(c.x-ux2+vx2, c.y-uy2+vy2); ctx.closePath(); ctx.fillStyle = coach[1]; ctx.fill(); }
     if(PARALLEL.has(mode)){ const ux2 = cs*(hl-hw*1.2), uy2 = sn*(hl-hw*1.2), vx2 = -sn*hw/3, vy2 = cs*hw/3; ctx.beginPath(); // centre stripe, like London's double-line trains
       ctx.moveTo(c.x+ux2+vx2, c.y+uy2+vy2); ctx.lineTo(c.x+ux2-vx2, c.y+uy2-vy2); ctx.lineTo(c.x-ux2-vx2, c.y-uy2-vy2); ctx.lineTo(c.x-ux2+vx2, c.y-uy2+vy2); ctx.closePath(); ctx.fillStyle = MAP_BG(); ctx.fill(); }
-    if(label || coach){ const txt = coach ? coach[0] + (g.v.line ? ' ' + g.v.line : '') : g.v.line; if(coach && !label && PV.z < 15) { draw.ghit.push([g, c.x, c.y]); continue; } ctx.lineWidth = 3; ctx.strokeStyle = dark ? 'rgba(0,0,0,.85)' : 'rgba(255,255,255,.95)'; ctx.strokeText(txt, c.x, c.y - hw - 9); ctx.fillStyle = coach ? (dark ? ({'#D2232A':'#ff8a80', '#0057B8':'#8ab4ff', '#73D700':'#a8f060', '#F7B500':'#ffd666'}[coach[1]] || '#eee') : coach[1]) : dark ? '#eee' : '#222'; ctx.fillText(txt, c.x, c.y - hw - 9); }
+    if(label || coach){ const txt = coach ? coach[0] + (g.v.line ? ' ' + g.v.line : '') : g.v.line; if(coach && !label && PV.z < 15) { draw.ghit.push([g, c.x, c.y]); continue; }
+      const tw = ctx.measureText(txt).width, ty = c.y - hw - 9; if(LBOX.some(q => Math.abs(q[0] - c.x) < (q[2] + tw)/2 + 2 && Math.abs(q[1] - ty) < 12)){ draw.ghit.push([g, c.x, c.y]); continue; } LBOX.push([c.x, ty, tw]); // labels don't pile on top of each other
+      ctx.lineWidth = 3; ctx.strokeStyle = dark ? 'rgba(0,0,0,.85)' : 'rgba(255,255,255,.95)'; ctx.strokeText(txt, c.x, c.y - hw - 9); ctx.fillStyle = coach ? (dark ? ({'#D2232A':'#ff8a80', '#0057B8':'#8ab4ff', '#73D700':'#a8f060', '#F7B500':'#ffd666'}[coach[1]] || '#eee') : coach[1]) : dark ? '#eee' : '#222'; ctx.fillText(txt, c.x, c.y - hw - 9); }
     draw.ghit.push([g, c.x, c.y]);
   }
   ctx.globalAlpha = 1; ctx.textAlign = 'start';
