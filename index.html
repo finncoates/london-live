@@ -1903,7 +1903,7 @@ async function bostonVehicles(){
       brg:a.bearing ?? null, t:Date.parse(a.updated_at) || null, train:rt.type === 2, metro:rt.type === 1, tram:rt.type === 0, kind, col:rt.color ? '#' + rt.color : '#FFC72C'}; })};
 }
 // keep only the vehicles of the source being shown (switching country drops the last one's)
-const GPS_SRC = ['fi:', 'hsl:', 'no:', 'us:', 'de:', 'sch:', 'co:'];
+const GPS_SRC = ['fi:', 'hsl:', 'no:', 'us:', 'de:', 'sch:', 'co:', 'tf:']; // (tf: ferries from the timetable)
 function gpsOnly(...keep){ for(const k of [...GPS.list.keys()]){ const src = GPS_SRC.find(x => k.startsWith(x)) || 'uk'; if(!keep.includes(src)) GPS.list.delete(k); } }
 // ---- Berlin & Brandenburg: S-Bahn, U-Bahn, trams, buses, regional trains (VBB "radar": real-time positions, no key) ----
 const inOslo = p => p[0] > 59.75 && p[0] < 60.10 && p[1] > 10.45 && p[1] < 11.05, inBergen = p => p[0] > 60.25 && p[0] < 60.50 && p[1] > 5.15 && p[1] < 5.50, inTrondheim = p => p[0] > 63.35 && p[0] < 63.48 && p[1] > 10.20 && p[1] < 10.60;
@@ -2221,7 +2221,7 @@ async function refreshGps(){
     catch(e){ BUS.note = feedErr(e, 'VBB (Berlin)'); }
     GPS.busy = false; renderBusNote(); return;
   }
-  gpsOnly('uk', 'sch:', 'co:'); schedVehicles();
+  gpsOnly('uk', 'sch:', 'co:', 'tf:'); schedVehicles();
   const rc = relayCity(p);
   if(rc && TRAINS_ON){
     if(!RAIL.relay || RAIL.relay === 'demo'){ GPS.list.clear(); BUS.note = `Live buses and trams in ${rc[2]} are ready: they switch on once the relay is set up (no key needed for ${rc[2]}).`; renderBusNote(); return; }
@@ -2237,7 +2237,7 @@ async function refreshGps(){
   if(regionOf(p) === 'world'){ GPS.list.clear(); BUS.note = z >= 8 ? 'No live data for this area yet. Live now: London, every bus, tram and coach across the UK, Finland, Helsinki, Norway, Berlin, Boston, Tallinn, Gdańsk and Vilnius.' : ''; renderBusNote(); return; }
   const on = !busOff() && TRAINS_ON && !inTfLArea(p);
   const coachTxt = await refreshCoaches(p, z);
-  if(!on || z < 13){ gpsOnly('sch:', 'co:'); if(!inTfLArea(p)){ BUS.note = !RAIL.relay ? 'Live trains and buses here are coming soon: they switch on once the data keys are set up. (Preview with made-up data: add ?rail=demo to the address.)' : on ? 'Zoom in to see local buses' : 'Turn on Buses to see live buses here'; renderBusNote(); } return; }
+  if(!on || z < 13){ gpsOnly('sch:', 'co:', 'tf:'); if(!inTfLArea(p)){ BUS.note = !RAIL.relay ? 'Live trains and buses here are coming soon: they switch on once the data keys are set up. (Preview with made-up data: add ?rail=demo to the address.)' : on ? 'Zoom in to see local buses' : 'Turn on Buses to see live buses here'; renderBusNote(); } return; }
   if(GPS.busy) return; GPS.busy = true;
   try{
     let res;
@@ -2534,10 +2534,13 @@ async function refreshTT(){
   if(TTV.busy || !railOn() || MODES_OFF.has('rail') || !TRAINS_ON || map.getZoom() < 8 || !RAIL.stations) return;
   const b = map.getBounds(); if(!b) return; const sw = b.getSouthWest(), ne = b.getNorthEast();
   const tiles = []; for(let la = Math.floor(sw.lat()*2)/2; la <= ne.lat(); la += 0.5) for(let lo = Math.floor(sw.lng()*2)/2; lo <= ne.lng(); lo += 0.5) if(la > 49.5 && la < 61 && lo > -8.5 && lo < 2) tiles.push([la, lo]);
-  if(!tiles.length || tiles.length > 20) return;
+  if(!tiles.length) return;
+  if(tiles.length > 30){ const c = map.getCenter(), m = [c.lat() - 0.25, c.lng() - 0.25]; tiles.sort((x, y) => Math.hypot(x[0] - m[0], (x[1] - m[1])*0.6) - Math.hypot(y[0] - m[0], (y[1] - m[1])*0.6)); tiles.length = 30; } // zoomed out: the middle of the view
   TTV.busy = true;
   try{
-    const now = Date.now(), res = await Promise.all(tiles.map(([la, lo]) => railGet(`/tt?la=${la}&lo=${lo}&modes=rail`).catch(() => null)));
+    const now = Date.now(), res = await Promise.all(tiles.map(([la, lo]) => railGet(`/tt?la=${la}&lo=${lo}&modes=rail,ferry`).catch(() => null)));
+    // ferries (CalMac, Isle of Wight, Orkney, Brittany Ferries…): on their sea route, by the timetable
+    TTV.ferries = new Map(); for(const r of res) for(const s of r?.vehicles || []) if(/FERRY/.test(s[0]) && s[9] && s[6] > now && !TTV.ferries.has(s[8])){ const pts = decodePoly(s[9]); if(pts.length > 1) TTV.ferries.set(s[8], {s, pts}); }
     const segs = new Map(); for(const r of res) for(const s of r?.vehicles || []) if(s[8] && !segs.has(s[8])) segs.set(s[8], s); // a stretch shows up in every tile it crosses
     // trains a live board already places: their stretches (station pairs, ± 3 min)
     const liveSeg = new Set(); for(const t of trains.values()) if(t.rail && !t.tt && t.ahead) for(let i = 1; i < t.ahead.length; i++) liveSeg.add(t.ahead[i-1][0] + '>' + t.ahead[i][0] + '@' + Math.round(t.ahead[i][1]/180000));
@@ -2545,7 +2548,7 @@ async function refreshTT(){
     // a station without a National Rail code (Northern Ireland, and a few others): known by where it is
     const where = st => { if(st[1] && RAIL.byCrs[st[1]] && !RAIL.byCrs[st[1]].foreign) return st[1]; const k = 'X' + st[2].toFixed(4) + ',' + st[3].toFixed(4); RAIL.byCrs[k] ||= {n:st[0].replace(/ Train Station$/, ''), p:[st[2], st[3]]}; return k; };
     for(const [trip, s] of segs){ const [mode, col, name0, from, to, dep, arr] = s;
-      if(arr < now - 30000 || TT_TFL.test(name0)) continue;
+      if(/FERRY/.test(mode) || arr < now - 30000 || TT_TFL.test(name0)) continue;
       const name = /^SR\d/.test(name0) ? 'ScotRail' : /^TfW/i.test(name0) ? 'TfW' : name0 === 'rail' && from[2] > 54 && from[3] < -5.4 ? 'NI Railways' : name0;
       const a = where(from), z = where(to); if(a === z) continue;
       if([-1, 0, 1].some(d => liveSeg.has(a + '>' + z + '@' + (Math.round(arr/180000) + d)))){ trains.delete('nr:tt:' + trip); continue; } // on a live board already (and since: the timetable copy goes)
@@ -2560,6 +2563,18 @@ async function refreshTT(){
     if(typeof renderLegend === 'function') renderLegend();
   }catch(e){ console.warn('timetable trains', e); }
   TTV.busy = false; }
+// every 2 s: each ferry's place along its route now (a vehicle like the GPS ones, so it's drawn, tapped and toggled the same way)
+setInterval(() => { if(!TTV.ferries || !TRAINS_ON || inTfLArea([map.getCenter().lat(), map.getCenter().lng()])) return; const now = Date.now(), seen = new Set();
+  for(const [trip, {s, pts}] of TTV.ferries){ const [, col, name, from, to, dep, arr] = s; if(now < dep - 60000 || now > arr + 60000) continue;
+    if(!pts.cum){ pts.cum = [0]; for(let i = 1; i < pts.length; i++) pts.cum.push(pts.cum[i-1] + dist(pts[i-1], pts[i])); }
+    const f = Math.max(0, Math.min(1, (now - dep)/((arr - dep) || 1))), L = pts.cum[pts.cum.length-1]*f; let i = 1; while(i < pts.length - 1 && pts.cum[i] < L) i++;
+    const u = Math.max(0, Math.min(1, (L - pts.cum[i-1])/((pts.cum[i] - pts.cum[i-1]) || 1))), A = pts[i-1], B = pts[i], p = [A[0] + (B[0]-A[0])*u, A[1] + (B[1]-A[1])*u];
+    const id = 'tf:' + trip; seen.add(id); let g = GPS.list.get(id);
+    const v = {id, line:name, op:/^CM\d|^\d+[A-Z]?$/.test(name) ? 'CalMac' : 'Ferry', dest:to[0].replace(/ (Ferry )?Terminal$/i, ''), from:from[0].replace(/ (Ferry )?Terminal$/i, ''), lat:p[0], lon:p[1], kind:'ferry', sched:true, t:null, col:col && /^[0-9a-f]{6}$/i.test(col) ? '#' + col : '#00A0E2',
+      segAng:Math.atan2(-(B[0]-A[0]), (B[1]-A[1])*Math.cos(A[0]*rad))};
+    if(!g){ g = {from:p, to:p, t0:now, dur:2000}; GPS.list.set(id, g); } else { g.from = gpsPos(g, now); g.to = p; g.t0 = now; g.dur = 2000; }
+    g.v = v; g.seen = now; }
+  for(const k of [...GPS.list.keys()]) if(k.startsWith('tf:') && !seen.has(k)) GPS.list.delete(k); }, 2000);
 setInterval(refreshTT, 60000); setTimeout(refreshTT, 6000); setTimeout(refreshTT, 20000); map.addListener('idle', () => { clearTimeout(TTV.t); TTV.t = setTimeout(refreshTT, 1500); });
 // National Rail stations in London with no Tube/Overground/Elizabeth/DLR/tram station beside them (those have their own dots and cards)
 function nrOnlyStations(){ if(!RAIL.stations){ railStations().then(() => { NRNET.n++; }).catch(() => {}); return []; } let k = 0; for(const l of ACTIVE) if(l.mode !== 'bus' && l.stops) for(const _ in l.stops) k++; if(nrOnlyStations.c && nrOnlyStations.k === k) return nrOnlyStations.c; // (cheap enough: re-done only as TfL's stations load)
@@ -2676,7 +2691,7 @@ function gpsDemo(p){
   return {vehicles:out};
 }
 setInterval(refreshGps, 15000);
-map.addListener('idle', () => { const c = map.getCenter(), p = [c.lat(), c.lng()]; if(!inTfLArea(p)) refreshGps(); else { gpsOnly('co:'); refreshGps(); } }); // London: TfL buses; coaches still from the coach feed
+map.addListener('idle', () => { const c = map.getCenter(), p = [c.lat(), c.lng()]; if(!inTfLArea(p)) refreshGps(); else { gpsOnly('co:', 'tf:'); refreshGps(); } }); // London: TfL buses; coaches still from the coach feed
 // ---------- Explore: continent → country → city → that city's transport ----------
 // live: 'now' (works today) or 'keys' (switches on once the relay's data keys are set up). Mode ids: London's own
 // switches (tube, overground…) and, elsewhere, kinds of vehicle (train, metro, tram, bus, ferry).
@@ -3551,7 +3566,7 @@ tick(); setInterval(tick, 1000);
 map.addListener('dragstart', () => { $('tip').style.display = 'none'; hover = null; });
 map.addListener('zoom_changed', () => { $('tip').style.display = 'none'; hover = null; });
 renderModeChips(); renderLegend(); syncMapMenu();
-if(DEBUG) window.LLT = {nrTrackPath, esChain, nrOnly: () => nrOnlyStations(), ghit: () => draw.ghit || [], STL, ukStops: () => ukStopsHere(), ukStopAt: (x, y) => ukStopAt(x, y), RV: () => RIVER_E, st: () => ({coach:COACH.on, cn:COACH.n, busOff:busOff(), TRAINS_ON, away:document.body.classList.contains("away"), GPS_OFF:[...GPS_OFF], MODES_OFF:[...MODES_OFF], note:BUS.note, size:GPS.list.size}), AUTO, autoNext: () => autoNext(), trains, ACTIVE, BY, placeTrain, segTime, refresh, map, draw, goStation, searchStations, scr, stationAt, GPS, gpsPos, BIKES, SHARE, cityData: () => cityData(), stationExtras, BUS, ROADS, LP: () => LPATHS};
+if(DEBUG) window.LLT = {nrTrackPath, esChain, refreshTT, TTV, nrOnly: () => nrOnlyStations(), ghit: () => draw.ghit || [], STL, ukStops: () => ukStopsHere(), ukStopAt: (x, y) => ukStopAt(x, y), RV: () => RIVER_E, st: () => ({coach:COACH.on, cn:COACH.n, busOff:busOff(), TRAINS_ON, away:document.body.classList.contains("away"), GPS_OFF:[...GPS_OFF], MODES_OFF:[...MODES_OFF], note:BUS.note, size:GPS.list.size}), AUTO, autoNext: () => autoNext(), trains, ACTIVE, BY, placeTrain, segTime, refresh, map, draw, goStation, searchStations, scr, stationAt, GPS, gpsPos, BIKES, SHARE, cityData: () => cityData(), stationExtras, BUS, ROADS, LP: () => LPATHS};
 
 // ---------- boot ----------
 (async () => {
