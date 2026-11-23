@@ -49,6 +49,7 @@ export default {
       if(url.pathname === '/metrolink') return json(await metrolink(env, ctx), 200, cors, 20);
       if(url.pathname.startsWith('/tfl/')) return await tfl(url, env, cors);
       if(url.pathname.startsWith('/transitous/')) return await transitous(url, cors);
+      if(url.pathname === '/tt') return await ttTile(url, cors);
       if(!env.RDM_KEY) return json({error:'RDM_KEY secret is not set on the worker'}, 503, cors);
       if(url.pathname === '/board'){
         const crs = cleanCrs(url.searchParams.get('crs'));
@@ -352,6 +353,32 @@ async function transitous(url, cors){
   const body = await up.text();
   if(up.ok){ TR_MEM.set(key, {t:now, body}); if(TR_MEM.size > 500) TR_MEM.delete(TR_MEM.keys().next().value); }
   return new Response(body, {status:up.status, headers:{'content-type':up.headers.get('content-type') || 'application/json', 'cache-control':up.ok ? 'public, max-age=60' : 'no-store', ...cors}}); }
+
+// ---------- timetable vehicles from Transitous (every train/tram/bus running now, from open timetables) ----------
+// GET /tt?la=52.5&lo=-1.5&modes=rail|tram|all → the vehicles on the move in that 0.5° tile in the next ~3 minutes:
+// [mode, colour, name, from:[name, code, lat, lon], to:[…], dep ms, arr ms, realTime, tripId]. One call to Transitous
+// per tile every 2 minutes, shared by every visitor (cached here).
+const TT_MEM = new Map(), TT_WAIT = new Map();
+const TT_MODES = {rail:/RAIL|LONG_DISTANCE|SUBURBAN|NIGHT_RAIL|HIGHSPEED/, tram:/TRAM|SUBWAY|METRO|FUNICULAR|CABLE/, bus:/BUS|COACH/, ferry:/FERRY/};
+async function ttTile(url, cors){
+  const la = Math.floor(+url.searchParams.get('la')*2)/2, lo = Math.floor(+url.searchParams.get('lo')*2)/2;
+  if(!isFinite(la) || !isFinite(lo) || Math.abs(la) > 85 || Math.abs(lo) > 180) return json({error:'la, lo required'}, 400, cors);
+  const want = (url.searchParams.get('modes') || 'rail').split(',').filter(m => TT_MODES[m] || m === 'all');
+  const bucket = Math.floor(Date.now()/120000)*120000, key = la + ':' + lo + ':' + bucket;
+  let all = TT_MEM.get(key);
+  if(!all){ let w = TT_WAIT.get(key);
+    if(!w){ w = (async () => {
+        const q = `zoom=14&min=${la},${lo}&max=${la + 0.5},${lo + 0.5}&startTime=${new Date(bucket).toISOString()}&endTime=${new Date(bucket + 240000).toISOString()}`;
+        const r = await fetch('https://api.transitous.org/api/v5/map/trips?' + q, {headers:{'user-agent':'LondonLive/1.0 (+https://github.com/finncoates/london-live)'}});
+        if(!r.ok) throw fail('Transitous: HTTP ' + r.status, 502);
+        const stop = s => [s.name, s.stopCode || null, +s.lat.toFixed(5), +s.lon.toFixed(5)];
+        const v = (await r.json()).map(s => [s.mode, s.routeColor || null, s.trips?.[0]?.displayName || '', stop(s.from), stop(s.to), Date.parse(s.departure), Date.parse(s.arrival), s.realTime ? 1 : 0, s.trips?.[0]?.tripId || '', s.polyline || '']);
+        TT_MEM.set(key, v); for(const k of TT_MEM.keys()) if(+k.split(':')[2] < bucket - 240000) TT_MEM.delete(k);
+        return v; })().finally(() => TT_WAIT.delete(key));
+      TT_WAIT.set(key, w); }
+    all = await w; }
+  const out = want.includes('all') ? all : all.filter(s => want.some(m => TT_MODES[m].test(s[0])));
+  return json({tile:[la, lo], at:bucket, vehicles:out}, 200, cors, 60); }
 
 // ---------- helpers ----------
 const cleanCrs = s => (s || '').trim().toUpperCase().replace(/[^A-Z]/g, '').slice(0, 3) || null;

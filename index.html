@@ -1479,7 +1479,7 @@ const RAIL_HUBS = 'VIC,CLJ,WAT,LBG,CHX,CST,BFR,STP,KGX,EUS,MYB,PAD,LST,FST,SRA,E
 // Operator colours (brand-like, approximate)
 const RAIL_COL = {NT:'#262262', TP:'#09A4EC', SR:'#1E467D', SN:'#5C9F3B', TL:'#E9438D', SW:'#24398C', SE:'#1D82D4', GW:'#0A493E', CC:'#B7007C', LE:'#D70428', GN:'#5A2C83',
   CH:'#00A7DF', GR:'#CE0E2D', VT:'#004354', EM:'#713563', HX:'#532E63', GX:'#EB1E2D', XC:'#660F21', GC:'#1D1D1B', LD:'#2B6EF5',
-  HT:'#DE005C', AW:'#E10600', LM:'#00BF6F', XR:'#60399E', LO:'#FA7B05', IL:'#1E90FF', ES:'#FFD300'};
+  HT:'#DE005C', AW:'#E10600', LM:'#00BF6F', XR:'#60399E', LO:'#FA7B05', IL:'#1E90FF', ES:'#FFD300', NI:'#0E4C92', ME:'#FFF200', CS:'#1D2E35', LD:'#1D1D6B'};
 // Eurostar's stations abroad (the boards give only their names and codes): placed so its trains can be shown on the live map
 const RAIL_ABROAD = {'paris nord':[48.8809, 2.3553], 'brussels midi':[50.8357, 4.3363], 'bruxelles midi':[50.8357, 4.3363], 'brussels south':[50.8357, 4.3363], 'lille europe':[50.6393, 3.0757],
   'amsterdam centraal':[52.3791, 4.9003], 'rotterdam centraal':[51.9249, 4.4690], 'marne la vallee':[48.8701, 2.7826], 'calais frethun':[50.9013, 1.8111]};
@@ -1506,7 +1506,7 @@ function railHubs(){
   if(inLondonView(p) || !RAIL.stations) return {key:'london', list:RAIL_HUBS};
   const cell = Math.round(p[0]*4) + ':' + Math.round(p[1]*2.5); // ~25 km squares: re-poll only after a real move
   if(RAIL.hubCell === cell && RAIL.hubList) return {key:cell, list:RAIL.hubList};
-  const near = RAIL.stations.map(([crs, , lat, lon]) => [crs, dist([lat, lon], p)]).filter(x => x[1] < 40000).sort((a, b) => a[1] - b[1]).slice(0, 25).map(x => x[0]);
+  const near = RAIL.stations.map(([crs, , lat, lon]) => [crs, dist([lat, lon], p)]).filter(x => x[1] < 40000).sort((a, b) => a[1] - b[1]).slice(0, 40).map(x => x[0]); // (the relay takes up to 40 boards a call)
   RAIL.hubCell = cell; RAIL.hubList = near;
   return {key:cell, list:near}; // empty = no British stations near (e.g. abroad): nothing to poll
 }
@@ -1521,7 +1521,7 @@ async function railStations(){
 const nearestCrs = (p, max = 350) => { let best = null, bd = max; for(const [crs, , lat, lon] of RAIL.stations || []){ const d = dist([lat, lon], p); if(d < bd){ bd = d; best = crs; } } return best; };
 async function railGet(path){
   if(RAIL.relay === 'demo') return railDemo(path);
-  const r = await fetch(RAIL.relay + path); if(!r.ok) throw new Error((await r.json().catch(() => ({}))).error || 'HTTP ' + r.status);
+  const r = await fetch(RAIL.relay + path, {signal:AbortSignal.timeout(25000)}); if(!r.ok) throw new Error((await r.json().catch(() => ({}))).error || 'HTTP ' + r.status);
   return r.json();
 }
 // one "line" per operator, created on first sight
@@ -1773,7 +1773,7 @@ async function updateBuses(force){
     const h = +new Intl.DateTimeFormat('en-GB', {timeZone:'Europe/London', hour:'numeric', hourCycle:'h23'}).format(new Date()), night = h < 5 || h >= 23;
     const n = new Map(), names = {};
     for(const st of res.stopPoints || []) for(const ln of st.lines || []){ if(!night && /^n\d/i.test(ln.id)) continue; n.set(ln.id, (n.get(ln.id) || 0) + 1); names[ln.id] = ln.name; }
-    const pick = [...n].sort((a, b) => b[1] - a[1]).slice(0, 12).map(x => x[0]);
+    const pick = [...n].sort((a, b) => b[1] - a[1]).slice(0, window.__tflRelay ? (z >= 15 ? 30 : 20) : 12).map(x => x[0]); // with the shared TfL copy (relay + key) there's room for every route nearby
     await Promise.all(pick.map(async id => {
       let l = BY[id]; if(l && l.mode !== 'bus') return;
       if(!l){ l = {id, name:names[id] || id, colour:'#DC241F', mode:'bus', group:'bus', on:true, count:0, polys:[], routes:[], stops:{}, seg:{}}; ACTIVE.push(l); BY[id] = l; }
@@ -1782,7 +1782,7 @@ async function updateBuses(force){
     const set = new Set(pick.filter(id => BY[id] && BY[id].layer));
     for(const l of ACTIVE) if(l.mode === 'bus') l.near = set.has(l.id);
     // keep memory in check: forget routes far behind you
-    const extra = ACTIVE.filter(l => l.mode === 'bus' && !l.near && !l.pinned); if(extra.length > 24) for(const l of extra.slice(0, extra.length - 24)){ ACTIVE.splice(ACTIVE.indexOf(l), 1); delete BY[l.id]; for(const [k, t] of trains) if(t.line === l.id) trains.delete(k); }
+    const extra = ACTIVE.filter(l => l.mode === 'bus' && !l.near && !l.pinned); if(extra.length > 40) for(const l of extra.slice(0, extra.length - 40)){ ACTIVE.splice(ACTIVE.indexOf(l), 1); delete BY[l.id]; for(const [k, t] of trains) if(t.line === l.id) trains.delete(k); }
     BUS.ids = [...set]; BUS.at = p; BUS.z = Math.round(z); LANES = null; linesSig = '';
     BUS.note = set.size ? `Buses: ${set.size} routes near here` : 'No bus routes here';
   }catch(e){ BUS.note = 'Buses: ' + e.message; console.warn('buses', e); }
@@ -2522,6 +2522,45 @@ function nrTrackPath(l, a, b){
   if(!pts || pts.length < 2){ NRG.paths.set(key, null); return null; } // no joined track: the train waits at a station rather than cut across the streets
   const cum = [0]; for(let i = 1; i < pts.length; i++) cum.push(cum[i-1] + dist(pts[i-1], pts[i]));
   const path = {pts, cum, len:cum[cum.length-1]}; NRG.paths.set(key, path); return l.pathCache[key] = path; }
+// ---------- every National Rail train, from the timetable (Transitous, through the relay's /tt) ----------
+// The live departure boards only know a train from the hub station on (about 1 in 5 trains in view). The rest
+// come from the national timetable: each train on its current stretch between two stations, on the real track.
+// A train a live board already shows isn't added again. (Exact live positions: Darwin, once a server is running.)
+const TTV = {tiles:new Map(), busy:false, at:0, n:0};
+const TT_OP = {'NI Railways':'NI', LNER:'GR', EMR:'EM', 'East Midlands Railway':'EM', Avanti:'VT', 'Avanti West Coast':'VT', CrossCountry:'XC', XC:'XC', Northern:'NT', TransPennine:'TP', 'TransPennine Express':'TP', TPE:'TP', ScotRail:'SR', Southern:'SN', Thameslink:'TL', SWR:'SW', 'South Western Railway':'SW', Southeastern:'SE', GWR:'GW', 'Great Western Railway':'GW', c2c:'CC', 'Greater Anglia':'LE', 'Great Northern':'GN', Chiltern:'CH', 'Chiltern Railways':'CH', 'Grand Central':'GC', 'Hull Trains':'HT', TfW:'AW', 'Transport for Wales':'AW', WMR:'LM', 'West Midlands Railway':'LM', LNR:'LM', 'London Northwestern Railway':'LM', Merseyrail:'ME', Lumo:'LD', 'Caledonian Sleeper':'CS', 'Heathrow Express':'HX', 'Gatwick Express':'GX', 'Island Line':'IL', 'Night Riviera':'GW'};
+const TT_NAME = {GR:'LNER', EM:'East Midlands Railway', VT:'Avanti West Coast', XC:'CrossCountry', NT:'Northern', TP:'TransPennine Express', SR:'ScotRail', SN:'Southern', TL:'Thameslink', SW:'South Western Railway', SE:'Southeastern', GW:'Great Western Railway', CC:'c2c', LE:'Greater Anglia', GN:'Great Northern', CH:'Chiltern Railways', GC:'Grand Central', HT:'Hull Trains', AW:'Transport for Wales', LM:'West Midlands Railway', ME:'Merseyrail', LD:'Lumo', CS:'Caledonian Sleeper', HX:'Heathrow Express', GX:'Gatwick Express', IL:'Island Line', NI:'NI Railways'};
+const TT_TFL = /elizabeth|overground|liberty|lioness|mildmay|suffragette|weaver|windrush/i; // run by TfL: shown live by the TfL engine
+async function refreshTT(){
+  if(TTV.busy || !railOn() || MODES_OFF.has('rail') || !TRAINS_ON || map.getZoom() < 8 || !RAIL.stations) return;
+  const b = map.getBounds(); if(!b) return; const sw = b.getSouthWest(), ne = b.getNorthEast();
+  const tiles = []; for(let la = Math.floor(sw.lat()*2)/2; la <= ne.lat(); la += 0.5) for(let lo = Math.floor(sw.lng()*2)/2; lo <= ne.lng(); lo += 0.5) if(la > 49.5 && la < 61 && lo > -8.5 && lo < 2) tiles.push([la, lo]);
+  if(!tiles.length || tiles.length > 20) return;
+  TTV.busy = true;
+  try{
+    const now = Date.now(), res = await Promise.all(tiles.map(([la, lo]) => railGet(`/tt?la=${la}&lo=${lo}&modes=rail`).catch(() => null)));
+    const segs = new Map(); for(const r of res) for(const s of r?.vehicles || []) if(s[8] && !segs.has(s[8])) segs.set(s[8], s); // a stretch shows up in every tile it crosses
+    // trains a live board already places: their stretches (station pairs, ± 3 min)
+    const liveSeg = new Set(); for(const t of trains.values()) if(t.rail && !t.tt && t.ahead) for(let i = 1; i < t.ahead.length; i++) liveSeg.add(t.ahead[i-1][0] + '>' + t.ahead[i][0] + '@' + Math.round(t.ahead[i][1]/180000));
+    let n = 0;
+    // a station without a National Rail code (Northern Ireland, and a few others): known by where it is
+    const where = st => { if(st[1] && RAIL.byCrs[st[1]] && !RAIL.byCrs[st[1]].foreign) return st[1]; const k = 'X' + st[2].toFixed(4) + ',' + st[3].toFixed(4); RAIL.byCrs[k] ||= {n:st[0].replace(/ Train Station$/, ''), p:[st[2], st[3]]}; return k; };
+    for(const [trip, s] of segs){ const [mode, col, name0, from, to, dep, arr] = s;
+      if(arr < now - 30000 || TT_TFL.test(name0)) continue;
+      const name = /^SR\d/.test(name0) ? 'ScotRail' : /^TfW/i.test(name0) ? 'TfW' : name0 === 'rail' && from[2] > 54 && from[3] < -5.4 ? 'NI Railways' : name0;
+      const a = where(from), z = where(to); if(a === z) continue;
+      if([-1, 0, 1].some(d => liveSeg.has(a + '>' + z + '@' + (Math.round(arr/180000) + d)))){ trains.delete('nr:tt:' + trip); continue; } // on a live board already (and since: the timetable copy goes)
+      const pre = /^([A-Z]{2})\d+$/.exec(name)?.[1]; // "SR962300": an operator code and a train number
+      const code = TT_OP[name] || TT_OP[name.replace(/ (Railway|Trains)$/i, '')] || (pre && TT_NAME[pre] ? pre : 'XX'), l = railLine(code === 'XX' ? 'TT' : code, code === 'XX' ? 'National Rail' : TT_NAME[code]);
+      if(code === 'XX' && col && /^[0-9a-f]{6}$/i.test(col)) l.colour = '#' + col;
+      for(const c of [a, z]) if(!l.stops[c]) l.stops[c] = RAIL.byCrs[c];
+      const key = 'nr:tt:' + trip; let t = trains.get(key); if(!t){ t = {key, rail:true, tt:true}; trains.set(key, t); }
+      Object.assign(t, {line:l.id, ahead:[[a, dep], [z, arr]], prev:a, next:z, arr, towards:'', loc:'Position from the timetable', seen:now}); n++; }
+    TTV.n = n; TTV.at = now;
+    for(const l of ACTIVE) if(l.rail) l.count = 0; for(const t of trains.values()) if(t.rail && BY[t.line]) BY[t.line].count++;
+    if(typeof renderLegend === 'function') renderLegend();
+  }catch(e){ console.warn('timetable trains', e); }
+  TTV.busy = false; }
+setInterval(refreshTT, 60000); setTimeout(refreshTT, 6000); setTimeout(refreshTT, 20000); map.addListener('idle', () => { clearTimeout(TTV.t); TTV.t = setTimeout(refreshTT, 1500); });
 // National Rail stations in London with no Tube/Overground/Elizabeth/DLR/tram station beside them (those have their own dots and cards)
 function nrOnlyStations(){ if(!RAIL.stations){ railStations().then(() => { NRNET.n++; }).catch(() => {}); return []; } let k = 0; for(const l of ACTIVE) if(l.mode !== 'bus' && l.stops) for(const _ in l.stops) k++; if(nrOnlyStations.c && nrOnlyStations.k === k) return nrOnlyStations.c; // (cheap enough: re-done only as TfL's stations load)
   const tfl = stationIndex(); if(tfl.length < 200) return []; nrOnlyStations.k = k; // TfL's stations not loaded yet
@@ -3237,7 +3276,7 @@ function renderFollow(){
         <div><dt>From you</dt><dd id="tcYou">${me ? '–' : '<button type="button" class="lnk" id="tcLoc">Show</button>'}</dd></div>${num ? `<div><dt>Train</dt><dd>${esc(num)}</dd></div>` : ''}</dl>
       <ol class="tc-next" id="tcList" aria-label="Stops after that"></ol>
       <div class="tc-act"><button type="button" id="tcRide" class="${FW.ride ? 'on' : ''}" aria-pressed="${FW.ride}">${FW.ride ? 'Stop riding' : 'Ride along'}</button>${look ? '<button type="button" id="tcLook">Look down</button>' : ''}</div>
-      <div class="tt-m">Position worked out from TfL arrival times${l.mode === 'tube' ? ' · depths from TfL station data' : ''}</div>`; }
+      <div class="tt-m">${t.tt ? 'Position from the timetable (no live report for this train yet)' : t.rail ? 'Position worked out from National Rail departure boards' : 'Position worked out from TfL arrival times'}${l.mode === 'tube' ? ' · depths from TfL station data' : ''}</div>`; }
   const set = (id, h) => { const e = $(id); if(e && e.innerHTML !== h) e.innerHTML = h; };
   set('tcTo', x.to ? 'To <b>' + esc(cleanName(t.towards)) + '</b>' : '');
   const s = lineStatus(t.line), why = s && s.lv ? (s.reasons[0] || '').replace(/\s*(Good service|Valid tickets).*$/i, '') : '';
