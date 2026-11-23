@@ -2090,7 +2090,7 @@ async function refreshGps(){
     }
     else if(!RAIL.relay) throw new Error('Live buses here are coming soon: they switch on once the data keys are set up.');
     else { const b = map.getBounds(), sw = b.getSouthWest(), ne = b.getNorthEast();
-      const w = Math.min(0.5, ne.lng() - sw.lng())/2, h = Math.min(0.34, ne.lat() - sw.lat())/2, bb = `${(p[1]-w).toFixed(3)},${(p[0]-h).toFixed(3)},${(p[1]+w).toFixed(3)},${(p[0]+h).toFixed(3)}`;
+      const w = Math.max(0.01, Math.min(0.5, ne.lng() - sw.lng())/2), h = Math.max(0.007, Math.min(0.34, ne.lat() - sw.lat())/2), /* very close up: still at least ~1 km around */ bb = `${(p[1]-w).toFixed(3)},${(p[0]-h).toFixed(3)},${(p[1]+w).toFixed(3)},${(p[0]+h).toFixed(3)}`;
       // every UK operator that shares positions (bustimes.org: incl. Cardiff Bus, Lothian, Translink); the government feed if that's unavailable
       try{ res = await railGet('/vehicles?src=bustimes&bbox=' + bb); if(!res.vehicles || !res.vehicles.length) throw new Error('empty'); }
       catch(e){ res = await railGet('/vehicles?src=bods&bbox=' + bb); } }
@@ -2099,7 +2099,7 @@ async function refreshGps(){
     gpsMerge(res);
     const gap = NO_OPEN_GPS.find(([b]) => p[0] > b[0] && p[0] < b[2] && p[1] > b[1] && p[1] < b[3]);
     BUS.note = (gap ? gap[1] + ' ' : '') + `${(n => n + (n === 1 ? ' bus' : ' buses'))([...GPS.list.keys()].filter(k => !k.startsWith('co:')).length)}${[...GPS.list.values()].some(g => g.v.tram) ? ' and trams' : ''} here (GPS)${RAIL.relay === 'demo' ? ' · demo data' : ''}`;
-  }catch(e){ BUS.note = e.message.replace(/^HTTP 503.*|.*BODS_KEY.*/, 'Live buses here are coming soon: they switch on once the bus data key is set up.'); }
+  }catch(e){ BUS.note = /^HTTP 503|BODS_KEY/.test(e.message) ? 'Live buses here are coming soon: they switch on once the bus data key is set up.' : /bbox|area too big|HTTP|fetch|abort|timed? ?out|network/i.test(e.message) ? 'Live buses could not be loaded just now; trying again shortly.' : e.message; }
   GPS.busy = false; renderBusNote();
 }
 // trams that are reported live by GPS (so the timetable is not needed): operator:line -> city line name
@@ -2140,7 +2140,7 @@ function drawGps(ctx, s, hl0, hw0, mpp){
   ctx.lineWidth = 1; ctx.font = '700 10.5px system-ui, sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
   for(const g of GPS.list.values()){
     if(GPS_OFF.has(vkind(g.v))) continue;
-    ctx.globalAlpha = LF.city && String(g.v.line) !== String(LF.city) ? 0.2 : 1;
+    ctx.globalAlpha = LF.city && !lfMatch(g) ? 0.2 : 1;
     const p = gpsPos(g, now), c = scr(p); if(c.x < -30 || c.y < -30 || c.x > s.x + 30 || c.y > s.y + 30) continue;
     let ang = g.v.segAng != null ? g.v.segAng : g.v.brg != null ? (g.v.brg - 90)*rad : g.ang ?? 0; // on a known line: its direction
     if(g.v.segAng == null && g.v.brg == null && (g.to[0] !== g.from[0] || g.to[1] !== g.from[1])) ang = Math.atan2(-(g.to[0] - g.from[0]), (g.to[1] - g.from[1])*cosLat);
@@ -2627,9 +2627,10 @@ function searchLines(text){
     for(const [n, l] of names){ const k = String(n).toLowerCase(); if(k === q || k.startsWith(q)) out.push({lineHit:true, city:true, name:n, col:l.col, mode:l.kind, exact:k === q}); } }
   if(document.body.classList.contains('away') && typeof GPS !== 'undefined'){ // live buses and coaches in the area: by route number
     const live = new Map(); for(const g of GPS.list.values()){ if(vkind(g.v) !== 'bus' || g.v.line == null) continue; const n = String(g.v.line), k = n.toLowerCase();
-      if((k === q || (q.length >= 2 && k.startsWith(q))) && !live.has(n)) live.set(n, {lineHit:true, city:true, live:true, name:n, col:g.v.col || opCol(g.v.op), mode:'bus', coach:!!g.v.coach, exact:k === q, op:g.v.coach ? (coachOf(g.v) || [g.v.op])[0] : opName(g.v.op)}); }
+      const lk = (g.v.coach ? 'c' : 'b') + ':' + n; // a local bus and a coach can share a number (e.g. 700)
+      if((k === q || (q.length >= 2 && k.startsWith(q))) && !live.has(lk)) live.set(lk, {lineHit:true, city:true, live:true, name:n, col:g.v.col || opCol(g.v.op), mode:'bus', coach:!!g.v.coach, exact:k === q, op:g.v.coach ? (coachOf(g.v) || [g.v.op])[0] : opName(g.v.op)}); }
     out.push(...live.values()); }
-  return out.sort((a, b) => b.exact - a.exact).slice(0, 4);
+  return out.sort((a, b) => b.exact - a.exact || !!a.coach - !!b.coach).slice(0, 4); // local buses before coaches of the same number
 }
 const lineResult = (s, i) => `<li role="option" data-i="${i}" class="${i===SR.sel?'on':''}" aria-selected="${i===SR.sel}">
   <span class="dots">${symbol(s.mode === 'bus' ? 'tube' : s.mode === 'train' || s.mode === 'rail' ? 'rail' : 'tube', s.col, 18)}</span>
@@ -2648,7 +2649,7 @@ async function focusLine(x){
   const head = n => `<div class="st-h"><b>${symbol(x.mode === 'bus' ? (document.body.classList.contains('away') ? 'busg' : 'tube') : x.mode === 'train' ? 'rail' : 'tube', x.col, 18)} ${esc(x.mode === 'bus' ? (x.coach ? (x.op || 'Coach') + ' ' : 'Bus ') + x.name : x.name)}</b><button type="button" class="x" id="lfClose" aria-label="Close">✕</button></div><div class="muted">${n}</div>`;
   box.innerHTML = head('Loading the route…');
   let pts = [];
-  if(x.city){ LF.city = x.name; LF.name = x.name;
+  if(x.city){ LF.city = x.name; LF.name = x.name; LF.coach = x.live ? !!x.coach : null;
     for(const d of cityData()) for(const l of d.lines) if(l.name === x.name) pts.push(...l.pts);
     if(!pts.length && x.live) for(const g of GPS.list.values()) if(String(g.v.line) === String(x.name) && !!g.v.coach === !!x.coach) pts.push(g.to); }
   else {
@@ -2663,16 +2664,18 @@ async function focusLine(x){
     for(const p of l.polys) pts.push(...p);
     refresh().catch(() => {});
   }
-  if(pts.length){ const b = new google.maps.LatLngBounds(); for(const p of pts) b.extend({lat:p[0], lng:p[1]}); map.fitBounds(b, phone() ? 30 : {top:40, bottom:40, left:380, right:40}); }
-  const count = () => x.city ? [...GPS.list.values()].filter(g => String(g.v.line) === String(LF.city)).length : (BY[LF.id] ? BY[LF.id].count : 0);
+  if(pts.length){ const b = new google.maps.LatLngBounds(); for(const p of pts) b.extend({lat:p[0], lng:p[1]}); map.fitBounds(b, phone() ? 30 : {top:40, bottom:40, left:380, right:40});
+    google.maps.event.addListenerOnce(map, 'idle', () => { if(map.getZoom() > 15) map.setZoom(15); }); } // one vehicle: don't dive to street level
+  const count = () => x.city ? [...GPS.list.values()].filter(lfMatch).length : (BY[LF.id] ? BY[LF.id].count : 0);
   const upd = () => { if(box.hidden || (!LF.id && !LF.city)) return; const n = count(); const w = x.coach ? (n === 1 ? 'coach' : 'coaches') : x.mode === 'bus' ? (n === 1 ? 'bus' : 'buses') : x.mode === 'tram' ? (n === 1 ? 'tram' : 'trams') : (n === 1 ? 'train' : 'trains');
     box.innerHTML = head(`${n} ${w} on the route now · everything else is faded. Tap ✕ to show all.`); };
   clearTimeout(focusLine.t); focusLine.t = setTimeout(upd, 2500); clearInterval(focusTimer); focusTimer = setInterval(upd, 15000); focusLoad = upd;
 }
+const lfMatch = g => String(g.v.line) === String(LF.city) && (LF.coach == null || !!g.v.coach === LF.coach); // the searched route's vehicles
 function unfocusLine(){
   if(LF.id && BY[LF.id]){ BY[LF.id].pinned = false; if(BY[LF.id].mode === 'bus' && !BY[LF.id].near) BY[LF.id].count = 0; }
   if(LF.id || LF.city){ window.DIM_TRAINS = false; LANES = null; LPATHS = null; linesSig = ''; }
-  LF.id = null; LF.city = null; LF.name = '';
+  LF.id = null; LF.city = null; LF.name = ''; LF.coach = null;
 }
 $('station').addEventListener('click', e => { if(e.target.closest('#lfClose')){ clearFocus(); unfocusLine(); $('q').value = ''; } });
 function renderResults(){
