@@ -2364,7 +2364,7 @@ Object.assign(OP_NAMES, {LOTH:'Lothian Buses', NELB:'Lothian Country', ECBU:'Eas
 let NOC_NAMES = {}; fetch('cities/operators.json').then(r => r.ok ? r.json() : {}).then(j => { NOC_NAMES = j; }).catch(() => {}); // every operator code in the bus timetables → its name
 const opName = op => OP_NAMES[op] || NOC_NAMES[op] || op;
 // long-distance coaches: their own look and name
-const COACHES = {NATX:['National Express', '#D2232A'], NXSH:['National Express', '#D2232A'], MEGA:['Megabus', '#0057B8'], SMGB:['Megabus', '#0057B8'], FLIX:['FlixBus', '#73D700'], SCLK:['Scottish Citylink', '#F7B500'], CTLK:['Scottish Citylink', '#F7B500']};
+const COACHES = {BBCB:['BlaBlaCar Bus', '#0076D1'], NATX:['National Express', '#D2232A'], NXSH:['National Express', '#D2232A'], MEGA:['Megabus', '#0057B8'], SMGB:['Megabus', '#0057B8'], FLIX:['FlixBus', '#73D700'], SCLK:['Scottish Citylink', '#F7B500'], CTLK:['Scottish Citylink', '#F7B500']};
 const coachOf = v => COACHES[v.op] || (/megabus/i.test(v.op + ' ' + (v.line || '')) ? COACHES.MEGA : null);
 const OP_COL = ['#E4002B', '#0057B8', '#00843D', '#F4A300', '#6D2077', '#00A3AD', '#D0006F', '#5B6770'];
 const opCol = op => { let h = 0; for(const ch of op || '') h = (h*31 + ch.charCodeAt(0)) >>> 0; return OP_COL[h % OP_COL.length]; };
@@ -2714,6 +2714,8 @@ function ttTick(){ if(!TTV.ferries || !TRAINS_ON || inTfLArea([map.getCenter().l
     const v = {id, line:/^(rail|bus|tram|train)$/i.test(name) ? '' : name, op:kind !== 'ferry' ? feed || 'Timetable' : /^CM\d|^\d+[A-Z]?$/.test(name) ? 'CalMac' : 'Ferry', dest:(TRIPI.get(trip)?.dest || to[0]).replace(/ (Ferry )?Terminal$/i, ''), from:TRIPI.get(trip) ? null : from[0].replace(/ (Ferry )?Terminal$/i, ''), next:TRIPI.get(trip) ? to[0] : null, trip, lat:p[0], lon:p[1], kind, sched:true, t:null,
       train:kind === 'train', tram:kind === 'tram', metro:kind === 'metro', col:kind === 'bus' && CITYL.cur?.bus ? CITYL.cur.bus[0] /* one colour for a city's buses (as London's red), not their route colours, which clash with the metro's */ : col && /^[0-9a-f]{6}$/i.test(col) ? inkA('#' + col.toLowerCase()) : {ferry:'#00A0E2', train:'#1D5BA0', tram:'#7A1F3D', metro:'#0E4C92', bus:'#DC241F'}[kind],
       segAng:Math.atan2(-(B[0]-A[0]), (B[1]-A[1])*Math.cos(A[0]*rad))};
+    { const cf = /flixbus/i.test(trip) ? 'FLIX' : /blablacar/i.test(trip) ? 'BBCB' : null; // long-distance coaches: their own look, as in Britain
+      if(cf && kind === 'bus'){ v.op = cf; v.coach = true; v.line = String(name || '').replace(/^(FlixBus|BlaBlaCar Bus)\s*/i, ''); v.col = COACHES[cf][1]; } }
     if(!g){ g = {from:p, to:p, t0:now, dur:2000}; GPS.list.set(id, g); } else { g.from = gpsPos(g, now); g.to = p; g.t0 = now; g.dur = 2000; }
     g.v = v; g.seen = now; }
   for(const k of [...GPS.list.keys()]) if(k.startsWith('tf:') && !seen.has(k)) GPS.list.delete(k); }
