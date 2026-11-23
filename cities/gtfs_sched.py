@@ -3,7 +3,7 @@
 import sys, zipfile, csv, io, json, collections, datetime
 zf, jf, typemap = sys.argv[1], sys.argv[2], dict(x.split(':') for x in sys.argv[3].split(','))
 z = zipfile.ZipFile(zf); rd = lambda n: csv.DictReader(io.TextIOWrapper(z.open(n), 'utf-8-sig'))
-d = json.load(open(jf)); col = {l['name']: l['col'] for l in d['lines']}
+d = json.load(open(jf, encoding='utf-8')); col = {l['name']: l['col'] for l in d['lines']}
 import os, re
 NAMES = json.loads(os.environ.get('NAMES') or '{}')  # route short name -> [line name, colour, kind]
 ONLY = re.compile(os.environ['ONLY']) if os.environ.get('ONLY') else (re.compile('^(' + '|'.join(map(re.escape, NAMES)) + ')$') if NAMES else None)  # e.g. ONLY='^Metro$': just these route names
@@ -44,5 +44,5 @@ for k, v in days.items():
     if kk not in ix: ix[kk] = len(lists); lists.append(v)
     days[k] = ix[kk]
 d['sched'] = {'patterns': patterns, 'days': days, 'lists': lists, 'tz': 'Europe/London'}
-json.dump(d, open(jf, 'w'), separators=(',', ':'), ensure_ascii=False)
+json.dump(d, open(jf, 'w', encoding='utf-8'), separators=(',', ':'), ensure_ascii=False)
 import os; print(len(patterns), 'patterns', len(lists), os.path.getsize(jf))

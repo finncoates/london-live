@@ -480,6 +480,12 @@ function gLine(pts, styleFn){ const p = new google.maps.Polyline(Object.assign({
 const PARALLEL = new Set(['dlr', 'elizabeth', 'overground', 'tram']);
 const MAP_BG = () => dark ? (MAP_STYLE === 'original' ? '#1b1c1f' : '#1d2026') : '#ffffff';
 const ink = c => c==='#000000'&&dark ? '#d9d9d9' : c;
+// outside London (city files, the timetable abroad): colours too dark to see on the dark map (navy, dark brown, dark green)
+// are mixed toward white, keeping their hue (Toulouse's navy T1, Montpellier's brown T4); black becomes light grey as above
+const INK = new Map();
+const inkA = c => { if(!dark || typeof c !== 'string' || !/^#[0-9a-f]{6}$/i.test(c)) return c; if(/^#000000$/.test(c)) return '#d9d9d9'; let o = INK.get(c); if(o) return o;
+  const v = [1, 3, 5].map(i => parseInt(c.slice(i, i + 2), 16)), m = Math.max(...v); // a colour whose brightest part is dim (navy, brown) is lost on the dark map; bright reds aren't
+  o = m >= 150 ? c : '#' + v.map(x => Math.round(x + (255 - x)*((150 - m)/150*0.6 + 0.15)).toString(16).padStart(2, '0')).join(''); INK.set(c, o); return o; };
 const LINE_W = 4.5;
 // ---- Lines drawn like the TfL map: solid colours, and lines that share track run side by side ----
 // Track is matched between lines by their station-to-station edges (endpoints rounded to ~10 m).
@@ -2014,9 +2020,11 @@ const CITYL = {list:[{name:'Helsinki', box:p => inHelsinki(p), urls:['cities/fin
   {name:'Edinburgh', box:p => p[0] > 55.88 && p[0] < 56.02 && p[1] > -3.45 && p[1] < -3.05, urls:['cities/edinburgh.json']},
   {name:'Glasgow', box:p => p[0] > 55.80 && p[0] < 55.92 && p[1] > -4.40 && p[1] < -4.15, urls:['cities/glasgow.json']},
   {name:'Nottingham', box:p => p[0] > 52.86 && p[0] < 53.06 && p[1] > -1.35 && p[1] < -1.05, urls:['cities/nottingham.json']},
-  {name:'Newcastle', box:p => p[0] > 54.85 && p[0] < 55.10 && p[1] > -1.80 && p[1] < -1.35, urls:['cities/tyneandwear.json']}, {name:'Boston', box:p => inBoston(p), urls:['cities/boston.json']}, {name:'Oslo', box:p => inOslo(p), urls:['cities/oslo.json']}, {name:'Bergen', box:p => inBergen(p), urls:['cities/bergen.json']}, {name:'Trondheim', box:p => inTrondheim(p), urls:['cities/trondheim.json']},
-  // France: each city's network from its own open timetable (transport.data.gouv.fr), official line colours
-  {name:'Paris', box:p => p[0] > 48.1 && p[0] < 49.25 && p[1] > 1.4 && p[1] < 3.6, urls:['cities/fr-paris.json'], bus:['#7E8BA3', '#97A6BF']}, {name:'Norway', box:p => inNorway(p), urls:['cities/norway.json'], src:'Entur'}, {name:'Tallinn', box:p => relayCity(p)?.[0] === 'tallinn', urls:['cities/tallinn.json']}, {name:'Gdańsk', box:p => relayCity(p)?.[0] === 'gdansk', urls:['cities/gdansk.json']}], cur:null, data:new Map()};
+  {name:'Newcastle', box:p => p[0] > 54.85 && p[0] < 55.10 && p[1] > -1.80 && p[1] < -1.35, urls:['cities/tyneandwear.json']}, {name:'Boston', box:p => inBoston(p), urls:['cities/boston.json']}, {name:'Oslo', box:p => inOslo(p), urls:['cities/oslo.json']}, {name:'Bergen', box:p => inBergen(p), urls:['cities/bergen.json']}, {name:'Trondheim', box:p => inTrondheim(p), urls:['cities/trondheim.json']}, {name:'Norway', box:p => inNorway(p), urls:['cities/norway.json'], src:'Entur'}, {name:'Tallinn', box:p => relayCity(p)?.[0] === 'tallinn', urls:['cities/tallinn.json']}, {name:'Gdańsk', box:p => relayCity(p)?.[0] === 'gdansk', urls:['cities/gdansk.json']}], cur:null, data:new Map()};
+// France: each city's network from its own open timetable (transport.data.gouv.fr: cities/fr_build.py), official line
+// colours, its bus map and one colour for its buses. Smaller areas first, so a town inside a bigger network's box is found.
+fetch('cities/fr-index.json').then(r => r.ok ? r.json() : []).then(list => { list.sort((a, b) => (a.box[2] - a.box[0])*(a.box[3] - a.box[1]) - (b.box[2] - b.box[0])*(b.box[3] - b.box[1]));
+  for(const c of list) CITYL.list.push({name:c.name, box:p => p[0] > c.box[0] && p[0] < c.box[2] && p[1] > c.box[1] && p[1] < c.box[3], urls:[c.url], bus:c.bus}); }).catch(() => {});
 const cityData = () => CITYL.cur ? CITYL.cur.urls.map(u => CITYL.data.get(u)).filter(d => d && d.grid) : [];
 const CELL = (la, lo) => Math.floor(la*200) + ',' + Math.floor(lo*100); // ~550 m × 600 m
 async function loadCityLines(p){
@@ -2100,7 +2108,7 @@ function drawLineSet(ctx, d){
   for(const [l, path, cnt] of d.paths){ if(GPS_OFF.has(l.kind)) continue; const look = lineLook(l.kind, W), c = cnt || 1;
     ctx.globalAlpha = look.alpha * (LF.city ? (l.name === LF.city ? 1 : 0.12) : 1);
     ctx.lineCap = look.dash || c > 1 ? 'butt' : 'round'; ctx.setLineDash(look.dash ? look.dash.map(x => x/k) : []);
-    ctx.strokeStyle = l.col; ctx.lineWidth = look.w/c/k; ctx.stroke(path);
+    ctx.strokeStyle = inkA(l.col); ctx.lineWidth = look.w/c/k; ctx.stroke(path);
     if(look.stripe){ ctx.setLineDash([]); ctx.strokeStyle = MAP_BG(); ctx.lineWidth = look.w/c/3/k; ctx.stroke(path); } } // double line, like the Overground
   ctx.restore(); ctx.setLineDash([]); ctx.globalAlpha = 1;
   // stations: dots from zoom 13 (bigger where lines meet), names from zoom 14 when the map's own labels are hidden — as in London
@@ -2277,7 +2285,7 @@ async function refreshGps(){
       try{ const url = typeof url0 === 'function' ? url0() : url0, j = await (await fetch(url, {signal:AbortSignal.timeout(15000)})).json(), vs = parse(j); gpsMerge({vehicles:vs}, 'la:');
         const kinds = [...new Set(vs.map(v => v.kind === 'tram' ? 'trams' : v.kind === 'metro' ? 'metros' : v.kind === 'ferry' ? 'boats' : v.kind === 'train' ? 'trains' : 'buses'))];
         TTV.cityLive = {name:nm, at:Date.now(), n:(TTV.cityLive && TTV.cityLive.name === nm && Date.now() - TTV.cityLive.at < 5000 ? TTV.cityLive.n : 0) + vs.length, what:kinds.length > 1 ? kinds.slice(0, -1).join(', ') + ' and ' + kinds.at(-1) : kinds[0] || 'vehicles'}; }catch(e){} }
-    if(p[0] > 35.8 && p[0] < 43.9 && p[1] > -9.6 && p[1] < 3.4 && z >= 7 && TRAINS_ON && RAIL.relay && RAIL.relay !== 'demo'){ // Spain: Renfe's trains live (Cercanías/Rodalies…)
+    if(inSpain(p) && z >= 7 && TRAINS_ON && RAIL.relay && RAIL.relay !== 'demo'){ // Spain: Renfe's trains live (Cercanías/Rodalies…)
       try{ const r = await railGet('/vehicles?src=renfe'); gpsMerge(r, 'es:'); TTV.esLive = Date.now(); TTV.esN = (r.vehicles || []).length; }catch(e){} } if(z < 5){ BUS.note = 'Zoom in to see the trains running here (from the timetable)'; renderBusNote(); } else if(!TTV.world) { BUS.note = z < 7 ? 'Finding high-speed and intercity trains…' : 'Finding trains, trams and ferries…'; renderBusNote(); } return; } // (refreshTT fills these in)
   const on = !busOff() && TRAINS_ON && !inTfLArea(p);
   const coachTxt = await refreshCoaches(p, z);
@@ -2643,7 +2651,8 @@ function drawTTLines(ctx){
   const cd = cityData(), drawn = cd.length ? (CITYL.cur.names ||= new Set(cd.flatMap(d => d.lines.map(l => l.kind + '|' + l.name)))) : null;
   for(const {s, pts} of TTV.ferries.values()){ const m = s[0], kind = /FERRY/.test(m) ? 'ferry' : /BUS|COACH/.test(m) ? 'bus' : /TRAM/.test(m) ? 'tram' : /SUBWAY|METRO/.test(m) ? 'metro' : 'train';
     if(drawn && (drawn.has(kind + '|' + s[2]) || (kind === 'tram' && drawn.has('metro|' + s[2])))) continue;
-    if(GPS_OFF.has(kind) || (kind === 'bus' && busOff())) continue; const col = s[1] && /^[0-9a-f]{6}$/i.test(s[1]) ? '#' + s[1] : {ferry:'#00A0E2', train:'#5D6670', tram:'#7A1F3D', metro:'#0E4C92', bus:'#DC241F'}[kind];
+    if(kind === 'bus' && CITYL.cur?.bus) continue; // the city's bus map already draws every bus road, in one colour (as London)
+    if(GPS_OFF.has(kind) || (kind === 'bus' && busOff())) continue; const col = s[1] && /^[0-9a-f]{6}$/i.test(s[1]) ? inkA('#' + s[1].toLowerCase()) : {ferry:'#00A0E2', train:'#5D6670', tram:'#7A1F3D', metro:'#0E4C92', bus:'#DC241F'}[kind];
     const P = pts.map(scr); if(!P.some(q => q.x > -50 && q.y > -50 && q.x < s0.x + 50 && q.y < s0.y + 50)) continue;
     const k = kind + '|' + col; (groups.get(k) || groups.set(k, []).get(k)).push(P); }
   ctx.save(); ctx.lineJoin = 'round'; ctx.lineCap = 'round';
@@ -2669,7 +2678,7 @@ function ttTick(){ if(!TTV.ferries || !TRAINS_ON || inTfLArea([map.getCenter().l
     const m = s[0], kind = /FERRY/.test(m) ? 'ferry' : /BUS|COACH/.test(m) ? 'bus' : /TRAM/.test(m) ? 'tram' : /SUBWAY|METRO/.test(m) ? 'metro' : 'train';
     const feed = (s[8].split('_')[2] || '').replace(/^[a-z]{2}-/, '').replace(/[-_]+/g, ' ').replace(/\b\w/g, c => c.toUpperCase()).replace(/\bSncf\b/, 'SNCF').replace(/\bRatp\b/, 'RATP').replace(/\bFor\b/, 'for'); // the timetable it comes from (Transport for Ireland, SNCF…)
     const v = {id, line:/^(rail|bus|tram|train)$/i.test(name) ? '' : name, op:kind !== 'ferry' ? feed || 'Timetable' : /^CM\d|^\d+[A-Z]?$/.test(name) ? 'CalMac' : 'Ferry', dest:to[0].replace(/ (Ferry )?Terminal$/i, ''), from:from[0].replace(/ (Ferry )?Terminal$/i, ''), lat:p[0], lon:p[1], kind, sched:true, t:null,
-      train:kind === 'train', tram:kind === 'tram', metro:kind === 'metro', col:kind === 'bus' && CITYL.cur?.bus ? CITYL.cur.bus[0] /* one colour for a city's buses (as London's red), not their route colours, which clash with the metro's */ : col && /^[0-9a-f]{6}$/i.test(col) ? '#' + col : {ferry:'#00A0E2', train:'#1D5BA0', tram:'#7A1F3D', metro:'#0E4C92', bus:'#DC241F'}[kind],
+      train:kind === 'train', tram:kind === 'tram', metro:kind === 'metro', col:kind === 'bus' && CITYL.cur?.bus ? CITYL.cur.bus[0] /* one colour for a city's buses (as London's red), not their route colours, which clash with the metro's */ : col && /^[0-9a-f]{6}$/i.test(col) ? inkA('#' + col.toLowerCase()) : {ferry:'#00A0E2', train:'#1D5BA0', tram:'#7A1F3D', metro:'#0E4C92', bus:'#DC241F'}[kind],
       segAng:Math.atan2(-(B[0]-A[0]), (B[1]-A[1])*Math.cos(A[0]*rad))};
     if(!g){ g = {from:p, to:p, t0:now, dur:2000}; GPS.list.set(id, g); } else { g.from = gpsPos(g, now); g.to = p; g.t0 = now; g.dur = 2000; }
     g.v = v; g.seen = now; }
@@ -2901,6 +2910,10 @@ $('explore').addEventListener('click', e => {
 const NI_POLY = [[54.5,-8.19],[55.07,-7.45],[55.24,-6.51],[55.24,-6.35],[55.21,-6.19],[55.13,-6.04],[54.83,-5.72],[54.64,-5.53],[54.49,-5.44],[54.39,-5.47],[54.26,-5.61],[54.09,-5.93],[54.03,-6.07],[54.05,-6.61],[54.1,-7.44],[54.19,-7.71],[54.32,-7.96],[54.4,-8.08]];
 const inPoly = (P, p) => { let k = false; for(let i = 0, j = P.length - 1; i < P.length; j = i++){ const [yi, xi] = P[i], [yj, xj] = P[j]; if((yi > p[0]) !== (yj > p[0]) && p[1] < (xj - xi)*(p[0] - yi)/(yj - yi) + xi) k = !k; } return k; };
 const inIrelandNotUK = p => p[0] > 51.35 && p[0] < 55.45 && p[1] < -5.4 && !(p[1] > -6.0 && p[0] > 54.7) && !inPoly(NI_POLY, p);
+// Spain (not the French side of the Pyrenees: Toulouse, Perpignan and Bayonne are inside Spain's rectangle): south of the
+// border, which runs from Hendaye (43.36°N, 1.78°W) down to Cerbère (42.43°N, 3.17°E)
+const pyrenees = lon => lon < -1.78 ? 43.4 : lon < 0 ? 43.36 - (lon + 1.78)/1.78*0.66 : lon < 1.5 ? 42.70 - lon/1.5*0.2 : 42.50 - (lon - 1.5)/1.67*0.07;
+const inSpain = p => p[0] > 35.8 && p[0] < 43.9 && p[1] > -9.6 && p[1] < 3.4 && p[0] < pyrenees(p[1]);
 function regionOf(p){ return inLondonView(p) ? 'london' : inFinland(p) ? 'finland' : inNorway(p) ? 'norway' : inBoston(p) ? 'boston' : inBerlin(p) ? 'berlin' : relayCity(p) ? 'city' : inEdinburgh(p) ? 'edinburgh' : p[0] > 49.8 && p[0] < 60.9 && p[1] > -8.7 && p[1] < 1.9 && !inIrelandNotUK(p) ? 'uk' : 'world'; }
 const NO_TOWNS = [['Stavanger', 58.970, 5.733], ['Sandnes', 58.852, 5.737], ['Kristiansand', 58.146, 7.996], ['Drammen', 59.744, 10.204], ['Fredrikstad', 59.218, 10.930], ['Sarpsborg', 59.284, 11.110], ['Tønsberg', 59.267, 10.407], ['Sandefjord', 59.131, 10.217], ['Larvik', 59.054, 10.028], ['Skien', 59.209, 9.609], ['Porsgrunn', 59.141, 9.656], ['Arendal', 58.461, 8.772], ['Haugesund', 59.414, 5.268], ['Ålesund', 62.472, 6.150], ['Molde', 62.737, 7.161], ['Kristiansund', 63.110, 7.728], ['Bodø', 67.280, 14.405], ['Tromsø', 69.649, 18.955], ['Alta', 69.968, 23.272], ['Hammerfest', 70.663, 23.682], ['Narvik', 68.438, 17.427], ['Harstad', 68.798, 16.541], ['Hamar', 60.795, 11.068], ['Lillehammer', 61.115, 10.466], ['Gjøvik', 60.795, 10.692], ['Moss', 59.434, 10.658], ['Halden', 59.122, 11.388], ['Kongsberg', 59.668, 9.650], ['Steinkjer', 64.015, 11.495], ['Mo i Rana', 66.313, 14.143], ['Lillestrøm', 59.956, 11.050], ['Asker', 59.833, 10.435], ['Sandvika', 59.889, 10.523], ['Ski', 59.719, 10.835], ['Jessheim', 60.142, 11.175], ['Elverum', 60.881, 11.564], ['Førde', 61.452, 5.857], ['Florø', 61.600, 5.033], ['Kirkenes', 69.727, 30.045], ['Vadsø', 70.074, 29.750]];
 function applyRegion(){

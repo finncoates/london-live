@@ -236,6 +236,7 @@ def tiles(outdir, files):
         nb = tree.query_ball_point(np.array([(q[0]*111320, q[1]*kx) for q in r]), 25)
         return all(any(abs(SD[j][0]*rx + SD[j][1]*ry) > 0.8 for j in js) for js in nb)
     rawkeep = [r for r in rawkeep if not shadow(r)]
+    if os.environ.get('NO_RAW') == '1': rawkeep = []  # shapes that only join the stops (Nantes): their off-road pieces are never real roads
     # a short piece joined to nothing at either end is a stray fragment of the published shape, not a road: dropped
     rawkeep = [r for r in rawkeep if len(r) > 1 and math.hypot((r[0][0]-r[-1][0])*111320, (r[0][1]-r[-1][1])*kx) > 10 and not straightjump(r)
                and (plen(r) > 150 or onroad(r[0]) or onroad(r[-1]))]

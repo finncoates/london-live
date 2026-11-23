@@ -47,5 +47,5 @@ for p in keep:  # one station per name (platforms in both directions), with ever
         kd = 'tram' if kind == 'tramtrain' else kind
         if [name, col, kd] not in st[4]: st[4].append([name, col, kd])
 d = {'lines': lines, 'stations': sorted(seen.values(), key=lambda s: s[1]), 'op': op}
-json.dump(d, open(out, 'w'), separators=(',', ':'), ensure_ascii=False)
+json.dump(d, open(out, 'w', encoding='utf-8'), separators=(',', ':'), ensure_ascii=False)
 print(len(keep), 'patterns kept', len(lines), 'lines', len(seen), 'stations', bad, 'hops not on track', os.path.getsize(out))

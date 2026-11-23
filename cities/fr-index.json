@@ -1,0 +1,167 @@
+[
+{
+"id": "montpellier",
+"name": "Montpellier",
+"box": [
+43.507,
+3.675,
+43.749,
+4.067
+],
+"url": "cities/fr-montpellier.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "lyon",
+"name": "Lyon",
+"box": [
+45.546,
+4.265,
+46.278,
+5.102
+],
+"url": "cities/fr-lyon.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "lille",
+"name": "Lille",
+"box": [
+50.501,
+2.782,
+50.803,
+3.278
+],
+"url": "cities/fr-lille.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "rennes",
+"name": "Rennes",
+"box": [
+47.926,
+-1.962,
+48.285,
+-1.472
+],
+"url": "cities/fr-rennes.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "bordeaux",
+"name": "Bordeaux",
+"box": [
+44.738,
+-0.812,
+45.034,
+-0.444
+],
+"url": "cities/fr-bordeaux.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "toulouse",
+"name": "Toulouse",
+"box": [
+43.4,
+1.155,
+43.747,
+1.65
+],
+"url": "cities/fr-toulouse.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "marseille",
+"name": "Marseille",
+"box": [
+43.209,
+5.28,
+43.427,
+5.54
+],
+"url": "cities/fr-marseille.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "nice",
+"name": "Nice",
+"box": [
+43.636,
+6.904,
+44.248,
+7.408
+],
+"url": "cities/fr-nice.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "strasbourg",
+"name": "Strasbourg",
+"box": [
+48.449,
+7.574,
+48.698,
+7.856
+],
+"url": "cities/fr-strasbourg.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "paris",
+"name": "Paris",
+"box": [
+48.1,
+1.4,
+49.25,
+3.6
+],
+"url": "cities/fr-paris.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "nantes",
+"name": "Nantes",
+"box": [
+47.106,
+-1.782,
+47.341,
+-1.349
+],
+"url": "cities/fr-nantes.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+}
+]

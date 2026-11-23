@@ -6,7 +6,7 @@
 import sys, zipfile, csv, io, json, math, os, collections
 zf, outdir = sys.argv[1], sys.argv[2]; S, W, N, E = map(float, sys.argv[3:7]); os.makedirs(outdir, exist_ok=True)
 z = zipfile.ZipFile(zf); rd = lambda n: csv.DictReader(io.TextIOWrapper(z.open(n), 'utf-8-sig'))
-BUS = {'3', '700', '701', '702', '704', '705', '711', '712', '715', '800'}  # buses, trolleybuses (MBTA Silver Line is 3)
+BUS = {'3', '11', '700', '701', '702', '704', '705', '711', '712', '715', '800'}  # buses, trolleybuses (MBTA Silver Line is 3)
 routes = {r['route_id'] for r in rd('routes.txt') if r['route_type'] in BUS}
 shapes = {t['shape_id'] for t in rd('trips.txt') if t['route_id'] in routes and t.get('shape_id')}
 pts = collections.defaultdict(list)
