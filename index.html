@@ -2206,7 +2206,9 @@ function drawBusNet(ctx){
   if(busOff() || GPS_OFF.has('bus') || PV.z < 12) return; const c = map.getCenter(); if(!c || regionOf([c.lat(), c.lng()]) !== 'uk' && regionOf([c.lat(), c.lng()]) !== 'edinburgh' && regionOf([c.lat(), c.lng()]) !== 'london' && !CITYL.cur?.name?.match(/Manchester/)) return;
   const zc = Math.floor(PV.z), k = 2 ** (PV.z - zc), look = lineLook('bus', lineW());
   const O = orgAt(zc); ctx.save(); localView(ctx, O, k); ctx.globalAlpha = dark ? Math.min(1, look.alpha*1.4) : look.alpha; ctx.strokeStyle = dark ? '#E8574F' : '#DC241F'; ctx.lineWidth = look.w/k; ctx.lineJoin = 'round'; ctx.lineCap = 'round';
+  const ldn = regionOf([c.lat(), c.lng()]) === 'london';
   for(const t of busnetTiles()){
+    if(ldn && !BUSNET.tiles.has(t)){ const [a, b] = t.split('_').map(Number); if([[a, b], [a + 1, b], [a, b + 1], [a + 1, b + 1]].every(([y, x]) => inGreaterLondon([y/10, x/10]))) { BUSNET.tiles.set(t, []); continue; } } // deep inside London: TfL's routes, no tile
     if(!BUSNET.tiles.has(t)){ BUSNET.tiles.set(t, null); fetch('cities/busnet/' + t + '.json', {signal:AbortSignal.timeout(10000)}).then(r => r.ok ? r.json() : []).then(j => { BUSNET.tiles.set(t, j); }).catch(() => BUSNET.tiles.set(t, [])); continue; }
     const polys = BUSNET.tiles.get(t); if(!polys || !polys.length) continue;
     const key = t + '@' + zc + ':' + ORG.id; let path = BUSNET.path.get(key);
