@@ -1,22 +1,1508 @@
 {
-  "_about": "tt / ttModes: the timetable trips (Transitous feed name, modes) the live vehicles replace on the map. Live vehicle feeds (GTFS-realtime) the server reads. 'needs' lists the settings (in /etc/london-live-darwin.env) a feed requires; without them it's skipped. box = [minLat, minLon, maxLat, maxLon]: where the map asks for it. gtfs = its timetable zip (route names, colours and kinds). every = seconds between reads.",
-  "feeds": [
-    {"id":"nl", "name":"OVapi (Netherlands)", "box":[50.7, 3.2, 53.7, 7.3], "tt":"nl-OpenOV", "ttModes":"BUS|TRAM|SUBWAY|FERRY", "every":60,
-     "url":"http://gtfs.ovapi.nl/nl/vehiclePositions.pb", "gtfs":"http://gtfs.ovapi.nl/nl/gtfs-nl.zip"},
-    {"id":"rome", "name":"Roma Mobilità", "box":[41.6, 12.2, 42.2, 12.9], "tt":"it-Lazio-Rome", "ttModes":"BUS", "every":30,
-     "url":"https://romamobilita.it/sites/default/files/rome_rtgtfs_vehicle_positions_feed.pb", "gtfs":"https://romamobilita.it/sites/default/files/rome_static_gtfs.zip"},
-    {"id":"krk-tram", "name":"MPK Kraków", "box":[49.9, 19.7, 50.2, 20.3], "tt":"Krak.w-T", "ttModes":"TRAM", "every":20, "kind":"tram", "trips":true,
-     "url":"https://gtfs.ztp.krakow.pl/VehiclePositions_T.pb", "gtfs":"https://gtfs.ztp.krakow.pl/GTFS_KRK_T.zip"},
-    {"id":"krk-bus", "name":"MPK Kraków", "box":[49.9, 19.7, 50.2, 20.3], "tt":"Krak.w-[AM]", "ttModes":"BUS", "every":20, "trips":true,
-     "url":"https://gtfs.ztp.krakow.pl/VehiclePositions_A.pb", "gtfs":"https://gtfs.ztp.krakow.pl/GTFS_KRK_A.zip"},
-    {"id":"brisbane", "name":"Translink (SEQ)", "box":[-28.4, 152.3, -26.2, 153.6], "tt":"au-qld|translink", "ttModes":"BUS|TRAM|FERRY", "every":30,
-     "url":"https://gtfsrt.api.translink.com.au/api/realtime/SEQ/VehiclePositions", "gtfs":"https://gtfsrt.api.translink.com.au/GTFS/SEQ_GTFS.zip"},
-    {"id":"toei-bus", "name":"Toei Bus", "box":[35.5, 139.5, 35.9, 140.0], "tt":"toei", "ttModes":"BUS", "every":30,
-     "url":"https://api-public.odpt.org/api/v4/gtfs/realtime/ToeiBus", "gtfs":"https://api-public.odpt.org/api/v4/files/Toei/data/ToeiBus-GTFS.zip"},
-    {"id":"ie", "name":"Transport for Ireland", "box":[51.3, -10.7, 55.5, -5.9], "tt":"ie-transport-for-ireland", "ttModes":"BUS", "every":60, "needs":["NTA_KEY"],
-     "url":"https://api.nationaltransport.ie/gtfsr/v2/Vehicles", "headers":{"x-api-key":"$NTA_KEY"},
-     "gtfs":"https://www.transportforireland.ie/transitData/Data/GTFS_Realtime.zip"},
-    {"id":"tokyo-odpt", "name":"ODPT (Tokyo trains)", "box":[35.4, 139.3, 36.0, 140.1], "tt":"TokyoMetro|tokyo-metro", "ttModes":"SUBWAY", "every":30, "needs":["ODPT_KEY"], "kind":"train", "check":"endpoint name to confirm once the key arrives",
-     "url":"https://api.odpt.org/api/v4/gtfs/realtime/odpt_TokyoMetro_AllLines_vehicle?acl:consumerKey=$ODPT_KEY"}
-  ]
+ "_about": "tt / ttModes: the timetable trips (Transitous feed name, modes) the live vehicles replace on the map. Live vehicle feeds (GTFS-realtime) the server reads. 'needs' lists the settings (in /etc/london-live-darwin.env) a feed requires; without them it's skipped. box = [minLat, minLon, maxLat, maxLon]: where the map asks for it. gtfs = its timetable zip (route names, colours and kinds). every = seconds between reads.",
+ "feeds": [
+  {
+   "id": "nl",
+   "name": "OVapi (Netherlands)",
+   "box": [
+    50.7,
+    3.2,
+    53.7,
+    7.3
+   ],
+   "tt": "nl-OpenOV",
+   "ttModes": "BUS|TRAM|SUBWAY|FERRY",
+   "every": 60,
+   "url": "http://gtfs.ovapi.nl/nl/vehiclePositions.pb",
+   "gtfs": "http://gtfs.ovapi.nl/nl/gtfs-nl.zip"
+  },
+  {
+   "id": "rome",
+   "name": "Roma Mobilità",
+   "box": [
+    41.6,
+    12.2,
+    42.2,
+    12.9
+   ],
+   "tt": "it-Lazio-Rome",
+   "ttModes": "BUS",
+   "every": 30,
+   "url": "https://romamobilita.it/sites/default/files/rome_rtgtfs_vehicle_positions_feed.pb",
+   "gtfs": "https://romamobilita.it/sites/default/files/rome_static_gtfs.zip"
+  },
+  {
+   "id": "krk-tram",
+   "name": "MPK Kraków",
+   "box": [
+    49.9,
+    19.7,
+    50.2,
+    20.3
+   ],
+   "tt": "Krak.w-T",
+   "ttModes": "TRAM",
+   "every": 20,
+   "kind": "tram",
+   "trips": true,
+   "url": "https://gtfs.ztp.krakow.pl/VehiclePositions_T.pb",
+   "gtfs": "https://gtfs.ztp.krakow.pl/GTFS_KRK_T.zip"
+  },
+  {
+   "id": "krk-bus",
+   "name": "MPK Kraków",
+   "box": [
+    49.9,
+    19.7,
+    50.2,
+    20.3
+   ],
+   "tt": "Krak.w-[AM]",
+   "ttModes": "BUS",
+   "every": 20,
+   "trips": true,
+   "url": "https://gtfs.ztp.krakow.pl/VehiclePositions_A.pb",
+   "gtfs": "https://gtfs.ztp.krakow.pl/GTFS_KRK_A.zip"
+  },
+  {
+   "id": "brisbane",
+   "name": "Translink (SEQ)",
+   "box": [
+    -28.4,
+    152.3,
+    -26.2,
+    153.6
+   ],
+   "tt": "au-qld|translink",
+   "ttModes": "BUS|TRAM|FERRY",
+   "every": 30,
+   "url": "https://gtfsrt.api.translink.com.au/api/realtime/SEQ/VehiclePositions",
+   "gtfs": "https://gtfsrt.api.translink.com.au/GTFS/SEQ_GTFS.zip"
+  },
+  {
+   "id": "toei-bus",
+   "name": "Toei Bus",
+   "box": [
+    35.5,
+    139.5,
+    35.9,
+    140.0
+   ],
+   "tt": "toei",
+   "ttModes": "BUS",
+   "every": 30,
+   "url": "https://api-public.odpt.org/api/v4/gtfs/realtime/ToeiBus",
+   "gtfs": "https://api-public.odpt.org/api/v4/files/Toei/data/ToeiBus-GTFS.zip"
+  },
+  {
+   "id": "ie",
+   "name": "Transport for Ireland",
+   "box": [
+    51.3,
+    -10.7,
+    55.5,
+    -5.9
+   ],
+   "tt": "ie-transport-for-ireland",
+   "ttModes": "BUS",
+   "every": 60,
+   "needs": [
+    "NTA_KEY"
+   ],
+   "url": "https://api.nationaltransport.ie/gtfsr/v2/Vehicles",
+   "headers": {
+    "x-api-key": "$NTA_KEY"
+   },
+   "gtfs": "https://www.transportforireland.ie/transitData/Data/GTFS_Realtime.zip"
+  },
+  {
+   "id": "tokyo-odpt",
+   "name": "ODPT (Tokyo trains)",
+   "box": [
+    35.4,
+    139.3,
+    36.0,
+    140.1
+   ],
+   "tt": "TokyoMetro|tokyo-metro",
+   "ttModes": "SUBWAY",
+   "every": 30,
+   "needs": [
+    "ODPT_KEY"
+   ],
+   "kind": "train",
+   "check": "endpoint name to confirm once the key arrives",
+   "url": "https://api.odpt.org/api/v4/gtfs/realtime/odpt_TokyoMetro_AllLines_vehicle?acl:consumerKey=$ODPT_KEY"
+  },
+  {
+   "id": "fr-europ-en-ave-renfe-731f",
+   "name": "européen AVE Renfe (France)",
+   "tt": "fr-horaires-ave-espagne-france",
+   "ttModes": "HIGHSPEED_RAIL|LONG_DISTANCE",
+   "every": 30,
+   "trips": "auto",
+   "url": "https://gtfsrt.renfe.com/vehicle_positions_LD.pb",
+   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/eae0fa46-087a-4018-ada9-d8add124e635"
+  },
+  {
+   "id": "fr-lio-occitanie-0264",
+   "name": "liO Occitanie",
+   "tt": "fr-reseau-lio-occitanie",
+   "ttModes": "BUS|TRAM|SUBWAY|COACH|FERRY",
+   "every": 30,
+   "trips": "auto",
+   "url": "https://lio.2cloud.app/api/gtfsrt/2.0/vehiclepositions/LIO65-6765-2617-7480/bin",
+   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/d747fe79-2915-4cdd-8cc5-51a810baaca5"
+  },
+  {
+   "id": "fr-al-op-pays-de-la-l-289c",
+   "name": "Aléop - Pays de la Loire",
+   "tt": "fr-arrets-horaires-et-circuits-des-lignes-de-transports-aleop-1",
+   "ttModes": "BUS|TRAM|SUBWAY|COACH|FERRY",
+   "every": 30,
+   "trips": "auto",
+   "url": "https://proxy.transport.data.gouv.fr/resource/aleop-pdl-gtfs-rt-vehicle-position",
+   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/916752e4-5daa-48bd-8bc1-4dd8d64f1d4a"
+  },
+  {
+   "id": "fr-normandie-82fb",
+   "name": "Normandie",
+   "tt": "fr-base-de-donnees-multimodale-des-reseaux-de-transport-public-normands",
+   "ttModes": "BUS|TRAM|SUBWAY|COACH|FERRY",
+   "every": 30,
+   "trips": "auto",
+   "url": "https://proxy.transport.data.gouv.fr/resource/atoumod-gtfs-rt-vehicle-position",
+   "gtfs": "https://transport.data.gouv.fr/resources/81942/download"
+  },
+  {
+   "id": "fr-r-mi-9a03",
+   "name": "Rémi (Centre-Val de Loire)",
+   "tt": "fr-remi-offre-theorique-mobilite-reseau-interurbain-regional",
+   "ttModes": "BUS|TRAM|SUBWAY|COACH|FERRY",
+   "every": 30,
+   "trips": "auto",
+   "url": "https://api.okina.fr/gateway/cvl/gtfsrt/vehicle-positions?useoriginalId=true",
+   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/6c52238c-1c1e-4c5a-922b-8b66c0415a9e"
+  },
+  {
+   "id": "fr-tbm-0aa7",
+   "name": "TBM (Bordeaux Métropole)",
+   "tt": "fr-offres-de-services-bus-tram-et-scolaire-au-format-gtfs-netex-gtfs-rt-siri-lite",
+   "ttModes": "BUS|TRAM|SUBWAY|COACH|FERRY",
+   "every": 30,
+   "trips": "auto",
+   "url": "https://bdx.mecatran.com/utw/ws/gtfsfeed/vehicles/bordeaux?apiKey=opendata-bordeaux-metropole-flux-gtfs-rt",
+   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/10b87ffe-e6bb-494d-93df-bb6019e223d9"
+  },
+  {
+   "id": "fr-fluo-grand-est-hau-0381",
+   "name": "Fluo Grand-Est - Haut-Rhin (68)",
+   "tt": "fr-offre-de-transport-du-reseau-fluo-grand-est-haut-rhin-68",
+   "ttModes": "BUS|TRAM|SUBWAY|COACH|FERRY",
+   "every": 30,
+   "trips": "auto",
+   "url": "https://proxy.transport.data.gouv.fr/resource/fluo-haut-rhin-68-gtfs-rt-vehicle-position",
+   "gtfs": "https://transport.data.gouv.fr/resources/80419/download"
+  },
+  {
+   "id": "fr-lignes-d-azur-c842",
+   "name": "Lignes d'Azur (Nice Côte d'Azur)",
+   "tt": "fr-donnees-statiques-et-dynamiques-du-reseau-de-transport-lignes-dazur",
+   "ttModes": "BUS|TRAM|SUBWAY|COACH|FERRY",
+   "every": 30,
+   "trips": "auto",
+   "url": "https://ara-api.enroute.mobi/rla/gtfs/vehicle-positions",
+   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/f5678ab2-c863-4b48-ba1f-9021c7d97634"
+  },
+  {
+   "id": "fr-tam-c1cf",
+   "name": "TaM (Montpellier Méditerranée Métropole)",
+   "tt": "fr-offre-de-transport-tam-en-temps-reel-gtfs-rt-urbain-et-suburbain",
+   "ttModes": "BUS|TRAM|SUBWAY|COACH|FERRY",
+   "every": 30,
+   "trips": "auto",
+   "url": "https://gtfsproxy.e-tam.fr/COMMON/VehiclePosition.pb",
+   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/93a29ce2-cfc8-44ff-b712-bcfd814b7f00"
+  },
+  {
+   "id": "fr-astuce-52d2",
+   "name": "Astuce (Rouen Normandie)",
+   "tt": "fr-donnees-statiques-et-temps-reel-du-reseau-astuce-metropole-rouen-normandie",
+   "ttModes": "BUS|TRAM|SUBWAY|COACH|FERRY",
+   "every": 30,
+   "trips": "auto",
+   "url": "https://gtfs.bus-tracker.fr/gtfs-rt/tcar/?tcar=1&tae=1&tni=1",
+   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/c0ebcf01-954a-4d24-b2d8-a00333ffe937"
+  },
+  {
+   "id": "fr-mistral-0875",
+   "name": "Mistral (Toulon-Provence-Méditerranée)",
+   "tt": "fr-reseau-de-transport-urbain-de-la-metropole-toulon-provence-mediterranee",
+   "ttModes": "BUS|TRAM|SUBWAY|COACH|FERRY",
+   "every": 30,
+   "trips": "auto",
+   "url": "https://feed-rdtpm-toulon.ratpdev.com/VehiclePosition/GTFS-RT",
+   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/b0789d9e-5077-4124-b6b2-773353ada8cf"
+  },
+  {
+   "id": "fr-transvilles-f6e4",
+   "name": "Transvilles (Valenciennes Métropole)",
+   "tt": "fr-simouv-horaires-theoriques-format-gtfs-et-temps-reel-format-siri-transvilles-valenciennes",
+   "ttModes": "BUS|TRAM|SUBWAY|COACH|FERRY",
+   "every": 30,
+   "trips": "auto",
+   "url": "https://ara-api.enroute.mobi/transvilles/gtfs",
+   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/982e0826-4118-42d9-9b73-c3d3b455cd4f"
+  },
+  {
+   "id": "fr-navette-a-roport-d-99c5",
+   "name": "Navette Aéroport de Bordeaux",
+   "tt": "fr-horaires-theoriques-et-temps-reel-du-reseau-bordeaux-navettes-aeroport-30-direct-gtfs-gtfs-rt",
+   "ttModes": "BUS|TRAM|SUBWAY|COACH|FERRY",
+   "every": 30,
+   "trips": "auto",
+   "url": "https://zenbus.net/gtfs/rt/poll.proto?dataset=bordeaux-navettes-aeroport",
+   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/4cb2f0a9-d3d8-402b-b0bb-afafb741e5f1"
+  },
+  {
+   "id": "fr-irigo-baea",
+   "name": "Irigo (Angers Loire Métropole)",
+   "tt": "fr-angers-loire-metropole-reseau-irigo-gtfs-gtfs-rt-siri",
+   "ttModes": "BUS|TRAM|SUBWAY|COACH|FERRY",
+   "every": 30,
+   "trips": "auto",
+   "url": "https://ara-api.enroute.mobi/irigo/gtfs/vehicle-positions",
+   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/32f30b64-33f7-43bb-9b6f-34c21c2f83a3"
+  },
+  {
+   "id": "fr-fil-bleu-d39d",
+   "name": "Fil Bleu (Tours Métropole Val de Loire)",
+   "tt": "fr-fil-bleu-syndicat-des-mobilites-gtfs-gtfs-rt",
+   "ttModes": "BUS|TRAM|SUBWAY|COACH|FERRY",
+   "every": 30,
+   "trips": "auto",
+   "url": "https://data.filbleu.fr/ws-tr/gtfs-rt/opendata/vehicle-positions",
+   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/198b7602-5e74-4d88-b6bc-483af85a2430"
+  },
+  {
+   "id": "fr-sank-o-4933",
+   "name": "Sankéo (Perpignan Méditerranée Métropole)",
+   "tt": "fr-gtfs-sankeo",
+   "ttModes": "BUS|TRAM|SUBWAY|COACH|FERRY",
+   "every": 30,
+   "trips": "auto",
+   "url": "https://zenbus.net/gtfs/rt/poll.proto?src=true&dataset=sankeo-scolaire",
+   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/3047f942-98f0-4d4c-92cf-7c5de1fe233c"
+  },
+  {
+   "id": "fr-lia-ff9f",
+   "name": "LiA (Le Havre Seine Métropole)",
+   "tt": "fr-reseau-de-transport-en-commun-lia-gtfs-siri",
+   "ttModes": "BUS|TRAM|SUBWAY|COACH|FERRY",
+   "every": 30,
+   "trips": "auto",
+   "url": "https://opendata.transports-lia.fr/gtfs-rt/VehiclePosition.pb",
+   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/2178bfa8-9fe0-4633-8223-8c151728ef28"
+  },
+  {
+   "id": "fr-tango-cfd4",
+   "name": "Tango (Nîmes Métropole)",
+   "tt": "fr-offre-de-transport-du-reseau-tango-de-nimes-metropole-gtfs-gtfs-rt",
+   "ttModes": "BUS|TRAM|SUBWAY|COACH|FERRY",
+   "every": 30,
+   "trips": "auto",
+   "url": "http://185.220.72.38:8085/ProfilGtfsRt2_0RSProducer-TANGO/VehiclePosition.pb",
+   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/15aeb8a5-1cca-4bb9-ae5f-b6e67e4ff2ab"
+  },
+  {
+   "id": "fr-diviamobilit-s-793b",
+   "name": "DiviaMobilités (Dijon Métropole)",
+   "tt": "fr-gtfs-diviamobilites",
+   "ttModes": "BUS|TRAM|SUBWAY|COACH|FERRY",
+   "every": 30,
+   "trips": "auto",
+   "url": "https://proxy.transport.data.gouv.fr/resource/divia-dijon-gtfs-rt-vehicle-position",
+   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/e0dbd217-15cd-4e28-9459-211a27511a34"
+  },
+  {
+   "id": "fr-tadao-ae56",
+   "name": "TADAO (Lens - Liévin)",
+   "tt": "fr-gtfs-tadao",
+   "ttModes": "BUS|TRAM|SUBWAY|COACH|FERRY",
+   "every": 30,
+   "trips": "auto",
+   "url": "https://ara-api.enroute.mobi/tadao_production/gtfs",
+   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/47a5e290-7883-4a40-bdcf-b693f64087b0"
+  },
+  {
+   "id": "fr-cit-a-fe12",
+   "name": "Citéa (Valence Romans Agglo)",
+   "tt": "fr-ce-jeu-de-donnees-contient-la-liste-des-arrets-des-horaires-et-des-parcours-theoriques-du-reseau-de-transport-urbain-et-interurbain-de-vrm",
+   "ttModes": "BUS|TRAM|SUBWAY|COACH|FERRY",
+   "every": 30,
+   "trips": "auto",
+   "url": "https://proxy.transport.data.gouv.fr/resource/citea-valence-gtfs-rt-vehicle-position",
+   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/46bf6b5c-68c1-4198-a982-caeee88540a3"
+  },
+  {
+   "id": "fr-bibus-3362",
+   "name": "Bibus (Brest Métropole)",
+   "tt": "fr-horaires-theoriques-et-temps-reel-des-bus-et-tramways-circulant-sur-le-territoire-de-brest-metropole",
+   "ttModes": "BUS|TRAM|SUBWAY|COACH|FERRY",
+   "every": 30,
+   "trips": "auto",
+   "url": "https://proxy.transport.data.gouv.fr/resource/bibus-brest-gtfs-rt-vehicle-position",
+   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/583d1419-058b-481b-b378-449cab744c82"
+  },
+  {
+   "id": "fr-setram-10fa",
+   "name": "SETRAM (Le Mans Métropole)",
+   "tt": "fr-gtfs-du-reseau-des-transports-bus-et-tramway-setram-circulant-sur-le-territoire-le-mans-metropole",
+   "ttModes": "BUS|TRAM|SUBWAY|COACH|FERRY",
+   "every": 30,
+   "trips": "auto",
+   "url": "https://proxy.transport.data.gouv.fr/resource/setram-lemans-gtfs-rt-vehicle-position",
+   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/c9bb5f5a-5310-4544-a26a-754ac9889afb"
+  },
+  {
+   "id": "fr-orizo-e752",
+   "name": "Orizo (Grand Avignon (COGA))",
+   "tt": "fr-reseau-orizo-grand-avignon",
+   "ttModes": "BUS|TRAM|SUBWAY|COACH|FERRY",
+   "every": 30,
+   "trips": "auto",
+   "url": "https://api.maas-fr.cityway.fr/dataflow/vehicule-tc-tr/download?provider=ORIZO&dataFormat=gtfs-rt",
+   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/40b26c33-9be2-47ea-a46c-8bda9f63273e"
+  },
+  {
+   "id": "fr-dk-bus-2162",
+   "name": "DK'BUS (Dunkerque)",
+   "tt": "fr-offre-de-transports-reseau-dk-bus-de-la-communaute-urbaine-de-dunkerque-gtfs",
+   "ttModes": "BUS|TRAM|SUBWAY|COACH|FERRY",
+   "every": 30,
+   "trips": "auto",
+   "url": "https://gtfs.bus-tracker.fr/gtfs-rt/dunkerque/",
+   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/f51fabfb-9d7a-44b7-bd03-d1032337fb80"
+  },
+  {
+   "id": "fr-ametis-0480",
+   "name": "Ametis (Amiens Métropole)",
+   "tt": "fr-ametis",
+   "ttModes": "BUS|TRAM|SUBWAY|COACH|FERRY",
+   "every": 30,
+   "trips": "auto",
+   "url": "https://proxy.transport.data.gouv.fr/resource/ametis-amiens-gtfs-rt-vehicle-position",
+   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/5bc8b7dc-0d4e-48e7-b2ec-eccfe3702c19"
+  },
+  {
+   "id": "fr-cap-cotentin-4483",
+   "name": "Cap Cotentin",
+   "tt": "fr-horaires-theoriques-et-en-temps-reel-des-bus-et-autocars-circulant-sur-le-reseau-cap-cotentin",
+   "ttModes": "BUS|TRAM|SUBWAY|COACH|FERRY",
+   "every": 30,
+   "trips": "auto",
+   "url": "https://app.pysae.com/api/v2/groups/transdev-cotentin/gtfs-rt",
+   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/2e97c9b3-a59f-42dd-9b9e-a232fa771f21"
+  },
+  {
+   "id": "fr-kic-o-eafc",
+   "name": "Kicéo (Golfe du Morbihan - Vannes Agglomération)",
+   "tt": "fr-reseau-urbain-kiceo",
+   "ttModes": "BUS|TRAM|SUBWAY|COACH|FERRY",
+   "every": 30,
+   "trips": "auto",
+   "url": "https://proxy.transport.data.gouv.fr/resource/kiceo-vannes-gtfs-rt",
+   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/565533c0-64ae-44d6-9dfa-169be5b805c6"
+  },
+  {
+   "id": "fr-tcat-8a5a",
+   "name": "TCAT (Troyes Champagne Métropole)",
+   "tt": "fr-donnees-tcat-troyes-champagne-metropole-1",
+   "ttModes": "BUS|TRAM|SUBWAY|COACH|FERRY",
+   "every": 30,
+   "trips": "auto",
+   "url": "http://94.143.218.42:13486/ProfilGtfsRt2_0RSProducer-TCAT/VehiclePosition.pb",
+   "gtfs": "https://transport.data.gouv.fr/resources/79847/download"
+  },
+  {
+   "id": "fr-palmbus-f514",
+   "name": "Palmbus (Cannes Pays de Lérins)",
+   "tt": "fr-horaires-theoriques-et-temps-reel-gtfs-gtfs-rt-du-reseau-palmbus-cannes-pays-de-lerins",
+   "ttModes": "BUS|TRAM|SUBWAY|COACH|FERRY",
+   "every": 30,
+   "trips": "auto",
+   "url": "https://proxy.transport.data.gouv.fr/resource/palmbus-cannes-gtfs-rt-vehicle-position",
+   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/47bc8088-6c72-43ad-a959-a5bbdd1aa14f"
+  },
+  {
+   "id": "fr-agglobus-0303",
+   "name": "Agglobus (Centre Littoral)",
+   "tt": "fr-agence-agglobus",
+   "ttModes": "BUS|TRAM|SUBWAY|COACH|FERRY",
+   "every": 30,
+   "trips": "auto",
+   "url": "https://cacl.plateforme-2cloud.com/api/gtfsrt/2.0/vehiclepositions/CACL-1823-7594-1349/bin",
+   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/d358344a-ed1e-4d74-b092-9cbc517b10a8"
+  },
+  {
+   "id": "fr-alesy-cad9",
+   "name": "Alesy (Alès Agglomération)",
+   "tt": "fr-horaires-theoriques-des-lignes-urbaines-et-interurbaines-sur-le-reseau-alesy-gtfs",
+   "ttModes": "BUS|TRAM|SUBWAY|COACH|FERRY",
+   "every": 30,
+   "trips": "auto",
+   "url": "https://alesy.plateforme-2cloud.com/api/gtfsrt/2.0/vehiclepositions/ALESY-6574-4401-7572/bin",
+   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/b9a0f32e-4386-454c-8759-b82653fa861e"
+  },
+  {
+   "id": "fr-filibus-7aa8",
+   "name": "Filibus (Chartres Métropole)",
+   "tt": "fr-reseau-filibus",
+   "ttModes": "BUS|TRAM|SUBWAY|COACH|FERRY",
+   "every": 30,
+   "trips": "auto",
+   "url": "https://gtfs.bus-tracker.fr/gtfs-rt/chartres",
+   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/8d4c3e5c-1702-4649-b47a-b16c6016dcc6"
+  },
+  {
+   "id": "fr-rubis-3769",
+   "name": "Rubis (Bassin de Bourg-en-Bresse)",
+   "tt": "fr-rubis-grand-bourg-mobilites-offre-de-transport-theorique-et-temps-reel",
+   "ttModes": "BUS|TRAM|SUBWAY|COACH|FERRY",
+   "every": 30,
+   "trips": "auto",
+   "url": "https://proxy.transport.data.gouv.fr/resource/rubis-bourg-en-bresse-gtfs-rt-vehicle-position",
+   "gtfs": "https://transport.data.gouv.fr/resources/84267/download"
+  },
+  {
+   "id": "fr-illygo-cd19",
+   "name": "Illygo (Le Gesnois Bilurien)",
+   "tt": "fr-reseau-urbain-illygo",
+   "ttModes": "BUS|TRAM|SUBWAY|COACH|FERRY",
+   "every": 30,
+   "trips": "auto",
+   "url": "https://pysae.com/api/v2/groups/illygo/gtfs-rt",
+   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/024123a0-8665-4983-90bd-134ef7d70383"
+  },
+  {
+   "id": "fr-citibus-7322",
+   "name": "Citibus (Le Grand Narbonne)",
+   "tt": "fr-offre-de-transport-communaute-dagglomeration-le-grand-narbonne",
+   "ttModes": "BUS|TRAM|SUBWAY|COACH|FERRY",
+   "every": 30,
+   "trips": "auto",
+   "url": "https://feed-citibus-narbonne.ratpdev.com/GTFS-RT/gtfs-rt.bin",
+   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/21ca2b77-505b-4c4c-9154-a044e61b8560"
+  },
+  {
+   "id": "fr-beemob-d0b1",
+   "name": "beeMob (Béziers-Méditerranée)",
+   "tt": "fr-horaires-theoriques-et-temps-reel-du-reseau-de-transports-beemob-beziers-mediterranee",
+   "ttModes": "BUS|TRAM|SUBWAY|COACH|FERRY",
+   "every": 30,
+   "trips": "auto",
+   "url": "https://feed-beemob-beziers.ratpdev.com/GTFS-RT_vehiclePosition/gtfs-rt.bin",
+   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/c1581a3a-0b78-4944-905c-a8530206648a"
+  },
+  {
+   "id": "fr-s-te-agglopole-mob-3c64",
+   "name": "Sète Agglopole Mobilité (Sète Agglopôle Méditerranée)",
+   "tt": "fr-reseau-bus-sete-agglopole-mobilite",
+   "ttModes": "BUS|TRAM|SUBWAY|COACH|FERRY",
+   "every": 30,
+   "trips": "auto",
+   "url": "https://sete.ceccli.com/gtfs/VehiclePositions.pb",
+   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/9402f130-ac11-4615-8494-a5c84fcdb78c"
+  },
+  {
+   "id": "fr-tlp-0d93",
+   "name": "TLP (Tarbes-Lourdes-Pyrénées)",
+   "tt": "fr-horaires-theoriques-du-reseau-tarbes-lourdes-tlp-mobilites-gtfs",
+   "ttModes": "BUS|TRAM|SUBWAY|COACH|FERRY",
+   "every": 30,
+   "trips": "auto",
+   "url": "https://zenbus.net/gtfs/rt/poll.proto?dataset=tlp-mobilites",
+   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/84f7501c-de7b-46d9-8e0c-14c30d9fa58b"
+  },
+  {
+   "id": "fr-le-bus-b453",
+   "name": "Le Bus (Estérel Côte d'Azur Agglomération)",
+   "tt": "fr-reseau-transport-urbain-le-bus",
+   "ttModes": "BUS|TRAM|SUBWAY|COACH|FERRY",
+   "every": 30,
+   "trips": "auto",
+   "url": "https://api.pysae.com/api/v4/groups/agglobus-cavem/gtfs-rt",
+   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/11e73e58-edb0-4fab-a220-61a659cf6423"
+  },
+  {
+   "id": "fr-linead-d4da",
+   "name": "Linead (Agglo du Pays de Dreux)",
+   "tt": "fr-dreux-offre-theorique-mobilite-reseau-urbain",
+   "ttModes": "BUS|TRAM|SUBWAY|COACH|FERRY",
+   "every": 30,
+   "trips": "auto",
+   "url": "https://gtfs.bus-tracker.fr/gtfs-rt/dreux/",
+   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/c654db3d-a710-4ed5-a327-417f812bf9a0"
+  },
+  {
+   "id": "fr-rtca-3642",
+   "name": "RTCA (Carcassonne Agglo)",
+   "tt": "fr-reseau-rtca",
+   "ttModes": "BUS|TRAM|SUBWAY|COACH|FERRY",
+   "every": 30,
+   "trips": "auto",
+   "url": "https://proxy.transport.data.gouv.fr/resource/rtca-carcassonne-gtfs-rt-vehicle-position",
+   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/941123b0-004e-4f48-81e7-8c62fb4f07aa"
+  },
+  {
+   "id": "fr-tedbus-3a22",
+   "name": "TEDbus (Dracénie Provence Verdon Agglomération)",
+   "tt": "fr-reseau-tedbus-lignes-regulieres-dracenie-provence-verdon-agglomeration",
+   "ttModes": "BUS|TRAM|SUBWAY|COACH|FERRY",
+   "every": 30,
+   "trips": "auto",
+   "url": "https://pysae.com/api/v2/groups/draguignan/gtfs-rt",
+   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/a1d56fb0-e264-45f2-8822-c08746847a97"
+  },
+  {
+   "id": "fr-transurbain-0409",
+   "name": "Transurbain (Evreux Portes de Normandie)",
+   "tt": "fr-transurbain-evreux-portes-de-normandie",
+   "ttModes": "BUS|TRAM|SUBWAY|COACH|FERRY",
+   "every": 30,
+   "trips": "auto",
+   "url": "https://proxy.transport.data.gouv.fr/resource/transurbain-evreux-gtfs-rt-vehicle-position",
+   "gtfs": "https://transport.data.gouv.fr/resources/80613/download"
+  },
+  {
+   "id": "fr-cars-r-gion-loire-095e",
+   "name": "Cars Région Loire - lignes 19 et 32 (Loire Forez Agglomération (LFA))",
+   "tt": "fr-flux-gtfs-realtime-des-lignes-cars-region-loire-l19-et-l32-fournis-par-pysae",
+   "ttModes": "BUS|TRAM|SUBWAY|COACH|FERRY",
+   "every": 30,
+   "trips": "auto",
+   "url": "https://api.pysae.com/api/v4/groups/philibert-loire/gtfs-rt",
+   "gtfs": "https://transport.data.gouv.fr/resources/84281/download"
+  },
+  {
+   "id": "fr-artis-3e0a",
+   "name": "Artis (Arras)",
+   "tt": "fr-reseau-de-transport-artis",
+   "ttModes": "BUS|TRAM|SUBWAY|COACH|FERRY",
+   "every": 30,
+   "trips": "auto",
+   "url": "https://api.pysae.com/api/v4/groups/keolis-arras-8H8k/gtfs-rt",
+   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/4ded8fb3-a38d-45c5-b4a7-a2f6ac17ba4f"
+  },
+  {
+   "id": "fr-azalys-3c01",
+   "name": "Azalys (Blois ''Agglopolys'')",
+   "tt": "fr-agglopolys-offre-theorique-mobilite-reseau-urbain-azalys-de-blois",
+   "ttModes": "BUS|TRAM|SUBWAY|COACH|FERRY",
+   "every": 30,
+   "trips": "auto",
+   "url": "https://app.mecatran.com/utw/ws/gtfsfeed/vehicles/blois?apiKey=7a0d1031460836674e76041e7a78011813347f04",
+   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/e6e0228d-9916-4216-bb5f-7d3edf57866c"
+  },
+  {
+   "id": "fr-sitac-92d6",
+   "name": "SITAC (Grand Calais Terres et Mers)",
+   "tt": "fr-horaires-theoriques-et-temps-reel-aux-formats-gtfs-et-gtfs-rt-du-reseau-sitac",
+   "ttModes": "BUS|TRAM|SUBWAY|COACH|FERRY",
+   "every": 30,
+   "trips": "auto",
+   "url": "https://zenbus.net/gtfs/rt/poll.proto?dataset=sitac-calais-rt&src=true",
+   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/5dcdb39b-aee3-4a0f-a9a9-be225f5a8b78"
+  },
+  {
+   "id": "fr-mouv-o-8a3f",
+   "name": "Mouvéo (Pays de Saint-Omer)",
+   "tt": "fr-transports-en-commun-audomarois-1",
+   "ttModes": "BUS|TRAM|SUBWAY|COACH|FERRY",
+   "every": 30,
+   "trips": "auto",
+   "url": "https://proxy.transport.data.gouv.fr/resource/mouveo-saint-omer-gtfs-rt-vehicle-position",
+   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/a490d239-942a-4206-bed5-cef5a2007bcd"
+  },
+  {
+   "id": "fr-et-tad-zonal-corol-a7fd",
+   "name": "et TAD zonal Corolis (Beauvaisis)",
+   "tt": "fr-donnees-theoriques-et-temps-reel-du-reseau-corolis-interurbain-communaute-dagglomeration-du-beauvaisis",
+   "ttModes": "BUS|TRAM|SUBWAY|COACH|FERRY",
+   "every": 30,
+   "trips": "auto",
+   "url": "https://api.oisemob.cityway.fr/dataflow/vehicule-tc-tr/download?provider=COROLIS_INT&dataFormat=gtfs-rt",
+   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/61277099-cde9-457c-919d-a1b7b20fe992"
+  },
+  {
+   "id": "fr-corolis-b2f9",
+   "name": "Corolis (Beauvaisis)",
+   "tt": "fr-donnees-theoriques-et-temps-reel-du-reseau-corolis-urbain-communaute-dagglomeration-du-beauvaisis",
+   "ttModes": "BUS|TRAM|SUBWAY|COACH|FERRY",
+   "every": 30,
+   "trips": "auto",
+   "url": "https://api.oisemob.cityway.fr/dataflow/vehicule-tc-tr/download?provider=COROLIS_URB&dataFormat=gtfs-rt",
+   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/2b8e53ce-a26c-4986-8d33-505e1b680bb4"
+  },
+  {
+   "id": "fr-qub-ccff",
+   "name": "Qub (Quimper Bretagne Occidentale)",
+   "tt": "fr-horaires-theoriques-et-du-reseau-de-transports-qub-transports-urbains-de-quimper-bretagne-occidentale",
+   "ttModes": "BUS|TRAM|SUBWAY|COACH|FERRY",
+   "every": 30,
+   "trips": "auto",
+   "url": "https://feed-qub-quimper.ratpdev.com/GTFS-RT_vehiclePosition/gtfs-rt.bin",
+   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/95530333-7002-401d-9d64-2829496d1c36"
+  },
+  {
+   "id": "fr-hop-bus-c75c",
+   "name": "Hop Bus (Coeur de Flandre)",
+   "tt": "fr-hop-bus-le-reseau-100-gratuit-du-coeur-de-flandre",
+   "ttModes": "BUS|TRAM|SUBWAY|COACH|FERRY",
+   "every": 30,
+   "trips": "auto",
+   "url": "https://gtfs-rt.infra-hubup.fr/hopbus/realtime",
+   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/d10fb9b2-1a5a-498c-ba55-e89cf0136ef1"
+  },
+  {
+   "id": "fr-tempo-bus-fdff",
+   "name": "Tempo Bus (Agglomération d'Agen)",
+   "tt": "fr-agen-gtfs-urbain",
+   "ttModes": "BUS|TRAM|SUBWAY|COACH|FERRY",
+   "every": 30,
+   "trips": "auto",
+   "url": "https://api.pysae.com/api/v4/groups/agen/gtfs-rt",
+   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/c1415ff3-7457-4b51-aead-aacbf03a474e"
+  },
+  {
+   "id": "fr-ritmo-afec",
+   "name": "Ritmo (Haguenau)",
+   "tt": "fr-horaires-theoriques-et-temps-reel-du-reseau-ritmo-haguenau-gtfs-gtfs-rt",
+   "ttModes": "BUS|TRAM|SUBWAY|COACH|FERRY",
+   "every": 30,
+   "trips": "auto",
+   "url": "https://zenbus.net/gtfs/rt/poll.proto?dataset=haguenau",
+   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/8df46b2d-1be4-4a84-a227-bc2c61af97ca"
+  },
+  {
+   "id": "fr-l-va-2466",
+   "name": "L'va (Vienne Condrieu)",
+   "tt": "fr-reseau-lva",
+   "ttModes": "BUS|TRAM|SUBWAY|COACH|FERRY",
+   "every": 30,
+   "trips": "auto",
+   "url": "https://feed-vienne-mobi.ratpdev.com/GTFS-RT/gtfs-rt.bin",
+   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/e0831d78-5577-4cae-aa00-de5eeaf3ecb6"
+  },
+  {
+   "id": "fr-glazgo-2082",
+   "name": "Glazgo (Auray Quiberon Terre Atlantique)",
+   "tt": "fr-reseau-urbain-glazgo",
+   "ttModes": "BUS|TRAM|SUBWAY|COACH|FERRY",
+   "every": 30,
+   "trips": "auto",
+   "url": "https://api.pysae.com/api/v4/groups/glazgo/gtfs-rt",
+   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/4dc52cb9-909e-40dd-80e5-a90073bc80fc"
+  },
+  {
+   "id": "fr-axo-9d65",
+   "name": "AXO (Creil Sud Oise)",
+   "tt": "fr-donnees-theoriques-et-temps-reel-du-reseau-axo-communaute-dagglomeration-creil-sud-oise",
+   "ttModes": "BUS|TRAM|SUBWAY|COACH|FERRY",
+   "every": 30,
+   "trips": "auto",
+   "url": "https://api.oisemob.cityway.fr/dataflow/vehicule-tc-tr/download?provider=AXO&dataFormat=gtfs-rt",
+   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/23f2f5ed-c21c-4e87-840b-22512fe7c5d7"
+  },
+  {
+   "id": "fr-mat-7261",
+   "name": "MAT (Pays de Saint Malo Agglomération)",
+   "tt": "fr-reseau-urbain-mat",
+   "ttModes": "BUS|TRAM|SUBWAY|COACH|FERRY",
+   "every": 30,
+   "trips": "auto",
+   "url": "https://proxy.transport.data.gouv.fr/resource/mat-st-malo-gtfs-rt",
+   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/3bd31fbe-93f4-432d-ade7-ee8d69897880"
+  },
+  {
+   "id": "fr-envia-a0e0",
+   "name": "Envia (Arles-Crau-Camargue-Montagnette)",
+   "tt": "fr-donnees-statiques-et-temps-reels-reseau-envia",
+   "ttModes": "BUS|TRAM|SUBWAY|COACH|FERRY",
+   "every": 30,
+   "trips": "auto",
+   "url": "https://accm.plateforme-2cloud.com/api/gtfsrt/2.0/vehiclepositions/ACCM-RSUD-4552-8552-5459/bin",
+   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/52216d2f-072e-4b7d-af0c-15d8d4e98b09"
+  },
+  {
+   "id": "fr-mobivie-57e4",
+   "name": "Mobivie (Vichy Communauté)",
+   "tt": "fr-mobivie-reseau-urbain-vichy-communaute",
+   "ttModes": "BUS|TRAM|SUBWAY|COACH|FERRY",
+   "every": 30,
+   "trips": "auto",
+   "url": "https://proxy.transport.data.gouv.fr/resource/mobivie-vichy-gtfs-rt-vehicle-position",
+   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/c087ca61-f4db-44b2-bdc1-ec221c2bf762"
+  },
+  {
+   "id": "fr-tic-258b",
+   "name": "TIC (Région de Compiègne et de la Basse Automne)",
+   "tt": "fr-donnees-theoriques-et-temps-reel-du-reseau-tic-interurbain-communaute-dagglomeration-de-la-region-de-compiegne-et-de-la-basse-automne",
+   "ttModes": "BUS|TRAM|SUBWAY|COACH|FERRY",
+   "every": 30,
+   "trips": "auto",
+   "url": "https://api.oisemob.cityway.fr/dataflow/vehicule-tc-tr/download?provider=TIC_INT&dataFormat=gtfs-rt",
+   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/d9ea4b4a-0717-4a7d-bd14-054afa192457"
+  },
+  {
+   "id": "fr-tic-a4ea",
+   "name": "TIC (Région de Compiègne et de la Basse Automne)",
+   "tt": "fr-donnees-theoriques-et-temps-reel-du-reseau-tic-urbain-communaute-dagglomeration-de-la-region-de-compiegne-et-de-la-basse-automne",
+   "ttModes": "BUS|TRAM|SUBWAY|COACH|FERRY",
+   "every": 30,
+   "trips": "auto",
+   "url": "https://api.oisemob.cityway.fr/dataflow/vehicule-tc-tr/download?provider=TIC_URB&dataFormat=gtfs-rt",
+   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/3a98dcdb-ca6e-40fc-8da9-09ab7f5661c9"
+  },
+  {
+   "id": "fr-sngo-b326",
+   "name": "SNgo! (Seine Normandie Agglomération)",
+   "tt": "fr-sngo-vernon-les-andelys-seine-normandie-agglo",
+   "ttModes": "BUS|TRAM|SUBWAY|COACH|FERRY",
+   "every": 30,
+   "trips": "auto",
+   "url": "https://proxy.transport.data.gouv.fr/resource/sngo-vernon-gtfs-rt-vehicle-position",
+   "gtfs": "https://transport.data.gouv.fr/resources/80655/download"
+  },
+  {
+   "id": "fr-vitobus-e4a2",
+   "name": "Vitobus (Vitré Communauté)",
+   "tt": "fr-mova-ensemble-de-loffre-de-transport-collectif",
+   "ttModes": "BUS|TRAM|SUBWAY|COACH|FERRY",
+   "every": 30,
+   "trips": "auto",
+   "url": "https://gtfs.bus-tracker.fr/gtfs-rt/vitre/",
+   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/e808092a-936a-410b-b75c-df42a690be17"
+  },
+  {
+   "id": "fr-cap-bus-f564",
+   "name": "Cap’Bus (Hérault-Méditerranée)",
+   "tt": "fr-gtfs-capbus",
+   "ttModes": "BUS|TRAM|SUBWAY|COACH|FERRY",
+   "every": 30,
+   "trips": "auto",
+   "url": "https://zenbus.net/gtfs/rt/poll.proto?dataset=agdecapbus68429531",
+   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/8ce8ad14-836e-427d-bb43-a6ce0ab5ecda"
+  },
+  {
+   "id": "fr-rezo-bus-c391",
+   "name": "REZO'BUS (Caux Seine Agglo)",
+   "tt": "fr-reseau-urbain-caux-seine-mobilite-rezobus",
+   "ttModes": "BUS|TRAM|SUBWAY|COACH|FERRY",
+   "every": 30,
+   "trips": "auto",
+   "url": "https://app.pysae.com/api/v4/groups/caux-seine-agglo/gtfs-rt",
+   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/b0687cf2-03f5-4d39-8412-01b3d93e0d2b"
+  },
+  {
+   "id": "fr-lila-presqu-ile-2616",
+   "name": "Lila Presqu'ile (Presqu'île de Guérande Atlantique (Cap Atlantique))",
+   "tt": "fr-reseau-urbain-scolaire-lila",
+   "ttModes": "BUS|TRAM|SUBWAY|COACH|FERRY",
+   "every": 30,
+   "trips": "auto",
+   "url": "https://proxy.transport.data.gouv.fr/resource/lila-presquile-cap-atlantique-gtfs-rt",
+   "gtfs": "https://transport.data.gouv.fr/resources/83762/download"
+  },
+  {
+   "id": "fr-forbus-8942",
+   "name": "Forbus (Forbach Porte de France)",
+   "tt": "fr-fr-200052264-t0007-0000-1",
+   "ttModes": "BUS|TRAM|SUBWAY|COACH|FERRY",
+   "every": 30,
+   "trips": "auto",
+   "url": "https://proxy.transport.data.gouv.fr/resource/fluo-forbus-forbach-gtfs-rt-vehicle-position",
+   "gtfs": "https://transport.data.gouv.fr/resources/80467/download"
+  },
+  {
+   "id": "fr-guingamp-paimpol-m-9b4a",
+   "name": "Guingamp-Paimpol Mobilité (Guingamp-Paimpol Agglomération de l'Armor à l'Argoat)",
+   "tt": "fr-reseau-urbain-scolaire-guingamp-paimpol-mobilite",
+   "ttModes": "BUS|TRAM|SUBWAY|COACH|FERRY",
+   "every": 30,
+   "trips": "auto",
+   "url": "https://proxy.transport.data.gouv.fr/resource/axeo-guingamp-gtfs-rt-vehicle-position",
+   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/52057eec-3786-444c-8696-8473c4c6888e"
+  },
+  {
+   "id": "fr-astrobus-3147",
+   "name": "Astrobus (Lisieux Normandie)",
+   "tt": "fr-astrobus-lisieux-normandie",
+   "ttModes": "BUS|TRAM|SUBWAY|COACH|FERRY",
+   "every": 30,
+   "trips": "auto",
+   "url": "https://proxy.transport.data.gouv.fr/resource/astrobus-lisieux-gtfs-rt-vehicle-position",
+   "gtfs": "https://transport.data.gouv.fr/resources/82140/download"
+  },
+  {
+   "id": "fr-zest-0e83",
+   "name": "Zest (Riviera Française)",
+   "tt": "fr-horaires-reseau-zest",
+   "ttModes": "BUS|TRAM|SUBWAY|COACH|FERRY",
+   "every": 30,
+   "trips": "auto",
+   "url": "https://proxy.transport.data.gouv.fr/resource/zest-menton-riviera-gtfs-rt-vehicle-position",
+   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/72609821-2459-47fb-a63b-3dbbc0d96c92"
+  },
+  {
+   "id": "fr-distribus-9ee2",
+   "name": "Distribus (Lamballe Terre et Mer)",
+   "tt": "fr-reseau-urbain-distribus",
+   "ttModes": "BUS|TRAM|SUBWAY|COACH|FERRY",
+   "every": 30,
+   "trips": "auto",
+   "url": "http://h21.hanoverdisplays.com:52320/api-1.0/gtfs-rt/vehicle-positions",
+   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/148bf3a3-792f-44e2-9757-e0cc0d83afae"
+  },
+  {
+   "id": "fr-montelibus-9ff7",
+   "name": "Montelibus (Montélimar Agglomération)",
+   "tt": "fr-horaires-montelibus",
+   "ttModes": "BUS|TRAM|SUBWAY|COACH|FERRY",
+   "every": 30,
+   "trips": "auto",
+   "url": "https://proxy.transport.data.gouv.fr/resource/montelibus-montelimar-gtfs-rt-vehicle-position",
+   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/974cede8-3a14-4c7b-b94d-b2655c31932e"
+  },
+  {
+   "id": "fr-rlv-mobilit-s-e3bf",
+   "name": "RLV Mobilités (Riom Limagne et Volcans)",
+   "tt": "fr-horaires-rlv-mobilites",
+   "ttModes": "BUS|TRAM|SUBWAY|COACH|FERRY",
+   "every": 30,
+   "trips": "auto",
+   "url": "https://proxy.transport.data.gouv.fr/resource/riom-rlv-mobilites-gtfs-rt-vehicle-position",
+   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/90846819-b970-48db-967b-8eb7d2da3e2c"
+  },
+  {
+   "id": "fr-al-o-0e8a",
+   "name": "Aléo (Moulins Communauté)",
+   "tt": "fr-donnees-du-reseau-de-transport-aleo",
+   "ttModes": "BUS|TRAM|SUBWAY|COACH|FERRY",
+   "every": 30,
+   "trips": "auto",
+   "url": "https://api.pysae.com/api/v4/groups/moulins/gtfs-rt",
+   "gtfs": "https://transport.data.gouv.fr/resources/83839/download"
+  },
+  {
+   "id": "fr-tgl-cc62",
+   "name": "TGL (Grand Longwy Agglomération)",
+   "tt": "fr-horaires-theoriques-du-reseau-tgl",
+   "ttModes": "BUS|TRAM|SUBWAY|COACH|FERRY",
+   "every": 30,
+   "trips": "auto",
+   "url": "https://proxy.transport.data.gouv.fr/resource/tgl-longwy-gtfs-rt-vehicle-position",
+   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/4f11e16d-e326-44fe-b18a-d83e7d041806"
+  },
+  {
+   "id": "fr-passthelle-bus-2660",
+   "name": "PassThelle Bus (Thelloise)",
+   "tt": "fr-donnees-theoriques-et-temps-reel-du-reseau-pass-thelle-bus-communaute-de-communes-thelloise",
+   "ttModes": "BUS|TRAM|SUBWAY|COACH|FERRY",
+   "every": 30,
+   "trips": "auto",
+   "url": "https://api.oisemob.cityway.fr/dataflow/vehicule-tc-tr/download?provider=PASSTHELLE&dataFormat=gtfs-rt",
+   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/2aeffed5-95e9-4587-a8f8-f52c32968566"
+  },
+  {
+   "id": "fr-buss-dadf",
+   "name": "Buss (\"Saintes - Grandes Rives - L'Agglo\")",
+   "tt": "fr-horaires-theoriques-et-temps-reel-du-reseau-buss-saintes-gtfs-gtfs-rt",
+   "ttModes": "BUS|TRAM|SUBWAY|COACH|FERRY",
+   "every": 30,
+   "trips": "auto",
+   "url": "https://zenbus.net/gtfs/rt/poll.proto?dataset=buss-cdasaintes",
+   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/f2d4be3b-50bc-4f9b-9818-30860890a864"
+  },
+  {
+   "id": "fr-maelis-fdcd",
+   "name": "Maelis (Montluçon Communauté)",
+   "tt": "fr-horaires-theoriques-et-reel-du-reseau-maelis-montlucon-communaute-gtfs",
+   "ttModes": "BUS|TRAM|SUBWAY|COACH|FERRY",
+   "every": 30,
+   "trips": "auto",
+   "url": "https://proxy.transport.data.gouv.fr/resource/maelis-montlucon-gtfs-rt-vehicle-position",
+   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/e8599784-71ba-4814-a905-4e215295109f"
+  },
+  {
+   "id": "fr-cherpa-eab4",
+   "name": "Cherpa (Agglo Pays d'Issoire)",
+   "tt": "fr-cherpa-horaires-lignes-regulieres",
+   "ttModes": "BUS|TRAM|SUBWAY|COACH|FERRY",
+   "every": 30,
+   "trips": "auto",
+   "url": "https://zenbus.net/gtfs/rt/poll.proto?src=true&dataset=agglopaysdissoire",
+   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/7d54a219-8fe7-4635-a9fc-cefe5e57462e"
+  },
+  {
+   "id": "fr-surf-9a73",
+   "name": "SURF (Fougères Agglomération)",
+   "tt": "fr-reseau-urbain-surf",
+   "ttModes": "BUS|TRAM|SUBWAY|COACH|FERRY",
+   "every": 30,
+   "trips": "auto",
+   "url": "https://proxy.transport.data.gouv.fr/resource/surf-fougeres-gtfs-rt-vehicle-position",
+   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/665d6c43-598d-4d9d-aa98-206072f4dfa0"
+  },
+  {
+   "id": "fr-mobi-1c17",
+   "name": "Mobi (Pays de Valois)",
+   "tt": "fr-donnees-theoriques-et-temps-reel-du-reseau-mobi-communaute-de-communes-du-pays-de-valois",
+   "ttModes": "BUS|TRAM|SUBWAY|COACH|FERRY",
+   "every": 30,
+   "trips": "auto",
+   "url": "https://api.oisemob.cityway.fr/dataflow/vehicule-tc-tr/download?provider=CYPRE&dataFormat=gtfs-rt",
+   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/ad0a4757-eb8a-4c06-b459-51442466d5c4"
+  },
+  {
+   "id": "fr-cmonbus-e22e",
+   "name": "Cmonbus (Luberon Monts de Vaucluse)",
+   "tt": "fr-gtfs-reseau-cmonbus",
+   "ttModes": "BUS|TRAM|SUBWAY|COACH|FERRY",
+   "every": 30,
+   "trips": "auto",
+   "url": "https://app.pysae.com/api/v2/groups/cavaillon/gtfs-rt",
+   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/a6a32465-7366-47dc-a6fc-96f1d52b09d8"
+  },
+  {
+   "id": "fr-grandole-mobilit-s-fb64",
+   "name": "Grandole Mobilités (Grand Dole)",
+   "tt": "fr-reseau-de-transport-du-grand-dole",
+   "ttModes": "BUS|TRAM|SUBWAY|COACH|FERRY",
+   "every": 30,
+   "trips": "auto",
+   "url": "https://proxy.transport.data.gouv.fr/resource/tgd-dole-gtfs-rt-vehicle-position",
+   "gtfs": "https://transport.data.gouv.fr/resources/81254/download"
+  },
+  {
+   "id": "fr-l-bus-d8ca",
+   "name": "l'Bus (Intercom Bernay Terres de Normandie)",
+   "tt": "fr-reseau-transport-urbain-de-bernay",
+   "ttModes": "BUS|TRAM|SUBWAY|COACH|FERRY",
+   "every": 30,
+   "trips": "auto",
+   "url": "https://zenbus.net/gtfs/rt/poll.proto?src=true&dataset=bernay",
+   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/2ff9ad0d-c014-4da2-9f70-9ecf9aa15b1c"
+  },
+  {
+   "id": "fr-nemus-749c",
+   "name": "Nemus (Flers Agglo)",
+   "tt": "fr-donnees-theoriques-du-reseau-urbain-de-flers-agglo-au-format-gtfs",
+   "ttModes": "BUS|TRAM|SUBWAY|COACH|FERRY",
+   "every": 30,
+   "trips": "auto",
+   "url": "https://flers-agglo.plateforme-2cloud.com/api/gtfsrt/2.0/vehiclepositions/FLERS-5197-3181-6523/bin?network=104",
+   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/7d399812-e018-4e35-b3ae-a5ba44c8ad91"
+  },
+  {
+   "id": "fr-move-8d6b",
+   "name": "Move (Territoires Vendômois)",
+   "tt": "fr-gtfs-move-vendome",
+   "ttModes": "BUS|TRAM|SUBWAY|COACH|FERRY",
+   "every": 30,
+   "trips": "auto",
+   "url": "https://pysae.com/api/v2/groups/vendome/gtfs-rt",
+   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/c85977b8-7d18-439c-935c-935286503003"
+  },
+  {
+   "id": "fr-ol-79b1",
+   "name": "Olé (Lunel Agglo)",
+   "tt": "fr-offre-de-transport-du-reseau-ole-lunel-agglo-gtfs-gtfs-rt-netex",
+   "ttModes": "BUS|TRAM|SUBWAY|COACH|FERRY",
+   "every": 30,
+   "trips": "auto",
+   "url": "https://ole.plateforme-2cloud.com/api/gtfsrt/2.0/vehiclepositions/OLE-2187-9024-3517/bin",
+   "gtfs": "https://transport.data.gouv.fr/resources/83852/download"
+  },
+  {
+   "id": "fr-l-agglo-en-bus-582d",
+   "name": "L'Agglo en Bus (Gap-Tallard-Durance)",
+   "tt": "fr-horaires-theoriques-et-temps-reels-du-reseau-de-transports-lagglo-en-bus-communaute-dagglomeration-gap-tallard-durance",
+   "ttModes": "BUS|TRAM|SUBWAY|COACH|FERRY",
+   "every": 30,
+   "trips": "auto",
+   "url": "https://gtfs-rt.infra-hubup.fr/cagtd/realtime",
+   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/78b7910e-1e31-4f47-b0a8-949647205ffa"
+  },
+  {
+   "id": "fr-c-te-bus-97aa",
+   "name": "Côte&Bus (Beaune)",
+   "tt": "fr-offre-de-transport-de-la-c-a-beaune-cote-sud-gtfs",
+   "ttModes": "BUS|TRAM|SUBWAY|COACH|FERRY",
+   "every": 30,
+   "trips": "auto",
+   "url": "https://proxy.transport.data.gouv.fr/resource/beaune-cote-et-bus-gtfs-rt-vehicle-position",
+   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/c00d487c-4766-4ca1-b736-e7de110331d9"
+  },
+  {
+   "id": "fr-deepmob-f68e",
+   "name": "DeepMob (Région Dieppoise)",
+   "tt": "fr-deepmob-dieppe-maritime",
+   "ttModes": "BUS|TRAM|SUBWAY|COACH|FERRY",
+   "every": 30,
+   "trips": "auto",
+   "url": "https://proxy.transport.data.gouv.fr/resource/deepmob-dieppe-gtfs-rt-vehicle-position",
+   "gtfs": "https://transport.data.gouv.fr/resources/80680/download"
+  },
+  {
+   "id": "fr-pondibus-f6ea",
+   "name": "PondiBUS (Pontivy Communauté)",
+   "tt": "fr-reseau-urbain-pondibus",
+   "ttModes": "BUS|TRAM|SUBWAY|COACH|FERRY",
+   "every": 30,
+   "trips": "auto",
+   "url": "https://pysae.com/api/v2/groups/pondibus/gtfs-rt",
+   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/57c8ace6-014d-40cd-b2b5-a9c630f87123"
+  },
+  {
+   "id": "fr-titus-359c",
+   "name": "Titus (Rosny-sous-Bois)",
+   "tt": "fr-horaires-theoriques-et-temps-reel-du-reseau-titus-rosny-sous-bois-gtfs-gtfs-rt",
+   "ttModes": "BUS|TRAM|SUBWAY|COACH|FERRY",
+   "every": 30,
+   "trips": "auto",
+   "url": "https://zenbus.net/gtfs/rt/poll.proto?dataset=reseau-titus",
+   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/ed7049d4-4063-457c-ab65-4a26c640e0a1"
+  },
+  {
+   "id": "fr-le-taco-55d9",
+   "name": "Le TACO (Coeur du Var)",
+   "tt": "fr-le-taco-1",
+   "ttModes": "BUS|TRAM|SUBWAY|COACH|FERRY",
+   "every": 30,
+   "trips": "auto",
+   "url": "https://api.pysae.com/api/v4/groups/transdev-var-taco/gtfs-rt",
+   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/5b2dfdce-8ab2-41b2-a318-65f884e3ead2"
+  },
+  {
+   "id": "fr-oz-car-d5d4",
+   "name": "OZ'CAR (Coeur du Var)",
+   "tt": "fr-ozcar-navette-intercommunale",
+   "ttModes": "BUS|TRAM|SUBWAY|COACH|FERRY",
+   "every": 30,
+   "trips": "auto",
+   "url": "https://api.pysae.com/api/v4/groups/lr-coeurduvar/gtfs-rt",
+   "gtfs": "https://transport.data.gouv.fr/resources/84190/download"
+  },
+  {
+   "id": "fr-transp-or-2e9f",
+   "name": "Transp’Or (Pays de l'Or)",
+   "tt": "fr-offre-transport-en-commun-du-reseau-transpor-gtfs",
+   "ttModes": "BUS|TRAM|SUBWAY|COACH|FERRY",
+   "every": 30,
+   "trips": "auto",
+   "url": "https://proxy.transport.data.gouv.fr/resource/transpor-gtfs-rt-vehicle-position",
+   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/84a0902b-ed56-4a09-8eb7-bb58601ba084"
+  },
+  {
+   "id": "fr-n-va-a362",
+   "name": "Néva (Granville)",
+   "tt": "fr-neva-granville-terre-et-mer",
+   "ttModes": "BUS|TRAM|SUBWAY|COACH|FERRY",
+   "every": 30,
+   "trips": "auto",
+   "url": "https://proxy.transport.data.gouv.fr/resource/neva-granville-gtfs-rt-vehicle-position",
+   "gtfs": "https://transport.data.gouv.fr/resources/82721/download"
+  },
+  {
+   "id": "fr-tcvo-71fc",
+   "name": "TCVO (Pays d'Orange en Provence)",
+   "tt": "fr-transport-en-commun-de-la-ville-dorange-ccpop-1",
+   "ttModes": "BUS|TRAM|SUBWAY|COACH|FERRY",
+   "every": 30,
+   "trips": "auto",
+   "url": "https://tcvo.2cloud.app/api/gtfsrt/2.0/vehiclepositions/TCVO-8420-1937-5506/bin",
+   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/d6c75600-f730-421e-93df-74a143d3e723"
+  },
+  {
+   "id": "fr-aire-mob-cb80",
+   "name": "Aire’MOB (Aire Cantilienne)",
+   "tt": "fr-donnees-theoriques-et-temps-reel-du-reseau-airemob-communaute-de-communes-de-laire-cantilienne",
+   "ttModes": "BUS|TRAM|SUBWAY|COACH|FERRY",
+   "every": 30,
+   "trips": "auto",
+   "url": "https://api.oisemob.cityway.fr/dataflow/vehicule-tc-tr/download?provider=CCAC&dataFormat=gtfs-rt",
+   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/1f143621-2afa-4aa8-a958-d5399e709347"
+  },
+  {
+   "id": "fr-tout-enbus-f545",
+   "name": "Tout'enbus (Bassin d'Aubenas)",
+   "tt": "fr-donnees-theoriques-et-temps-reel",
+   "ttModes": "BUS|TRAM|SUBWAY|COACH|FERRY",
+   "every": 30,
+   "trips": "auto",
+   "url": "https://gtfs-rt.infra-hubup.fr/toutenbus/realtime",
+   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/e91ff63e-2c15-4c86-8e69-499ceec7bd97"
+  },
+  {
+   "id": "fr-lun-o-ff2e",
+   "name": "Lunéo (Territoire de Lunéville à Baccarat)",
+   "tt": "fr-horaires-theoriques-et-temps-reel-du-reseau-lulu-en-bus-ex-luneo-gtfs-gtfs-rt",
+   "ttModes": "BUS|TRAM|SUBWAY|COACH|FERRY",
+   "every": 30,
+   "trips": "auto",
+   "url": "https://pysae.com/api/v2/groups/luneo/gtfs-rt",
+   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/94b9beba-c897-46ca-98a4-a78bf320047a"
+  },
+  {
+   "id": "fr-alliance-355d",
+   "name": "Alliance (Grand Auch Coeur de Gascogne)",
+   "tt": "fr-gtfs-reseau-alliance-bus-grand-auch",
+   "ttModes": "BUS|TRAM|SUBWAY|COACH|FERRY",
+   "every": 30,
+   "trips": "auto",
+   "url": "https://zenbus.net/gtfs/rt/poll.proto?dataset=auch-alliance",
+   "gtfs": "https://transport.data.gouv.fr/resources/84228/download"
+  },
+  {
+   "id": "fr-sablons-bus-c854",
+   "name": "Sablons Bus",
+   "tt": "fr-donnees-theoriques-et-temps-reel-du-reseau-sablons-bus-communaute-de-communes-des-sablons",
+   "ttModes": "BUS|TRAM|SUBWAY|COACH|FERRY",
+   "every": 30,
+   "trips": "auto",
+   "url": "https://api.oisemob.cityway.fr/dataflow/vehicule-tc-tr/download?provider=SABLONS&dataFormat=gtfs-rt",
+   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/daba957b-c833-46ad-9bc1-12f3347ac4d9"
+  },
+  {
+   "id": "fr-ficibus-111b",
+   "name": "Ficibus (Fécamp Caux Littoral Agglomération)",
+   "tt": "fr-ficibus-fecamp-caux-littoral",
+   "ttModes": "BUS|TRAM|SUBWAY|COACH|FERRY",
+   "every": 30,
+   "trips": "auto",
+   "url": "https://gtfs.bus-tracker.fr/gtfs-rt/ficibus/vehicle-positions",
+   "gtfs": "https://transport.data.gouv.fr/resources/82311/download"
+  },
+  {
+   "id": "fr-le-vib-97a3",
+   "name": "Le Vib' (Vierzon-Sologne-Berry)",
+   "tt": "fr-reseau-urbain-le-vib",
+   "ttModes": "BUS|TRAM|SUBWAY|COACH|FERRY",
+   "every": 30,
+   "trips": "auto",
+   "url": "https://proxy.transport.data.gouv.fr/resource/le-vib-vierzon-gtfs-rt-vehicle-position",
+   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/87091347-c7fa-4e63-8fb5-005891ece43b"
+  },
+  {
+   "id": "fr-le-bus-cb1c",
+   "name": "Le Bus (Clermontois)",
+   "tt": "fr-donnees-theoriques-et-temps-reel-du-reseau-le-bus-communaute-de-communes-du-clermontois",
+   "ttModes": "BUS|TRAM|SUBWAY|COACH|FERRY",
+   "every": 30,
+   "trips": "auto",
+   "url": "https://api.oisemob.cityway.fr/dataflow/vehicule-tc-tr/download?provider=LEBUS&dataFormat=gtfs-rt",
+   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/ef552f35-b49b-43d5-8bbc-ad95efdc3d95"
+  },
+  {
+   "id": "fr-tohm-69d3",
+   "name": "TOHM (Pays d'Oise et d'Halatte)",
+   "tt": "fr-donnees-theoriques-et-temps-reel-du-reseau-tohm-communaute-de-communes-des-pays-doise-et-dhalatte",
+   "ttModes": "BUS|TRAM|SUBWAY|COACH|FERRY",
+   "every": 30,
+   "trips": "auto",
+   "url": "https://api.oisemob.cityway.fr/dataflow/vehicule-tc-tr/download?provider=TOHM&dataFormat=gtfs-rt",
+   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/6fdd303a-7b76-4742-b877-d0923c59505b"
+  },
+  {
+   "id": "fr-jybus-8d44",
+   "name": "Jybus (Rumilly Terre de Savoie)",
+   "tt": "fr-offre-de-transports-jybus-a-rumilly",
+   "ttModes": "BUS|TRAM|SUBWAY|COACH|FERRY",
+   "every": 30,
+   "trips": "auto",
+   "url": "https://proxy.transport.data.gouv.fr/resource/jybus-rumilly-gtfs-rt-vehicle-position",
+   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/9ba40024-aa3c-4e5c-b065-47eef0edf4e6"
+  },
+  {
+   "id": "fr-moova-9703",
+   "name": "moova (Vesoul)",
+   "tt": "fr-horaires-theoriques-du-reseau-moova-communaute-dagglomeration-de-vesoul-gtfs",
+   "ttModes": "BUS|TRAM|SUBWAY|COACH|FERRY",
+   "every": 30,
+   "trips": "auto",
+   "url": "https://proxy.transport.data.gouv.fr/resource/moova-vesoul-gtfs-rt-vehicle-position",
+   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/0d6e6c56-8926-49b3-87e2-13c6f57c136b"
+  },
+  {
+   "id": "fr-lib-bus-0b89",
+   "name": "Lib'Bus (Pays Noyonnais)",
+   "tt": "fr-donnees-theoriques-et-temps-reel-du-reseau-libbus-communaute-de-communes-du-pays-noyonnais",
+   "ttModes": "BUS|TRAM|SUBWAY|COACH|FERRY",
+   "every": 30,
+   "trips": "auto",
+   "url": "https://api.oisemob.cityway.fr/dataflow/vehicule-tc-tr/download?provider=LIBBUS&dataFormat=gtfs-rt",
+   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/3074dfb5-2209-44b4-891a-a86694ecaeec"
+  },
+  {
+   "id": "fr-br-vibus-56da",
+   "name": "Brévibus (Sud Estuaire)",
+   "tt": "fr-reseau-urbain-brevibus",
+   "ttModes": "BUS|TRAM|SUBWAY|COACH|FERRY",
+   "every": 30,
+   "trips": "auto",
+   "url": "https://pysae.com/api/v2/groups/brevibus/gtfs-rt",
+   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/b8d1007f-567e-48c4-9c40-bee205f1e688"
+  },
+  {
+   "id": "fr-fil-bus-76b0",
+   "name": "Fil Bus (Haut Val de Sèvre)",
+   "tt": "fr-fil-bus-saint-maixentais",
+   "ttModes": "BUS|TRAM|SUBWAY|COACH|FERRY",
+   "every": 30,
+   "trips": "auto",
+   "url": "https://zenbus.net/gtfs/rt/poll.proto?dataset=filbussaintmaixent",
+   "gtfs": "https://transport.data.gouv.fr/resources/84279/download"
+  },
+  {
+   "id": "fr-navette-de-la-cc-s-39e1",
+   "name": "Navette de la CC Sel et Vermois (Pays du Sel et du Vermois)",
+   "tt": "fr-offre-de-transport-du-reseau-de-la-communaute-de-communes-des-pays-du-sel-et-du-vermois",
+   "ttModes": "BUS|TRAM|SUBWAY|COACH|FERRY",
+   "every": 30,
+   "trips": "auto",
+   "url": "https://proxy.transport.data.gouv.fr/resource/fluo-sel-et-vermois-gtfs-rt-vehicle-position",
+   "gtfs": "https://transport.data.gouv.fr/resources/82907/download"
+  },
+  {
+   "id": "fr-r-so-49ed",
+   "name": "Réso (Pays Sabolien)",
+   "tt": "fr-reseau-urbain-reso",
+   "ttModes": "BUS|TRAM|SUBWAY|COACH|FERRY",
+   "every": 30,
+   "trips": "auto",
+   "url": "https://gtfs-rt.infra-hubup.fr/reso/realtime",
+   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/2fc8108a-5b91-455a-8d10-1c938d360a9f"
+  },
+  {
+   "id": "fr-hobus-e348",
+   "name": "Hobus (Pays de Honfleur-Beuzeville)",
+   "tt": "fr-hobus-honfleur",
+   "ttModes": "BUS|TRAM|SUBWAY|COACH|FERRY",
+   "every": 30,
+   "trips": "auto",
+   "url": "https://proxy.transport.data.gouv.fr/resource/hobus-honfleur-gtfs-rt-vehicle-position",
+   "gtfs": "https://transport.data.gouv.fr/resources/82711/download"
+  },
+  {
+   "id": "fr-vikibus-e14e",
+   "name": "Vikibus (Yvetot Normandie)",
+   "tt": "fr-vikibus-yvetot-normandie",
+   "ttModes": "BUS|TRAM|SUBWAY|COACH|FERRY",
+   "every": 30,
+   "trips": "auto",
+   "url": "https://proxy.transport.data.gouv.fr/resource/vikibus-yvetot-gtfs-rt-vehicle-position",
+   "gtfs": "https://transport.data.gouv.fr/resources/81975/download"
+  },
+  {
+   "id": "fr-papillon-3be6",
+   "name": "Papillon (Coeur de Loire)",
+   "tt": "fr-donnees-du-reseau-de-bus-papillon-a-cosne-cours-sur-loire",
+   "ttModes": "BUS|TRAM|SUBWAY|COACH|FERRY",
+   "every": 30,
+   "trips": "auto",
+   "url": "https://api.pysae.com/api/v4/groups/coeur-de-loire/gtfs-rt",
+   "gtfs": "https://transport.data.gouv.fr/resources/83859/download"
+  },
+  {
+   "id": "fr-moca-6387",
+   "name": "MOCA (Caux - Austreberthe)",
+   "tt": "fr-moca-communaute-de-communes-caux-austreberthe",
+   "ttModes": "BUS|TRAM|SUBWAY|COACH|FERRY",
+   "every": 30,
+   "trips": "auto",
+   "url": "https://proxy.transport.data.gouv.fr/resource/moca-caux-austreberthe-gtfs-rt-vehicle-position",
+   "gtfs": "https://transport.data.gouv.fr/resources/82309/download"
+  },
+  {
+   "id": "fr-et-tad-zonal-libel-e096",
+   "name": "et TAD zonal Libellule (Liancourtois)",
+   "tt": "fr-donnees-theoriques-et-temps-reel-du-reseau-le-libellule-communaute-du-liancourtois-la-vallee-doree",
+   "ttModes": "BUS|TRAM|SUBWAY|COACH|FERRY",
+   "every": 30,
+   "trips": "auto",
+   "url": "https://api.oisemob.cityway.fr/dataflow/vehicule-tc-tr/download?provider=LELIBELLULE&dataFormat=gtfs-rt",
+   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/e61f439a-2321-4ce2-bda7-89be2494304f"
+  },
+  {
+   "id": "fr-cvl-mobilit-74a0",
+   "name": "CVL Mobilité (Chinon)",
+   "tt": "fr-reseau-cvlmobilite-plan-de-transport-theorique-ligne-a-format-gtfs",
+   "ttModes": "BUS|TRAM|SUBWAY|COACH|FERRY",
+   "every": 30,
+   "trips": "auto",
+   "url": "https://cvlmobilite.plateforme-2cloud.com/api/gtfsrt/2.0/vehiclepositions/CVLMOBILITE-4423-7657-4931/bin",
+   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/6348dadb-600c-42c8-bbea-f6ac09505ed3"
+  },
+  {
+   "id": "fr-a-citadina-d0f2",
+   "name": "A Citadina (Sud Corse)",
+   "tt": "fr-reseau-a-citadina-porto-vecchio-horaires-theoriques-et-temps-reel",
+   "ttModes": "BUS|TRAM|SUBWAY|COACH|FERRY",
+   "every": 30,
+   "trips": "auto",
+   "url": "https://pysae.com/api/v2/groups/porto-vecchio/gtfs-rt",
+   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/74f0577f-f709-49db-9750-53c9341f6e50"
+  },
+  {
+   "id": "fr-hopl-1b00",
+   "name": "Hoplà (Plaine d'Estrées)",
+   "tt": "fr-donnees-theoriques-du-reseau-hopla-communaute-de-communes-de-la-plaine-destrees",
+   "ttModes": "BUS|TRAM|SUBWAY|COACH|FERRY",
+   "every": 30,
+   "trips": "auto",
+   "url": "https://api.oisemob.cityway.fr/dataflow/vehicule-tc-tr/download?provider=HOPLA&dataFormat=gtfs-rt",
+   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/c6279e07-8e38-459a-b96a-96e4109d0816"
+  },
+  {
+   "id": "fr-respir-10a9",
+   "name": "RespiRé (Ile de Ré)",
+   "tt": "fr-horaires-theoriques-et-temps-reel-du-reseau-respire-ile-de-re-gtfs-gtfs-rt",
+   "ttModes": "BUS|TRAM|SUBWAY|COACH|FERRY",
+   "every": 30,
+   "trips": "auto",
+   "url": "https://zenbus.net/gtfs/rt/poll.proto?dataset=iledere75923021",
+   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/f167d4d3-cd32-475b-a12f-0403534679e5"
+  },
+  {
+   "id": "fr-chamonix-8109",
+   "name": "Chamonix (Vallée de Chamonix-Mont-Blanc)",
+   "tt": "fr-gtfs-reseau-chamonix-mobilite",
+   "ttModes": "BUS|TRAM|SUBWAY|COACH|FERRY",
+   "every": 30,
+   "trips": "auto",
+   "url": "https://api.pysae.com/api/v4/groups/chamonix-bus/gtfs-rt",
+   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/83a2f241-a0a4-4901-b77b-8a71572a9f6a"
+  },
+  {
+   "id": "fr-may-bus-a243",
+   "name": "May'bus (Mayenne)",
+   "tt": "fr-horaires-theoriques-et-temps-reel-du-reseau-maybus-mayenne-gtfs-gtfs-rt",
+   "ttModes": "BUS|TRAM|SUBWAY|COACH|FERRY",
+   "every": 30,
+   "trips": "auto",
+   "url": "https://zenbus.net/gtfs/rt/poll.proto?dataset=maybus",
+   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/220e0fb8-fe04-4d99-9fca-cc812eaadfc3"
+  },
+  {
+   "id": "fr-tum-dd19",
+   "name": "TUM (Mende)",
+   "tt": "fr-horaires-theoriques-et-temps-reel-du-reseau-max-mende-mobilites-bus-gtfs-gtfs-rt",
+   "ttModes": "BUS|TRAM|SUBWAY|COACH|FERRY",
+   "every": 30,
+   "trips": "auto",
+   "url": "https://zenbus.net/gtfs/rt/poll.proto?dataset=MAX",
+   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/2f42baea-fbe1-4b01-bf4a-8232fd83b24e"
+  },
+  {
+   "id": "fr-lisatis-ba0d",
+   "name": "LISATIS (Lavaur)",
+   "tt": "fr-reseau-de-transport-urbain-lisatis",
+   "ttModes": "BUS|TRAM|SUBWAY|COACH|FERRY",
+   "every": 30,
+   "trips": "auto",
+   "url": "https://zenbus.net/gtfs/rt/poll.proto?dataset=lavaur",
+   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/9364a3b9-6cc7-4543-a927-b31056d07eac"
+  },
+  {
+   "id": "fr-la-navette-oloron-1880",
+   "name": "La Navette Oloron Sainte-Marie (Oloron-Sainte-Marie)",
+   "tt": "fr-horaires-theoriques-et-temps-reel-du-reseau-oloron-sainte-marie-la-navette-gtfs-gtfs-rt",
+   "ttModes": "BUS|TRAM|SUBWAY|COACH|FERRY",
+   "every": 30,
+   "trips": "auto",
+   "url": "https://zenbus.net/gtfs/rt/poll.proto?dataset=oloron",
+   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/10bb8fff-521d-4b27-a85e-79ae704f1ccc"
+  },
+  {
+   "id": "fr-figeac-le-bus-4706",
+   "name": "Figeac - Le Bus",
+   "tt": "fr-horaires-theoriques-du-reseau-figeac-le-bus-gtfs",
+   "ttModes": "BUS|TRAM|SUBWAY|COACH|FERRY",
+   "every": 30,
+   "trips": "auto",
+   "url": "https://zenbus.net/gtfs/rt/poll.proto?dataset=figeac",
+   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/ab2d1451-dddd-4814-bc5c-8e219834a3e3"
+  },
+  {
+   "id": "fr-st-sulpice-la-poin-962b",
+   "name": "ST SULPICE LA POINTE (Saint-Sulpice-la-Pointe)",
+   "tt": "fr-reseau-de-transport-urbain-de-la-ville-de-st-sulpice-la-pointe",
+   "ttModes": "BUS|TRAM|SUBWAY|COACH|FERRY",
+   "every": 30,
+   "trips": "auto",
+   "url": "https://zenbus.net/gtfs/rt/poll.proto?dataset=saint-sulpice-la-pointe",
+   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/e1633c9d-2d18-47cf-96c3-eccedd445060"
+  },
+  {
+   "id": "fr-nosbus-4568",
+   "name": "Nosbus (Nogent-le-Rotrou)",
+   "tt": "fr-reseau-urbain-nosbus",
+   "ttModes": "BUS|TRAM|SUBWAY|COACH|FERRY",
+   "every": 30,
+   "trips": "auto",
+   "url": "https://api.pysae.com/api/v4/groups/nosbus/gtfs-rt",
+   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/5f1dfae0-7972-4caa-8a5d-e2d90a285585"
+  },
+  {
+   "id": "fr-sarlat-bus-84be",
+   "name": "Sarlat Bus (Sarlat-la-Canéda)",
+   "tt": "fr-horaires-theoriques-et-temps-reel-du-reseau-sarlatbus-gtfs-gtfs-rt",
+   "ttModes": "BUS|TRAM|SUBWAY|COACH|FERRY",
+   "every": 30,
+   "trips": "auto",
+   "url": "https://zenbus.net/gtfs/rt/poll.proto?dataset=Sarlat",
+   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/f1119940-adc5-4d2e-af7d-5535e50da539"
+  },
+  {
+   "id": "fr-pays-des-ecrins-9a24",
+   "name": "Pays des Ecrins",
+   "tt": "fr-transports-en-commun-pays-des-ecrins",
+   "ttModes": "BUS|TRAM|SUBWAY|COACH|FERRY",
+   "every": 30,
+   "trips": "auto",
+   "url": "https://app.pysae.com/api/v2/groups/pays-des-ecrins/gtfs-rt",
+   "gtfs": "https://transport.data.gouv.fr/resources/83467/download"
+  },
+  {
+   "id": "fr-navettes-saisonni-ceef",
+   "name": "Navettes saisonnières Tignes",
+   "tt": "fr-navettes-tignes",
+   "ttModes": "BUS|TRAM|SUBWAY|COACH|FERRY",
+   "every": 30,
+   "trips": "auto",
+   "url": "https://zenbus.net/gtfs/rt/poll.proto?dataset=tignes",
+   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/9f5669e6-202f-4166-99e4-0e15586e1473"
+  },
+  {
+   "id": "fr-navettes-saisonni-7c10",
+   "name": "Navettes saisonnières Val d'Isère (Val-d'Isère)",
+   "tt": "fr-navettes-val-disere",
+   "ttModes": "BUS|TRAM|SUBWAY|COACH|FERRY",
+   "every": 30,
+   "trips": "auto",
+   "url": "https://zenbus.net/gtfs/rt/poll.proto?dataset=valdisere",
+   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/d6c3eae8-fab6-4ff2-adc2-32bb2d213dd7"
+  },
+  {
+   "id": "fr-lyon-tcl-d0a3",
+   "name": "lyon-tcl",
+   "tt": "fr-lyon-tcl",
+   "ttModes": "BUS|TRAM|SUBWAY|COACH|FERRY",
+   "every": 30,
+   "trips": "auto",
+   "url": "https://gtfs.bus-tracker.fr/gtfs-rt/tcl",
+   "gtfs": "https://gtfs.bus-tracker.fr/tcl.zip"
+  }
+ ]
 }

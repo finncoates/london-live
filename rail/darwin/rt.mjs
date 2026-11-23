@@ -25,7 +25,10 @@ export async function zipFiles(url, names, headers = {}){
   let read, end; // read(from, length) → bytes of the zip; end: its last 64 kB (where the directory is)
   if(r0.status === 206){ const total = +(r0.headers.get('content-range') || '').split('/')[1], tail = Buffer.from(await r0.arrayBuffer()), base = total - tail.length, u = r0.url || url; end = tail;
     read = async (from, len) => from >= base && from + len <= total ? tail.subarray(from - base, from - base + len) : Buffer.from(await (await get(u, `${from}-${from + len - 1}`)).arrayBuffer()); }
-  else { const all = Buffer.from(await r0.arrayBuffer()); read = async (from, len) => all.subarray(from, from + len); end = all; }
+  else { const n = +(r0.headers.get('content-length') || 0); // no ranges: the whole zip, unless it's too big for a small server
+    if(n > 60e6){ try{ await r0.body?.cancel(); }catch(e){} throw new Error(`timetable too big to read whole (${Math.round(n/1e6)} MB)`); }
+    const all = Buffer.from(await r0.arrayBuffer()); if(all.length > 60e6) throw new Error('timetable too big to read whole');
+    read = async (from, len) => all.subarray(from, from + len); end = all; }
   const cdi = centralDir(end), ents = entries(await read(cdi.offset, cdi.size)), out = {};
   for(const n of names){ const en = ents.get(n); if(!en) continue;
     const lh = await read(en.off, 30), data = await read(en.off + 30 + lh.readUInt16LE(26) + lh.readUInt16LE(28), en.csize);
@@ -47,13 +50,16 @@ export function csv(text){
 export const kindOf = t => { t = +t; return t === 0 || (t >= 900 && t < 1000) ? 'tram' : t === 1 || (t >= 400 && t < 500) ? 'metro' : t === 2 || (t >= 100 && t < 200) ? 'train'
   : t === 4 || (t >= 1000 && t < 1300) ? 'ferry' : t === 5 || t === 6 || t === 7 || t === 12 || (t >= 1300 && t < 1500) ? 'tram' : 'bus'; };
 
+let LOADQ = Promise.resolve();
 export class Feed {
   constructor(cfg, env){ this.cfg = cfg; this.env = env; this.vehicles = []; this.routes = new Map(); this.trips = new Map(); this.at = 0; this.error = null; this.polls = 0; }
   sub(x){ return String(x).replace(/\$([A-Z_]+)/g, (_, n) => encodeURIComponent(this.env[n] || '')); }
   headers(){ const h = {}; for(const [k, v] of Object.entries(this.cfg.headers || {})) h[k] = String(v).replace(/\$([A-Z_]+)/g, (_, n) => this.env[n] || ''); return h; }
   get enabled(){ return !this.cfg.needs || this.cfg.needs.every(n => this.env[n]); }
-  async loadRoutes(){ if(!this.cfg.gtfs) return;
-    try{ const f = await zipFiles(this.cfg.gtfs, ['routes.txt', 'agency.txt', ...(this.cfg.trips ? ['trips.txt'] : [])], this.cfg.gtfsHeaders ? this.headers() : {});
+  async loadRoutes(){ if(!this.cfg.gtfs) return; // one feed at a time: a small server can't read many timetables at once
+    const turn = LOADQ.then(() => this._loadRoutes()); LOADQ = turn.catch(() => {}); return turn; }
+  async _loadRoutes(){
+    try{ const f = await zipFiles(this.cfg.gtfs, ['routes.txt', 'agency.txt', ...(this.cfg.trips === true ? ['trips.txt'] : [])], this.cfg.gtfsHeaders ? this.headers() : {});
       const ag = new Map((f['agency.txt'] ? csv(f['agency.txt']) : []).map(a => [a.agency_id, a.agency_name]));
       this.routes = new Map(csv(f['routes.txt'] || '').map(r => [r.route_id, {name:r.route_short_name || r.route_long_name || '', kind:kindOf(r.route_type),
         col:/^[0-9a-f]{6}$/i.test(r.route_color || '') ? '#' + r.route_color : null, op:ag.get(r.agency_id) || (ag.size === 1 ? [...ag.values()][0] : '') || ''}]));
@@ -69,8 +75,14 @@ export class Feed {
         const rid = v.trip?.routeId || this.trips.get(v.trip?.tripId), rt = this.routes.get(rid) || {}, p = v.position;
         out.push({id:String(v.vehicle?.id || e.id), lat:+p.latitude.toFixed(5), lon:+p.longitude.toFixed(5), bearing:p.bearing != null && isFinite(p.bearing) ? Math.round(p.bearing) : null,
           line:rt.name || v.vehicle?.label || '', kind:rt.kind || this.cfg.kind || 'bus', col:rt.col || null, op:rt.op || this.cfg.name, trip:v.trip?.tripId || null, route:rid || null, at:ts}); }
-      this.vehicles = out; this.at = now; this.error = null; this.polls++; }
+      this.vehicles = out; this.at = now; this.error = null; this.polls++;
+      if(!this.cfg.box && out.length >= 3){ // no area given: where its vehicles have been (trimmed of the odd stray, ~2 km around)
+        const la = out.map(v => v.lat).sort((a, b) => a - b), lo = out.map(v => v.lon).sort((a, b) => a - b), q = (v, f) => v[Math.min(v.length - 1, Math.floor(v.length*f))];
+        const b = [q(la, 0.02) - 0.02, q(lo, 0.02) - 0.03, q(la, 0.98) + 0.02, q(lo, 0.98) + 0.03];
+        this.box = this.box ? [Math.min(this.box[0], b[0]), Math.min(this.box[1], b[1]), Math.max(this.box[2], b[2]), Math.max(this.box[3], b[3])].map(x => +x.toFixed(3)) : b.map(x => +x.toFixed(3)); }
+      if(this.cfg.trips === 'auto' && !this.trips.size && out.length && out.filter(v => !v.route && v.trip).length > out.length/2){ this.cfg.trips = true; this.loadRoutes(); } } // vehicles give only their trip: its route from the timetable
     catch(e){ this.error = e.message; console.warn(this.cfg.id, e.message); } }
   list(bbox){ return bbox ? this.vehicles.filter(v => v.lat >= bbox[0] && v.lat <= bbox[2] && v.lon >= bbox[1] && v.lon <= bbox[3]) : this.vehicles; }
-  run(){ this.loadRoutes().finally(() => this.poll()); setInterval(() => this.poll(), (this.cfg.every || 30)*1000); setInterval(() => this.loadRoutes(), 24*3600000); }
+  run(){ const d = Math.random()*60000; // first polls spread over a minute (many feeds)
+    setTimeout(() => { this.poll(); setInterval(() => this.poll(), (this.cfg.every || 30)*1000); }, d); this.loadRoutes().catch(() => {}); setInterval(() => this.loadRoutes(), 24*3600000); }
 }
