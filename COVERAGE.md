@@ -57,6 +57,19 @@ Live already (own feeds): Finland/Helsinki, Norway, Berlin, Boston, Tallinn, Gda
 **New live feeds**: **Spain** — Renfe's trains live (~430: Cercanías/Rodalies in Madrid, Barcelona, Seville…; AVE/long distance from the timetable); **Rennes** — every STAR bus live; **Toronto** — TTC streetcars and buses live (~1,150; subway from the timetable).
 Other cities checked and not possible without a key: Paris (RATP/IDFM: free PRIM key), Ireland's buses (NTA: free key), Netherlands (live positions open, but no route names without a 200 MB timetable), Brussels, Switzerland, Prague, Warsaw (keys).
 
+## Whole countries drawn like London (overnight 23–24 November)
+
+| Country | Lines and stations | Buses | Live | Departures |
+|---|---|---|---|---|
+| **France** | Every metro, tram, local train, funicular, cable car and city ferry in each city's official colours (Paris IDFM, Lyon, Marseille, Toulouse, Lille, Rennes, Bordeaux, Nice, Nantes, Strasbourg, Montpellier, Grenoble, Rouen, Brest, Angers, Tours, Dijon, Clermont-Ferrand, Caen, Le Havre, Reims, Orléans, Mulhouse, Besançon, Avignon, Valenciennes, Toulon…); the whole SNCF passenger railway (24,900 km, 2,950 stations) and Corsica's | Every urban and intercity network in transport.data.gouv.fr's catalogue (≈400), routes matched onto the roads where the published shapes are missing or straight; bus stops close up | 137 networks' GTFS-realtime on the London Live server (Lyon, Bordeaux, Rennes, Brest, Rouen, Montpellier, Nice, Dijon…); elsewhere from the timetable | Every station and stop (Transitous, live where shared) |
+| **Netherlands** | Amsterdam (GVB metro 50–54, trams, ferries), Rotterdam (RET metro A–E, trams, Waterbus), The Hague (HTM, RandstadRail), Utrecht; the whole railway (467 stations) | Every operator (Qbuzz, Arriva, Connexxion, RRReis, Bravo, Transdev, EBS…) | Everything (OVapi) | Transitous |
+| **Belgium** | Brussels (STIB metro and trams), Antwerp, Ghent and the Coast Tram (De Lijn), Charleroi (TEC); the railway from OpenStreetMap, 635 SNCB stations named in their own language | STIB, De Lijn, TEC | From the timetable (no open live positions) | Transitous |
+
+Also: bikes and scooters for hire in 86 French towns (Vélib', Vélo'v, V³, Lime, Voi, Dott, Pony…); FlixBus and
+BlaBlaCar coaches in their own colours; tapping a timetable vehicle shows where it's really going.
+**Gaps**: Amsterdam's and Le Havre's trams have no official colours in the open data (drawn in one tram green);
+Paris has no open live positions (IDFM's need a free PRIM key); Lille and Strasbourg publish live data only as SIRI.
+
 ## Before a big public launch
 - **Transitous** (journey planning, timetable vehicles): free, community-run; tell them before heavy use
   (they ask to be contacted above ~720 plans a day), or host your own copy on the server.
