@@ -14,7 +14,8 @@
    "ttModes": "BUS|TRAM|SUBWAY|FERRY",
    "every": 90,
    "url": "http://gtfs.ovapi.nl/nl/vehiclePositions.pb",
-   "gtfs": "http://gtfs.ovapi.nl/nl/gtfs-nl.zip"
+   "gtfs": "http://gtfs.ovapi.nl/nl/gtfs-nl.zip",
+   "cc": "nl"
   },
   {
    "id": "rome",
@@ -142,7 +143,8 @@
    "every": 30,
    "trips": "auto",
    "url": "https://gtfsrt.renfe.com/vehicle_positions_LD.pb",
-   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/eae0fa46-087a-4018-ada9-d8add124e635"
+   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/eae0fa46-087a-4018-ada9-d8add124e635",
+   "cc": "fr"
   },
   {
    "id": "fr-lio-occitanie-0264",
@@ -152,7 +154,8 @@
    "every": 30,
    "trips": "auto",
    "url": "https://lio.2cloud.app/api/gtfsrt/2.0/vehiclepositions/LIO65-6765-2617-7480/bin",
-   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/d747fe79-2915-4cdd-8cc5-51a810baaca5"
+   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/d747fe79-2915-4cdd-8cc5-51a810baaca5",
+   "cc": "fr"
   },
   {
    "id": "fr-al-op-pays-de-la-l-289c",
@@ -162,7 +165,8 @@
    "every": 30,
    "trips": "auto",
    "url": "https://proxy.transport.data.gouv.fr/resource/aleop-pdl-gtfs-rt-vehicle-position",
-   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/916752e4-5daa-48bd-8bc1-4dd8d64f1d4a"
+   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/916752e4-5daa-48bd-8bc1-4dd8d64f1d4a",
+   "cc": "fr"
   },
   {
    "id": "fr-normandie-82fb",
@@ -172,7 +176,8 @@
    "every": 30,
    "trips": "auto",
    "url": "https://proxy.transport.data.gouv.fr/resource/atoumod-gtfs-rt-vehicle-position",
-   "gtfs": "https://transport.data.gouv.fr/resources/81942/download"
+   "gtfs": "https://transport.data.gouv.fr/resources/81942/download",
+   "cc": "fr"
   },
   {
    "id": "fr-r-mi-9a03",
@@ -182,7 +187,8 @@
    "every": 30,
    "trips": "auto",
    "url": "https://api.okina.fr/gateway/cvl/gtfsrt/vehicle-positions?useoriginalId=true",
-   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/6c52238c-1c1e-4c5a-922b-8b66c0415a9e"
+   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/6c52238c-1c1e-4c5a-922b-8b66c0415a9e",
+   "cc": "fr"
   },
   {
    "id": "fr-tbm-0aa7",
@@ -192,7 +198,8 @@
    "every": 30,
    "trips": "auto",
    "url": "https://bdx.mecatran.com/utw/ws/gtfsfeed/vehicles/bordeaux?apiKey=opendata-bordeaux-metropole-flux-gtfs-rt",
-   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/10b87ffe-e6bb-494d-93df-bb6019e223d9"
+   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/10b87ffe-e6bb-494d-93df-bb6019e223d9",
+   "cc": "fr"
   },
   {
    "id": "fr-fluo-grand-est-hau-0381",
@@ -202,7 +209,8 @@
    "every": 30,
    "trips": "auto",
    "url": "https://proxy.transport.data.gouv.fr/resource/fluo-haut-rhin-68-gtfs-rt-vehicle-position",
-   "gtfs": "https://transport.data.gouv.fr/resources/80419/download"
+   "gtfs": "https://transport.data.gouv.fr/resources/80419/download",
+   "cc": "fr"
   },
   {
    "id": "fr-lignes-d-azur-c842",
@@ -212,7 +220,8 @@
    "every": 30,
    "trips": "auto",
    "url": "https://ara-api.enroute.mobi/rla/gtfs/vehicle-positions",
-   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/f5678ab2-c863-4b48-ba1f-9021c7d97634"
+   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/f5678ab2-c863-4b48-ba1f-9021c7d97634",
+   "cc": "fr"
   },
   {
    "id": "fr-tam-c1cf",
@@ -222,7 +231,8 @@
    "every": 30,
    "trips": "auto",
    "url": "https://gtfsproxy.e-tam.fr/COMMON/VehiclePosition.pb",
-   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/93a29ce2-cfc8-44ff-b712-bcfd814b7f00"
+   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/93a29ce2-cfc8-44ff-b712-bcfd814b7f00",
+   "cc": "fr"
   },
   {
    "id": "fr-astuce-52d2",
@@ -232,7 +242,8 @@
    "every": 30,
    "trips": "auto",
    "url": "https://gtfs.bus-tracker.fr/gtfs-rt/tcar/?tcar=1&tae=1&tni=1",
-   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/c0ebcf01-954a-4d24-b2d8-a00333ffe937"
+   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/c0ebcf01-954a-4d24-b2d8-a00333ffe937",
+   "cc": "fr"
   },
   {
    "id": "fr-mistral-0875",
@@ -242,7 +253,8 @@
    "every": 30,
    "trips": "auto",
    "url": "https://feed-rdtpm-toulon.ratpdev.com/VehiclePosition/GTFS-RT",
-   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/b0789d9e-5077-4124-b6b2-773353ada8cf"
+   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/b0789d9e-5077-4124-b6b2-773353ada8cf",
+   "cc": "fr"
   },
   {
    "id": "fr-transvilles-f6e4",
@@ -252,7 +264,8 @@
    "every": 30,
    "trips": "auto",
    "url": "https://ara-api.enroute.mobi/transvilles/gtfs",
-   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/982e0826-4118-42d9-9b73-c3d3b455cd4f"
+   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/982e0826-4118-42d9-9b73-c3d3b455cd4f",
+   "cc": "fr"
   },
   {
    "id": "fr-navette-a-roport-d-99c5",
@@ -262,7 +275,8 @@
    "every": 30,
    "trips": "auto",
    "url": "https://zenbus.net/gtfs/rt/poll.proto?dataset=bordeaux-navettes-aeroport",
-   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/4cb2f0a9-d3d8-402b-b0bb-afafb741e5f1"
+   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/4cb2f0a9-d3d8-402b-b0bb-afafb741e5f1",
+   "cc": "fr"
   },
   {
    "id": "fr-irigo-baea",
@@ -272,7 +286,8 @@
    "every": 30,
    "trips": "auto",
    "url": "https://ara-api.enroute.mobi/irigo/gtfs/vehicle-positions",
-   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/32f30b64-33f7-43bb-9b6f-34c21c2f83a3"
+   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/32f30b64-33f7-43bb-9b6f-34c21c2f83a3",
+   "cc": "fr"
   },
   {
    "id": "fr-fil-bleu-d39d",
@@ -282,7 +297,8 @@
    "every": 30,
    "trips": "auto",
    "url": "https://data.filbleu.fr/ws-tr/gtfs-rt/opendata/vehicle-positions",
-   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/198b7602-5e74-4d88-b6bc-483af85a2430"
+   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/198b7602-5e74-4d88-b6bc-483af85a2430",
+   "cc": "fr"
   },
   {
    "id": "fr-sank-o-4933",
@@ -292,7 +308,8 @@
    "every": 30,
    "trips": "auto",
    "url": "https://zenbus.net/gtfs/rt/poll.proto?src=true&dataset=sankeo-scolaire",
-   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/3047f942-98f0-4d4c-92cf-7c5de1fe233c"
+   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/3047f942-98f0-4d4c-92cf-7c5de1fe233c",
+   "cc": "fr"
   },
   {
    "id": "fr-lia-ff9f",
@@ -302,7 +319,8 @@
    "every": 30,
    "trips": "auto",
    "url": "https://opendata.transports-lia.fr/gtfs-rt/VehiclePosition.pb",
-   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/2178bfa8-9fe0-4633-8223-8c151728ef28"
+   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/2178bfa8-9fe0-4633-8223-8c151728ef28",
+   "cc": "fr"
   },
   {
    "id": "fr-tango-cfd4",
@@ -312,7 +330,8 @@
    "every": 30,
    "trips": "auto",
    "url": "http://185.220.72.38:8085/ProfilGtfsRt2_0RSProducer-TANGO/VehiclePosition.pb",
-   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/15aeb8a5-1cca-4bb9-ae5f-b6e67e4ff2ab"
+   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/15aeb8a5-1cca-4bb9-ae5f-b6e67e4ff2ab",
+   "cc": "fr"
   },
   {
    "id": "fr-diviamobilit-s-793b",
@@ -322,7 +341,8 @@
    "every": 30,
    "trips": "auto",
    "url": "https://proxy.transport.data.gouv.fr/resource/divia-dijon-gtfs-rt-vehicle-position",
-   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/e0dbd217-15cd-4e28-9459-211a27511a34"
+   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/e0dbd217-15cd-4e28-9459-211a27511a34",
+   "cc": "fr"
   },
   {
    "id": "fr-tadao-ae56",
@@ -332,7 +352,8 @@
    "every": 30,
    "trips": "auto",
    "url": "https://ara-api.enroute.mobi/tadao_production/gtfs",
-   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/47a5e290-7883-4a40-bdcf-b693f64087b0"
+   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/47a5e290-7883-4a40-bdcf-b693f64087b0",
+   "cc": "fr"
   },
   {
    "id": "fr-cit-a-fe12",
@@ -342,7 +363,8 @@
    "every": 30,
    "trips": "auto",
    "url": "https://proxy.transport.data.gouv.fr/resource/citea-valence-gtfs-rt-vehicle-position",
-   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/46bf6b5c-68c1-4198-a982-caeee88540a3"
+   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/46bf6b5c-68c1-4198-a982-caeee88540a3",
+   "cc": "fr"
   },
   {
    "id": "fr-bibus-3362",
@@ -352,7 +374,8 @@
    "every": 30,
    "trips": "auto",
    "url": "https://proxy.transport.data.gouv.fr/resource/bibus-brest-gtfs-rt-vehicle-position",
-   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/583d1419-058b-481b-b378-449cab744c82"
+   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/583d1419-058b-481b-b378-449cab744c82",
+   "cc": "fr"
   },
   {
    "id": "fr-setram-10fa",
@@ -362,7 +385,8 @@
    "every": 30,
    "trips": "auto",
    "url": "https://proxy.transport.data.gouv.fr/resource/setram-lemans-gtfs-rt-vehicle-position",
-   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/c9bb5f5a-5310-4544-a26a-754ac9889afb"
+   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/c9bb5f5a-5310-4544-a26a-754ac9889afb",
+   "cc": "fr"
   },
   {
    "id": "fr-orizo-e752",
@@ -372,7 +396,8 @@
    "every": 30,
    "trips": "auto",
    "url": "https://api.maas-fr.cityway.fr/dataflow/vehicule-tc-tr/download?provider=ORIZO&dataFormat=gtfs-rt",
-   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/40b26c33-9be2-47ea-a46c-8bda9f63273e"
+   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/40b26c33-9be2-47ea-a46c-8bda9f63273e",
+   "cc": "fr"
   },
   {
    "id": "fr-dk-bus-2162",
@@ -382,7 +407,8 @@
    "every": 30,
    "trips": "auto",
    "url": "https://gtfs.bus-tracker.fr/gtfs-rt/dunkerque/",
-   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/f51fabfb-9d7a-44b7-bd03-d1032337fb80"
+   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/f51fabfb-9d7a-44b7-bd03-d1032337fb80",
+   "cc": "fr"
   },
   {
    "id": "fr-ametis-0480",
@@ -392,7 +418,8 @@
    "every": 30,
    "trips": "auto",
    "url": "https://proxy.transport.data.gouv.fr/resource/ametis-amiens-gtfs-rt-vehicle-position",
-   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/5bc8b7dc-0d4e-48e7-b2ec-eccfe3702c19"
+   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/5bc8b7dc-0d4e-48e7-b2ec-eccfe3702c19",
+   "cc": "fr"
   },
   {
    "id": "fr-cap-cotentin-4483",
@@ -402,7 +429,8 @@
    "every": 30,
    "trips": "auto",
    "url": "https://app.pysae.com/api/v2/groups/transdev-cotentin/gtfs-rt",
-   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/2e97c9b3-a59f-42dd-9b9e-a232fa771f21"
+   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/2e97c9b3-a59f-42dd-9b9e-a232fa771f21",
+   "cc": "fr"
   },
   {
    "id": "fr-kic-o-eafc",
@@ -412,7 +440,8 @@
    "every": 30,
    "trips": "auto",
    "url": "https://proxy.transport.data.gouv.fr/resource/kiceo-vannes-gtfs-rt",
-   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/565533c0-64ae-44d6-9dfa-169be5b805c6"
+   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/565533c0-64ae-44d6-9dfa-169be5b805c6",
+   "cc": "fr"
   },
   {
    "id": "fr-tcat-8a5a",
@@ -422,7 +451,8 @@
    "every": 30,
    "trips": "auto",
    "url": "http://94.143.218.42:13486/ProfilGtfsRt2_0RSProducer-TCAT/VehiclePosition.pb",
-   "gtfs": "https://transport.data.gouv.fr/resources/79847/download"
+   "gtfs": "https://transport.data.gouv.fr/resources/79847/download",
+   "cc": "fr"
   },
   {
    "id": "fr-palmbus-f514",
@@ -432,7 +462,8 @@
    "every": 30,
    "trips": "auto",
    "url": "https://proxy.transport.data.gouv.fr/resource/palmbus-cannes-gtfs-rt-vehicle-position",
-   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/47bc8088-6c72-43ad-a959-a5bbdd1aa14f"
+   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/47bc8088-6c72-43ad-a959-a5bbdd1aa14f",
+   "cc": "fr"
   },
   {
    "id": "fr-agglobus-0303",
@@ -442,7 +473,8 @@
    "every": 30,
    "trips": "auto",
    "url": "https://cacl.plateforme-2cloud.com/api/gtfsrt/2.0/vehiclepositions/CACL-1823-7594-1349/bin",
-   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/d358344a-ed1e-4d74-b092-9cbc517b10a8"
+   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/d358344a-ed1e-4d74-b092-9cbc517b10a8",
+   "cc": "fr"
   },
   {
    "id": "fr-alesy-cad9",
@@ -452,7 +484,8 @@
    "every": 30,
    "trips": "auto",
    "url": "https://alesy.plateforme-2cloud.com/api/gtfsrt/2.0/vehiclepositions/ALESY-6574-4401-7572/bin",
-   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/b9a0f32e-4386-454c-8759-b82653fa861e"
+   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/b9a0f32e-4386-454c-8759-b82653fa861e",
+   "cc": "fr"
   },
   {
    "id": "fr-filibus-7aa8",
@@ -462,7 +495,8 @@
    "every": 30,
    "trips": "auto",
    "url": "https://gtfs.bus-tracker.fr/gtfs-rt/chartres",
-   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/8d4c3e5c-1702-4649-b47a-b16c6016dcc6"
+   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/8d4c3e5c-1702-4649-b47a-b16c6016dcc6",
+   "cc": "fr"
   },
   {
    "id": "fr-rubis-3769",
@@ -472,7 +506,8 @@
    "every": 30,
    "trips": "auto",
    "url": "https://proxy.transport.data.gouv.fr/resource/rubis-bourg-en-bresse-gtfs-rt-vehicle-position",
-   "gtfs": "https://transport.data.gouv.fr/resources/84267/download"
+   "gtfs": "https://transport.data.gouv.fr/resources/84267/download",
+   "cc": "fr"
   },
   {
    "id": "fr-illygo-cd19",
@@ -482,7 +517,8 @@
    "every": 30,
    "trips": "auto",
    "url": "https://pysae.com/api/v2/groups/illygo/gtfs-rt",
-   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/024123a0-8665-4983-90bd-134ef7d70383"
+   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/024123a0-8665-4983-90bd-134ef7d70383",
+   "cc": "fr"
   },
   {
    "id": "fr-citibus-7322",
@@ -492,7 +528,8 @@
    "every": 30,
    "trips": "auto",
    "url": "https://feed-citibus-narbonne.ratpdev.com/GTFS-RT/gtfs-rt.bin",
-   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/21ca2b77-505b-4c4c-9154-a044e61b8560"
+   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/21ca2b77-505b-4c4c-9154-a044e61b8560",
+   "cc": "fr"
   },
   {
    "id": "fr-beemob-d0b1",
@@ -502,7 +539,8 @@
    "every": 30,
    "trips": "auto",
    "url": "https://feed-beemob-beziers.ratpdev.com/GTFS-RT_vehiclePosition/gtfs-rt.bin",
-   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/c1581a3a-0b78-4944-905c-a8530206648a"
+   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/c1581a3a-0b78-4944-905c-a8530206648a",
+   "cc": "fr"
   },
   {
    "id": "fr-s-te-agglopole-mob-3c64",
@@ -512,7 +550,8 @@
    "every": 30,
    "trips": "auto",
    "url": "https://sete.ceccli.com/gtfs/VehiclePositions.pb",
-   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/9402f130-ac11-4615-8494-a5c84fcdb78c"
+   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/9402f130-ac11-4615-8494-a5c84fcdb78c",
+   "cc": "fr"
   },
   {
    "id": "fr-tlp-0d93",
@@ -522,7 +561,8 @@
    "every": 30,
    "trips": "auto",
    "url": "https://zenbus.net/gtfs/rt/poll.proto?dataset=tlp-mobilites",
-   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/84f7501c-de7b-46d9-8e0c-14c30d9fa58b"
+   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/84f7501c-de7b-46d9-8e0c-14c30d9fa58b",
+   "cc": "fr"
   },
   {
    "id": "fr-le-bus-b453",
@@ -532,7 +572,8 @@
    "every": 30,
    "trips": "auto",
    "url": "https://api.pysae.com/api/v4/groups/agglobus-cavem/gtfs-rt",
-   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/11e73e58-edb0-4fab-a220-61a659cf6423"
+   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/11e73e58-edb0-4fab-a220-61a659cf6423",
+   "cc": "fr"
   },
   {
    "id": "fr-linead-d4da",
@@ -542,7 +583,8 @@
    "every": 30,
    "trips": "auto",
    "url": "https://gtfs.bus-tracker.fr/gtfs-rt/dreux/",
-   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/c654db3d-a710-4ed5-a327-417f812bf9a0"
+   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/c654db3d-a710-4ed5-a327-417f812bf9a0",
+   "cc": "fr"
   },
   {
    "id": "fr-rtca-3642",
@@ -552,7 +594,8 @@
    "every": 30,
    "trips": "auto",
    "url": "https://proxy.transport.data.gouv.fr/resource/rtca-carcassonne-gtfs-rt-vehicle-position",
-   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/941123b0-004e-4f48-81e7-8c62fb4f07aa"
+   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/941123b0-004e-4f48-81e7-8c62fb4f07aa",
+   "cc": "fr"
   },
   {
    "id": "fr-tedbus-3a22",
@@ -562,7 +605,8 @@
    "every": 30,
    "trips": "auto",
    "url": "https://pysae.com/api/v2/groups/draguignan/gtfs-rt",
-   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/a1d56fb0-e264-45f2-8822-c08746847a97"
+   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/a1d56fb0-e264-45f2-8822-c08746847a97",
+   "cc": "fr"
   },
   {
    "id": "fr-transurbain-0409",
@@ -572,7 +616,8 @@
    "every": 30,
    "trips": "auto",
    "url": "https://proxy.transport.data.gouv.fr/resource/transurbain-evreux-gtfs-rt-vehicle-position",
-   "gtfs": "https://transport.data.gouv.fr/resources/80613/download"
+   "gtfs": "https://transport.data.gouv.fr/resources/80613/download",
+   "cc": "fr"
   },
   {
    "id": "fr-cars-r-gion-loire-095e",
@@ -582,7 +627,8 @@
    "every": 30,
    "trips": "auto",
    "url": "https://api.pysae.com/api/v4/groups/philibert-loire/gtfs-rt",
-   "gtfs": "https://transport.data.gouv.fr/resources/84281/download"
+   "gtfs": "https://transport.data.gouv.fr/resources/84281/download",
+   "cc": "fr"
   },
   {
    "id": "fr-artis-3e0a",
@@ -592,7 +638,8 @@
    "every": 30,
    "trips": "auto",
    "url": "https://api.pysae.com/api/v4/groups/keolis-arras-8H8k/gtfs-rt",
-   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/4ded8fb3-a38d-45c5-b4a7-a2f6ac17ba4f"
+   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/4ded8fb3-a38d-45c5-b4a7-a2f6ac17ba4f",
+   "cc": "fr"
   },
   {
    "id": "fr-azalys-3c01",
@@ -602,7 +649,8 @@
    "every": 30,
    "trips": "auto",
    "url": "https://app.mecatran.com/utw/ws/gtfsfeed/vehicles/blois?apiKey=7a0d1031460836674e76041e7a78011813347f04",
-   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/e6e0228d-9916-4216-bb5f-7d3edf57866c"
+   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/e6e0228d-9916-4216-bb5f-7d3edf57866c",
+   "cc": "fr"
   },
   {
    "id": "fr-sitac-92d6",
@@ -612,7 +660,8 @@
    "every": 30,
    "trips": "auto",
    "url": "https://zenbus.net/gtfs/rt/poll.proto?dataset=sitac-calais-rt&src=true",
-   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/5dcdb39b-aee3-4a0f-a9a9-be225f5a8b78"
+   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/5dcdb39b-aee3-4a0f-a9a9-be225f5a8b78",
+   "cc": "fr"
   },
   {
    "id": "fr-mouv-o-8a3f",
@@ -622,7 +671,8 @@
    "every": 30,
    "trips": "auto",
    "url": "https://proxy.transport.data.gouv.fr/resource/mouveo-saint-omer-gtfs-rt-vehicle-position",
-   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/a490d239-942a-4206-bed5-cef5a2007bcd"
+   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/a490d239-942a-4206-bed5-cef5a2007bcd",
+   "cc": "fr"
   },
   {
    "id": "fr-et-tad-zonal-corol-a7fd",
@@ -632,7 +682,8 @@
    "every": 30,
    "trips": "auto",
    "url": "https://api.oisemob.cityway.fr/dataflow/vehicule-tc-tr/download?provider=COROLIS_INT&dataFormat=gtfs-rt",
-   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/61277099-cde9-457c-919d-a1b7b20fe992"
+   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/61277099-cde9-457c-919d-a1b7b20fe992",
+   "cc": "fr"
   },
   {
    "id": "fr-corolis-b2f9",
@@ -642,7 +693,8 @@
    "every": 30,
    "trips": "auto",
    "url": "https://api.oisemob.cityway.fr/dataflow/vehicule-tc-tr/download?provider=COROLIS_URB&dataFormat=gtfs-rt",
-   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/2b8e53ce-a26c-4986-8d33-505e1b680bb4"
+   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/2b8e53ce-a26c-4986-8d33-505e1b680bb4",
+   "cc": "fr"
   },
   {
    "id": "fr-qub-ccff",
@@ -652,7 +704,8 @@
    "every": 30,
    "trips": "auto",
    "url": "https://feed-qub-quimper.ratpdev.com/GTFS-RT_vehiclePosition/gtfs-rt.bin",
-   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/95530333-7002-401d-9d64-2829496d1c36"
+   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/95530333-7002-401d-9d64-2829496d1c36",
+   "cc": "fr"
   },
   {
    "id": "fr-hop-bus-c75c",
@@ -662,7 +715,8 @@
    "every": 30,
    "trips": "auto",
    "url": "https://gtfs-rt.infra-hubup.fr/hopbus/realtime",
-   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/d10fb9b2-1a5a-498c-ba55-e89cf0136ef1"
+   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/d10fb9b2-1a5a-498c-ba55-e89cf0136ef1",
+   "cc": "fr"
   },
   {
    "id": "fr-tempo-bus-fdff",
@@ -672,7 +726,8 @@
    "every": 30,
    "trips": "auto",
    "url": "https://api.pysae.com/api/v4/groups/agen/gtfs-rt",
-   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/c1415ff3-7457-4b51-aead-aacbf03a474e"
+   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/c1415ff3-7457-4b51-aead-aacbf03a474e",
+   "cc": "fr"
   },
   {
    "id": "fr-ritmo-afec",
@@ -682,7 +737,8 @@
    "every": 30,
    "trips": "auto",
    "url": "https://zenbus.net/gtfs/rt/poll.proto?dataset=haguenau",
-   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/8df46b2d-1be4-4a84-a227-bc2c61af97ca"
+   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/8df46b2d-1be4-4a84-a227-bc2c61af97ca",
+   "cc": "fr"
   },
   {
    "id": "fr-l-va-2466",
@@ -692,7 +748,8 @@
    "every": 30,
    "trips": "auto",
    "url": "https://feed-vienne-mobi.ratpdev.com/GTFS-RT/gtfs-rt.bin",
-   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/e0831d78-5577-4cae-aa00-de5eeaf3ecb6"
+   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/e0831d78-5577-4cae-aa00-de5eeaf3ecb6",
+   "cc": "fr"
   },
   {
    "id": "fr-glazgo-2082",
@@ -702,7 +759,8 @@
    "every": 30,
    "trips": "auto",
    "url": "https://api.pysae.com/api/v4/groups/glazgo/gtfs-rt",
-   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/4dc52cb9-909e-40dd-80e5-a90073bc80fc"
+   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/4dc52cb9-909e-40dd-80e5-a90073bc80fc",
+   "cc": "fr"
   },
   {
    "id": "fr-axo-9d65",
@@ -712,7 +770,8 @@
    "every": 30,
    "trips": "auto",
    "url": "https://api.oisemob.cityway.fr/dataflow/vehicule-tc-tr/download?provider=AXO&dataFormat=gtfs-rt",
-   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/23f2f5ed-c21c-4e87-840b-22512fe7c5d7"
+   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/23f2f5ed-c21c-4e87-840b-22512fe7c5d7",
+   "cc": "fr"
   },
   {
    "id": "fr-mat-7261",
@@ -722,7 +781,8 @@
    "every": 30,
    "trips": "auto",
    "url": "https://proxy.transport.data.gouv.fr/resource/mat-st-malo-gtfs-rt",
-   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/3bd31fbe-93f4-432d-ade7-ee8d69897880"
+   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/3bd31fbe-93f4-432d-ade7-ee8d69897880",
+   "cc": "fr"
   },
   {
    "id": "fr-envia-a0e0",
@@ -732,7 +792,8 @@
    "every": 30,
    "trips": "auto",
    "url": "https://accm.plateforme-2cloud.com/api/gtfsrt/2.0/vehiclepositions/ACCM-RSUD-4552-8552-5459/bin",
-   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/52216d2f-072e-4b7d-af0c-15d8d4e98b09"
+   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/52216d2f-072e-4b7d-af0c-15d8d4e98b09",
+   "cc": "fr"
   },
   {
    "id": "fr-mobivie-57e4",
@@ -742,7 +803,8 @@
    "every": 30,
    "trips": "auto",
    "url": "https://proxy.transport.data.gouv.fr/resource/mobivie-vichy-gtfs-rt-vehicle-position",
-   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/c087ca61-f4db-44b2-bdc1-ec221c2bf762"
+   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/c087ca61-f4db-44b2-bdc1-ec221c2bf762",
+   "cc": "fr"
   },
   {
    "id": "fr-tic-258b",
@@ -752,7 +814,8 @@
    "every": 30,
    "trips": "auto",
    "url": "https://api.oisemob.cityway.fr/dataflow/vehicule-tc-tr/download?provider=TIC_INT&dataFormat=gtfs-rt",
-   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/d9ea4b4a-0717-4a7d-bd14-054afa192457"
+   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/d9ea4b4a-0717-4a7d-bd14-054afa192457",
+   "cc": "fr"
   },
   {
    "id": "fr-tic-a4ea",
@@ -762,7 +825,8 @@
    "every": 30,
    "trips": "auto",
    "url": "https://api.oisemob.cityway.fr/dataflow/vehicule-tc-tr/download?provider=TIC_URB&dataFormat=gtfs-rt",
-   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/3a98dcdb-ca6e-40fc-8da9-09ab7f5661c9"
+   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/3a98dcdb-ca6e-40fc-8da9-09ab7f5661c9",
+   "cc": "fr"
   },
   {
    "id": "fr-sngo-b326",
@@ -772,7 +836,8 @@
    "every": 30,
    "trips": "auto",
    "url": "https://proxy.transport.data.gouv.fr/resource/sngo-vernon-gtfs-rt-vehicle-position",
-   "gtfs": "https://transport.data.gouv.fr/resources/80655/download"
+   "gtfs": "https://transport.data.gouv.fr/resources/80655/download",
+   "cc": "fr"
   },
   {
    "id": "fr-vitobus-e4a2",
@@ -782,7 +847,8 @@
    "every": 30,
    "trips": "auto",
    "url": "https://gtfs.bus-tracker.fr/gtfs-rt/vitre/",
-   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/e808092a-936a-410b-b75c-df42a690be17"
+   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/e808092a-936a-410b-b75c-df42a690be17",
+   "cc": "fr"
   },
   {
    "id": "fr-cap-bus-f564",
@@ -792,7 +858,8 @@
    "every": 30,
    "trips": "auto",
    "url": "https://zenbus.net/gtfs/rt/poll.proto?dataset=agdecapbus68429531",
-   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/8ce8ad14-836e-427d-bb43-a6ce0ab5ecda"
+   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/8ce8ad14-836e-427d-bb43-a6ce0ab5ecda",
+   "cc": "fr"
   },
   {
    "id": "fr-rezo-bus-c391",
@@ -802,7 +869,8 @@
    "every": 30,
    "trips": "auto",
    "url": "https://app.pysae.com/api/v4/groups/caux-seine-agglo/gtfs-rt",
-   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/b0687cf2-03f5-4d39-8412-01b3d93e0d2b"
+   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/b0687cf2-03f5-4d39-8412-01b3d93e0d2b",
+   "cc": "fr"
   },
   {
    "id": "fr-lila-presqu-ile-2616",
@@ -812,7 +880,8 @@
    "every": 30,
    "trips": "auto",
    "url": "https://proxy.transport.data.gouv.fr/resource/lila-presquile-cap-atlantique-gtfs-rt",
-   "gtfs": "https://transport.data.gouv.fr/resources/83762/download"
+   "gtfs": "https://transport.data.gouv.fr/resources/83762/download",
+   "cc": "fr"
   },
   {
    "id": "fr-forbus-8942",
@@ -822,7 +891,8 @@
    "every": 30,
    "trips": "auto",
    "url": "https://proxy.transport.data.gouv.fr/resource/fluo-forbus-forbach-gtfs-rt-vehicle-position",
-   "gtfs": "https://transport.data.gouv.fr/resources/80467/download"
+   "gtfs": "https://transport.data.gouv.fr/resources/80467/download",
+   "cc": "fr"
   },
   {
    "id": "fr-guingamp-paimpol-m-9b4a",
@@ -832,7 +902,8 @@
    "every": 30,
    "trips": "auto",
    "url": "https://proxy.transport.data.gouv.fr/resource/axeo-guingamp-gtfs-rt-vehicle-position",
-   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/52057eec-3786-444c-8696-8473c4c6888e"
+   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/52057eec-3786-444c-8696-8473c4c6888e",
+   "cc": "fr"
   },
   {
    "id": "fr-astrobus-3147",
@@ -842,7 +913,8 @@
    "every": 30,
    "trips": "auto",
    "url": "https://proxy.transport.data.gouv.fr/resource/astrobus-lisieux-gtfs-rt-vehicle-position",
-   "gtfs": "https://transport.data.gouv.fr/resources/82140/download"
+   "gtfs": "https://transport.data.gouv.fr/resources/82140/download",
+   "cc": "fr"
   },
   {
    "id": "fr-zest-0e83",
@@ -852,7 +924,8 @@
    "every": 30,
    "trips": "auto",
    "url": "https://proxy.transport.data.gouv.fr/resource/zest-menton-riviera-gtfs-rt-vehicle-position",
-   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/72609821-2459-47fb-a63b-3dbbc0d96c92"
+   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/72609821-2459-47fb-a63b-3dbbc0d96c92",
+   "cc": "fr"
   },
   {
    "id": "fr-distribus-9ee2",
@@ -862,7 +935,8 @@
    "every": 30,
    "trips": "auto",
    "url": "http://h21.hanoverdisplays.com:52320/api-1.0/gtfs-rt/vehicle-positions",
-   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/148bf3a3-792f-44e2-9757-e0cc0d83afae"
+   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/148bf3a3-792f-44e2-9757-e0cc0d83afae",
+   "cc": "fr"
   },
   {
    "id": "fr-montelibus-9ff7",
@@ -872,7 +946,8 @@
    "every": 30,
    "trips": "auto",
    "url": "https://proxy.transport.data.gouv.fr/resource/montelibus-montelimar-gtfs-rt-vehicle-position",
-   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/974cede8-3a14-4c7b-b94d-b2655c31932e"
+   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/974cede8-3a14-4c7b-b94d-b2655c31932e",
+   "cc": "fr"
   },
   {
    "id": "fr-rlv-mobilit-s-e3bf",
@@ -882,7 +957,8 @@
    "every": 30,
    "trips": "auto",
    "url": "https://proxy.transport.data.gouv.fr/resource/riom-rlv-mobilites-gtfs-rt-vehicle-position",
-   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/90846819-b970-48db-967b-8eb7d2da3e2c"
+   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/90846819-b970-48db-967b-8eb7d2da3e2c",
+   "cc": "fr"
   },
   {
    "id": "fr-al-o-0e8a",
@@ -892,7 +968,8 @@
    "every": 30,
    "trips": "auto",
    "url": "https://api.pysae.com/api/v4/groups/moulins/gtfs-rt",
-   "gtfs": "https://transport.data.gouv.fr/resources/83839/download"
+   "gtfs": "https://transport.data.gouv.fr/resources/83839/download",
+   "cc": "fr"
   },
   {
    "id": "fr-tgl-cc62",
@@ -902,7 +979,8 @@
    "every": 30,
    "trips": "auto",
    "url": "https://proxy.transport.data.gouv.fr/resource/tgl-longwy-gtfs-rt-vehicle-position",
-   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/4f11e16d-e326-44fe-b18a-d83e7d041806"
+   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/4f11e16d-e326-44fe-b18a-d83e7d041806",
+   "cc": "fr"
   },
   {
    "id": "fr-passthelle-bus-2660",
@@ -912,7 +990,8 @@
    "every": 30,
    "trips": "auto",
    "url": "https://api.oisemob.cityway.fr/dataflow/vehicule-tc-tr/download?provider=PASSTHELLE&dataFormat=gtfs-rt",
-   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/2aeffed5-95e9-4587-a8f8-f52c32968566"
+   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/2aeffed5-95e9-4587-a8f8-f52c32968566",
+   "cc": "fr"
   },
   {
    "id": "fr-buss-dadf",
@@ -922,7 +1001,8 @@
    "every": 30,
    "trips": "auto",
    "url": "https://zenbus.net/gtfs/rt/poll.proto?dataset=buss-cdasaintes",
-   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/f2d4be3b-50bc-4f9b-9818-30860890a864"
+   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/f2d4be3b-50bc-4f9b-9818-30860890a864",
+   "cc": "fr"
   },
   {
    "id": "fr-maelis-fdcd",
@@ -932,7 +1012,8 @@
    "every": 30,
    "trips": "auto",
    "url": "https://proxy.transport.data.gouv.fr/resource/maelis-montlucon-gtfs-rt-vehicle-position",
-   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/e8599784-71ba-4814-a905-4e215295109f"
+   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/e8599784-71ba-4814-a905-4e215295109f",
+   "cc": "fr"
   },
   {
    "id": "fr-cherpa-eab4",
@@ -942,7 +1023,8 @@
    "every": 30,
    "trips": "auto",
    "url": "https://zenbus.net/gtfs/rt/poll.proto?src=true&dataset=agglopaysdissoire",
-   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/7d54a219-8fe7-4635-a9fc-cefe5e57462e"
+   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/7d54a219-8fe7-4635-a9fc-cefe5e57462e",
+   "cc": "fr"
   },
   {
    "id": "fr-surf-9a73",
@@ -952,7 +1034,8 @@
    "every": 30,
    "trips": "auto",
    "url": "https://proxy.transport.data.gouv.fr/resource/surf-fougeres-gtfs-rt-vehicle-position",
-   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/665d6c43-598d-4d9d-aa98-206072f4dfa0"
+   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/665d6c43-598d-4d9d-aa98-206072f4dfa0",
+   "cc": "fr"
   },
   {
    "id": "fr-mobi-1c17",
@@ -962,7 +1045,8 @@
    "every": 30,
    "trips": "auto",
    "url": "https://api.oisemob.cityway.fr/dataflow/vehicule-tc-tr/download?provider=CYPRE&dataFormat=gtfs-rt",
-   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/ad0a4757-eb8a-4c06-b459-51442466d5c4"
+   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/ad0a4757-eb8a-4c06-b459-51442466d5c4",
+   "cc": "fr"
   },
   {
    "id": "fr-cmonbus-e22e",
@@ -972,7 +1056,8 @@
    "every": 30,
    "trips": "auto",
    "url": "https://app.pysae.com/api/v2/groups/cavaillon/gtfs-rt",
-   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/a6a32465-7366-47dc-a6fc-96f1d52b09d8"
+   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/a6a32465-7366-47dc-a6fc-96f1d52b09d8",
+   "cc": "fr"
   },
   {
    "id": "fr-grandole-mobilit-s-fb64",
@@ -982,7 +1067,8 @@
    "every": 30,
    "trips": "auto",
    "url": "https://proxy.transport.data.gouv.fr/resource/tgd-dole-gtfs-rt-vehicle-position",
-   "gtfs": "https://transport.data.gouv.fr/resources/81254/download"
+   "gtfs": "https://transport.data.gouv.fr/resources/81254/download",
+   "cc": "fr"
   },
   {
    "id": "fr-l-bus-d8ca",
@@ -992,7 +1078,8 @@
    "every": 30,
    "trips": "auto",
    "url": "https://zenbus.net/gtfs/rt/poll.proto?src=true&dataset=bernay",
-   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/2ff9ad0d-c014-4da2-9f70-9ecf9aa15b1c"
+   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/2ff9ad0d-c014-4da2-9f70-9ecf9aa15b1c",
+   "cc": "fr"
   },
   {
    "id": "fr-nemus-749c",
@@ -1002,7 +1089,8 @@
    "every": 30,
    "trips": "auto",
    "url": "https://flers-agglo.plateforme-2cloud.com/api/gtfsrt/2.0/vehiclepositions/FLERS-5197-3181-6523/bin?network=104",
-   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/7d399812-e018-4e35-b3ae-a5ba44c8ad91"
+   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/7d399812-e018-4e35-b3ae-a5ba44c8ad91",
+   "cc": "fr"
   },
   {
    "id": "fr-move-8d6b",
@@ -1012,7 +1100,8 @@
    "every": 30,
    "trips": "auto",
    "url": "https://pysae.com/api/v2/groups/vendome/gtfs-rt",
-   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/c85977b8-7d18-439c-935c-935286503003"
+   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/c85977b8-7d18-439c-935c-935286503003",
+   "cc": "fr"
   },
   {
    "id": "fr-ol-79b1",
@@ -1022,7 +1111,8 @@
    "every": 30,
    "trips": "auto",
    "url": "https://ole.plateforme-2cloud.com/api/gtfsrt/2.0/vehiclepositions/OLE-2187-9024-3517/bin",
-   "gtfs": "https://transport.data.gouv.fr/resources/83852/download"
+   "gtfs": "https://transport.data.gouv.fr/resources/83852/download",
+   "cc": "fr"
   },
   {
    "id": "fr-l-agglo-en-bus-582d",
@@ -1032,7 +1122,8 @@
    "every": 30,
    "trips": "auto",
    "url": "https://gtfs-rt.infra-hubup.fr/cagtd/realtime",
-   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/78b7910e-1e31-4f47-b0a8-949647205ffa"
+   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/78b7910e-1e31-4f47-b0a8-949647205ffa",
+   "cc": "fr"
   },
   {
    "id": "fr-c-te-bus-97aa",
@@ -1042,7 +1133,8 @@
    "every": 30,
    "trips": "auto",
    "url": "https://proxy.transport.data.gouv.fr/resource/beaune-cote-et-bus-gtfs-rt-vehicle-position",
-   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/c00d487c-4766-4ca1-b736-e7de110331d9"
+   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/c00d487c-4766-4ca1-b736-e7de110331d9",
+   "cc": "fr"
   },
   {
    "id": "fr-deepmob-f68e",
@@ -1052,7 +1144,8 @@
    "every": 30,
    "trips": "auto",
    "url": "https://proxy.transport.data.gouv.fr/resource/deepmob-dieppe-gtfs-rt-vehicle-position",
-   "gtfs": "https://transport.data.gouv.fr/resources/80680/download"
+   "gtfs": "https://transport.data.gouv.fr/resources/80680/download",
+   "cc": "fr"
   },
   {
    "id": "fr-pondibus-f6ea",
@@ -1062,7 +1155,8 @@
    "every": 30,
    "trips": "auto",
    "url": "https://pysae.com/api/v2/groups/pondibus/gtfs-rt",
-   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/57c8ace6-014d-40cd-b2b5-a9c630f87123"
+   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/57c8ace6-014d-40cd-b2b5-a9c630f87123",
+   "cc": "fr"
   },
   {
    "id": "fr-titus-359c",
@@ -1072,7 +1166,8 @@
    "every": 30,
    "trips": "auto",
    "url": "https://zenbus.net/gtfs/rt/poll.proto?dataset=reseau-titus",
-   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/ed7049d4-4063-457c-ab65-4a26c640e0a1"
+   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/ed7049d4-4063-457c-ab65-4a26c640e0a1",
+   "cc": "fr"
   },
   {
    "id": "fr-le-taco-55d9",
@@ -1082,7 +1177,8 @@
    "every": 30,
    "trips": "auto",
    "url": "https://api.pysae.com/api/v4/groups/transdev-var-taco/gtfs-rt",
-   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/5b2dfdce-8ab2-41b2-a318-65f884e3ead2"
+   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/5b2dfdce-8ab2-41b2-a318-65f884e3ead2",
+   "cc": "fr"
   },
   {
    "id": "fr-oz-car-d5d4",
@@ -1092,7 +1188,8 @@
    "every": 30,
    "trips": "auto",
    "url": "https://api.pysae.com/api/v4/groups/lr-coeurduvar/gtfs-rt",
-   "gtfs": "https://transport.data.gouv.fr/resources/84190/download"
+   "gtfs": "https://transport.data.gouv.fr/resources/84190/download",
+   "cc": "fr"
   },
   {
    "id": "fr-transp-or-2e9f",
@@ -1102,7 +1199,8 @@
    "every": 30,
    "trips": "auto",
    "url": "https://proxy.transport.data.gouv.fr/resource/transpor-gtfs-rt-vehicle-position",
-   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/84a0902b-ed56-4a09-8eb7-bb58601ba084"
+   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/84a0902b-ed56-4a09-8eb7-bb58601ba084",
+   "cc": "fr"
   },
   {
    "id": "fr-n-va-a362",
@@ -1112,7 +1210,8 @@
    "every": 30,
    "trips": "auto",
    "url": "https://proxy.transport.data.gouv.fr/resource/neva-granville-gtfs-rt-vehicle-position",
-   "gtfs": "https://transport.data.gouv.fr/resources/82721/download"
+   "gtfs": "https://transport.data.gouv.fr/resources/82721/download",
+   "cc": "fr"
   },
   {
    "id": "fr-tcvo-71fc",
@@ -1122,7 +1221,8 @@
    "every": 30,
    "trips": "auto",
    "url": "https://tcvo.2cloud.app/api/gtfsrt/2.0/vehiclepositions/TCVO-8420-1937-5506/bin",
-   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/d6c75600-f730-421e-93df-74a143d3e723"
+   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/d6c75600-f730-421e-93df-74a143d3e723",
+   "cc": "fr"
   },
   {
    "id": "fr-aire-mob-cb80",
@@ -1132,7 +1232,8 @@
    "every": 30,
    "trips": "auto",
    "url": "https://api.oisemob.cityway.fr/dataflow/vehicule-tc-tr/download?provider=CCAC&dataFormat=gtfs-rt",
-   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/1f143621-2afa-4aa8-a958-d5399e709347"
+   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/1f143621-2afa-4aa8-a958-d5399e709347",
+   "cc": "fr"
   },
   {
    "id": "fr-tout-enbus-f545",
@@ -1142,7 +1243,8 @@
    "every": 30,
    "trips": "auto",
    "url": "https://gtfs-rt.infra-hubup.fr/toutenbus/realtime",
-   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/e91ff63e-2c15-4c86-8e69-499ceec7bd97"
+   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/e91ff63e-2c15-4c86-8e69-499ceec7bd97",
+   "cc": "fr"
   },
   {
    "id": "fr-lun-o-ff2e",
@@ -1152,7 +1254,8 @@
    "every": 30,
    "trips": "auto",
    "url": "https://pysae.com/api/v2/groups/luneo/gtfs-rt",
-   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/94b9beba-c897-46ca-98a4-a78bf320047a"
+   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/94b9beba-c897-46ca-98a4-a78bf320047a",
+   "cc": "fr"
   },
   {
    "id": "fr-alliance-355d",
@@ -1162,7 +1265,8 @@
    "every": 30,
    "trips": "auto",
    "url": "https://zenbus.net/gtfs/rt/poll.proto?dataset=auch-alliance",
-   "gtfs": "https://transport.data.gouv.fr/resources/84228/download"
+   "gtfs": "https://transport.data.gouv.fr/resources/84228/download",
+   "cc": "fr"
   },
   {
    "id": "fr-sablons-bus-c854",
@@ -1172,7 +1276,8 @@
    "every": 30,
    "trips": "auto",
    "url": "https://api.oisemob.cityway.fr/dataflow/vehicule-tc-tr/download?provider=SABLONS&dataFormat=gtfs-rt",
-   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/daba957b-c833-46ad-9bc1-12f3347ac4d9"
+   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/daba957b-c833-46ad-9bc1-12f3347ac4d9",
+   "cc": "fr"
   },
   {
    "id": "fr-ficibus-111b",
@@ -1182,7 +1287,8 @@
    "every": 30,
    "trips": "auto",
    "url": "https://gtfs.bus-tracker.fr/gtfs-rt/ficibus/vehicle-positions",
-   "gtfs": "https://transport.data.gouv.fr/resources/82311/download"
+   "gtfs": "https://transport.data.gouv.fr/resources/82311/download",
+   "cc": "fr"
   },
   {
    "id": "fr-le-vib-97a3",
@@ -1192,7 +1298,8 @@
    "every": 30,
    "trips": "auto",
    "url": "https://proxy.transport.data.gouv.fr/resource/le-vib-vierzon-gtfs-rt-vehicle-position",
-   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/87091347-c7fa-4e63-8fb5-005891ece43b"
+   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/87091347-c7fa-4e63-8fb5-005891ece43b",
+   "cc": "fr"
   },
   {
    "id": "fr-le-bus-cb1c",
@@ -1202,7 +1309,8 @@
    "every": 30,
    "trips": "auto",
    "url": "https://api.oisemob.cityway.fr/dataflow/vehicule-tc-tr/download?provider=LEBUS&dataFormat=gtfs-rt",
-   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/ef552f35-b49b-43d5-8bbc-ad95efdc3d95"
+   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/ef552f35-b49b-43d5-8bbc-ad95efdc3d95",
+   "cc": "fr"
   },
   {
    "id": "fr-tohm-69d3",
@@ -1212,7 +1320,8 @@
    "every": 30,
    "trips": "auto",
    "url": "https://api.oisemob.cityway.fr/dataflow/vehicule-tc-tr/download?provider=TOHM&dataFormat=gtfs-rt",
-   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/6fdd303a-7b76-4742-b877-d0923c59505b"
+   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/6fdd303a-7b76-4742-b877-d0923c59505b",
+   "cc": "fr"
   },
   {
    "id": "fr-jybus-8d44",
@@ -1222,7 +1331,8 @@
    "every": 30,
    "trips": "auto",
    "url": "https://proxy.transport.data.gouv.fr/resource/jybus-rumilly-gtfs-rt-vehicle-position",
-   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/9ba40024-aa3c-4e5c-b065-47eef0edf4e6"
+   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/9ba40024-aa3c-4e5c-b065-47eef0edf4e6",
+   "cc": "fr"
   },
   {
    "id": "fr-moova-9703",
@@ -1232,7 +1342,8 @@
    "every": 30,
    "trips": "auto",
    "url": "https://proxy.transport.data.gouv.fr/resource/moova-vesoul-gtfs-rt-vehicle-position",
-   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/0d6e6c56-8926-49b3-87e2-13c6f57c136b"
+   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/0d6e6c56-8926-49b3-87e2-13c6f57c136b",
+   "cc": "fr"
   },
   {
    "id": "fr-lib-bus-0b89",
@@ -1242,7 +1353,8 @@
    "every": 30,
    "trips": "auto",
    "url": "https://api.oisemob.cityway.fr/dataflow/vehicule-tc-tr/download?provider=LIBBUS&dataFormat=gtfs-rt",
-   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/3074dfb5-2209-44b4-891a-a86694ecaeec"
+   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/3074dfb5-2209-44b4-891a-a86694ecaeec",
+   "cc": "fr"
   },
   {
    "id": "fr-br-vibus-56da",
@@ -1252,7 +1364,8 @@
    "every": 30,
    "trips": "auto",
    "url": "https://pysae.com/api/v2/groups/brevibus/gtfs-rt",
-   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/b8d1007f-567e-48c4-9c40-bee205f1e688"
+   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/b8d1007f-567e-48c4-9c40-bee205f1e688",
+   "cc": "fr"
   },
   {
    "id": "fr-fil-bus-76b0",
@@ -1262,7 +1375,8 @@
    "every": 30,
    "trips": "auto",
    "url": "https://zenbus.net/gtfs/rt/poll.proto?dataset=filbussaintmaixent",
-   "gtfs": "https://transport.data.gouv.fr/resources/84279/download"
+   "gtfs": "https://transport.data.gouv.fr/resources/84279/download",
+   "cc": "fr"
   },
   {
    "id": "fr-navette-de-la-cc-s-39e1",
@@ -1272,7 +1386,8 @@
    "every": 30,
    "trips": "auto",
    "url": "https://proxy.transport.data.gouv.fr/resource/fluo-sel-et-vermois-gtfs-rt-vehicle-position",
-   "gtfs": "https://transport.data.gouv.fr/resources/82907/download"
+   "gtfs": "https://transport.data.gouv.fr/resources/82907/download",
+   "cc": "fr"
   },
   {
    "id": "fr-r-so-49ed",
@@ -1282,7 +1397,8 @@
    "every": 30,
    "trips": "auto",
    "url": "https://gtfs-rt.infra-hubup.fr/reso/realtime",
-   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/2fc8108a-5b91-455a-8d10-1c938d360a9f"
+   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/2fc8108a-5b91-455a-8d10-1c938d360a9f",
+   "cc": "fr"
   },
   {
    "id": "fr-hobus-e348",
@@ -1292,7 +1408,8 @@
    "every": 30,
    "trips": "auto",
    "url": "https://proxy.transport.data.gouv.fr/resource/hobus-honfleur-gtfs-rt-vehicle-position",
-   "gtfs": "https://transport.data.gouv.fr/resources/82711/download"
+   "gtfs": "https://transport.data.gouv.fr/resources/82711/download",
+   "cc": "fr"
   },
   {
    "id": "fr-vikibus-e14e",
@@ -1302,7 +1419,8 @@
    "every": 30,
    "trips": "auto",
    "url": "https://proxy.transport.data.gouv.fr/resource/vikibus-yvetot-gtfs-rt-vehicle-position",
-   "gtfs": "https://transport.data.gouv.fr/resources/81975/download"
+   "gtfs": "https://transport.data.gouv.fr/resources/81975/download",
+   "cc": "fr"
   },
   {
    "id": "fr-papillon-3be6",
@@ -1312,7 +1430,8 @@
    "every": 30,
    "trips": "auto",
    "url": "https://api.pysae.com/api/v4/groups/coeur-de-loire/gtfs-rt",
-   "gtfs": "https://transport.data.gouv.fr/resources/83859/download"
+   "gtfs": "https://transport.data.gouv.fr/resources/83859/download",
+   "cc": "fr"
   },
   {
    "id": "fr-moca-6387",
@@ -1322,7 +1441,8 @@
    "every": 30,
    "trips": "auto",
    "url": "https://proxy.transport.data.gouv.fr/resource/moca-caux-austreberthe-gtfs-rt-vehicle-position",
-   "gtfs": "https://transport.data.gouv.fr/resources/82309/download"
+   "gtfs": "https://transport.data.gouv.fr/resources/82309/download",
+   "cc": "fr"
   },
   {
    "id": "fr-et-tad-zonal-libel-e096",
@@ -1332,7 +1452,8 @@
    "every": 30,
    "trips": "auto",
    "url": "https://api.oisemob.cityway.fr/dataflow/vehicule-tc-tr/download?provider=LELIBELLULE&dataFormat=gtfs-rt",
-   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/e61f439a-2321-4ce2-bda7-89be2494304f"
+   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/e61f439a-2321-4ce2-bda7-89be2494304f",
+   "cc": "fr"
   },
   {
    "id": "fr-cvl-mobilit-74a0",
@@ -1342,7 +1463,8 @@
    "every": 30,
    "trips": "auto",
    "url": "https://cvlmobilite.plateforme-2cloud.com/api/gtfsrt/2.0/vehiclepositions/CVLMOBILITE-4423-7657-4931/bin",
-   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/6348dadb-600c-42c8-bbea-f6ac09505ed3"
+   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/6348dadb-600c-42c8-bbea-f6ac09505ed3",
+   "cc": "fr"
   },
   {
    "id": "fr-a-citadina-d0f2",
@@ -1352,7 +1474,8 @@
    "every": 30,
    "trips": "auto",
    "url": "https://pysae.com/api/v2/groups/porto-vecchio/gtfs-rt",
-   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/74f0577f-f709-49db-9750-53c9341f6e50"
+   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/74f0577f-f709-49db-9750-53c9341f6e50",
+   "cc": "fr"
   },
   {
    "id": "fr-hopl-1b00",
@@ -1362,7 +1485,8 @@
    "every": 30,
    "trips": "auto",
    "url": "https://api.oisemob.cityway.fr/dataflow/vehicule-tc-tr/download?provider=HOPLA&dataFormat=gtfs-rt",
-   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/c6279e07-8e38-459a-b96a-96e4109d0816"
+   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/c6279e07-8e38-459a-b96a-96e4109d0816",
+   "cc": "fr"
   },
   {
    "id": "fr-respir-10a9",
@@ -1372,7 +1496,8 @@
    "every": 30,
    "trips": "auto",
    "url": "https://zenbus.net/gtfs/rt/poll.proto?dataset=iledere75923021",
-   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/f167d4d3-cd32-475b-a12f-0403534679e5"
+   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/f167d4d3-cd32-475b-a12f-0403534679e5",
+   "cc": "fr"
   },
   {
    "id": "fr-chamonix-8109",
@@ -1382,7 +1507,8 @@
    "every": 30,
    "trips": "auto",
    "url": "https://api.pysae.com/api/v4/groups/chamonix-bus/gtfs-rt",
-   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/83a2f241-a0a4-4901-b77b-8a71572a9f6a"
+   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/83a2f241-a0a4-4901-b77b-8a71572a9f6a",
+   "cc": "fr"
   },
   {
    "id": "fr-may-bus-a243",
@@ -1392,7 +1518,8 @@
    "every": 30,
    "trips": "auto",
    "url": "https://zenbus.net/gtfs/rt/poll.proto?dataset=maybus",
-   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/220e0fb8-fe04-4d99-9fca-cc812eaadfc3"
+   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/220e0fb8-fe04-4d99-9fca-cc812eaadfc3",
+   "cc": "fr"
   },
   {
    "id": "fr-tum-dd19",
@@ -1402,7 +1529,8 @@
    "every": 30,
    "trips": "auto",
    "url": "https://zenbus.net/gtfs/rt/poll.proto?dataset=MAX",
-   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/2f42baea-fbe1-4b01-bf4a-8232fd83b24e"
+   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/2f42baea-fbe1-4b01-bf4a-8232fd83b24e",
+   "cc": "fr"
   },
   {
    "id": "fr-lisatis-ba0d",
@@ -1412,7 +1540,8 @@
    "every": 30,
    "trips": "auto",
    "url": "https://zenbus.net/gtfs/rt/poll.proto?dataset=lavaur",
-   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/9364a3b9-6cc7-4543-a927-b31056d07eac"
+   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/9364a3b9-6cc7-4543-a927-b31056d07eac",
+   "cc": "fr"
   },
   {
    "id": "fr-la-navette-oloron-1880",
@@ -1422,7 +1551,8 @@
    "every": 30,
    "trips": "auto",
    "url": "https://zenbus.net/gtfs/rt/poll.proto?dataset=oloron",
-   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/10bb8fff-521d-4b27-a85e-79ae704f1ccc"
+   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/10bb8fff-521d-4b27-a85e-79ae704f1ccc",
+   "cc": "fr"
   },
   {
    "id": "fr-figeac-le-bus-4706",
@@ -1432,7 +1562,8 @@
    "every": 30,
    "trips": "auto",
    "url": "https://zenbus.net/gtfs/rt/poll.proto?dataset=figeac",
-   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/ab2d1451-dddd-4814-bc5c-8e219834a3e3"
+   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/ab2d1451-dddd-4814-bc5c-8e219834a3e3",
+   "cc": "fr"
   },
   {
    "id": "fr-st-sulpice-la-poin-962b",
@@ -1442,7 +1573,8 @@
    "every": 30,
    "trips": "auto",
    "url": "https://zenbus.net/gtfs/rt/poll.proto?dataset=saint-sulpice-la-pointe",
-   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/e1633c9d-2d18-47cf-96c3-eccedd445060"
+   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/e1633c9d-2d18-47cf-96c3-eccedd445060",
+   "cc": "fr"
   },
   {
    "id": "fr-nosbus-4568",
@@ -1452,7 +1584,8 @@
    "every": 30,
    "trips": "auto",
    "url": "https://api.pysae.com/api/v4/groups/nosbus/gtfs-rt",
-   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/5f1dfae0-7972-4caa-8a5d-e2d90a285585"
+   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/5f1dfae0-7972-4caa-8a5d-e2d90a285585",
+   "cc": "fr"
   },
   {
    "id": "fr-sarlat-bus-84be",
@@ -1462,7 +1595,8 @@
    "every": 30,
    "trips": "auto",
    "url": "https://zenbus.net/gtfs/rt/poll.proto?dataset=Sarlat",
-   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/f1119940-adc5-4d2e-af7d-5535e50da539"
+   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/f1119940-adc5-4d2e-af7d-5535e50da539",
+   "cc": "fr"
   },
   {
    "id": "fr-pays-des-ecrins-9a24",
@@ -1472,7 +1606,8 @@
    "every": 30,
    "trips": "auto",
    "url": "https://app.pysae.com/api/v2/groups/pays-des-ecrins/gtfs-rt",
-   "gtfs": "https://transport.data.gouv.fr/resources/83467/download"
+   "gtfs": "https://transport.data.gouv.fr/resources/83467/download",
+   "cc": "fr"
   },
   {
    "id": "fr-navettes-saisonni-ceef",
@@ -1482,7 +1617,8 @@
    "every": 30,
    "trips": "auto",
    "url": "https://zenbus.net/gtfs/rt/poll.proto?dataset=tignes",
-   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/9f5669e6-202f-4166-99e4-0e15586e1473"
+   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/9f5669e6-202f-4166-99e4-0e15586e1473",
+   "cc": "fr"
   },
   {
    "id": "fr-navettes-saisonni-7c10",
@@ -1492,7 +1628,8 @@
    "every": 30,
    "trips": "auto",
    "url": "https://zenbus.net/gtfs/rt/poll.proto?dataset=valdisere",
-   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/d6c3eae8-fab6-4ff2-adc2-32bb2d213dd7"
+   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/d6c3eae8-fab6-4ff2-adc2-32bb2d213dd7",
+   "cc": "fr"
   },
   {
    "id": "fr-lyon-tcl-d0a3",
@@ -1502,7 +1639,8 @@
    "every": 30,
    "trips": "auto",
    "url": "https://gtfs.bus-tracker.fr/gtfs-rt/tcl",
-   "gtfs": "https://gtfs.bus-tracker.fr/tcl.zip"
+   "gtfs": "https://gtfs.bus-tracker.fr/tcl.zip",
+   "cc": "fr"
   },
   {
    "id": "fr-star-rennes",
@@ -1512,7 +1650,8 @@
    "every": 30,
    "trips": "auto",
    "url": "https://proxy.transport.data.gouv.fr/resource/star-rennes-integration-gtfs-rt-vehicle-position",
-   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/0644f537-575e-4cce-9570-06165d6f3b27"
+   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/0644f537-575e-4cce-9570-06165d6f3b27",
+   "cc": "fr"
   }
  ]
 }

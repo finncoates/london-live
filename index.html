@@ -1931,7 +1931,7 @@ async function srvSetup(){
       if(SRV.feeds[id]){ const x = SRV.feeds[id].entry; x[1] = f.box; x[4] = new RegExp(f.tt || '^$', 'i'); x[5] = new RegExp(f.ttModes || 'BUS'); continue; } // known: just keep its settings current
       SRV.feeds[id] = f; SRV.added = true; LIVE_ABROAD.push(f.entry = [f.name.replace(/ \(.*\)$/, ''), f.box, () => { const b = map.getBounds(), sw = b.getSouthWest(), ne = b.getNorthEast(); return `${RAIL.relay}/srv/rt?feed=${id}&bbox=${[sw.lat(), sw.lng(), ne.lat(), ne.lng()].map(x => x.toFixed(2)).join(',')}`; },
         j => (j.vehicles || []).map(v => ({id:'la:' + id + ':' + v.id, line:v.line || '', op:v.op || f.name, dest:'', lat:v.lat, lon:v.lon, brg:v.bearing ? v.bearing : null, t:v.at || null, kind:v.kind, tram:v.kind === 'tram', metro:v.kind === 'metro', train:v.kind === 'train', col:v.kind === 'bus' && CITYL.cur?.bus ? CITYL.cur.bus[0] : v.col ? inkA(v.col.toLowerCase()) : cityLineCol(v.kind, v.line)})), // buses in the city's one bus colour, as the timetable's; others their line's
-        new RegExp(f.tt || '^$', 'i'), new RegExp(f.ttModes || 'BUS')]); } }
+        new RegExp(f.tt || '^$', 'i'), new RegExp(f.ttModes || 'BUS'), f.cc || null]); } }
   catch(e){ console.warn('server', e); }
   if(SRV.added){ SRV.added = false; setTimeout(() => refreshGps().catch(() => {}), 50); } } // new live feeds: show their vehicles now, not at the next refresh
 // live ferries (AIS, from the server): every passenger ship and fast ferry in view, where it really is
@@ -2301,7 +2301,7 @@ async function refreshGps(){
     GPS.busy = false; renderBusNote(); return;
   }
   if(regionOf(p) === 'world'){ gpsOnly('tf:', 'es:', 'la:');
-    for(const [nm, bx, url0, parse] of LIVE_ABROAD) if(p[0] > bx[0] && p[0] < bx[2] && p[1] > bx[1] && p[1] < bx[3] && z >= 11 && TRAINS_ON){ // a city with its own live feed (buses hidden by the Buses switch as usual)
+    for(const [nm, bx, url0, parse, , , cc] of LIVE_ABROAD) if(p[0] > bx[0] && p[0] < bx[2] && p[1] > bx[1] && p[1] < bx[3] && z >= 11 && TRAINS_ON && (!cc || inCountry(cc, p))){ // (a feed's rectangle can overlap a border: the Netherlands' covers Ghent) // a city with its own live feed (buses hidden by the Buses switch as usual)
       try{ const url = typeof url0 === 'function' ? url0() : url0, j = await (await fetch(url, {signal:AbortSignal.timeout(15000)})).json(), vs = parse(j); gpsMerge({vehicles:vs}, 'la:');
         const kinds = [...new Set(vs.map(v => v.kind === 'tram' ? 'trams' : v.kind === 'metro' ? 'metros' : v.kind === 'ferry' ? 'boats' : v.kind === 'train' ? 'trains' : 'buses'))];
         // every live feed here counts (a city's buses and the region's coaches can both be live): each one's timetable twins are hidden
@@ -2477,6 +2477,7 @@ const inBE = p => p[0] > 49.4 && p[0] < 51.6 && p[1] > 2.4 && p[1] < 6.5 && inPo
 // the Netherlands, roughly (~5 km): Belgium, Germany and the sea around it
 const NL_POLY = [[53.62, 7.1], [53.25, 7.23], [52.85, 7.1], [52.63, 6.75], [52.45, 7.08], [52.23, 7.07], [52.03, 6.72], [51.85, 6.85], [51.88, 6.1], [51.65, 6.12], [51.36, 6.24], [51.17, 6.1], [50.9, 6.1], [50.74, 6.03], [50.75, 5.63], [50.98, 5.73], [51.12, 5.86], [51.26, 5.53], [51.3, 5.08], [51.43, 4.78], [51.5, 4.4], [51.36, 4.18], [51.37, 3.95], [51.26, 3.78], [51.21, 3.37], [51.38, 3.35], [51.75, 3.65], [52.0, 4.0], [52.48, 4.55], [52.97, 4.68], [53.25, 4.75], [53.52, 5.6], [53.62, 6.4]];
 const inNL = p => p[0] > 50.7 && p[0] < 53.7 && p[1] > 3.3 && p[1] < 7.3 && inPoly(NL_POLY, p);
+const inCountry = (cc, p) => ({fr:inFrance, nl:inNL, be:inBE, lu:inLU, ie:inIrelandNotUK}[cc] || (() => true))(p);
 const railC = p => p && RAILC.find(c => c.test(p)) || null;
 function nrPolysets(z){ const polysets = []; // the National Rail map tiles for the view (fetched as needed)
   if(z < 9){ if(!NRNET.all){ if(!NRNET.loading){ NRNET.loading = true; fetch('cities/nr/all.json').then(r => r.json()).then(j => { NRNET.all = j; NRNET.n++; }).catch(() => { NRNET.loading = false; }); } return polysets; } polysets.push(['all', NRNET.all]); }
