@@ -51,14 +51,25 @@ if(-not $KeysOnly){
 if(-not $NoPrompt){
   Write-Host ''
   Write-Host 'Your keys (hidden as you type; Enter skips one). They go straight to the machine.' -ForegroundColor Cyan
-  Write-Host '  Darwin: Rail Data Marketplace -> Darwin Real Time Train Information (Kafka) -> its connection details'
+  Write-Host '  Darwin: Rail Data Marketplace -> My Subscriptions -> Darwin Real Time Train Information (Kafka) -> connection details'
   $lines = @()
+  $boot = Read-Host '  Darwin "Kafka bootstrap server"'
+  if($boot){
+    $lines += "DARWIN_BOOTSTRAP=$($boot.Trim())"
+    $mech = Read-Host '  Darwin "SASL mechanism" (e.g. PLAIN)'
+    if($mech){ $lines += "DARWIN_SASL=$($mech.Trim())" }
+    $cfg = Read-Secret '  Darwin "SASL config" (paste the whole line; hidden)'
+    $u = [regex]::Match($cfg, 'username\s*=\s*"([^"]*)"').Groups[1].Value
+    $p = [regex]::Match($cfg, 'password\s*=\s*"([^"]*)"').Groups[1].Value
+    if($u -and $p){ $lines += "DARWIN_USERNAME=$u"; $lines += "DARWIN_PASSWORD=$p"; Write-Host '    (found the username and password in it)' }
+    else { Write-Host "    Couldn't find username=`"…`" password=`"…`" in that; type them instead." -ForegroundColor Yellow
+      $u = Read-Host '  Darwin username'; if($u){ $lines += "DARWIN_USERNAME=$u" }
+      $p = Read-Secret '  Darwin password'; if($p){ $lines += "DARWIN_PASSWORD=$p" } }
+    Remove-Variable cfg, u, p -ErrorAction SilentlyContinue
+  }
   foreach($k in @(
-      @('DARWIN_BOOTSTRAP', 'Darwin bootstrap server (host:port)', $false),
-      @('DARWIN_USERNAME', 'Darwin username', $false),
-      @('DARWIN_PASSWORD', 'Darwin password', $true),
-      @('DARWIN_TOPIC', 'Darwin topic', $false),
-      @('DARWIN_GROUP', 'Darwin consumer group id', $false),
+      @('DARWIN_TOPIC', 'Darwin topic (on the same page, often lower down; Enter if none)', $false),
+      @('DARWIN_GROUP', 'Darwin consumer group (Enter if none shown)', $false),
       @('AISSTREAM_KEY', 'AISStream key (live ferries; aisstream.io)', $true),
       @('NTA_KEY', 'NTA key (Ireland live buses; developer.nationaltransport.ie)', $true),
       @('ODPT_KEY', 'ODPT key (Tokyo live trains; developer.odpt.org)', $true))){

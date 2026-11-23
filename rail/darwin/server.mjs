@@ -44,7 +44,7 @@ async function consume(){
   if(!env.DARWIN_BOOTSTRAP){ console.warn('DARWIN_BOOTSTRAP not set: Darwin off (serving saved state only)'); return; }
   const {Kafka, logLevel} = await import('kafkajs');
   const kafka = new Kafka({clientId:'london-live', brokers:env.DARWIN_BOOTSTRAP.split(','), ssl:true, logLevel:logLevel.WARN,
-    sasl:{mechanism:env.DARWIN_SASL || 'plain', username:env.DARWIN_USERNAME, password:env.DARWIN_PASSWORD}});
+    sasl:{mechanism:(env.DARWIN_SASL || 'plain').toLowerCase(), username:env.DARWIN_USERNAME, password:env.DARWIN_PASSWORD}});
   const consumer = kafka.consumer({groupId:env.DARWIN_GROUP || 'london-live', sessionTimeout:45000});
   await consumer.connect();
   await consumer.subscribe({topic:env.DARWIN_TOPIC, fromBeginning:false});

@@ -30,6 +30,7 @@ DARWIN_USERNAME=
 DARWIN_PASSWORD=
 DARWIN_TOPIC=
 DARWIN_GROUP=
+DARWIN_SASL=
 # A long random secret; the same value goes on the relay as RELAY_TOKEN
 RELAY_TOKEN=
 PORT=8080
