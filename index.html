@@ -2231,8 +2231,8 @@ function drawNR(ctx){
   const w = Math.max(1.6, W*(PV.z >= 12 ? 0.95 : 0.75))/k;
   for(const [t, ps] of polysets){ const key = t + '@' + zc + ':' + ORG.id; let path = NRNET.path.get(key);
     if(!path){ path = new Path2D(); for(const poly of ps) poly.forEach((q, i) => { const p2 = wl(q, zc, O); i ? path.lineTo(p2[0], p2[1]) : path.moveTo(p2[0], p2[1]); }); NRNET.path.set(key, path); if(NRNET.path.size > 120) NRNET.path.delete(NRNET.path.keys().next().value); }
-    ctx.globalAlpha = 0.8; ctx.strokeStyle = dark ? '#9AA3AD' : '#5D6670'; ctx.lineWidth = w; ctx.stroke(path);
-    if(PV.z >= 10){ ctx.globalAlpha = 1; ctx.strokeStyle = MAP_BG(); ctx.lineWidth = w/3; ctx.stroke(path); } }
+    ctx.globalAlpha = 0.9; ctx.strokeStyle = dark ? '#9AA3AD' : '#5D6670'; ctx.lineWidth = w; ctx.stroke(path);
+    if(PV.z >= 10 && w*k >= 2.5){ ctx.globalAlpha = 1; ctx.strokeStyle = MAP_BG(); ctx.lineWidth = w/3; ctx.stroke(path); } } // the double line only once it's wide enough to read as two
   ctx.restore(); ctx.globalAlpha = 1;
   // stations (National Rail ⇄ dots) from zoom 12, names close up when the map's own labels are hidden
   if(PV.z < 12 || !SHOW_ST) return; if(!RAIL.stations){ railStations().catch(() => {}); return; }
