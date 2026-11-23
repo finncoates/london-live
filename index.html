@@ -2023,7 +2023,7 @@ const CITYL = {list:[{name:'Helsinki', box:p => inHelsinki(p), urls:['cities/fin
 // France: each city's network from its own open timetable (transport.data.gouv.fr: cities/fr_build.py), official line
 // colours, its bus map and one colour for its buses. Smaller areas first, so a town inside a bigger network's box is found.
 fetch('cities/fr-index.json').then(r => r.ok ? r.json() : []).then(list => { list.sort((a, b) => (a.box[2] - a.box[0])*(a.box[3] - a.box[1]) - (b.box[2] - b.box[0])*(b.box[3] - b.box[1]));
-  for(const c of list) CITYL.list.push({name:c.name, box:p => p[0] > c.box[0] && p[0] < c.box[2] && p[1] > c.box[1] && p[1] < c.box[3], urls:[c.url], bus:c.bus});
+  for(const c of list) CITYL.list.push({id:c.id, name:c.name, box:p => p[0] > c.box[0] && p[0] < c.box[2] && p[1] > c.box[1] && p[1] < c.box[3], urls:[c.url], bus:c.bus});
   for(const c of RAILC) CITYL.list.push({name:c.name, box:c.test, urls:[], bus:['#7E8BA3', '#97A6BF']}); }).catch(() => {}); // everywhere else in France: its towns' and intercity buses (cities/busnet)
 // mainland France and Corsica, roughly (~10 km): a rectangle would take in Belgium, Switzerland, Spain and southern England
 const FR_POLY = [[[51.12, 2.54], [50.75, 3.22], [50.12, 4.22], [49.96, 4.86], [49.55, 5.82], [49.47, 6.37], [49.17, 6.86], [49.06, 7.92], [48.97, 8.23], [48.6, 7.83], [47.6, 7.58], [47.47, 7.0], [47.02, 6.47], [46.56, 6.1], [46.16, 6.14], [46.4, 6.83], [46.0, 7.02], [45.85, 6.95], [45.15, 7.13], [44.75, 7.0], [44.16, 7.7], [43.78, 7.53], [43.05, 6.25], [43.25, 5.25], [43.38, 4.55], [43.35, 3.45], [42.95, 3.08], [42.42, 3.2], [42.43, 2.0], [42.68, 0.7], [42.78, -0.3], [43.0, -1.0], [43.36, -1.8], [44.6, -1.3], [45.6, -1.3], [46.3, -1.85], [47.2, -2.65], [47.6, -3.4], [47.7, -4.45], [48.4, -4.95], [48.85, -3.5], [48.65, -1.9], [49.72, -1.98], [49.68, -1.2], [49.32, -0.85], [49.5, 0.08], [49.96, 1.2], [50.22, 1.55], [50.96, 1.78]],
@@ -2465,7 +2465,11 @@ function busRoadAng(v, prev){
 const NRNET = {tiles:new Map(), path:new Map(), all:null, loading:false, n:0};
 // countries whose whole railway is drawn like Britain's National Rail (lines in cities/nr) with their stations ([id, name, lat, lon])
 const RAILC = [{name:'France', test:p => inFrance(p), url:'cities/fr-gares.json', op:'SNCF', list:null, loading:false},
-  {name:'Netherlands', test:p => inNL(p), url:'cities/nl-stations.json', op:'NS', list:null, loading:false}];
+  {name:'Netherlands', test:p => inNL(p), url:'cities/nl-stations.json', op:'NS', list:null, loading:false},
+  {name:'Belgium', test:p => inBE(p), url:'cities/be-stations.json', op:'SNCB', list:null, loading:false}];
+// Belgium, roughly (~5 km), sharing its northern border with the Netherlands outline below
+const BE_POLY = [[51.13, 2.5], [51.27, 2.9], [51.4, 3.35], [51.21, 3.37], [51.26, 3.78], [51.37, 3.95], [51.36, 4.18], [51.5, 4.4], [51.43, 4.78], [51.3, 5.08], [51.26, 5.53], [51.12, 5.86], [50.98, 5.73], [50.75, 5.63], [50.76, 5.9], [50.75, 6.03], [50.65, 6.27], [50.5, 6.4], [50.33, 6.4], [50.13, 6.13], [50.05, 6.03], [49.85, 5.8], [49.68, 5.9], [49.55, 5.83], [49.55, 5.45], [49.71, 5.2], [49.77, 4.9], [49.86, 4.86], [50.17, 4.86], [50.15, 4.67], [49.98, 4.43], [50.08, 4.2], [50.32, 4.05], [50.4, 3.68], [50.5, 3.62], [50.62, 3.27], [50.75, 3.2], [50.78, 2.95], [50.7, 2.86], [50.82, 2.62], [51.05, 2.54]];
+const inBE = p => p[0] > 49.4 && p[0] < 51.6 && p[1] > 2.4 && p[1] < 6.5 && inPoly(BE_POLY, p);
 // the Netherlands, roughly (~5 km): Belgium, Germany and the sea around it
 const NL_POLY = [[53.62, 7.1], [53.25, 7.23], [52.85, 7.1], [52.63, 6.75], [52.45, 7.08], [52.23, 7.07], [52.03, 6.72], [51.85, 6.85], [51.88, 6.1], [51.65, 6.12], [51.36, 6.24], [51.17, 6.1], [50.9, 6.1], [50.74, 6.03], [50.75, 5.63], [50.98, 5.73], [51.12, 5.86], [51.26, 5.53], [51.3, 5.08], [51.43, 4.78], [51.5, 4.4], [51.36, 4.18], [51.37, 3.95], [51.26, 3.78], [51.21, 3.37], [51.38, 3.35], [51.75, 3.65], [52.0, 4.0], [52.48, 4.55], [52.97, 4.68], [53.25, 4.75], [53.52, 5.6], [53.62, 6.4]];
 const inNL = p => p[0] > 50.7 && p[0] < 53.7 && p[1] > 3.3 && p[1] < 7.3 && inPoly(NL_POLY, p);
@@ -2977,6 +2981,13 @@ function applyRegion(){
     else if(!RAIL.stations) railStations().catch(() => {});
     else { let st = null, sd = 2500; for(const x of RAIL.stations){ if(Math.abs(x[2] - p[0]) > 0.03) continue; const d = dist(p, [x[2], x[3]]); if(d < sd){ sd = d; st = x; } } // else the town of the nearest railway station
       if(st) $('ttl').textContent = st[1].replace(/\s*\(.*\)$/, '').replace(/\s+(Central|General|Parkway|Interchange|International|Priory|Paragon|Exchange|Junction|High Street|Town|City|Low Level|High Level|(North|South|East|West)( Street)?)$/i, '') + ' live map'; } }
+  { const p = [c.lat(), c.lng()], rc = away && railC(p); // France, the Netherlands, Belgium: the city in view, else the nearest station's town, else the country
+    if(rc){ const named = CITYL.cur && CITYL.cur.id && !/^n-/.test(CITYL.cur.id) && CITYL.cur.box(p) ? CITYL.cur.name : null;
+      if(map.getZoom() < 9) $('ttl').textContent = rc.name + ' live map';
+      else if(named) $('ttl').textContent = named + ' live map';
+      else if(map.getZoom() >= 11 && rc.list){ let st = null, sd = 5000; for(const x of rc.list){ if(Math.abs(x[2] - p[0]) > 0.05) continue; const d = dist(p, [x[2], x[3]]); if(d < sd){ sd = d; st = x; } }
+        if(st) $('ttl').textContent = st[1].replace(/\s*\/.*$/, '').replace(/[- ](Ville|Centre|Centraal|Central|Centrum|Gare|Hbf|Station|Nord|Sud|Est|Ouest|Midi|Noord|Zuid|Oost|West|Saint-Jean|Part-Dieu|Perrache|Flandres|Europe|Matabiau|Saint-Charles|Viotte|Guillemins|Rive Droite|Rive Gauche|Montparnasse|Saint-Lazare|Austerlitz|Bercy)\b.*$/i, '') + ' live map'; }
+      else { $('ttl').textContent = rc.name + ' live map'; if(map.getZoom() >= 11 && !rc.list && !rc.loading){ rc.loading = true; fetch(rc.url).then(r => r.json()).then(j => { rc.list = j; applyRegion(); }).catch(() => { rc.loading = false; }); } } } } // (the station list loads, then the title follows)
   document.title = !away ? 'London Live Trains' : $('ttl').textContent.replace(/\b\w/g, c => c.toUpperCase()); // the browser tab says where too
   { const t = $('ttl'), fit = m => { t.style.fontSize = ''; for(let f = 17; f >= m && t.scrollWidth > t.clientWidth + 1; f--) t.style.fontSize = f + 'px'; return t.scrollWidth <= t.clientWidth + 1; };
     if(!fit(14) && / map$/.test(t.textContent)){ t.textContent = t.textContent.replace(/ map$/, ''); fit(13); } } // long names shrink a little rather than being cut off
