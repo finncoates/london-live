@@ -63,7 +63,10 @@ if(-not $NoPrompt){
     $u = [regex]::Match($cfg, 'username\s*=\s*["'']([^"'']+)["'']').Groups[1].Value
     $p = [regex]::Match($cfg, 'password\s*=\s*["'']([^"'']+)["'']').Groups[1].Value
     if($u -and $p){ $lines += "DARWIN_USERNAME=$u"; $lines += "DARWIN_PASSWORD=$p"; Write-Host "    found the login in it ($($u.Length)-character username)" -ForegroundColor Green }
-    else { Write-Host "    That didn't contain username='…' password='…'. Copy the whole SASL config box and run this again." -ForegroundColor Yellow }
+    else { Write-Host "    No login in that, so it'll be the page's Consumer key and Consumer secret:" -ForegroundColor Yellow
+      $u = (Read-Host '  Darwin "Consumer key" (the username)').Trim()
+      $p = (Read-Secret '  Darwin "Consumer secret" (the password; often behind a show/copy button; hidden)').Trim()
+      if($u -and $p){ $lines += "DARWIN_USERNAME=$u"; $lines += "DARWIN_PASSWORD=$p"; Write-Host "    ok ($($u.Length)-character key, $($p.Length)-character secret)" -ForegroundColor Green } }
     Remove-Variable cfg, u, p -ErrorAction SilentlyContinue
   }
   foreach($k in @(
