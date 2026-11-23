@@ -206,7 +206,7 @@ body.dark #simnote{background:#1f2a44;color:#c6dafc}
   </h1>
   <div id="mapMenu" class="mapmenu" hidden>
     <div class="mm-row"><span>Map style</span>
-      <div class="seg2" role="group" aria-label="Map style"><button data-ms="google">Google Maps</button><button data-ms="original">Original</button></div></div>
+      <div class="seg2" role="group" aria-label="Map style"><button data-ms="google">Standard</button><button data-ms="original">Grey</button><button data-ms="satellite">Satellite</button></div></div>
     <label class="mm-row"><span>Hide places &amp; labels<small>Shops, landmarks, stations and area names. Street names stay.</small></span><input type="checkbox" id="mQuiet" class="switch"></label>
     <label class="mm-row"><span>Dark map</span><input type="checkbox" id="mDark" class="switch"></label>
     <label class="mm-row"><span>Show trains<small>The moving train shapes. The lines stay.</small></span><input type="checkbox" id="mIcons" class="switch"></label>
@@ -349,10 +349,19 @@ function loadGoogle(){
   });
 }
 
-// ---------- map (Google Maps) ----------
+// The base map: MapLibre with free OpenStreetMap tiles (no cost per visitor), through a small stand-in for the part
+// of the Google Maps API this page uses (../maplibre-google.js). ?map=google: Google Maps, as before.
+const MAP_ENGINE = Q.get('map') === 'google' ? 'google' : 'maplibre';
+function loadMapLibre(){
+  const add = (tag, attrs) => new Promise((res, rej) => { const e = Object.assign(document.createElement(tag), attrs); e.onload = res; e.onerror = () => rej(new Error('Could not load the map')); document.head.appendChild(e); });
+  return Promise.all([add('link', {rel:'stylesheet', href:'https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css'}), add('script', {src:'https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js'})])
+    .then(() => add('script', {src:'../maplibre-google.js'})).then(() => window.installMapLibreAsGoogle()); }
+const loadMap = () => MAP_ENGINE === 'google' ? loadGoogle() : (loadMap.p ||= loadMapLibre());
+
+// ---------- map ----------
 const savedTheme = (() => { try{ return localStorage.getItem('theme'); }catch(e){ return null; } })();
 let dark = Q.get('theme') ? Q.get('theme') === 'dark' : savedTheme ? savedTheme === 'dark' : matchMedia('(prefers-color-scheme: dark)').matches;
-try{ await loadGoogle(); }catch(e){ document.body.innerHTML = '<p style="padding:20px;font:16px system-ui">Could not load Google Maps. Check your connection and reload.</p>'; return; }
+try{ await loadMap(); }catch(e){ document.body.innerHTML = '<p style="padding:20px;font:16px system-ui">Could not load the map. Check your connection and reload.</p>'; return; }
 await Promise.all(['maps','marker','routes','geometry'].map(n => google.maps.importLibrary(n)));
 const DARK_STYLE = [
   {elementType:'geometry', stylers:[{color:'#1d2026'}]}, {elementType:'labels.text.fill', stylers:[{color:'#9aa0a6'}]},
@@ -379,6 +388,8 @@ const QUIET = ['poi', 'transit', 'administrative', 'landscape', 'water'].map(f =
 const pref = (k, d) => { try{ return localStorage.getItem(k) ?? d; }catch(e){ return d; } };
 let MAP_STYLE = pref('mapStyle', 'google'), QUIET_ON = pref('mapQuiet', '0') === '1';
 function mapStyles(){
+  if(MAP_ENGINE !== 'google') return (MAP_STYLE === 'satellite' ? 'satellite' : MAP_STYLE === 'original' ? (dark ? 'greydark' : 'grey') : (dark ? 'dark' : 'light')) + (QUIET_ON ? '+quiet' : ''); // a look id (maplibre-google.js)
+  if(MAP_STYLE === 'satellite') return QUIET_ON ? QUIET : null;
   const base = MAP_STYLE === 'original' ? (dark ? GREY_DARK : GREY_LIGHT) : (dark ? DARK_STYLE : []);
   const s = base.concat(QUIET_ON ? QUIET : []);
   return s.length ? s : null;
@@ -764,7 +775,7 @@ function trainLane(t, l){
 }
 const lineCentre = l => ({color:MAP_BG(), weight:LINE_W/3, opacity:lineStyle(l).opacity ? 1 : 0, z:2});
 const lineStyle = l => ({color:ink(l.colour), weight:LINE_W, opacity:!shown(l)?0:l.on===false?0.07:window.DIM_TRAINS?0.08:1});
-function applyTheme(){ document.body.classList.toggle('dark', dark); map.setOptions({styles:mapStyles()}); for(const l of ACTIVE) l.layer && l.layer.eachLayer(p => p.setStyle(lineStyle(l))); }
+function applyTheme(){ document.body.classList.toggle('dark', dark); map.setOptions({styles:mapStyles(), mapTypeId:MAP_STYLE === 'satellite' ? 'hybrid' : 'roadmap'}); for(const l of ACTIVE) l.layer && l.layer.eachLayer(p => p.setStyle(lineStyle(l))); }
 applyTheme();
 // Screen positions (fractional pixels, so movement is smooth) via an empty overlay's projection
 const ov = new google.maps.OverlayView(); ov.onAdd = ov.draw = ov.onRemove = () => {}; ov.setMap(map);
@@ -1591,7 +1602,9 @@ const inLondon = s => { if(!isCoord(s)) return true; const [a, b] = s.split(',')
 const shortAddr = s => { const parts = (s||'').replace(/,?\s*(UK|United Kingdom)$/i, '').split(',').map(x => x.replace(/\b[A-Z]{1,2}\d[A-Z\d]?\s*\d[A-Z]{2}\b/, '').trim()).filter(Boolean);
   return parts.slice(0, parts[0] && /^\d/.test(parts[0]) ? 2 : 1).join(', ') || s; };
 const stripHtml = s => (s||'').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
-async function planGoogle(from, to, when, o = {}){
+// outside London: open planning (Transitous) on the free map; Google's own planner only with ?map=google
+async function planGoogle(from, to, when, o = {}){ return MAP_ENGINE === 'google' ? planGoogleMaps(from, to, when, o) : planOpen(from, to, when, {...o, fromLabel:J.from?.q === from ? J.from.label : o.fromLabel, toLabel:J.to?.q === to ? J.to.label : o.toLabel}); }
+async function planGoogleMaps(from, to, when, o = {}){
   const ARRIVE = o.arrive ?? ARRIVE_G(), PREF = o.pref ?? PREF_G(); // read now, not after the awaits below
   await loadGoogle();
   const {DirectionsService} = await google.maps.importLibrary('routes');
@@ -1636,6 +1649,63 @@ function parseGoogle(route){
   }
   return {dep:legs[0]?.dep ?? t, arr:lg.arrival_time ? +lg.arrival_time.value : t, legs, src:'google', fare:route.fare?.text || null};
 }
+// ---------- free, open planning (instead of Google): Transitous for public transport, walking, cycling and driving,
+// Photon (OpenStreetMap) for finding places. London journeys still come from TfL's own planner (planJourneys). ----------
+const OPEN = {relay:() => (typeof RAIL !== 'undefined' && RAIL.relay && RAIL.relay !== 'demo' ? RAIL.relay + '/transitous' : 'https://api.transitous.org')};
+// Transitous/MOTIS route shapes: Google's polyline encoding at 6 decimal places
+function decodePoly(s, prec = 6){ const f = 10**prec, out = []; let i = 0, la = 0, lo = 0;
+  while(i < s.length){ for(const k of [0, 1]){ let b, sh = 0, r = 0; do{ b = s.charCodeAt(i++) - 63; r |= (b & 31) << sh; sh += 5; }while(b >= 32); const d = r & 1 ? ~(r >> 1) : r >> 1; if(k) lo += d; else la += d; } out.push([la/f, lo/f]); }
+  return out; }
+// a place (as the app stores it) -> [lat, lon]: coordinates as they are, names through Photon (near you)
+async function openWhere(q, label){
+  if(isCoord(q)) return q.split(',').map(Number);
+  const text = q.startsWith('place_id:') ? (label || '') : q; if(!text) throw new Error('Place not found');
+  const c = me || [51.5072, -0.1276], r = await fetch(`https://photon.komoot.io/api/?q=${encodeURIComponent(text)}&limit=1&lat=${c[0]}&lon=${c[1]}&lang=en`).then(x => x.json()).catch(() => null);
+  const g = r && r.features && r.features[0]; if(!g) throw new Error('Place not found');
+  return [g.geometry.coordinates[1], g.geometry.coordinates[0]]; }
+// MOTIS modes -> the app's kinds (and Google-like vehicle names, which "Build my route" checks)
+const OPEN_KIND = m => /BUS|COACH/.test(m) ? ['bus', 'bus'] : /FERRY/.test(m) ? ['boat', 'ferry'] : /TRAM/.test(m) ? ['metro', 'tram'] : /SUBWAY|METRO/.test(m) ? ['metro', 'subway'] : /RAIL|TRAIN|SUBURBAN|LONG_DISTANCE/.test(m) ? ['rail', 'heavy_rail'] : ['metro', m.toLowerCase()];
+function parseOpen(it){
+  const legs = [], light = c => { const n = parseInt((c||'#555').slice(1), 16); return ((n>>16)*299 + ((n>>8)&255)*587 + (n&255)*114)/1000 > 215; };
+  const pt = (s, name) => ({id:null, name:name ?? s.name ?? '', p:[s.lat, s.lon]});
+  for(const L of it.legs){
+    const dep = Date.parse(L.startTime), arr = Date.parse(L.endTime), path = L.legGeometry?.points ? decodePoly(L.legGeometry.points, L.legGeometry.precision || 6) : [[L.from.lat, L.from.lon], [L.to.lat, L.to.lon]];
+    if(/^(WALK|BIKE|CAR|RENTAL|FLEX|ODM)/.test(L.mode)){ const self = L.mode === 'BIKE' ? 'cycle' : L.mode === 'CAR' ? 'drive' : 'walk';
+      const to = L.to.name && !/^(END|START)$/.test(L.to.name) ? L.to.name : '';
+      legs.push({mode:self === 'walk' ? 'walking' : self, kind:self, walk:true, dep, arr, summary:`${{walk:'Walk', cycle:'Cycle', drive:'Drive'}[self]}${to ? ' to ' + to : ''}`, detail:'',
+        line:null, lineName:'', towards:'', from:pt(L.from, ''), to:pt(L.to, to), path, nStops:0, disrupted:false, colour:{walk:'#7a7f87', cycle:'#1e8e3e', drive:'#5f6368'}[self]}); continue; }
+    const [kind, vt] = OPEN_KIND(L.mode), name = L.routeShortName || L.routeLongName || L.agencyName || 'Transit';
+    let colour = /^[0-9a-f]{6}$/i.test(L.routeColor || '') ? '#' + L.routeColor : {bus:'#DC241F', rail:'#1D5BA0', boat:'#00A0E2'}[kind] || '#555'; if(light(colour)) colour = '#555';
+    legs.push({mode:vt, kind, walk:false, dep, arr, summary:`${name} to ${L.to.name}`, detail:L.agencyName || '', line:null, lineName:name, towards:L.headsign || '',
+      from:pt(L.from), to:pt(L.to), path, nStops:(L.intermediateStops || []).length + 1, disrupted:false, colour, gen:true, live:!!L.realTime});
+    tflLook(legs[legs.length-1]); }
+  return {dep:legs[0]?.dep ?? Date.parse(it.startTime), arr:legs[legs.length-1]?.arr ?? Date.parse(it.endTime), legs, src:'google', fare:null}; }
+async function openPlan(params){
+  const r = await fetch(OPEN.relay() + '/api/v5/plan?' + new URLSearchParams(params), {signal:AbortSignal.timeout(30000)});
+  if(!r.ok) throw new Error('Journey planner error (' + r.status + ')'); return r.json(); }
+const OPEN_TM = {TRAIN:'RAIL,HIGHSPEED_RAIL,LONG_DISTANCE,NIGHT_RAIL,REGIONAL_FAST_RAIL,REGIONAL_RAIL,SUBURBAN', SUBWAY:'SUBWAY,METRO', BUS:'BUS,COACH', TRAM:'TRAM'};
+async function planOpen(from, to, when, o = {}){
+  const ARRIVE = o.arrive ?? ARRIVE_G(), PREF = o.pref ?? PREF_G();
+  const [a, b] = await Promise.all([openWhere(from, o.fromLabel), openWhere(to, o.toLabel)]);
+  const p = {fromPlace:a.join(','), toPlace:b.join(','), time:new Date(when || Date.now()).toISOString(), arriveBy:String(!!ARRIVE), numItineraries:'5'};
+  if(PREF === 'busonly') p.transitModes = OPEN_TM.BUS; if(PREF === 'fewer') p.maxTransfers = '2';
+  const j = await openPlan(p);
+  const js = (j.itineraries || []).map(parseOpen).filter(x => x.legs.length).sort((x, y) => x.arr - y.arr);
+  if(!js.length) throw new Error('No public transport routes found');
+  return {journeys:js, end:b, endName:j.to?.name && j.to.name !== 'END' ? j.to.name : (o.toLabel || ''), start:a}; }
+async function planSegmentOpen(from, to, modeId, t, toLabel){
+  const m = CM[modeId], [a, b] = await Promise.all([openWhere(from), openWhere(to, toLabel)]);
+  const endQ = b.map(x => x.toFixed(5)).join(','), name = toLabel || 'the next stop', base = {fromPlace:a.join(','), toPlace:b.join(','), time:new Date(t).toISOString()};
+  if(m.g !== 'TRANSIT'){ const dm = {WALKING:'WALK', BICYCLING:'BIKE', DRIVING:'CAR'}[m.g];
+    const j = await openPlan({...base, directModes:dm, transitModes:'', maxDirectTime:'14400'}); const d = (j.direct || [])[0];
+    if(!d) throw new Error(`No ${m.name.toLowerCase()} route to ${name}`);
+    const L = parseOpen(d).legs[0]; L.mode = modeId; L.kind = modeId; L.to.name = toLabel || L.to.name; L.summary = `${SELF[modeId].verb} to ${toLabel || L.to.name || 'the next stop'}`;
+    L.detail = d.legs[0].distance ? (d.legs[0].distance/1000).toFixed(1) + ' km' : ''; return {legs:[L], arr:L.arr, endQ}; }
+  const j = await openPlan({...base, numItineraries:'5', ...(m.tm ? {transitModes:m.tm.map(x => OPEN_TM[x]).join(',')} : {})});
+  const js = (j.itineraries || []).map(parseOpen).filter(x => x.legs.length); if(!js.length) throw new Error(`No ${m.name.toLowerCase()} route to ${name}`);
+  const fits = x => x.legs.filter(L => !L.walk).every(L => m.ok(L.mode)); js.sort((x, y) => (fits(y) - fits(x)) || (x.arr - y.arr));
+  const jj = js[0], last = jj.legs[jj.legs.length-1]; if(last.walk){ last.to.name = name; last.summary = 'Walk to ' + name; }
+  return {legs:jj.legs, arr:jj.arr, endQ}; }
 // London legs of a Google journey: match them to TfL lines so they get roundels, live
 // countdowns and the moving-train view. Buses are matched by route number.
 const inLondonP = p => p[0]>51.28 && p[0]<51.70 && p[1]>-0.52 && p[1]<0.34;
@@ -1697,7 +1767,8 @@ const CMODES = [
 ];
 const CM = Object.fromEntries(CMODES.map(m => [m.id, m]));
 const SELF = {walk:{verb:'Walk', colour:'#7a7f87'}, cycle:{verb:'Cycle', colour:'#1e8e3e'}, drive:{verb:'Drive', colour:'#5f6368'}};
-async function planSegment(from, to, modeId, t, toLabel){
+async function planSegment(from, to, modeId, t, toLabel){ return MAP_ENGINE === 'google' ? planSegmentGoogle(from, to, modeId, t, toLabel) : planSegmentOpen(from, to, modeId, t, toLabel); }
+async function planSegmentGoogle(from, to, modeId, t, toLabel){
   const m = CM[modeId], {DirectionsService} = await google.maps.importLibrary('routes');
   const loc = toLoc;
   const inUK = me && inUKP(me);
@@ -1744,7 +1815,7 @@ async function planStepFree(from, to, modeId, t, toLabel){
   return bus ? {...bus, stepfree:true, note:'No step-free ' + CM[modeId].name.toLowerCase() + ' route, so this step uses buses'} : {...g, note:'No step-free route found for this step'};
 }
 async function planChain(qs, labels, modes, when, sf = []){
-  await loadGoogle();
+  if(MAP_ENGINE === 'google') await loadGoogle();
   const legs = [], chain = [], notes = []; let t = when || Date.now(), from = qs[0];
   for(let i=0; i<modes.length; i++){
     const transit = CM[modes[i]].g === 'TRANSIT';
@@ -2642,12 +2713,37 @@ const PIN = '<svg class="pin" width="16" height="16" viewBox="0 0 24 24" aria-hi
 function acClose(){ AC.list.hidden = true; AC.items = []; AC.sel = -1; if(AC.input) AC.input.setAttribute('aria-expanded', 'false'); }
 function acRender(){
   AC.list.innerHTML = AC.items.map((s, i) => `<li role="option" data-i="${i}" class="${i===AC.sel?'on':''}" aria-selected="${i===AC.sel}">${s.icon ? `<span class="ic">${s.icon}</span>` : PIN}<span><b>${esc(s.main)}</b><small>${esc(s.sub)}</small></span></li>`).join('')
-    + (AC.items.some(s => !s.q) ? '<li class="gattr" aria-hidden="true">Powered by Google</li>' : '');
+    + (AC.items.some(s => !s.q) ? '<li class="gattr" aria-hidden="true">Powered by Google</li>' : AC.items.length && MAP_ENGINE !== 'google' ? '<li class="gattr" aria-hidden="true">Search: Photon · © OpenStreetMap</li>' : '');
   AC.list.hidden = !AC.items.length; AC.input.setAttribute('aria-expanded', String(!AC.list.hidden));
 }
 async function acFetch(input){
   const text = input.value.trim(), seq = ++AC.seq;
   if(text.length < 2){ acClose(); return; }
+  if(MAP_ENGINE !== 'google') try{ // Photon: OpenStreetMap places, near you (free; no Google)
+    const c = me || [51.5072, -0.1276], r = await fetch(`https://photon.komoot.io/api/?q=${encodeURIComponent(text)}&limit=6&lat=${c[0]}&lon=${c[1]}&lang=en`).then(x => x.json());
+    if(seq !== AC.seq || document.activeElement !== input) return; AC.input = input; AC.sel = -1;
+    const seen = new Set();
+    // National Rail stations first (Photon is weak at "Stockport station"): matched by name from the app's own station list
+    let rail = []; try{ await railStations(); } catch(e){}
+    const nk = s => s.toLowerCase().replace(/\b(rail(way)?|train|station|stn)\b/g, '').replace(/[^a-z0-9]+/g, ' ').trim(), tk = nk(text);
+    if(tk.length >= 3 && typeof RAIL !== 'undefined' && RAIL.stations) rail = RAIL.stations.map(s => [s, nk(s[1])]).filter(([, n]) => n.startsWith(tk) || n.split(' ').some(w => w.startsWith(tk)) || n.includes(' ' + tk))
+      .sort((a, b) => (b[1].startsWith(tk) - a[1].startsWith(tk)) || a[1].length - b[1].length).slice(0, 3)
+      .map(([s]) => ({main:s[1], sub:'Rail station', label:s[1], q:s[2].toFixed(5) + ',' + s[3].toFixed(5), icon:symbol('rail', '#1D5BA0', 16)}));
+    // and TfL's stations (Tube, DLR, Overground, Elizabeth line, trams) from the lines the app has loaded
+    const tfl = []; if(tk.length >= 3){ const got = new Set();
+      for(const l of ACTIVE){ if(l.mode === 'bus' || l.rail || !l.stops) continue;
+        for(const s of Object.values(l.stops)){ const name = cleanName(s.n).replace(/\s*\((?:[^)]*line|H&C|[^)]*Underground)[^)]*\)\s*/i, ' ').replace(/-Underground$/i, '').trim(), n = nk(name);
+          if(got.has(n) || !(n.startsWith(tk) || n.split(' ').some(w => w.startsWith(tk)))) continue; got.add(n);
+          tfl.push({main:name, sub:'Station · ' + (l.mode === 'tube' ? 'Underground' : l.name), label:name, q:s.p[0].toFixed(5) + ',' + s.p[1].toFixed(5), icon:symbol(l.mode === 'tube' ? 'tubeLogo' : l.mode, l.colour, 16), n}); } }
+      tfl.sort((a, b) => (b.n.startsWith(tk) - a.n.startsWith(tk)) || a.n.length - b.n.length); }
+    rail = tfl.slice(0, 3).concat(rail.filter(r => !tfl.some(t => t.n === nk(r.main)))).slice(0, 4);
+    for(const s of rail) seen.add(s.main + '|');
+    AC.items = rail.concat((r.features || []).map(f => { const p = f.properties, [lon, lat] = f.geometry.coordinates;
+      const main = p.name || [p.housenumber, p.street].filter(Boolean).join(' ') || p.city || text;
+      const sub = [p.name && p.street ? [p.housenumber, p.street].filter(Boolean).join(' ') : '', p.city || p.county, p.postcode, p.countrycode && p.countrycode !== 'GB' ? p.country : ''].filter(Boolean).join(', ');
+      return {main, sub, label:main, q:lat.toFixed(5) + ',' + lon.toFixed(5)}; }).filter(s => { const k = s.main + '|' + s.sub; if(seen.has(k) || seen.has(s.main + '|')) return false; seen.add(k); return true; })).slice(0, 6);
+    input.closest('.field').after(AC.list); acRender(); return;
+  }catch(e){ acClose(); return; }
   try{
     const {AutocompleteSuggestion, AutocompleteSessionToken} = await google.maps.importLibrary('places');
     AC.token ||= new AutocompleteSessionToken();

@@ -79,10 +79,36 @@
       el.style.cssText = `width:${2*r}px;height:${2*r}px;border-radius:50%;box-sizing:border-box;pointer-events:none;` +
         `border:${ic.strokeWeight ?? 2}px solid ${ic.strokeColor || '#333'};background:${ic.fillColor || 'transparent'};`;
       if(ic.fillOpacity != null && ic.fillColor){ el.style.background = 'transparent'; el.style.boxShadow = `inset 0 0 0 ${r}px ${hexA(ic.fillColor, ic.fillOpacity)}`; }
-      this.mk = new maplibregl.Marker({element:el}).setLngLat(ll(o.position)); if(o.map) this.setMap(o.map); }
-    setMap(m){ if(m) this.mk.addTo(m.ml); else this.mk.remove(); } }
+      if(typeof ic.path === 'string'){ // a pin shape (test mode's draggable "you")
+        el.style.cssText = 'width:22px;height:30px;cursor:grab'; el.innerHTML = `<svg width="22" height="30" viewBox="-11 -31 22 32"><path d="${ic.path}" fill="${ic.fillColor || '#1a73e8'}" stroke="${ic.strokeColor || '#fff'}" stroke-width="${ic.strokeWeight || 2}"/></svg>`; }
+      this.mk = new maplibregl.Marker({element:el, draggable:!!o.draggable, anchor:typeof ic.path === 'string' ? 'bottom' : 'center'}).setLngLat(ll(o.position)); if(o.map) this.setMap(o.map); }
+    setMap(m){ if(m) this.mk.addTo(m.ml); else this.mk.remove(); }
+    setPosition(p){ this.mk.setLngLat(ll(p)); }
+    getPosition(){ const q = this.mk.getLngLat(); return new LatLng(q.lat, q.lng); }
+    addListener(ev, fn){ const h = () => { const q = this.mk.getLngLat(); fn({latLng:new LatLng(q.lat, q.lng)}); }; this.mk.on(ev, h); return {remove:() => this.mk.off(ev, h)}; } }
   const hexA = (c, a) => { const h = c.replace('#', ''); if(h.length !== 6) return c; return `rgba(${parseInt(h.slice(0, 2), 16)},${parseInt(h.slice(2, 4), 16)},${parseInt(h.slice(4), 16)},${a})`; };
-  class Polyline{ constructor(){} setMap(){} setOptions(){} } // (not used by the live map: its lines are drawn on a canvas)
+  // route lines (London Journey): a GeoJSON line layer each, stacked by zIndex. Google "icons" become a dotted line
+  // (circles: walking) or a dashed one (short strokes), the nearest MapLibre has.
+  let PLN = 0;
+  class Polyline{
+    constructor(o){ this.id = 'gpl' + (++PLN); this.o = {...o}; this.path = (o.path || []).map(ll); if(o.map) this.setMap(o.map); }
+    _paint(){ const o = this.o, ic = o.icons && o.icons[0], sym = ic && ic.icon || {}, rep = ic ? parseFloat(ic.repeat) || 10 : 0;
+      if(ic){ const dot = sym.path === 0 || sym.path === undefined || sym.path === 'circle', w = dot ? Math.max(2, (sym.scale || 2)*2) : Math.max(2, (sym.strokeWeight || 3));
+        return {w, paint:{'line-color':(dot ? sym.fillColor : sym.strokeColor) || '#555', 'line-opacity':(dot ? sym.fillOpacity : sym.strokeOpacity) ?? 1, 'line-width':w,
+          'line-dasharray':dot ? [0, rep/w] : [Math.max(1, (sym.scale || 3)*2/w), Math.max(1, rep/w - (sym.scale || 3)*2/w)]}, cap:dot ? 'round' : 'butt'}; }
+      return {w:o.strokeWeight ?? 3, paint:{'line-color':o.strokeColor || '#000', 'line-opacity':o.strokeOpacity ?? 1, 'line-width':o.strokeWeight ?? 3}, cap:'round'}; }
+    _add(){ const m = this.map.ml, z = this.o.zIndex || 0, p = this._paint();
+      if(!m.getSource(this.id)) m.addSource(this.id, {type:'geojson', data:{type:'Feature', geometry:{type:'LineString', coordinates:this.path}}});
+      if(m.getLayer(this.id)) m.removeLayer(this.id);
+      const above = (m.getStyle().layers || []).find(L => L.id.startsWith('gpl') && (L.metadata?.z ?? 0) > z); // keep the stacking order
+      m.addLayer({id:this.id, type:'line', source:this.id, metadata:{z}, layout:{'line-join':'round', 'line-cap':p.cap}, paint:p.paint}, above ? above.id : undefined); }
+    setMap(map){ if(this.map && this.map !== map) this._remove(); this.map = map; if(!map) return;
+      const go = () => { if(this.map !== map) return; try{ this._add(); }catch(e){} };
+      if(map.ml.isStyleLoaded()) go(); else map.ml.once('idle', go);
+      if(!this._re){ this._re = () => { if(this.map) go(); }; map.ml.on('style.load', this._re); } } // the look changed: draw it again
+    _remove(){ const m = this.map?.ml; if(!m) return; if(this._re){ m.off('style.load', this._re); this._re = null; } try{ if(m.getLayer(this.id)) m.removeLayer(this.id); if(m.getSource(this.id)) m.removeSource(this.id); }catch(e){} this.map = null; }
+    setOptions(o){ Object.assign(this.o, o); if(o.path) this.path = o.path.map(ll); if(this.map){ try{ this._add(); }catch(e){} } }
+    setPath(p){ this.setOptions({path:p}); } }
 
   window.installMapLibreAsGoogle = () => { window.google = {maps:{Map:GMap, LatLng, LatLngBounds, OverlayView, Marker, Polyline, SymbolPath:{CIRCLE:0},
     importLibrary:() => Promise.resolve(), event:{addListenerOnce:(m, ev, fn) => { let done = false; const h = m.addListener(ev, (...a) => { if(done) return; done = true; h.remove(); fn(...a); }); return h; }}, __maplibre:true}}; };

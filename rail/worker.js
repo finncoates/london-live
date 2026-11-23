@@ -28,6 +28,7 @@
 //   GET /vehicles?src=gdstop&id=<ZTM stop id> → a Gdańsk stop's next departures
 //   GET /metrolink              → Manchester Metrolink departures by stop
 //   GET /tfl/<TfL API path>     → TfL's answer, shared by every visitor (cached briefly); optional secret TFL_KEY
+//   GET /transitous/api/v5/plan?… → Transitous journey planning (open data, worldwide), named and cached 60 s
 
 const DEFAULT_BOARD_URL = 'https://api1.raildata.org.uk/1010-live-departure-board-dep1_2/LDBWS/api/20220120/GetDepBoardWithDetails/{crs}?numRows=10';
 const DEFAULT_ORIGINS = 'https://finncoates.github.io';
@@ -47,6 +48,7 @@ export default {
       if(url.pathname === '/vehicles') return json(await vehicles(url, env, ctx), 200, cors, 10);
       if(url.pathname === '/metrolink') return json(await metrolink(env, ctx), 200, cors, 20);
       if(url.pathname.startsWith('/tfl/')) return await tfl(url, env, cors);
+      if(url.pathname.startsWith('/transitous/')) return await transitous(url, cors);
       if(!env.RDM_KEY) return json({error:'RDM_KEY secret is not set on the worker'}, 503, cors);
       if(url.pathname === '/board'){
         const crs = cleanCrs(url.searchParams.get('crs'));
@@ -336,6 +338,20 @@ async function tfl(url, env, cors){
       TFL_WAIT.set(key, wait); }
     hit = await wait; }
   return new Response(hit.body, {status:hit.status, headers:{'content-type':hit.type, 'cache-control':'public, max-age=' + Math.min(ttl, 30), ...cors}}); }
+
+// ---------- Transitous (free, open journey planning across Europe and beyond; https://transitous.org) ----------
+// Asked through here so every request names the app, as Transitous asks, and the same question in the same
+// minute is answered once. Before a big launch: tell Transitous (they ask to be told above ~720 plans a day).
+const TR_MEM = new Map();
+async function transitous(url, cors){
+  const path = url.pathname.slice('/transitous'.length);
+  if(!/^\/api\/v\d+\/(plan|geocode|reverse-geocode|stoptimes|trip|map\/stops)$/.test(path)) return json({error:'not a Transitous path this relay passes on'}, 400, cors);
+  const key = path + url.search, now = Date.now(), hit = TR_MEM.get(key);
+  if(hit && now - hit.t < 60000) return new Response(hit.body, {status:200, headers:{'content-type':'application/json', 'cache-control':'public, max-age=60', ...cors}});
+  const up = await fetch('https://api.transitous.org' + key, {headers:{'user-agent':'LondonLive/1.0 (+https://github.com/finncoates/london-live)'}});
+  const body = await up.text();
+  if(up.ok){ TR_MEM.set(key, {t:now, body}); if(TR_MEM.size > 500) TR_MEM.delete(TR_MEM.keys().next().value); }
+  return new Response(body, {status:up.status, headers:{'content-type':up.headers.get('content-type') || 'application/json', 'cache-control':up.ok ? 'public, max-age=60' : 'no-store', ...cors}}); }
 
 // ---------- helpers ----------
 const cleanCrs = s => (s || '').trim().toUpperCase().replace(/[^A-Z]/g, '').slice(0, 3) || null;
