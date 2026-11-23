@@ -134,7 +134,19 @@ Off by default, so the map is unchanged until you turn it on: Map menu → **Liv
 | Installable live map | `manifest.webmanifest` with Near me (`?near=1`) and Live mode shortcuts |
 Not done: 3D tilted ride view (needs a Google Maps Map ID, a vector map); camera-based positioning like Subwhere's (no web equivalent).
 
+## Built 23 Nov (afternoon) — costs down for a public launch
+| Change | Notes |
+|---|---|
+| Live map on MapLibre + OpenFreeMap (OpenStreetMap) | No cost per visitor (Google charged $7 per 1,000 map loads after 10,000/month). `maplibre-google.js` stands in for the bit of the Google API the page uses; `?map=google` still works. Roads now match the OSM bus/rail lines. Faster drawing (43 vs 83 ms/frame on a busy London view). |
+| Satellite look | Map menu → Satellite (Esri World Imagery + place names). Before a big launch: a free ArcGIS Location Platform key (set `window.ESRI_KEY`) to stay within Esri's terms. |
+| TfL through the relay | `GET /tfl/<path>` on the worker: one shared, briefly cached copy for every visitor (TfL allows 500 calls/min per key, shared by all users). Pages use it as soon as `/health` says `tfl:true`; until the worker is redeployed they call TfL directly as before. Optional secret `TFL_KEY`. |
+| National Rail on the track | Trains routed along the National Rail network map (graph + A*), stations snapped to the track, one listing per train, Eurostar via HS1/Channel Tunnel |
+| Trams on their own lane | Where city lines run side by side (Manchester…), trams sit on their own line's lane |
+Still on Google: London Journey (map, directions, place search) — next: TfL Journey Planner (London, free), Transitous/MOTIS (open, Europe-wide), Photon (OSM search).
+
 ## Next ideas (not built yet)
+- Real National Rail positions (like Raildar): Network Rail open data (TRUST movements / TD berths) or Darwin Push Port. Data free; needs an always-on server to hold the streaming connection (~£4–5/month VPS) and a berth/timing-point → track mapping.
+- Worldwide: one generic GTFS + GTFS-realtime loader (feeds listed in the Mobility Database) so a new city is configuration, not code.
 - Switch on live National Rail: add `RDM_KEY` as a secret on the `london-rail` worker when the Rail Data Marketplace key arrives (no code change needed).
 - Other countries checked 21–22 Nov: Tallinn (transport.tallinn.ee/gps.txt, keyless, but no CORS → relay); Boston MBTA to try; Germany db.transport.rest down; Edinburgh TfE server down (522).
 - Other countries checked 21 Nov: Switzerland (transport.opendata.ch, departure boards only, CORS ok); Germany (v6.db.transport.rest radar = live positions, keyless) didn't connect from the sandbox; Helsinki HSL live vehicles via MQTT (mqtt.hsl.fi) to try.

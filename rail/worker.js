@@ -27,6 +27,7 @@
 //   GET /vehicles?src=gdansk|tallinn|vilnius → those cities' buses and trams (open data, no key; they don't allow browsers directly)
 //   GET /vehicles?src=gdstop&id=<ZTM stop id> → a Gdańsk stop's next departures
 //   GET /metrolink              → Manchester Metrolink departures by stop
+//   GET /tfl/<TfL API path>     → TfL's answer, shared by every visitor (cached briefly); optional secret TFL_KEY
 
 const DEFAULT_BOARD_URL = 'https://api1.raildata.org.uk/1010-live-departure-board-dep1_2/LDBWS/api/20220120/GetDepBoardWithDetails/{crs}?numRows=10';
 const DEFAULT_ORIGINS = 'https://finncoates.github.io';
@@ -41,10 +42,11 @@ export default {
     if(request.method !== 'GET') return json({error:'GET only'}, 405, cors);
     try{
       if(url.pathname === '/' || url.pathname === '/health')
-        return json({ok:true, configured:!!env.RDM_KEY, rail:!!env.RDM_KEY, bods:!!env.BODS_KEY, tfe:true, metrolink:!!env.TFGM_KEY,
+        return json({ok:true, configured:!!env.RDM_KEY, rail:!!env.RDM_KEY, bods:!!env.BODS_KEY, tfe:true, metrolink:!!env.TFGM_KEY, tfl:true, tflKey:!!env.TFL_KEY,
           boardUrl:(env.BOARD_URL || DEFAULT_BOARD_URL).replace(/\?.*$/, '')}, 200, cors);
       if(url.pathname === '/vehicles') return json(await vehicles(url, env, ctx), 200, cors, 10);
       if(url.pathname === '/metrolink') return json(await metrolink(env, ctx), 200, cors, 20);
+      if(url.pathname.startsWith('/tfl/')) return await tfl(url, env, cors);
       if(!env.RDM_KEY) return json({error:'RDM_KEY secret is not set on the worker'}, 503, cors);
       if(url.pathname === '/board'){
         const crs = cleanCrs(url.searchParams.get('crs'));
@@ -305,6 +307,34 @@ async function metrolink(env, ctx){
     return {updated:new Date().toISOString(), platforms:out};
   });
 }
+
+// ---------- TfL: one shared copy for every visitor ----------
+// TfL allows 500 calls a minute per key, shared by everyone using the app. Every visitor asking TfL directly
+// would hit that at ~40 people at once, so the maps ask here: each answer is fetched once and kept a short
+// while (live arrivals 20 s, line status 60 s, line shapes a day). Optional secret TFL_KEY: your free TfL app key.
+const TFL_TTL = [[/\/Arrivals/i, 20], [/\/Status/i, 60], [/\/(Route\/Sequence|StopPoints|Route)\b/i, 86400], [/^\/BikePoint/i, 60], [/^\/Road/i, 300], [/crowding/i, 300], [/^\/StopPoint/i, 600]];
+const TFL_MEM = new Map(), TFL_WAIT = new Map(); // (per worker instance: plus Cloudflare's cache where available)
+async function tfl(url, env, cors){
+  const path = url.pathname.slice(4);
+  if(!/^\/(Line|StopPoint|BikePoint|Road|Mode|crowding|Disruptions|Place|Journey)\b/i.test(path)) return json({error:'not a TfL path this relay passes on'}, 400, cors);
+  const q = [...url.searchParams].filter(([k]) => k !== 'app_key').sort(), qs = q.map(([k, v]) => encodeURIComponent(k) + '=' + encodeURIComponent(v)).join('&');
+  const key = path + '?' + qs, ttl = (TFL_TTL.find(([re]) => re.test(path)) || [null, 30])[1], now = Date.now();
+  let hit = TFL_MEM.get(key);
+  if(!hit || now - hit.t > ttl*1000){
+    let wait = TFL_WAIT.get(key); // many visitors at once: one call to TfL
+    if(!wait){ wait = (async () => {
+        const cacheKey = new Request('https://tfl-cache.invalid' + key), cache = typeof caches !== 'undefined' ? caches.default : null;
+        let r = cache ? await cache.match(cacheKey).catch(() => null) : null;
+        if(!r){ const target = 'https://api.tfl.gov.uk' + path + '?' + qs + (env.TFL_KEY ? (qs ? '&' : '') + 'app_key=' + encodeURIComponent(env.TFL_KEY) : '');
+          const up = await fetch(target, {headers:{'user-agent':'london-live-relay'}});
+          r = new Response(await up.text(), {status:up.status, headers:{'content-type':up.headers.get('content-type') || 'application/json', 'cache-control':'public, max-age=' + ttl}});
+          if(up.ok && cache) await cache.put(cacheKey, r.clone()).catch(() => {}); }
+        const v = {t:Date.now(), status:r.status, type:r.headers.get('content-type') || 'application/json', body:await r.text()};
+        if(v.status === 200){ TFL_MEM.set(key, v); if(TFL_MEM.size > 3000) TFL_MEM.delete(TFL_MEM.keys().next().value); }
+        return v; })().finally(() => TFL_WAIT.delete(key));
+      TFL_WAIT.set(key, wait); }
+    hit = await wait; }
+  return new Response(hit.body, {status:hit.status, headers:{'content-type':hit.type, 'cache-control':'public, max-age=' + Math.min(ttl, 30), ...cors}}); }
 
 // ---------- helpers ----------
 const cleanCrs = s => (s || '').trim().toUpperCase().replace(/[^A-Z]/g, '').slice(0, 3) || null;

@@ -327,6 +327,7 @@ const store = {
   set(k,d,ms){ try{ localStorage.setItem(k, JSON.stringify({d,exp:Date.now()+ms})) }catch(e){} }
 };
 async function get(path){
+  if(window.__tflRelay && !KEY){ try{ const r = await fetch(window.__tflRelay + path); if(r.ok) return r.json(); }catch(e){} } // shared copy via the relay (TfL: 500 calls a minute for everyone); else straight to TfL
   const url = API + path + (KEY ? (path.includes('?')?'&':'?') + KEY : '');
   const r = await fetch(url);
   if(!r.ok){ const e = new Error(r.status + ' ' + path); e.status = r.status; throw e; }
@@ -1346,7 +1347,7 @@ const abroadAt = n => { const k = String(n || '').toLowerCase().normalize('NFD')
 RAIL.railKey = null; // null = not checked yet
 const railOn = () => !!RAIL.relay && (RAIL.relay === 'demo' || RAIL.railKey === true);
 async function railHealth(){ if(!RAIL.relay) return; if(RAIL.relay === 'demo'){ setTimeout(refreshRail, 2500); RAIL.timer = setInterval(refreshRail, 60000); return; }
-  try{ const h = await (await fetch(RAIL.relay + '/health', {signal:AbortSignal.timeout(8000)})).json(); RAIL.railKey = !!(h.rail ?? h.configured); }catch(e){ RAIL.railKey = false; }
+  try{ const h = await (await fetch(RAIL.relay + '/health', {signal:AbortSignal.timeout(8000)})).json(); RAIL.railKey = !!(h.rail ?? h.configured); window.__tflRelay = h.tfl ? RAIL.relay + '/tfl' : null; }catch(e){ RAIL.railKey = false; } // (TfL data through the relay: one shared copy for everyone)
   if(typeof renderModeChips === 'function') renderModeChips(); if(typeof renderRailStatus === 'function') renderRailStatus();
   if(railOn() && !RAIL.timer){ refreshRail(); RAIL.timer = setInterval(refreshRail, 60000); } }
 // which stations to poll: London's termini/hubs in London, elsewhere the 25 nearest stations to the view

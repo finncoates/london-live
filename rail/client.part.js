@@ -20,7 +20,7 @@ const abroadAt = n => { const k = String(n || '').toLowerCase().normalize('NFD')
 RAIL.railKey = null; // null = not checked yet
 const railOn = () => !!RAIL.relay && (RAIL.relay === 'demo' || RAIL.railKey === true);
 async function railHealth(){ if(!RAIL.relay) return; if(RAIL.relay === 'demo'){ setTimeout(refreshRail, 2500); RAIL.timer = setInterval(refreshRail, 60000); return; }
-  try{ const h = await (await fetch(RAIL.relay + '/health', {signal:AbortSignal.timeout(8000)})).json(); RAIL.railKey = !!(h.rail ?? h.configured); }catch(e){ RAIL.railKey = false; }
+  try{ const h = await (await fetch(RAIL.relay + '/health', {signal:AbortSignal.timeout(8000)})).json(); RAIL.railKey = !!(h.rail ?? h.configured); window.__tflRelay = h.tfl ? RAIL.relay + '/tfl' : null; }catch(e){ RAIL.railKey = false; } // (TfL data through the relay: one shared copy for everyone)
   if(typeof renderModeChips === 'function') renderModeChips(); if(typeof renderRailStatus === 'function') renderRailStatus();
   if(railOn() && !RAIL.timer){ refreshRail(); RAIL.timer = setInterval(refreshRail, 60000); } }
 // which stations to poll: London's termini/hubs in London, elsewhere the 25 nearest stations to the view
