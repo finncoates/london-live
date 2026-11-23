@@ -298,7 +298,7 @@ button.lnk{border:0;background:none;padding:0;color:var(--acc);font-weight:600;f
   <div id="mapMenu" class="mapmenu" hidden>
     <label class="mm-row ldn-only"><span>Live mode <span class="st st1" style="vertical-align:1px">New</span><small>Tap a train for its speed, depth underground, next stops and distance from you; ride along with it; pin a station; and on phones, Look down to see the Tube under your feet through the camera.</small></span><input type="checkbox" id="mLive" class="switch"></label>
     <div class="mm-row"><span>Map style</span>
-      <div class="seg2" role="group" aria-label="Map style"><button data-ms="google">Google Maps</button><button data-ms="original">Original</button></div></div>
+      <div class="seg2" role="group" aria-label="Map style"><button data-ms="google">Standard</button><button data-ms="original">Grey</button><button data-ms="satellite">Satellite</button></div></div>
     <label class="mm-row"><span>Hide places &amp; labels<small>Shops, landmarks, stations and area names. Street names stay.</small></span><input type="checkbox" id="mQuiet" class="switch"></label>
     <label class="mm-row"><span>Dark map</span><input type="checkbox" id="mDark" class="switch"></label>
     <label class="mm-row"><span><i class="ldn-txt">Show trains</i><i class="away-txt">Show vehicles</i><small><i class="ldn-txt">The moving train shapes.</i><i class="away-txt">The moving trams, buses and coaches.</i> The lines stay.</small></span><input type="checkbox" id="mIcons" class="switch"></label>
@@ -421,10 +421,18 @@ function loadGoogle(){
   });
 }
 
-// ---------- map (Google Maps) ----------
+// The base map: MapLibre with free OpenStreetMap tiles (no cost per visitor), through a small stand-in for the
+// part of the Google Maps API this page uses (maplibre-google.js). ?map=google: Google Maps, as before.
+const MAP_ENGINE = Q.get('map') === 'google' ? 'google' : 'maplibre';
+function loadMapLibre(){
+  const add = (tag, attrs) => new Promise((res, rej) => { const e = Object.assign(document.createElement(tag), attrs); e.onload = res; e.onerror = () => rej(new Error('Could not load the map')); document.head.appendChild(e); });
+  return Promise.all([add('link', {rel:'stylesheet', href:'https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css'}), add('script', {src:'https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js'})])
+    .then(() => add('script', {src:'maplibre-google.js'})).then(() => window.installMapLibreAsGoogle()); }
+
+// ---------- map ----------
 const savedTheme = (() => { try{ return localStorage.getItem('theme'); }catch(e){ return null; } })();
 let dark = Q.get('theme') ? Q.get('theme') === 'dark' : savedTheme ? savedTheme === 'dark' : matchMedia('(prefers-color-scheme: dark)').matches;
-try{ await loadGoogle(); }catch(e){ document.body.innerHTML = '<p style="padding:20px;font:16px system-ui">Could not load Google Maps. Check your connection and reload.</p>'; return; }
+try{ await (MAP_ENGINE === 'google' ? loadGoogle() : loadMapLibre()); }catch(e){ document.body.innerHTML = '<p style="padding:20px;font:16px system-ui">Could not load the map. Check your connection and reload.</p>'; return; }
 await Promise.all(['maps','marker','routes','geometry'].map(n => google.maps.importLibrary(n)));
 const DARK_STYLE = [
   {elementType:'geometry', stylers:[{color:'#1d2026'}]}, {elementType:'labels.text.fill', stylers:[{color:'#9aa0a6'}]},
@@ -451,6 +459,8 @@ const QUIET = ['poi', 'transit', 'administrative', 'landscape', 'water'].map(f =
 const pref = (k, d) => { try{ return localStorage.getItem(k) ?? d; }catch(e){ return d; } };
 let MAP_STYLE = pref('mapStyle', 'google'), QUIET_ON = pref('mapQuiet', '0') === '1';
 function mapStyles(){
+  if(MAP_ENGINE !== 'google') return (MAP_STYLE === 'satellite' ? 'satellite' : MAP_STYLE === 'original' ? (dark ? 'greydark' : 'grey') : (dark ? 'dark' : 'light')) + (QUIET_ON ? '+quiet' : ''); // a look id (maplibre-google.js)
+  if(MAP_STYLE === 'satellite') return QUIET_ON ? QUIET : null; // Google: aerial photos with labels (map type 'hybrid')
   const base = MAP_STYLE === 'original' ? (dark ? GREY_DARK : GREY_LIGHT) : (dark ? DARK_STYLE : []);
   const s = base.concat(QUIET_ON ? QUIET : []);
   return s.length ? s : null;
@@ -848,7 +858,7 @@ function trainLane(t, l){
 const lineCentre = l => ({color:MAP_BG(), weight:LINE_W/3, opacity:lineStyle(l).opacity ? 1 : 0, z:2});
 const LF = {id:null, city:null, name:''}; // the line picked in search (live page)
 const lineStyle = l => ({color:ink(l.colour), weight:LINE_W, opacity:!shown(l)?0:l.on===false?0.07:window.DIM_TRAINS?(l.pinned && LF.id === l.id ? 1 : 0.08):1}); // a searched line stays bright
-function applyTheme(){ document.body.classList.toggle('dark', dark); map.setOptions({styles:mapStyles()}); for(const l of ACTIVE) l.layer && l.layer.eachLayer(p => p.setStyle(lineStyle(l))); }
+function applyTheme(){ document.body.classList.toggle('dark', dark); map.setOptions({styles:mapStyles(), mapTypeId:MAP_STYLE === 'satellite' ? 'hybrid' : 'roadmap'}); for(const l of ACTIVE) l.layer && l.layer.eachLayer(p => p.setStyle(lineStyle(l))); }
 applyTheme();
 // Screen positions (fractional pixels, so movement is smooth) via an empty overlay's projection
 const ov = new google.maps.OverlayView(); ov.onAdd = ov.draw = ov.onRemove = () => {}; ov.setMap(map);
