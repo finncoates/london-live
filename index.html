@@ -2307,6 +2307,9 @@ async function showBusRoute(g){
   const c = map.getCenter(), mcr = c && Math.abs(c.lat() - 53.48) < 0.3 && Math.abs(c.lng() + 2.24) < 0.4;
   if(mcr){ try{ const r = await fetch('cities/mcr-bus/' + String(v.line).replace(/[^A-Za-z0-9]+/g, '_') + '.json', {signal:AbortSignal.timeout(8000)}); if(r.ok && BROUTE.key === key) BROUTE.polys = await r.json(); }catch(e){} }
 }
+// coach destinations come with the stand: 'Gatwick Airport (South) Lower Forecourt Stops 1 - 5' → 'Gatwick Airport (South) Lower Forecourt'
+const coachDest = d => { const x = String(d).replace(/\s*\((?:opposite|near|outside|o\/s)\b[^)]*\)$/i, '').replace(/\s+(?:near|outside|opposite)\b.*$/i, '')
+  .replace(/\s+(?:(?:arrival|departure)\s+)?(?:stops?|stands?|bays?)\b(?:\s+[\w-]+(?:\s*[-–]\s*\w+)?)?$/i, '').trim(); return x.length >= 8 ? x : d; };
 function gpsTip(e, r, tip){
   const x = e.clientX - r.left, y = e.clientY - r.top, rad0 = matchMedia('(pointer:coarse)').matches ? 24 : 14;
   let best = null, bd = rad0; for(const [g, gx, gy] of draw.ghit || []){ const d = Math.hypot(gx - x, gy - y); if(d < bd){ bd = d; best = g; } }
@@ -2316,7 +2319,7 @@ function gpsTip(e, r, tip){
   const kind = v.train ? (v.freight ? 'freight train' : 'train') : v.kind || (v.tram ? 'tram' : 'bus'), col = v.col || (v.tram ? '#7A1F3D' : opCol(v.op));
   const coach = coachOf(v);
   const ico = coach ? 'busg' : v.train ? 'rail' : v.metro ? 'metrog' : vkind(v) === 'tram' ? 'tramg' : vkind(v) === 'ferry' ? 'ferryg' : vkind(v) === 'bus' ? 'busg' : 'tube';
-  tip.innerHTML = coach ? `<div class="tt-h">${symbol('busg', coach[1], 20)}<b>${esc(coach[0])} coach${v.line ? ' ' + esc(v.line) : ''}</b></div>${v.dest ? `<div>To <b>${esc(v.dest)}</b></div>` : ''}<div class="tt-m">long-distance coach${age != null ? ` · position ${age < 90 ? age + ' s' : Math.round(age/60) + ' min'} ago` : ''}</div>` : `<div class="tt-h">${symbol(ico, col, 20)}<b>${esc(v.line)} ${v.train && /\d/.test(v.line) ? '' : kind}</b></div>
+  tip.innerHTML = coach ? `<div class="tt-h">${symbol('busg', coach[1], 20)}<b>${esc(coach[0])} coach${v.line ? ' ' + esc(v.line) : ''}</b></div>${v.dest ? `<div>To <b>${esc(coachDest(v.dest))}</b></div>` : ''}<div class="tt-m">long-distance coach${age != null ? ` · position ${age < 90 ? age + ' s' : Math.round(age/60) + ' min'} ago` : ''}</div>` : `<div class="tt-h">${symbol(ico, col, 20)}<b>${esc(v.line)} ${v.train && /\d/.test(v.line) ? '' : kind}</b></div>
     ${v.dest ? `<div>${v.from ? esc(v.from) + ' → ' : 'To '}<b>${esc(v.dest)}</b></div>` : ''}${v.speed != null ? `<div>${Math.round(v.speed)} km/h${v.late != null ? ` · ${v.late <= -90 ? Math.round(-v.late/60) + ' min late' : v.late >= 90 ? Math.round(v.late/60) + ' min early' : 'on time'}` : ''}</div>` : ''}
     <div class="tt-m">${esc(opName(v.op || ''))}${v.sched ? ' · position from the timetable (no live feed)' : v.est ? ' · position from live timings' : ''}${age != null ? ` · position ${age < 90 ? age + ' s' : Math.round(age/60) + ' min'} ago` : ''}</div>`;
   tip.style.display = 'block';
