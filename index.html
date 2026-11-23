@@ -153,6 +153,11 @@ body.dark #simnote{background:#1f2a44;color:#c6dafc}
 }
 
 @media (min-width:701px){#panel{width:336px}}
+/* phone: tap the handle to shrink the panel to title, search and any open card, for a bigger map */
+#grab{display:none}
+@media (max-width:700px){#grab{display:block;width:100%;height:18px;margin:-10px 0 2px;padding:0;border:0;background:none;cursor:pointer}
+  #grab::before{content:'';display:block;width:40px;height:5px;margin:6px auto 0;border-radius:3px;background:var(--edge)}
+  body.sheetMin #mModes, body.sheetMin #busNote, body.sheetMin #sbox, body.sheetMin #nrbox, body.sheetMin #lgAll, body.sheetMin #legend{display:none!important}}
 #status{font-size:13px;color:var(--mute);margin:-4px 0 10px}
 #status b{color:var(--ink)}
 .search{position:relative;margin-bottom:10px}
@@ -233,6 +238,7 @@ body.kiosk #map{bottom:0!important}
 <body>
 <div id="map"></div>
 <div id="panel">
+  <button type="button" id="grab" aria-label="Show less of the panel" aria-expanded="true"></button>
   <h1><span id="ttl">London live trains</span> <span class="sp"></span>
     <button id="bPlaces" class="icon" title="Explore cities" aria-label="Explore cities around the world" aria-expanded="false"><svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="2"/><path d="M3 12h18M12 3c3 3.2 3 14.8 0 18M12 3c-3 3.2-3 14.8 0 18" fill="none" stroke="currentColor" stroke-width="1.6"/></svg></button>
     <button id="bMap" class="icon" title="Map style" aria-label="Map style" aria-expanded="false"><svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l9 5-9 5-9-5 9-5zm-9 9l9 5 9-5M3 16l9 5 9-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg></button>
@@ -2597,6 +2603,9 @@ function syncMapMenu(){
   for(const b of document.querySelectorAll('[data-ms]')) b.classList.toggle('sel', b.dataset.ms === MAP_STYLE);
   $('mQuiet').checked = QUIET_ON; $('mDark').checked = dark; $('mIcons').checked = SHOW_ICONS; $('mStations').checked = SHOW_ST; $('mLanes').checked = LAYOUT === 'lanes'; $('mSF').checked = SF_ON;
 }
+const sheetMin = on => { document.body.classList.toggle('sheetMin', on); $('grab').setAttribute('aria-expanded', String(!on)); $('grab').setAttribute('aria-label', on ? 'Show more of the panel' : 'Show less of the panel'); try{ localStorage.setItem('sheetMin', on ? '1' : '0'); }catch(e){} };
+$('grab').onclick = () => sheetMin(!document.body.classList.contains('sheetMin'));
+try{ if(localStorage.getItem('sheetMin') === '1') sheetMin(true); }catch(e){}
 $('bMap').onclick = () => { const m = $('mapMenu'); m.hidden = !m.hidden; $('bMap').setAttribute('aria-expanded', !m.hidden); syncMapMenu(); };
 $('mapMenu').addEventListener('click', e => { const b = e.target.closest('[data-ms]'); if(!b) return;
   MAP_STYLE = b.dataset.ms; try{ localStorage.setItem('mapStyle', MAP_STYLE); }catch(x){} applyTheme(); syncMapMenu(); });
