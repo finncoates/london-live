@@ -3,6 +3,7 @@
 #   1) per region:  python3 busnet2.py match region.osm.pbf edges_<region>.pkl feed1.zip [feed2.zip ...]
 #   2) at the end:  python3 busnet2.py tiles out_dir edges_*.pkl
 # Routes with shapes (GTFS shapes.txt) are matched point by point; routes without shapes are routed stop to stop.
+import sys as _s; _s.stdout.reconfigure(encoding='utf-8', errors='replace'); _s.stderr.reconfigure(encoding='utf-8', errors='replace')  # Windows console: never crash on a name
 import sys, os, zipfile, csv, io, json, math, pickle, collections, heapq
 import numpy as np
 

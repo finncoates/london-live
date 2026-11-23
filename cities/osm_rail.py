@@ -3,6 +3,7 @@
 # have no track shapes (Belgium, Switzerland…).
 #   python -I cities/osm_rail.py <cc> country.osm.pbf "south,west,north,east"  -> cities/.build/rail/<cc>.json
 # then rail_tiles.py rebuilds the shared tiles.
+import sys as _s; _s.stdout.reconfigure(encoding='utf-8', errors='replace'); _s.stderr.reconfigure(encoding='utf-8', errors='replace')  # Windows console: never crash on a name
 import sys, os, json, math, subprocess, osmium
 HERE = os.path.dirname(os.path.abspath(__file__))
 cc, pbf, box = sys.argv[1], sys.argv[2], [float(x) for x in sys.argv[3].split(',')]

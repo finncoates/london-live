@@ -3,6 +3,7 @@
 # (cities/stops/<lat*20>_<lon*20>.json), merged with whatever a tile held before (git, BASE). A stop that two networks
 # both list (same name, within ~15 m) is kept once. Departures come from Transitous when a stop is tapped (by place).
 #   python -I cities/fr_stops.py
+import sys as _s; _s.stdout.reconfigure(encoding='utf-8', errors='replace'); _s.stderr.reconfigure(encoding='utf-8', errors='replace')  # Windows console: never crash on a name
 import os, json, math, subprocess, collections
 HERE = os.path.dirname(os.path.abspath(__file__)); BASE = '6c9aa8ce'; root = os.path.join(HERE, '.build')
 T = collections.defaultdict(dict); n = 0

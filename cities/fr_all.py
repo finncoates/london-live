@@ -3,6 +3,7 @@
 # file. Regional bundles, national operators (SNCF, FlixBus, BlaBlaCar…), school-only networks and the networks already
 # built by hand are left out. One network at a time (the road matching needs memory); a log lets it pick up where it left.
 #   python -I cities/fr_all.py [--limit N]
+import sys as _s; _s.stdout.reconfigure(encoding='utf-8', errors='replace'); _s.stderr.reconfigure(encoding='utf-8', errors='replace')  # Windows console: never crash on a name
 import os, sys, json, re, subprocess, shutil, urllib.request, time, unicodedata
 HERE = os.path.dirname(os.path.abspath(__file__)); B = os.path.join(HERE, '.build'); LOG = os.path.join(B, 'fr_all.log')
 os.makedirs(B, exist_ok=True)

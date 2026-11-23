@@ -5,6 +5,7 @@
 # 0.5° tiles as Britain's National Rail map (cities/nr/<lat*2>_<lon*2>.json, merged where a tile has both countries)
 # and its overview (cities/nr/all.json). Passenger stations go to cities/fr-gares.json: [uic, name, lat, lon].
 #   python -I cities/fr_rail.py      (downloads into cities/.build/frnr)
+import sys as _s; _s.stdout.reconfigure(encoding='utf-8', errors='replace'); _s.stderr.reconfigure(encoding='utf-8', errors='replace')  # Windows console: never crash on a name
 import os, json, math, subprocess, urllib.request, collections
 HERE = os.path.dirname(os.path.abspath(__file__)); B = os.path.join(HERE, '.build', 'frnr'); os.makedirs(B, exist_ok=True)
 BASE = '6c9aa8ce'  # before France: the tiles as Britain's own

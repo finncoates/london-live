@@ -1,6 +1,7 @@
 # Add the stations of a city's rail/metro/tram lines to its cities/<city>.json (from the same GTFS feed).
 # usage: python3 gtfs_stations.py feed.zip city.json "0:tram,1:metro,..." [south,west,north,east]
 # Each station: [id, name, lat, lon, [[line name, colour, kind], ...]]   (id = parent station id, for departures)
+import sys as _s; _s.stdout.reconfigure(encoding='utf-8', errors='replace'); _s.stderr.reconfigure(encoding='utf-8', errors='replace')  # Windows console: never crash on a name
 import sys, zipfile, csv, io, json, collections, os
 zf, jf, typemap = sys.argv[1], sys.argv[2], dict(x.split(':') for x in sys.argv[3].split(','))
 BOX = [float(x) for x in sys.argv[4].split(',')] if len(sys.argv) > 4 else None

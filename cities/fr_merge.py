@@ -4,6 +4,7 @@
 # served by the city's buses and by intercity coaches isn't drawn two or three times over.
 # Networks with their own city file (trams, metros) go first, then the rest by name, so the result doesn't depend on order.
 #   python -I cities/fr_merge.py [network ...]      (no names: every network)
+import sys as _s; _s.stdout.reconfigure(encoding='utf-8', errors='replace'); _s.stderr.reconfigure(encoding='utf-8', errors='replace')  # Windows console: never crash on a name
 import os, sys, json, math, subprocess
 HERE = os.path.dirname(os.path.abspath(__file__)); BASE = '6c9aa8ce'; root = os.path.join(HERE, '.build')
 nets = [c for c in os.listdir(root) if os.path.isdir(os.path.join(root, c, 'busnet'))]

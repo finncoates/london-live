@@ -2,6 +2,7 @@
 # (git, BASE: before any other country) + every other country's railway lines (cities/.build/rail/<cc>.json: a list of
 # polylines [[lat, lon], ...], made by fr_rail.py for France, rail_gtfs.py for the Netherlands…).
 #   python -I cities/rail_tiles.py
+import sys as _s; _s.stdout.reconfigure(encoding='utf-8', errors='replace'); _s.stderr.reconfigure(encoding='utf-8', errors='replace')  # Windows console: never crash on a name
 import os, json, math, subprocess, collections, sys
 HERE = os.path.dirname(os.path.abspath(__file__)); BASE = '6c9aa8ce'; R = os.path.join(HERE, '.build', 'rail'); os.makedirs(R, exist_ok=True)
 sys.setrecursionlimit(100000)

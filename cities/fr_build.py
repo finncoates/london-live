@@ -8,6 +8,7 @@
 # --agency keeps only the routes of matching operators (agency_id or agency_name), to take one city out of a regional
 # bundle (Lyon's TCL from the Auvergne-Rhône-Alpes one). --box limits everything to an area; by default the area is
 # that of the city's own stops. Lines are drawn in the timetable's own route colours.
+import sys as _s; _s.stdout.reconfigure(encoding='utf-8', errors='replace'); _s.stderr.reconfigure(encoding='utf-8', errors='replace')  # Windows console: never crash on a name
 import sys, os, re, io, csv, json, zipfile, subprocess, collections, math, urllib.request, shutil, argparse, tempfile
 HERE = os.path.dirname(os.path.abspath(__file__))
 BASE = '6c9aa8ce'  # the last commit before French cities: its bus tiles are the UK's own

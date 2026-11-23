@@ -2,6 +2,7 @@
 # each feed is read once here to find where it is (its stations' or vehicles' middle) and checked that a browser may
 # read it (CORS); feeds are grouped into cities (within 25 km). -> cities/gbfs-fr.json  [[city, lat, lon, [[name, url, colour]]]]
 #   python -I cities/fr_gbfs.py
+import sys as _s; _s.stdout.reconfigure(encoding='utf-8', errors='replace'); _s.stderr.reconfigure(encoding='utf-8', errors='replace')  # Windows console: never crash on a name
 import json, os, urllib.request, urllib.parse, concurrent.futures, math, re, statistics
 HERE = os.path.dirname(os.path.abspath(__file__)); cat = json.load(open(os.path.join(HERE, '.build', 'fr_catalogue.json'), encoding='utf-8'))
 UA = {'user-agent':'LondonLive/1.0 (+https://github.com/finncoates/london-live)', 'origin':'https://finncoates.github.io'}

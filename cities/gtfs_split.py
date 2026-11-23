@@ -2,6 +2,7 @@
 # Netherlands' is 1.2 GB: reading it once instead of once per operator).
 #   python -I cities/gtfs_split.py feed.zip outdir 'name=agency regex' ['name=agency regex' ...]
 #   -> outdir/<name>.zip for each group (agency_id + ' ' + agency_name is matched)
+import sys as _s; _s.stdout.reconfigure(encoding='utf-8', errors='replace'); _s.stderr.reconfigure(encoding='utf-8', errors='replace')  # Windows console: never crash on a name
 import sys, os, io, csv, re, zipfile
 feed, outdir, groups = sys.argv[1], sys.argv[2], [g.split('=', 1) for g in sys.argv[3:]]
 os.makedirs(outdir, exist_ok=True)

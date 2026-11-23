@@ -3,6 +3,7 @@
 # a segment that another route already drew (either direction) is dropped, so each road is mostly drawn once, and what is
 # left is joined back into polylines tile by tile. Nothing is skipped by closeness, so there are no gaps.
 #   python3 -I citybus.py feed.zip out_dir s w n e
+import sys as _s; _s.stdout.reconfigure(encoding='utf-8', errors='replace'); _s.stderr.reconfigure(encoding='utf-8', errors='replace')  # Windows console: never crash on a name
 import sys, zipfile, csv, io, json, math, os, collections
 zf, outdir = sys.argv[1], sys.argv[2]; S, W, N, E = map(float, sys.argv[3:7]); os.makedirs(outdir, exist_ok=True)
 z = zipfile.ZipFile(zf); rd = lambda n: csv.DictReader(io.TextIOWrapper(z.open(n), 'utf-8-sig'))

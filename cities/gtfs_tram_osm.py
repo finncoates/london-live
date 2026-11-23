@@ -3,6 +3,7 @@
 # then run gtfs_sched.py on it for timetable-placed trams.
 # usage: python3 gtfs_tram_osm.py feed.zip region.osm.pbf out.json '{"route short name": ["Line name", "#colour", "tram|ferry"], ...}' "Operator" "south,west,north,east"
 # (ferries are drawn pier to pier; trams follow the tracks). Then: NAMES='<same json>' gtfs_sched.py feed.zip out.json "0:tram,4:ferry"
+import sys as _s; _s.stdout.reconfigure(encoding='utf-8', errors='replace'); _s.stderr.reconfigure(encoding='utf-8', errors='replace')  # Windows console: never crash on a name
 import sys, os, re, zipfile, csv, io, json, math, collections
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__))); from route import Router
 zf, pbf, out, MAP, op, box = sys.argv[1:7]; box = [float(x) for x in box.split(',')]; MAP = json.loads(MAP)

@@ -3,6 +3,7 @@
 #   python -I cities/rail_gtfs.py <cc> feed.zip "<south,west,north,east>" ["route types", default 2 and 100-117]
 # -> cities/.build/rail/<cc>.json (lines, each stretch of track once) and cities/<cc>-stations.json ([id, name, lat, lon])
 # then rail_tiles.py rebuilds the shared tiles.
+import sys as _s; _s.stdout.reconfigure(encoding='utf-8', errors='replace'); _s.stderr.reconfigure(encoding='utf-8', errors='replace')  # Windows console: never crash on a name
 import os, sys, json, subprocess, tempfile
 HERE = os.path.dirname(os.path.abspath(__file__))
 cc, feed, box = sys.argv[1:4]; types = sys.argv[4] if len(sys.argv) > 4 else ','.join(['2'] + [str(t) for t in range(100, 118)])

@@ -1,5 +1,6 @@
 # Bake a city's rail/metro/tram (and optionally ferry) line shapes from a GTFS zip into a small JSON file.
 # usage: python3 gtfs_lines.py feed.zip out.json "0:tram,1:metro,109:train,2:train,4:ferry" [route_short_name_filter_regex]
+import sys as _s; _s.stdout.reconfigure(encoding='utf-8', errors='replace'); _s.stderr.reconfigure(encoding='utf-8', errors='replace')  # Windows console: never crash on a name
 import os, sys, zipfile, csv, io, json, math, re, collections
 zf, out, typemap = sys.argv[1], sys.argv[2], dict(x.split(':') for x in sys.argv[3].split(','))
 COL = {'tram':'#00985F', 'metro':'#FF6319', 'train':'#8C4799', 'ferry':'#00B9E4'}
