@@ -1997,13 +1997,14 @@ async function openCityStation(hit){
           return {when, cat:{suburban:'S-Bahn', subway:'U-Bahn', tram:'Trams', bus:'Buses', regional:'Regional trains', express:'Long-distance trains', ferry:'Ferries'}[x.line?.product] || 'Other', html:row(l && l[1] || VBB_COL[x.line?.product] || '#888', x.direction || '', (x.line?.name || '') + (x.platform ? ' · platform ' + x.platform : '') + (x.delay > 60 ? ` · ${Math.round(x.delay/60)} min late` : ''), Math.round((when - now)/60000))}; });
       } else if(CITYL.data.get(url)?.sched){ // timetable departures (Metrolink, Supertram, Tyne and Wear Metro, Subway…)
         const d = CITYL.data.get(url), S = d.sched, P = Object.fromEntries(new Intl.DateTimeFormat('en-GB', {timeZone:'Europe/London', year:'numeric', month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit', second:'2-digit', hourCycle:'h23'}).formatToParts(new Date()).map(x => [x.type, x.value]));
-        const sec = +P.hour*3600 + +P.minute*60 + +P.second, li = schedDay(S, P.year + P.month + P.day); rows = [];
+        const sec = +P.hour*3600 + +P.minute*60 + +P.second, li = schedDay(S, P.year + P.month + P.day); rows = []; let later = Infinity;
         if(li != null) for(const [pi, t0] of S.lists[li]){ const pt = S.patterns[pi];
           const k = pt.stops.findIndex(q => dist(q, [st[2], st[3]]) < 150); if(k < 0 || k === pt.stops.length - 1) continue; // not here, or terminates here
-          const at = t0 + pt.off[k]; if(at < sec - 30 || at > sec + 5400) continue;
+          const at = t0 + pt.off[k]; if(at > sec + 5400 && at < later) later = at; if(at < sec - 30 || at > sec + 5400) continue;
           rows.push({when:now + (at - sec)*1000, cat:{tram:'Trams', metro:'Metro', ferry:'Ferries'}[pt.kind || 'tram'] || 'Trams', html:row(pt.col, pt.dest, pt.line.replace(/ Line$/, ' line') + ' · timetable', Math.max(0, Math.round((at - sec)/60)))}); }
         const seen = new Set(); rows = rows.filter(r => { const k2 = r.html; if(seen.has(k2)) return false; seen.add(k2); return true; }).slice(0, 24);
-        note = 'No more departures in the next 90 minutes (timetable).';
+        const hm = t => String(Math.floor(t/3600) % 24).padStart(2, '0') + ':' + String(Math.floor(t/60) % 60).padStart(2, '0');
+        note = later < Infinity ? `No departures in the next 90 minutes; the next is at ${hm(later)} (timetable).` : 'No more departures today (timetable).';
       } else if(url === 'nr'){ // National Rail: live departures through the relay once the rail data key is set
         if(typeof railOn === 'function' && railOn()){ const arr = await railArrivals(st[0]);
           rows = arr.map(a => { const l = BY[a.lineId]; return {when:now + a.timeToStation*1000, cat:'Trains', html:row(l ? ink(l.colour) : '#5D6670', a.destinationName, (l ? l.name : 'National Rail') + (a.platformName ? ' · ' + a.platformName : ''), Math.round(a.timeToStation/60))}; }); }
