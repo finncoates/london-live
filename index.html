@@ -2294,7 +2294,7 @@ function drawNR(ctx){
   if(PV.z < 12 || !SHOW_ST) return; if(!RAIL.stations){ railStations().catch(() => {}); return; }
   const s0 = mapSize(), r = Math.max(2.5, W*0.6), names = QUIET_ON && PV.z >= 14; ctx.lineWidth = Math.max(1.5, W*0.3);
   if(names){ ctx.font = `600 ${PV.z >= 15 ? 13 : 11.5}px "Hanken Grotesk", system-ui, sans-serif`; ctx.textBaseline = 'middle'; ctx.textAlign = 'start'; }
-  for(const [crs, n, la, lo] of RAIL.stations){ const c = scr([la, lo]); if(c.x < -20 || c.y < -20 || c.x > s0.x + 20 || c.y > s0.y + 20) continue;
+  for(const st of RAIL.stations){ const [crs, n, la, lo] = st; let c = scr([la, lo]); if(c.x < -20 || c.y < -20 || c.x > s0.x + 20 || c.y > s0.y + 20) continue; c = scr(nrSnap(st, polysets)); // on its line
     ctx.beginPath(); ctx.arc(c.x, c.y, r, 0, 7); ctx.fillStyle = dark ? '#1b1c1f' : '#fff'; ctx.fill(); ctx.strokeStyle = dark ? '#c9ced4' : '#5D6670'; ctx.stroke();
     if(names) STL.nr.push([n, c.x + r + 4, c.y, ctx.font, c.x - r - 4]); } // names drawn after the city's own stations (see flushNrNames)
 }
