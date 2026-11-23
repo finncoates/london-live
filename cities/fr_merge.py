@@ -19,9 +19,11 @@ def cells_along(p, step=5):
             yield math.floor((a + (c - a)*k/n)/CY), math.floor((b + (d - b)*k/n)/CX)
 def covered(seg, mark):
     return all(c in mark for c in cells_along(seg, 8))
+# which tiles existed before any other country (listed once: asking git for each missing tile is slow)
+INBASE = set(subprocess.run(['git', '-C', HERE, 'ls-tree', '--name-only', f'{BASE}:cities/busnet/'], capture_output=True, text=True).stdout.split())
 for fn in sorted(tiles):
-    base = subprocess.run(['git', '-C', HERE, 'show', f'{BASE}:cities/busnet/{fn}'], capture_output=True, text=True)
-    out = json.loads(base.stdout) if base.returncode == 0 else []; mark = set()
+    base = subprocess.run(['git', '-C', HERE, 'show', f'{BASE}:cities/busnet/{fn}'], capture_output=True, text=True) if fn in INBASE else None
+    out = json.loads(base.stdout) if base and base.returncode == 0 else []; mark = set()
     def draw(p):
         out.append(p)
         for y, x in cells_along(p):

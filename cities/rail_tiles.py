@@ -25,8 +25,9 @@ for l in lines:  # cut where a line crosses into the next 0.5° tile, sharing th
     if len(run) > 1: T[tk(run[0])].append(run)
 nrd = os.path.join(HERE, 'nr')
 git = lambda f: subprocess.run(['git', '-C', HERE, 'show', f'{BASE}:cities/nr/{f}'], capture_output=True, text=True)
+INBASE = set(subprocess.run(['git', '-C', HERE, 'ls-tree', '--name-only', f'{BASE}:cities/nr/'], capture_output=True, text=True).stdout.split())
 for t, ps in T.items():
-    b = git(t + '.json'); old = json.loads(b.stdout) if b.returncode == 0 else []
+    b = git(t + '.json') if t + '.json' in INBASE else None; old = json.loads(b.stdout) if b and b.returncode == 0 else []
     json.dump(old + [[[a, c] for a, c in p] for p in ps], open(os.path.join(nrd, t + '.json'), 'w'), separators=(',', ':'))
 base = json.loads(git('all.json').stdout)
 ov = [[[round(a, 4), round(c, 4)] for a, c in dp(l, 80)] for l in lines]
