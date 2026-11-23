@@ -187,6 +187,21 @@ elif not a.nobus:
     if nt: subprocess.run([sys.executable, '-I', os.path.join(HERE, 'fr_merge.py'), a.id], check=True, env=env)
     report['bus_tiles'] = nt
 
+# 4b. its bus stops (name and place), for the map's bus stop layer (fr_stops.py puts every network's into cities/stops tiles)
+if not a.nobus:
+    zz = zipfile.ZipFile(sub); rr = lambda n: csv.DictReader(io.TextIOWrapper(zz.open(n), 'utf-8-sig'))
+    bus_r = {r['route_id'] for r in rr('routes.txt') if r['route_type'] in BUS_TYPES}
+    bus_t = {t['trip_id'] for t in rr('trips.txt') if t['route_id'] in bus_r}
+    used = set()
+    if bus_t:
+        for x in rr('stop_times.txt'):
+            if x['trip_id'] in bus_t: used.add(x['stop_id'])
+    pts = {}
+    for x in rr('stops.txt'):
+        if x['stop_id'] in used and x.get('stop_lat'):
+            la, lo = round(float(x['stop_lat']), 5), round(float(x['stop_lon']), 5)
+            if S <= la <= N and W <= lo <= E: pts[(x['stop_name'], round(la, 4), round(lo, 4))] = [x['stop_name'], la, lo]
+    json.dump(list(pts.values()), open(os.path.join(work, 'stops.json'), 'w', encoding='utf-8'), ensure_ascii=False, separators=(',', ':')); report['bus_stops'] = len(pts)
 # 5. the city's entry for the map (bus-only networks have none: the France-wide entry covers their buses). An area much
 # bigger than a city (a department's boats, a stray far-off stop) gets none either: it would cover other places.
 if not a.nolines and (N - S > 1.0 or E - W > 1.4) and not a.box: report['no_entry'] = f'area too big ({N-S:.1f}° x {E-W:.1f}°)'

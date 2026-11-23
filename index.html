@@ -2368,7 +2368,7 @@ const coachOf = v => COACHES[v.op] || (/megabus/i.test(v.op + ' ' + (v.line || '
 const OP_COL = ['#E4002B', '#0057B8', '#00843D', '#F4A300', '#6D2077', '#00A3AD', '#D0006F', '#5B6770'];
 const opCol = op => { let h = 0; for(const ch of op || '') h = (h*31 + ch.charCodeAt(0)) >>> 0; return OP_COL[h % OP_COL.length]; };
 function drawGps(ctx, s, hl0, hw0, mpp){
-  draw.ghit = []; STL.boxes = []; STL.nr = []; if(TRAINS_ON && document.body.classList.contains('away') && !document.body.classList.contains('abroad')){ drawNR(ctx); drawUKStops(ctx); } else if(TRAINS_ON && document.body.classList.contains('abroad') && map.getCenter() && railC([map.getCenter().lat(), map.getCenter().lng()])) drawNR(ctx); /* France: SNCF's whole passenger network, as Britain's */ drawCoachNet(ctx); if(TRAINS_ON && document.body.classList.contains('away') && map.getCenter()){ const mc = [map.getCenter().lat(), map.getCenter().lng()]; drawBusNet(ctx); if(CITYL.cur && CITYL.cur.box(mc)) drawCityLines(ctx); flushNrNames(ctx); } else if(TRAINS_ON && document.body.classList.contains('edge')){ drawUKStops(ctx); drawBusNet(ctx); } /* just outside Greater London: its own stops and routes */ else if(TRAINS_ON && !MODES_OFF.has('bus') && PV.z >= 14) drawBusNet(ctx); /* London with buses on: the routes just outside Greater London too */ if(!GPS.list.size || !SHOW_ICONS || !TRAINS_ON) return;
+  draw.ghit = []; STL.boxes = []; STL.nr = []; if(TRAINS_ON && document.body.classList.contains('away') && !document.body.classList.contains('abroad')){ drawNR(ctx); drawUKStops(ctx); } else if(TRAINS_ON && document.body.classList.contains('abroad') && map.getCenter() && railC([map.getCenter().lat(), map.getCenter().lng()])){ drawNR(ctx); if(!busOff()) drawUKStops(ctx); } /* France, the Netherlands: the whole railway, and bus stops close up */ /* France: SNCF's whole passenger network, as Britain's */ drawCoachNet(ctx); if(TRAINS_ON && document.body.classList.contains('away') && map.getCenter()){ const mc = [map.getCenter().lat(), map.getCenter().lng()]; drawBusNet(ctx); if(CITYL.cur && CITYL.cur.box(mc)) drawCityLines(ctx); flushNrNames(ctx); } else if(TRAINS_ON && document.body.classList.contains('edge')){ drawUKStops(ctx); drawBusNet(ctx); } /* just outside Greater London: its own stops and routes */ else if(TRAINS_ON && !MODES_OFF.has('bus') && PV.z >= 14) drawBusNet(ctx); /* London with buses on: the routes just outside Greater London too */ if(!GPS.list.size || !SHOW_ICONS || !TRAINS_ON) return;
   if(window.__TTV && __TTV.world && __TTV.ferries) drawTTLines(ctx); // abroad: the routes the timetable vehicles are on, as lines under them
   const LBOX = []; const now = Date.now(), cosLat = Math.cos(map.getCenter().lat()*rad), label = PV.z >= 15.5;
   // bus routes abroad: where each bus has driven (thin, light, like London's bus routes), and the tapped bus's whole route
@@ -2771,11 +2771,12 @@ function ukStopsHere(){ const out = []; if(PV.z < 16 || stopsOff()) return out;
 function drawUKStops(ctx){
   const L = ukStopsHere(); if(!L.length) return; const s0 = mapSize();
   for(const [st] of L){ const c = scr([st[2], st[3]]); if(c.x < -10 || c.y < -10 || c.x > s0.x + 10 || c.y > s0.y + 10) continue;
-    ctx.beginPath(); ctx.arc(c.x, c.y, 4.2, 0, 7); ctx.fillStyle = '#DC241F'; ctx.fill(); ctx.lineWidth = 1.5; ctx.strokeStyle = dark ? '#111' : '#fff'; ctx.stroke(); }
+    ctx.beginPath(); ctx.arc(c.x, c.y, 4.2, 0, 7); ctx.fillStyle = String(st[0]).startsWith('x:') ? (CITYL.cur?.bus || ['#7E8BA3'])[0] : '#DC241F'; ctx.fill(); ctx.lineWidth = 1.5; ctx.strokeStyle = dark ? '#111' : '#fff'; ctx.stroke(); } // abroad in the city's bus colour
 }
 function ukStopAt(x, y){ let best = null, bd = matchMedia('(pointer:coarse)').matches ? 18 : 10;
   for(const [st, d] of ukStopsHere()){ const c = scr([st[2], st[3]]), k = Math.hypot(c.x - x, c.y - y); if(k < bd){ bd = k; best = [st, d]; } } return best; }
 function openUKStop([st, d]){
+  if(String(st[0]).startsWith('x:')) return openCityStation({st:[st[0], st[1], st[2], st[3], [['Bus', (CITYL.cur?.bus || ['#7E8BA3'])[0], 'bus']]], url:'stop'}); // abroad: departures from Transitous, by place
   const box = $('station'); unfocusLine(); clearFocus(); $('tip').style.display = 'none'; box.hidden = false;
   const routes = st[4].map(i => d.routes[i]).filter(Boolean);
   focusMarker = new google.maps.Marker({position:{lat:st[2], lng:st[3]}, map, zIndex:50, clickable:false, icon:{path:google.maps.SymbolPath.CIRCLE, scale:11, fillColor:'#fff', fillOpacity:.25, strokeColor:'#DC241F', strokeWeight:3}});
