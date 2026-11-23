@@ -2588,6 +2588,11 @@ function nrTrackPath(l, a, b){
 // come from the national timetable: each train on its current stretch between two stations, on the real track.
 // A train a live board already shows isn't added again. (Exact live positions: Darwin, once a server is running.)
 const TTV = {tiles:new Map(), busy:false, at:0, n:0};
+// a timetable vehicle's whole trip, fetched when it's tapped (Transitous): where it's going (headsign) rather than its next stop
+const TRIPI = new Map();
+async function tripInfo(trip){ if(!trip || TRIPI.has(trip)) return; TRIPI.set(trip, null);
+  try{ const j = await (await fetch('https://api.transitous.org/api/v5/trip?tripId=' + encodeURIComponent(trip), {signal:AbortSignal.timeout(10000)})).json(), L = j.legs?.[0];
+    if(L) TRIPI.set(trip, {dest:L.headsign || L.tripTo?.name || L.to?.name || ''}); if(TRIPI.size > 300) TRIPI.delete(TRIPI.keys().next().value); }catch(e){ TRIPI.delete(trip); } }
 const TT_OP = {Eurostar:'ES', 'NI Railways':'NI', LNER:'GR', EMR:'EM', 'East Midlands Railway':'EM', Avanti:'VT', 'Avanti West Coast':'VT', CrossCountry:'XC', XC:'XC', Northern:'NT', TransPennine:'TP', 'TransPennine Express':'TP', TPE:'TP', ScotRail:'SR', Southern:'SN', Thameslink:'TL', SWR:'SW', 'South Western Railway':'SW', Southeastern:'SE', GWR:'GW', 'Great Western Railway':'GW', c2c:'CC', 'Greater Anglia':'LE', 'Great Northern':'GN', Chiltern:'CH', 'Chiltern Railways':'CH', 'Grand Central':'GC', 'Hull Trains':'HT', TfW:'AW', 'Transport for Wales':'AW', WMR:'LM', 'West Midlands Railway':'LM', LNR:'LM', 'London Northwestern Railway':'LM', Merseyrail:'ME', Lumo:'LD', 'Caledonian Sleeper':'CS', 'Heathrow Express':'HX', 'Gatwick Express':'GX', 'Island Line':'IL', 'Night Riviera':'GW'};
 const TT_NAME = {ES:'Eurostar', GR:'LNER', EM:'East Midlands Railway', VT:'Avanti West Coast', XC:'CrossCountry', NT:'Northern', TP:'TransPennine Express', SR:'ScotRail', SN:'Southern', TL:'Thameslink', SW:'South Western Railway', SE:'Southeastern', GW:'Great Western Railway', CC:'c2c', LE:'Greater Anglia', GN:'Great Northern', CH:'Chiltern Railways', GC:'Grand Central', HT:'Hull Trains', AW:'Transport for Wales', LM:'West Midlands Railway', ME:'Merseyrail', LD:'Lumo', CS:'Caledonian Sleeper', HX:'Heathrow Express', GX:'Gatwick Express', IL:'Island Line', NI:'NI Railways'};
 const TT_TFL = /elizabeth|overground|liberty|lioness|mildmay|suffragette|weaver|windrush/i; // run by TfL: shown live by the TfL engine
@@ -2672,8 +2677,12 @@ function drawTTLines(ctx){
     if(look.stripe && look.w >= 2.5){ ctx.setLineDash([]); ctx.globalAlpha = 1; ctx.strokeStyle = MAP_BG(); ctx.lineWidth = look.w/3; ctx.stroke(); } }
   ctx.restore(); }
 // every 2 s: each ferry's place along its route now (a vehicle like the GPS ones, so it's drawn, tapped and toggled the same way)
+const kind0 = m => /FERRY/.test(m) ? 'ferry' : /BUS|COACH/.test(m) ? 'bus' : /TRAM/.test(m) ? 'tram' : /SUBWAY|METRO/.test(m) ? 'metro' : 'train';
 function ttTick(){ if(!TTV.ferries || !TRAINS_ON || inTfLArea([map.getCenter().lat(), map.getCenter().lng()])) return; const now = Date.now(), seen = new Set();
   const liveKinds = new Set(); for(const [k, g] of GPS.list) if(k.startsWith('la:')) liveKinds.add(g.v.kind || 'bus'); // what the city's live feed actually has (Amsterdam's has no metro, Rotterdam's does)
+  // live vehicles here, by kind and line: a timetable vehicle with a live twin nearby (same kind and line, within ~1.2 km,
+  // allowing for delays) isn't shown, whichever feed the two come from (Bordeaux's trams: TBM live, the region's timetable)
+  const liveAt = new Map(); for(const [k, g] of GPS.list) if((k.startsWith('la:') || k.startsWith('es:')) && g.v.line){ const key = vkind(g.v) + '|' + String(g.v.line).toLowerCase(); (liveAt.get(key) || liveAt.set(key, []).get(key)).push(g.to || [g.v.lat, g.v.lon]); }
   const best = new Map(); for(const e of TTV.ferries.values()){ const d = e.s[5], a = e.s[6], off = now < d ? d - now : now > a ? now - a : 0; if(off > 60000) continue; // one stretch per journey: the one it's on now
     const t = e.s[8], b = best.get(t); if(!b || off < b.off) best.set(t, {e, off}); }
   for(const [trip, {e:{s, pts}}] of best){ const [, col, name, from, to, dep, arr] = s;
@@ -2683,10 +2692,11 @@ function ttTick(){ if(!TTV.ferries || !TRAINS_ON || inTfLArea([map.getCenter().l
     if(TTV.esLive && Date.now() - TTV.esLive < 120000 && /RENFE-?Cercan|Rodalies|Cercan/i.test(trip)) continue;
     if(SRV.shipsAt && Date.now() - SRV.shipsAt < 120000 && /FERRY/.test(s[0])) continue; // ships live by AIS instead (their routes still drawn)
     if(TTV.cityLive && Date.now() - TTV.cityLive.at < 120000 && liveKinds.has(/FERRY/.test(s[0]) ? 'ferry' : /BUS|COACH/.test(s[0]) ? 'bus' : /TRAM/.test(s[0]) ? 'tram' : /SUBWAY|METRO/.test(s[0]) ? 'metro' : 'train') && LIVE_ABROAD.some(x => Date.now() - (TTV.live?.get(x[0])?.at || 0) < 120000 && x[4].test(trip) && (x[5] || /BUS/).test(s[0]))) continue; // that city's buses (and trams) are live // shown live by Renfe instead (its line is still drawn)
+    { const lk = liveAt.get(kind0(s[0]) + '|' + String(name || '').toLowerCase()); if(lk && lk.some(q => Math.abs(q[0] - p[0]) < 0.011 && Math.abs(q[1] - p[1]) < 0.016 && dist(q, p) < 1200)) continue; }
     const id = 'tf:' + trip; seen.add(id); let g = GPS.list.get(id);
     const m = s[0], kind = /FERRY/.test(m) ? 'ferry' : /BUS|COACH/.test(m) ? 'bus' : /TRAM/.test(m) ? 'tram' : /SUBWAY|METRO/.test(m) ? 'metro' : 'train';
     const feed = (s[8].split('_')[2] || '').replace(/^[a-z]{2}-/, '').replace(/[-_]+/g, ' ').replace(/\b\w/g, c => c.toUpperCase()).replace(/\bSncf\b/, 'SNCF').replace(/\bRatp\b/, 'RATP').replace(/\bFor\b/, 'for'); // the timetable it comes from (Transport for Ireland, SNCF…)
-    const v = {id, line:/^(rail|bus|tram|train)$/i.test(name) ? '' : name, op:kind !== 'ferry' ? feed || 'Timetable' : /^CM\d|^\d+[A-Z]?$/.test(name) ? 'CalMac' : 'Ferry', dest:to[0].replace(/ (Ferry )?Terminal$/i, ''), from:from[0].replace(/ (Ferry )?Terminal$/i, ''), lat:p[0], lon:p[1], kind, sched:true, t:null,
+    const v = {id, line:/^(rail|bus|tram|train)$/i.test(name) ? '' : name, op:kind !== 'ferry' ? feed || 'Timetable' : /^CM\d|^\d+[A-Z]?$/.test(name) ? 'CalMac' : 'Ferry', dest:(TRIPI.get(trip)?.dest || to[0]).replace(/ (Ferry )?Terminal$/i, ''), from:TRIPI.get(trip) ? null : from[0].replace(/ (Ferry )?Terminal$/i, ''), next:TRIPI.get(trip) ? to[0] : null, trip, lat:p[0], lon:p[1], kind, sched:true, t:null,
       train:kind === 'train', tram:kind === 'tram', metro:kind === 'metro', col:kind === 'bus' && CITYL.cur?.bus ? CITYL.cur.bus[0] /* one colour for a city's buses (as London's red), not their route colours, which clash with the metro's */ : col && /^[0-9a-f]{6}$/i.test(col) ? inkA('#' + col.toLowerCase()) : {ferry:'#00A0E2', train:'#1D5BA0', tram:'#7A1F3D', metro:'#0E4C92', bus:'#DC241F'}[kind],
       segAng:Math.atan2(-(B[0]-A[0]), (B[1]-A[1])*Math.cos(A[0]*rad))};
     if(!g){ g = {from:p, to:p, t0:now, dur:2000}; GPS.list.set(id, g); } else { g.from = gpsPos(g, now); g.to = p; g.t0 = now; g.dur = 2000; }
@@ -2794,11 +2804,12 @@ function gpsTip(e, r, tip){
   if(!best) return false;
   const v = best.v, age = v.t ? Math.max(0, Math.round((Date.now() - v.t)/1000)) : null;
   if(e.type === 'click' && vkind(v) === 'bus') showBusRoute(best); else if(e.type === 'click'){ BROUTE.polys = null; BROUTE.key = ''; }
+  if(v.sched && v.trip && !TRIPI.get(v.trip)) tripInfo(v.trip).then(() => { const t = TRIPI.get(v.trip); if(t && t.dest){ v.dest = t.dest; v.from = null; if(tip.style.display === 'block') gpsTip(e, r, tip); } }); // where it's really going
   const kind = v.train ? (v.freight ? 'freight train' : 'train') : v.kind || (v.tram ? 'tram' : 'bus'), col = v.col || (v.tram ? '#7A1F3D' : opCol(v.op));
   const coach = coachOf(v);
   const ico = coach ? 'busg' : v.train ? 'rail' : v.metro ? 'metrog' : vkind(v) === 'tram' ? 'tramg' : vkind(v) === 'ferry' ? 'ferryg' : vkind(v) === 'bus' ? 'busg' : 'tube';
   tip.innerHTML = coach ? `<div class="tt-h">${symbol('busg', coach[1], 20)}<b>${esc(coach[0])} coach${v.line ? ' ' + esc(v.line) : ''}</b></div>${v.dest ? `<div>To <b>${esc(coachDest(v.dest))}</b></div>` : ''}<div class="tt-m">long-distance coach${age != null ? ` · position ${age < 90 ? age + ' s' : Math.round(age/60) + ' min'} ago` : ''}</div>` : `<div class="tt-h">${symbol(ico, col, 20)}<b>${v.line ? esc(v.line) + ' ' + ((v.train && /\d/.test(v.line)) || new RegExp(kind + 's?$', 'i').test(v.line) ? '' : kind) : kind.replace(/^./, c => c.toUpperCase())}</b></div>
-    ${!v.line && !v.dest && kind === 'bus' ? '<div>Not in service (no route right now)</div>' : ''}${v.dest ? `<div>${v.from ? esc(v.from) + ' → ' : 'To '}<b>${esc(v.dest)}</b></div>` : ''}${v.speed != null ? `<div>${Math.round(v.speed)} km/h${v.late != null ? ` · ${v.late <= -90 ? Math.round(-v.late/60) + ' min late' : v.late >= 90 ? Math.round(v.late/60) + ' min early' : 'on time'}` : ''}</div>` : ''}
+    ${!v.line && !v.dest && kind === 'bus' ? '<div>Not in service (no route right now)</div>' : ''}${v.dest ? `<div>${v.from ? esc(v.from) + ' → ' : 'To '}<b>${esc(v.dest)}</b></div>` : ''}${v.next && v.next !== v.dest ? `<div>Next stop ${esc(v.next)}</div>` : ''}${v.speed != null ? `<div>${Math.round(v.speed)} km/h${v.late != null ? ` · ${v.late <= -90 ? Math.round(-v.late/60) + ' min late' : v.late >= 90 ? Math.round(v.late/60) + ' min early' : 'on time'}` : ''}</div>` : ''}
     <div class="tt-m">${[esc(opName(v.op || '')), v.sched ? 'position from the timetable (no live feed)' : v.est ? 'position from live timings' : '', age != null ? `position ${age < 90 ? age + ' s' : Math.round(age/60) + ' min'} ago` : ''].filter(Boolean).join(' · ')}</div>`;
   tip.style.display = 'block';
   tip.style.left = Math.max(8, Math.min(innerWidth - 258, e.clientX + 14)) + 'px'; tip.style.top = Math.max(8, Math.min(innerHeight - 150, e.clientY + 14)) + 'px';
