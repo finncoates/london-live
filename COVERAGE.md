@@ -29,9 +29,10 @@ Plymouth, Oxford, Cambridge, York, Isle of Wight.
 
 | Missing | Why | How to get it | Effort / cost |
 |---|---|---|---|
-| **Exact live position of every National Rail train** | The public departure boards only list trains from the station on; the rest are shown from the timetable | **Darwin**: the server is **built and tested** (ail/darwin, see its SETUP.md); the relay and map already switch to it when it's connected. It needs the always-on machine (Oracle free tier). The Darwin key goes on that server, not the relay | Free. You: create the Oracle account (needs a card for verification), then ~15 min to install |
+| **Exact live position of every National Rail train** | The public departure boards only list trains from the station on; the rest are shown from the timetable | **Darwin**: the server is **built and tested** (
+ail/darwin, see its SETUP.md); the relay and map already switch to it when it's connected. It needs the always-on machine (Oracle free tier). The Darwin key goes on that server, not the relay | Free. You: create the Oracle account (needs a card for verification), then ~15 min to install |
 | **Nottingham trams (NET)** | NET publishes no open timetable or live feed (not in Bus Open Data, not in Transitous). Lines are drawn, no trams | Ask NET (Transdev) for their GTFS timetable, or register for Traveline's TNDS dataset and check whether it includes NET | Free; an email/registration by you |
-| **Manchester Metrolink live** | Shown from the timetable; TfGM's live departures need a free key | Register at developer.tfgm.com (free), add the key as `TFGM_KEY` on the relay. The relay already supports it | 10 minutes, you |
+| **Manchester Metrolink live** | Shown from the timetable (every tram, on its line) | TfGM's developer portal has stopped issuing new live keys, so there's no free route today. If it reopens, add the key as `TFGM_KEY` on the relay (already supported) | Waiting on TfGM |
 | **First Bus in Glasgow and Aberdeen** | First doesn't share live positions in Scotland (England's are in BODS by law; Scotland has no such rule) | Nothing open; only First's own app. The routes are drawn | — |
 | **Live trams/metros elsewhere** (Sheffield, Birmingham, Blackpool, Tyne & Wear, Glasgow Subway) | No public live feed (Tyne & Wear has an unofficial one) | Timetable for now; Nexus (Tyne & Wear) could be added from its unofficial API | Small |
 | **Live ferries** | Ferries are shown from the timetable | Ship positions (AIS) through aisstream.io (free key) on the same Oracle server | Free; needs the server |
@@ -45,6 +46,8 @@ Anywhere without its own feed now shows the trains, trams, metros and ferries ru
 **France** (Lyon: TGV, OUIGO, metro, trams; rural France: TGV/TER). Dense Paris is very heavy: it works with small
 map tiles but the first view can be slow or miss some vehicles.
 Live already (own feeds): Finland/Helsinki, Norway, Berlin, Boston, Tallinn, Gdańsk, Vilnius.
+**Explore menu**: Europe (UK, Ireland, France, Spain), North America (Toronto) and **Asia — Japan** (Tokyo, Osaka, Kyoto, Sapporo, Fukuoka). Japan is timetable-only (Transitous): no open live positions exist for JR or the Tokyo Metro without a paid ODPT/partner key.
+
 **New live feeds**: **Spain** — Renfe's trains live (~430: Cercanías/Rodalies in Madrid, Barcelona, Seville…; AVE/long distance from the timetable); **Rennes** — every STAR bus live; **Toronto** — TTC streetcars and buses live (~1,150; subway from the timetable).
 Other cities checked and not possible without a key: Paris (RATP/IDFM: free PRIM key), Ireland's buses (NTA: free key), Netherlands (live positions open, but no route names without a 200 MB timetable), Brussels, Switzerland, Prague, Warsaw (keys).
 
