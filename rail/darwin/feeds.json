@@ -1503,6 +1503,16 @@
    "trips": "auto",
    "url": "https://gtfs.bus-tracker.fr/gtfs-rt/tcl",
    "gtfs": "https://gtfs.bus-tracker.fr/tcl.zip"
+  },
+  {
+   "id": "fr-star-rennes",
+   "name": "STAR (Rennes)",
+   "tt": "fr-versions-des-horaires-theoriques-des-lignes-de-bus-et-de-metro-du-reseau-star-dans-les-formats-gtfs-et-netex-ainsi-que-les-urls-dacces-au-gtfs-rt-1",
+   "ttModes": "BUS|TRAM|SUBWAY|COACH|FERRY",
+   "every": 30,
+   "trips": "auto",
+   "url": "https://proxy.transport.data.gouv.fr/resource/star-rennes-integration-gtfs-rt-vehicle-position",
+   "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/0644f537-575e-4cce-9570-06165d6f3b27"
   }
  ]
 }

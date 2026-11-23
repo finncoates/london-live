@@ -1918,8 +1918,7 @@ async function bostonVehicles(){
 // keep only the vehicles of the source being shown (switching country drops the last one's)
 const GPS_SRC = ['fi:', 'hsl:', 'no:', 'us:', 'de:', 'sch:', 'co:', 'tf:', 'es:', 'la:', 'ais:']; // (es: Renfe live; la: other live city feeds abroad)
 // Live city feeds abroad that browsers can read directly (no key): [name, box minLat,minLon,maxLat,maxLon, url, parse → vehicles, timetable trips they replace]
-const LIVE_ABROAD = [['Rennes', [47.95, -1.95, 48.30, -1.45], 'https://data.explore.star.fr/api/explore/v2.1/catalog/datasets/tco-bus-vehicules-position-tr/exports/json?where=etat%3D%22En%20ligne%22',
-  j => j.filter(b => b.coordonnees).map(b => ({id:'la:star:' + b.idbus, line:b.nomcourtligne || '', op:'STAR Rennes', dest:b.destination || '', lat:b.coordonnees.lat, lon:b.coordonnees.lon, brg:null, t:null, late:b.ecartsecondes != null ? -b.ecartsecondes : null, kind:'bus'})), /star/i],
+const LIVE_ABROAD = [ // (Rennes: STAR's own API has a daily limit shared by every visitor, so it comes through the server's GTFS-realtime feed instead)
   ['Toronto', [43.55, -79.75, 43.95, -79.05], 'https://retro.umoiq.com/service/publicJSONFeed?command=vehicleLocations&a=ttc&t=0', // TTC streetcars (500s) and buses
   j => (j.vehicle || []).map(v => { const tram = +v.routeTag >= 500 && +v.routeTag < 600; return {id:'la:ttc:' + v.id, line:v.routeTag, op:'TTC', dest:'', lat:+v.lat, lon:+v.lon, brg:v.heading != null && +v.heading >= 0 ? +v.heading : null, speed:v.speedKmHr != null ? +v.speedKmHr : null, t:Date.now() - (+v.secsSinceReport || 0)*1000, kind:tram ? 'tram' : 'bus', tram, col:tram ? '#DA251D' : null}; }), /ttc/i, /BUS|TRAM/]]; // (tf: ferries from the timetable)
 // The London Live server (rail/darwin, on the always-on machine): big live feeds (the Netherlands, Rome, Kraków, Brisbane,
