@@ -2226,7 +2226,7 @@ function busnetTiles(){
   for(let la = Math.floor(sw.lat()*10); la <= Math.floor(ne.lat()*10); la++) for(let lo = Math.floor(sw.lng()*10); lo <= Math.floor(ne.lng()*10); lo++) out.push(la + '_' + lo);
   return out.length > 30 ? [] : out;
 }
-const BUSNET_COL = {berlin:['#A5027D', '#D04FAE'], boston:['#E0A000', '#FFC72C'], helsinki:['#007AC9', '#3AA0E8'], oslo:['#E60000', '#FF5A5A']};
+const BUSNET_COL = {berlin:['#A5027D', '#B8509E'], boston:['#E0A000', '#9C8436'], helsinki:['#007AC9', '#3AA0E8'], oslo:['#E60000', '#FF5A5A']};
 function drawBusNet(ctx){
   if(busOff() || GPS_OFF.has('bus') || PV.z < 12) return; const c = map.getCenter(); if(!c) return; const rg = regionOf([c.lat(), c.lng()]); { if(rg !== 'uk' && rg !== 'edinburgh' && rg !== 'london' && rg !== 'berlin' && rg !== 'boston' && !(rg === 'finland' && inHelsinki([c.lat(), c.lng()])) && rg !== 'norway' && rg !== 'city' && !CITYL.cur?.name?.match(/Manchester/)) return; } // Berlin, Boston, Helsinki: from their own timetables
   const zc = Math.floor(PV.z), k = 2 ** (PV.z - zc), look = lineLook('bus', lineW());
