@@ -375,6 +375,16 @@ const polyEnc = pts => { let o = '', pa = 0, po = 0; const e = v => { v = v < 0 
 const polyThin = (str, tol) => { if(!tol || !str) return str; const p = polyDec(str), t = tol*1e5, out = [p[0]];
   for(let i = 1; i < p.length - 1; i++){ const q = out[out.length - 1]; if(Math.abs(p[i][0] - q[0]) + Math.abs(p[i][1] - q[1]) >= t) out.push(p[i]); }
   if(p.length > 1) out.push(p[p.length - 1]); return polyEnc(out); };
+// Long journeys (Strasbourg–Paris) carry their whole shape, repeated in every tile they cross: keep only the stretch
+// over this tile (plus a margin) and move the times to match, so the vehicle is still in the right place along it.
+const polyClip = (str, dep, arr, box, m) => { if(!str) return [str, dep, arr]; const p = polyDec(str); if(p.length < 3) return [str, dep, arr];
+  const [a0, b0, a1, b1] = [(box[0] - m)*1e5, (box[1] - m)*1e5, (box[2] + m)*1e5, (box[3] + m)*1e5], inn = q => q[0] >= a0 && q[0] <= a1 && q[1] >= b0 && q[1] <= b1;
+  let i0 = -1, i1 = -1; for(let i = 0; i < p.length; i++) if(inn(p[i])){ if(i0 < 0) i0 = i; i1 = i; }
+  if(i0 < 0) return [str, dep, arr]; i0 = Math.max(0, i0 - 1); i1 = Math.min(p.length - 1, i1 + 1);
+  if(i0 === 0 && i1 === p.length - 1) return [str, dep, arr];
+  const cum = [0]; for(let i = 1; i < p.length; i++){ const dy = p[i][0] - p[i-1][0], dx = (p[i][1] - p[i-1][1])*Math.cos(p[i][0]*1.745e-7); cum.push(cum[i-1] + Math.hypot(dx, dy)); }
+  const D = cum[cum.length - 1] || 1, T = arr - dep;
+  return [polyEnc(p.slice(i0, i1 + 1)), Math.round(dep + T*cum[i0]/D), Math.round(dep + T*cum[i1]/D)]; };
 const TT_MODES = {rail:/RAIL|LONG_DISTANCE|SUBURBAN|NIGHT_RAIL|HIGHSPEED/, tram:/TRAM|SUBWAY|METRO|FUNICULAR|CABLE/, bus:/BUS|COACH/, ferry:/FERRY/};
 async function ttTile(url, cors){
   const sz = [4, 2, 1, 0.5, 0.25, 0.125].includes(+url.searchParams.get('s')) ? +url.searchParams.get('s') : 0.5; // smaller tiles for dense cities (Paris); 1–4° tiles for a whole country zoomed out (Transitous then sends only intercity / high-speed)
@@ -390,7 +400,9 @@ async function ttTile(url, cors){
         const r = await fetch('https://api.transitous.org/api/v5/map/trips?' + q, {headers:{'user-agent':'LondonLive/1.0 (+https://github.com/finncoates/london-live)'}, signal:AbortSignal.timeout(20000)});
         if(!r.ok) throw fail('Transitous: HTTP ' + r.status, 502);
         const stop = s => [s.name, s.stopCode || null, +s.lat.toFixed(5), +s.lon.toFixed(5)];
-        const v = (await r.json()).map(s => [s.mode, s.routeColor || null, s.trips?.[0]?.displayName || '', stop(s.from), stop(s.to), Date.parse(s.departure), Date.parse(s.arrival), s.realTime ? 1 : 0, s.trips?.[0]?.tripId || '', polyThin(s.polyline || '', sz >= 4 ? 0.02 : sz >= 2 ? 0.01 : sz >= 1 ? 0.005 : 0)]);
+        const box = [la, lo, la + sz, lo + sz], tol = sz >= 4 ? 0.02 : sz >= 2 ? 0.01 : sz >= 1 ? 0.005 : 0.0002;
+        const v = (await r.json()).map(s => { const c = polyClip(s.polyline || '', Date.parse(s.departure), Date.parse(s.arrival), box, Math.max(0.03, sz*0.4));
+          return [s.mode, s.routeColor || null, s.trips?.[0]?.displayName || '', stop(s.from), stop(s.to), c[1], c[2], s.realTime ? 1 : 0, s.trips?.[0]?.tripId || '', polyThin(c[0], tol)]; });
         TT_MEM.set(key, v); for(const k of TT_MEM.keys()) if(+k.split(':')[2] < bucket - 240000) TT_MEM.delete(k);
         return v; })().finally(() => TT_WAIT.delete(key));
       TT_WAIT.set(key, w); }

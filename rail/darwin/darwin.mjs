@@ -29,9 +29,11 @@ export class Darwin {
   ingest(raw){
     let xml = typeof raw === 'string' ? raw : raw?.toString?.('utf8') ?? '';
     if(xml.trimStart().startsWith('{')){ try{ const j = JSON.parse(xml); xml = j.bytes || j.Bytes || j.message || j.body || ''; }catch(e){ return; } }
-    if(!xml.includes('Pport')) return;
-    let doc; try{ doc = parser.parse(xml); }catch(e){ return; }
-    const pp = doc.Pport; if(!pp) return;
+    let pp;
+    if(typeof xml === 'string' && xml.trimStart().startsWith('{')){ // RDM's JSON topic: the Pport itself as JSON, same names as the XML ({"ts", "uR":{"TS":{…}}})
+      try{ pp = JSON.parse(xml); }catch(e){ return; } if(pp.Pport) pp = pp.Pport; if(!pp.uR && !pp.sR) return; }
+    else { if(!xml.includes('Pport')) return;
+      let doc; try{ doc = parser.parse(xml); }catch(e){ return; } pp = doc.Pport; if(!pp) return; }
     this.msgs++; this.last = Date.now();
     for(const u of [...arr(pp.uR), ...arr(pp.sR)]){
       for(const s of arr(u.schedule)) this.schedule(s);
@@ -40,7 +42,7 @@ export class Darwin {
     } }
   schedule(s){
     const t = this.trains.get(s.rid) || {rid:s.rid, locs:[]};
-    Object.assign(t, {uid:s.uid, trainId:s.trainId, ssd:s.ssd, toc:s.toc, cancelled:s.isCancelled === 'true' || s.cancelReason != null});
+    Object.assign(t, {partial:false, uid:s.uid, trainId:s.trainId, ssd:s.ssd, toc:s.toc, cancelled:s.isCancelled === 'true' || s.cancelReason != null});
     const old = new Map(t.locs.map(l => [l.tpl + '|' + (l.w || ''), l]));
     const locs = [];
     for(const k of LOC_KINDS) for(const l of arr(s[k])) locs.push({k, tpl:l.tpl, pta:l.pta, ptd:l.ptd, wta:l.wta, wtd:l.wtd, wtp:l.wtp, can:l.can === 'true'});

@@ -28,6 +28,9 @@ const SNAP = path.join(here, 'state.json');
 
 // survive restarts: the trains seen so far are saved every minute
 try{ const s = JSON.parse(fs.readFileSync(SNAP, 'utf8')); for(const t of s) D.trains.set(t.rid, t); console.log('restored', D.trains.size, 'trains'); }catch(e){}
+// a fresh start knows only fragments of the trains already running (their timetables come when they set off): until
+// it has seen a couple of hours, the map keeps using station boards. A restart with saved state is ready at once.
+const READY_AT = Date.now() + ([...D.trains.values()].filter(t => !t.partial).length > 500 ? 0 : 2*3600e3);
 setInterval(() => { D.prune(); try{ fs.writeFileSync(SNAP + '.tmp', JSON.stringify([...D.trains.values()])); fs.renameSync(SNAP + '.tmp', SNAP); }catch(e){ console.warn('save', e.message); } }, 60000);
 
 // testing without Kafka: DARWIN_REPLAY=file of Push Port messages (one per line) is read in at the start
@@ -52,11 +55,13 @@ async function consume(){
   consumer.on(consumer.events.CRASH, e => console.warn('darwin: consumer crashed:', e.payload.error && e.payload.error.message, e.payload.restart ? '(restarting)' : ''));
   await consumer.connect();
   await consumer.subscribe({topic:env.DARWIN_TOPIC, fromBeginning:false});
-  await consumer.run({eachMessage:async ({message}) => { try{ D.ingest(message.value); }catch(e){ console.warn('message', e.message); } }});
+  await consumer.run({eachMessage:async ({message}) => { D.raw = (D.raw || 0) + 1;
+    if(D.raw === 1){ const t = String(message.value || '').slice(0, 300); console.log('darwin: first message', (message.value || '').length, 'bytes:', t.replace(/\s+/g, ' ').slice(0, 200)); }
+    try{ D.ingest(message.value); }catch(e){ console.warn('message', e.message); } }});
   console.log('reading', env.DARWIN_TOPIC);
   // watchdog: Darwin sends several messages a second, so 3 minutes of silence means a stuck connection: start again
-  const since = D.msgs, started = Date.now();
-  const dog = setInterval(async () => { const quiet = Date.now() - (D.last && D.msgs > since ? D.last : started);
+  const since = D.raw || 0, started = Date.now(); let seen = since, seenAt = started;
+  const dog = setInterval(async () => { if((D.raw || 0) !== seen){ seen = D.raw || 0; seenAt = Date.now(); } const quiet = Date.now() - seenAt;
     if(quiet < 180000) return; clearInterval(dog); console.warn('darwin: nothing for 3 minutes, reconnecting');
     try{ await consumer.disconnect(); }catch(e){} loop(); }, 30000);
 }
@@ -68,12 +73,13 @@ http.createServer((req, res) => {
   const u = new URL(req.url, 'http://x'), send = (code, body) => { res.writeHead(code, {'content-type':'application/json', 'cache-control':'no-store', 'access-control-allow-origin':'*'}); res.end(JSON.stringify(body)); };
   if(env.RELAY_TOKEN && req.headers['x-relay-token'] !== env.RELAY_TOKEN && u.pathname !== '/health') return send(403, {error:'forbidden'});
   const bbox = (b => b.length === 4 && b.every(isFinite) ? b : null)((u.searchParams.get('bbox') || '').split(',').map(Number));
-  if(u.pathname === '/health') return send(200, {ok:true, trains:D.trains.size, messages:D.msgs, lastMessage:D.last ? new Date(D.last).toISOString() : null, darwin:!!env.DARWIN_BOOTSTRAP,
+  if(u.pathname === '/health') return send(200, {ok:true, trains:D.trains.size, messages:D.msgs, lastMessage:D.last ? new Date(D.last).toISOString() : null, received:D.raw || 0, darwin:!!env.DARWIN_BOOTSTRAP,
     ferries:{on:!!env.AISSTREAM_KEY, status:AIS.status, ships:AIS.list(null).length, messages:AIS.msgs},
     feeds:Object.fromEntries([...FEEDS].map(([id, F]) => [id, {name:F.cfg.name, box:F.cfg.box, tt:F.cfg.tt || null, ttModes:F.cfg.ttModes || null, vehicles:F.vehicles.length, routes:F.routes.size, at:F.at ? new Date(F.at).toISOString() : null, error:F.error}]))});
   if(u.pathname === '/ferries') return send(200, {at:Date.now(), ships:AIS.list(bbox)});
   if(u.pathname === '/rt'){ const F = FEEDS.get(u.searchParams.get('feed')); if(!F) return send(404, {error:'no such feed (on)'}); return send(200, {feed:F.cfg.id, name:F.cfg.name, at:F.at, error:F.error, vehicles:F.list(bbox)}); }
   if(u.pathname === '/trains'){
-    return send(200, {generatedAt:new Date().toISOString(), source:'darwin', trains:D.calls(tiplocs, Date.now(), bbox, names)}); }
+    if(Date.now() < READY_AT) return send(200, {generatedAt:new Date().toISOString(), source:'darwin', warming:true, readyAt:new Date(READY_AT).toISOString(), trains:[]});
+    return send(200, {generatedAt:new Date().toISOString(), source:'darwin', trains:D.calls(tiplocs, Date.now(), bbox, names).filter(t => t.op || t.dest)}); }
   send(404, {error:'not found'});
 }).listen(+env.PORT || 8080, () => console.log('London Live server on port', +env.PORT || 8080));

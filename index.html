@@ -2586,8 +2586,12 @@ async function refreshTT(){
     if(tiles.length > (sz >= 4 ? 20 : sz >= 2 ? 15 : 12)){ const m = [c0.lat() - 0.25, c0.lng() - 0.25]; tiles.sort((x, y) => Math.hypot(x[0] - m[0], (x[1] - m[1])*0.6) - Math.hypot(y[0] - m[0], (y[1] - m[1])*0.6)); tiles.length = 12; }
     TTV.busy = true;
     try{ const now = Date.now(), modes = 'rail,tram,ferry' + (zq >= 14 && !busOff() ? ',bus' : '');
-      const res = await Promise.all(tiles.map(([la, lo]) => railGet(`/tt?la=${la}&lo=${lo}&s=${tiles.sz}&modes=${modes}&z=${zq < 7 ? 6 : zq < 9 ? 8 : Math.min(14, zq + 1)}`).catch(() => null)));
-      TTV.ferries = new Map(); for(const r of res) for(const s of r?.vehicles || []) if(s[9] && s[6] > now && !TTV.ferries.has(s[8])){ const pts = decodePoly(s[9]); if(pts.length > 1) TTV.ferries.set(s[8], {s, pts}); }
+      // each tile is added as soon as it arrives (no waiting for the slowest); every stretch of each journey is kept
+      // (keyed by trip and time: a bus passing three stops in the window has three), and older ones go once all are in
+      const fresh = new Set(), add = r => { for(const s of r?.vehicles || []) if(s[9] && s[6] > now){ const k = s[8] + '|' + s[5]; fresh.add(k); if(TTV.ferries?.has(k)) continue; const pts = decodePoly(s[9]); if(pts.length > 1) (TTV.ferries ||= new Map()).set(k, {s, pts}); } };
+      if(!TTV.world) TTV.ferries = new Map();
+      const res = await Promise.all(tiles.map(([la, lo]) => railGet(`/tt?la=${la}&lo=${lo}&s=${tiles.sz}&modes=${modes}&z=${zq < 7 ? 6 : zq < 9 ? 8 : Math.min(14, zq + 1)}`).then(r => (add(r), r)).catch(() => null)));
+      for(const k of [...TTV.ferries.keys()]) if(!fresh.has(k)) TTV.ferries.delete(k);
       TTV.n = TTV.ferries.size; TTV.at = now; TTV.world = true;
       BUS.note = (TTV.esLive && Date.now() - TTV.esLive < 120000 ? `${TTV.esN} Renfe trains live · ` : '') + (TTV.cityLive && Date.now() - TTV.cityLive.at < 120000 ? `${TTV.cityLive.n} ${TTV.cityLive.name} ${TTV.cityLive.name === 'Toronto' ? 'buses and streetcars' : TTV.cityLive.what || 'buses'} live · ` : '') + `${TTV.n} ${zq < 7 ? 'high-speed and intercity trains' : zq < 9 ? 'trains' : 'trains, trams' + (zq >= 14 ? ', buses' : '') + ' and ferries'} here, placed from the timetable (Transitous open data${(TTV.esLive && Date.now() - TTV.esLive < 120000) || (TTV.cityLive && Date.now() - TTV.cityLive.at < 120000) ? '' : '; no live positions here yet'})${zq < 7 ? ' · zoom in for regional trains' : zq < 9 ? ' · zoom in for trams and metros' : zq < 14 ? ' · zoom in for buses' : ''}`;
       if(!TTV.n){ const c = map.getCenter(), h = (new Date().getUTCHours() + Math.round(c.lng()/15) + 24) % 24; // rough local hour from longitude
@@ -2646,7 +2650,9 @@ function drawTTLines(ctx){
 // every 2 s: each ferry's place along its route now (a vehicle like the GPS ones, so it's drawn, tapped and toggled the same way)
 setInterval(() => { if(!TTV.ferries || !TRAINS_ON || inTfLArea([map.getCenter().lat(), map.getCenter().lng()])) return; const now = Date.now(), seen = new Set();
   const liveKinds = new Set(); for(const [k, g] of GPS.list) if(k.startsWith('la:')) liveKinds.add(g.v.kind || 'bus'); // what the city's live feed actually has (Amsterdam's has no metro, Rotterdam's does)
-  for(const [trip, {s, pts}] of TTV.ferries){ const [, col, name, from, to, dep, arr] = s; if(now < dep - 60000 || now > arr + 60000) continue;
+  const best = new Map(); for(const e of TTV.ferries.values()){ const d = e.s[5], a = e.s[6], off = now < d ? d - now : now > a ? now - a : 0; if(off > 60000) continue; // one stretch per journey: the one it's on now
+    const t = e.s[8], b = best.get(t); if(!b || off < b.off) best.set(t, {e, off}); }
+  for(const [trip, {e:{s, pts}}] of best){ const [, col, name, from, to, dep, arr] = s;
     if(!pts.cum){ pts.cum = [0]; for(let i = 1; i < pts.length; i++) pts.cum.push(pts.cum[i-1] + dist(pts[i-1], pts[i])); }
     const f = Math.max(0, Math.min(1, (now - dep)/((arr - dep) || 1))), L = pts.cum[pts.cum.length-1]*f; let i = 1; while(i < pts.length - 1 && pts.cum[i] < L) i++;
     const u = Math.max(0, Math.min(1, (L - pts.cum[i-1])/((pts.cum[i] - pts.cum[i-1]) || 1))), A = pts[i-1], B = pts[i], p = [A[0] + (B[0]-A[0])*u, A[1] + (B[1]-A[1])*u];

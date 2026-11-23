@@ -68,3 +68,9 @@ test('GTFS: quoted CSV and route kinds', () => {
   assert.equal(r.length, 3); assert.equal(r[0].route_short_name, 'Line "A", east');
   assert.deepEqual(['0', '1', '2', '3', '4', '401', '109', '900', '1200', '700'].map(kindOf), ['tram', 'metro', 'train', 'bus', 'ferry', 'metro', 'train', 'tram', 'ferry', 'bus']);
 });
+
+test('RDM JSON topic: the Pport as JSON inside "bytes"', () => {
+  const D = new Darwin();
+  const inner = {ts:'2026-11-23T20:38:54Z', version:'18.0', uR:{updateOrigin:'Trust', TS:{rid:'202611236702128', uid:'C02128', ssd:'2026-11-23', Location:{tpl:'LEEDSWJ', wtp:'20:17:30', pass:{at:'20:38'}}}}};
+  D.ingest(Buffer.from(JSON.stringify({destination:{name:'x'}, messageType:'bytes', bytes:JSON.stringify(inner)})));
+  assert.equal(D.msgs, 1); assert.equal(D.trains.size, 1); assert.equal(D.trains.get('202611236702128').locs[0].at, '20:38'); });
