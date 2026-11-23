@@ -2121,8 +2121,13 @@ async function refreshGps(){
       res.vehicles = (res.vehicles || []).filter(v => !COACH.ops.has(v.op) || !co.some(g => String(g.v.line) === String(v.line) && dist(g.to, [v.lat, v.lon]) < 400)); }
     gpsMerge(res);
     const gap = NO_OPEN_GPS.find(([b]) => p[0] > b[0] && p[0] < b[2] && p[1] > b[1] && p[1] < b[3]);
-    { const nb = [...GPS.list.keys()].filter(k => !k.startsWith('co:')).length;
-    BUS.note = (gap ? gap[1] + ' ' : '') + (nb ? `${nb + (nb === 1 ? ' bus' : ' buses')}${[...GPS.list.values()].some(g => g.v.tram) ? ' and trams' : ''} here (GPS)` : 'No local buses out here right now (live GPS)') + (RAIL.relay === 'demo' ? ' · demo data' : ''); }
+    { const L = [...GPS.list.values()].filter(g => !g.v.coach), pl = (n, a, b) => n + ' ' + (n === 1 ? a : b);
+      const buses = L.filter(g => vkind(g.v) === 'bus').length, rail = L.filter(g => vkind(g.v) !== 'bus'), live = rail.filter(g => !g.v.sched), tt = rail.filter(g => g.v.sched);
+      const kinds = A => { const k = [...new Set(A.map(g => vkind(g.v)))], P = {tram:'trams', metro:'metro trains', ferry:'ferries', train:'trains'}, w = k.map(x => P[x] || 'vehicles');
+        return pl(A.length, k.length === 1 ? {tram:'tram', metro:'metro train', ferry:'ferry', train:'train'}[k[0]] || 'vehicle' : 'vehicle', w.length > 1 ? w.slice(0, -1).join(', ') + ' and ' + w.at(-1) : w[0]); };
+      const parts = [buses ? pl(buses, 'bus', 'buses') + (live.length ? ' and ' + kinds(live) : '') + ' here (live GPS)' : live.length ? kinds(live) + ' here (live GPS)' : 'No local buses out here right now (live GPS)'];
+      if(tt.length) parts.push(kinds(tt) + ' placed from the timetable');
+      BUS.note = (gap ? gap[1] + ' ' : '') + parts.join(' · ') + (RAIL.relay === 'demo' ? ' · demo data' : ''); }
   }catch(e){ BUS.note = /^HTTP 503|BODS_KEY/.test(e.message) ? 'Live buses here are coming soon: they switch on once the bus data key is set up.' : /bbox|area too big|HTTP|fetch|abort|timed? ?out|network/i.test(e.message) ? 'Live buses could not be loaded just now; trying again shortly.' : e.message; }
   GPS.busy = false; renderBusNote();
 }
