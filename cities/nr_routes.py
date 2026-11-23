@@ -62,11 +62,23 @@ def draw(S, minlen):
         parallel = i0 > 0 and i1 < n and all(beside(t) for t in range(i0, i1, 3))  # leaves a line and rejoins it, never far from it: another track of the same railway
         if not parallel and ((i1 - i0) * STEP >= minlen or (i0 == 0 and i1 == n)):
             # start/end where the service is closest to the line it leaves/joins (looking back up to ~60 m), joined to that line
+            # where it leaves / joins a drawn line: blend from that line onto its own track over a gentle stretch
+            # (≥150 m, longer the further apart), like a real turnout; no hooks or sharp corners
+            def blend(rng):  # rng: covered sample indexes, from the drawn line towards the new part
+                out = []; m = len(rng)
+                for k, t in enumerate(rng):
+                    w = (k + 1) / (m + 1); w = w*w*(3 - 2*w); q = cov[t][1]
+                    out.append((q[0] + (S[t][0]-q[0])*w, q[1] + (S[t][1]-q[1])*w, q[4] + (S[t][2]-q[4])*w, q[5] + (S[t][3]-q[5])*w))
+                return out
+            def span(t0, step_):  # covered samples next to the new part, enough for a gentle blend
+                off = cov[t0][0]; want = max(150.0, off * 18) / STEP; out = []; t = t0
+                while 0 <= t < n and cov[t] and len(out) < want: out.append(t); t += step_
+                return out
             pre = []; post = []
             if i0 > 0:
-                m = min((t for t in range(max(0, i0-8), i0) if cov[t]), key=lambda t: cov[t][0]); pre = [(cov[m][1][0], cov[m][1][1], cov[m][1][4], cov[m][1][5])] + S[m:i0]
+                r_ = span(i0 - 1, -1)[::-1]; q = cov[r_[0]][1]; pre = [(q[0], q[1], q[4], q[5])] + blend(r_)
             if i1 < n:
-                m = min((t for t in range(i1, min(n, i1+8)) if cov[t]), key=lambda t: cov[t][0]); post = S[i1:m+1] + [(cov[m][1][0], cov[m][1][1], cov[m][1][4], cov[m][1][5])]
+                r_ = span(i1, 1); q = cov[r_[-1]][1]; post = blend(r_[::-1])[::-1] + [(q[0], q[1], q[4], q[5])]
             seg = pre + S[i0:i1] + post
             if len(seg) > 1: new.append(seg)
         k = j
@@ -83,10 +95,26 @@ for i, S in enumerate(paths):
 # 2. running lines no service in the data uses (freight, missing services): only long uncovered stretches
 def keep(t):
     return drawable(t) and not t.get('service') and t.get('railway:preserved') != 'yes' and t.get('usage') in ('main', 'branch', None)
-extra = [resample([(n, la, lo) for n, la, lo in p]) for wid, (t, p) in W.items() if keep(t) and len(p) > 1]
+# OSM splits a line into many short ways (bridges, junctions): join them end to end through points where just two meet
+xw = [p for wid, (t, p) in W.items() if keep(t) and len(p) > 1]
+ends = collections.defaultdict(list)
+for i, p in enumerate(xw): ends[p[0][0]].append(i); ends[p[-1][0]].append(i)
+used = set(); chains = []
+for i in range(len(xw)):
+    if i in used: continue
+    used.add(i); c = list(xw[i])
+    for _ in (0, 1):
+        while True:
+            nb = [j for j in ends[c[-1][0]] if j not in used]
+            if len(ends[c[-1][0]]) != 2 or not nb: break
+            j = nb[0]; used.add(j); q = xw[j]; c += (q if q[0][0] == c[-1][0] else q[::-1])[1:]
+        c = c[::-1]
+    chains.append(c)
+print(len(xw), 'unused-line ways ->', len(chains), 'chains', flush=True)
+extra = [resample(p) for p in chains]
 extra = [S for S in extra if 49.8 < S[0][2] < 61 and S[0][3] > -8.7]
 extra.sort(key=len, reverse=True); n0 = len(runs)
-for S in extra: draw(S, 250)
+for S in extra: draw(S, 600)  # long enough to be a line of its own, not a platform road or a siding
 print(len(runs) - n0, 'runs from lines without services', flush=True)
 # output: 0.5° tiles (~1 m detail) + overview
 def dp(p, eps):  # p in lat/lon, eps in metres
