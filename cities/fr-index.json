@@ -750,21 +750,6 @@
 ]
 },
 {
-"id": "copenhagen",
-"name": "Copenhagen",
-"box": [
-55.45,
-12.05,
-55.98,
-12.7
-],
-"url": "cities/dk-copenhagen.json",
-"bus": [
-"#7E8BA3",
-"#97A6BF"
-]
-},
-{
 "id": "aarhus",
 "name": "Aarhus",
 "box": [
@@ -789,6 +774,51 @@
 10.5
 ],
 "url": "cities/dk-odense.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "n-uba-horaires-navettes-maritimes-0129ab",
+"name": "Andernos-les-Bains",
+"box": [
+44.622,
+-1.267,
+44.759,
+-1.072
+],
+"url": "cities/fr-n-uba-horaires-navettes-maritimes-0129ab.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "copenhagen",
+"name": "Copenhagen",
+"box": [
+55.45,
+12.05,
+55.98,
+12.7
+],
+"url": "cities/dk-copenhagen.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "n-lignes-arrets-et-horaires-theori-692ae8",
+"name": "Les Sables d'Olonne Agglomération",
+"box": [
+46.451,
+-1.841,
+46.626,
+-1.642
+],
+"url": "cities/fr-n-lignes-arrets-et-horaires-theori-692ae8.json",
 "bus": [
 "#7E8BA3",
 "#97A6BF"
