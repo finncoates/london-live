@@ -2145,6 +2145,9 @@ function cityStationAt(x, y, rad0){
   return best;
 }
 // its card: lines in their colours, and live departures where a free source exists
+// a destination in capitals (many French timetables: 'TAILLAN LA BOETIE') in ordinary case: 'Taillan la Boetie'
+const tcase = t => !t || t !== t.toUpperCase() || !/\p{Lu}{3}/u.test(t) ? t : t.toLowerCase().replace(/(^|[\s'’(/-])(\p{L})/gu, (m, a, b) => a + b.toUpperCase())
+  .replace(/ (De|Du|Des|La|Le|Les|Et|Sur|Sous|En|Aux|Au|D'|L')(?= )/g, w => w.toLowerCase()).replace(/ ([DL])['’]/g, (m, a) => ' ' + a.toLowerCase() + "'").replace(/(Sncf|Ter|Tgv|Zi|Za|Zac|Chu|Ch|Iut|Cc)/g, w => w.toUpperCase());
 async function openCityStation(hit){
   const {st, url} = hit, box = $('station'); unfocusLine(); clearFocus(); FOCUS_ST = null; $('tip').style.display = 'none';
   const kindName = {metro:'metro', train:'train', tram:'tram', ferry:'ferry'};
@@ -2204,7 +2207,19 @@ async function openCityStation(hit){
           rows = arr.map(a => { const l = BY[a.lineId]; return {when:now + a.timeToStation*1000, cat:'Trains', html:row(l ? ink(l.colour) : '#5D6670', a.destinationName, (l ? l.name : 'National Rail') + (a.platformName ? ' · ' + a.platformName : ''), Math.round(a.timeToStation/60))}; }); }
         else note = 'Live National Rail departures switch on once the rail data key is added to the relay. The station and its lines are shown now.';
       } else if(/helsinki\.json/.test(url)) note = 'Live departures for HSL metro and trams need a free HSL key; the vehicles on the map are live.';
-      else note = 'No timetable for this stop yet; the vehicles on the map are live where the operator shares positions.';
+      else { // anywhere else (France's cities and SNCF stations…): the stops here and their departures from Transitous, live where the network shares it
+        const g = await (await fetch(`https://api.transitous.org/api/v1/reverse-geocode?place=${st[2]},${st[3]}&type=STOP`, {signal:AbortSignal.timeout(10000)})).json();
+        const w0 = stName(st[1]).toLowerCase().split(/[\s'-]+/).find(x => x.length > 2) || '', here0 = [st[2], st[3]];
+        const near = (Array.isArray(g) ? g : []).filter(x => x.type === 'STOP' && dist([x.lat, x.lon], here0) < 350)
+          .sort((a, b) => b.name.toLowerCase().includes(w0) - a.name.toLowerCase().includes(w0) || dist([a.lat, a.lon], here0) - dist([b.lat, b.lon], here0)).slice(0, 3);
+        const js = await Promise.all(near.map(x => fetch('https://api.transitous.org/api/v5/stoptimes?n=30&stopId=' + encodeURIComponent(x.id), {signal:AbortSignal.timeout(10000)}).then(r => r.json()).catch(() => ({}))));
+        const seen = new Set(); rows = [];
+        for(const j of js) for(const x of j.stopTimes || []){ const pl = x.place || {}, when = Date.parse(pl.departure || pl.arrival); if(!when || pl.cancelled || x.cancelled) continue;
+          const key = (x.routeShortName || '') + '|' + (x.headsign || '').toLowerCase() + '|' + Math.round(when/60000); if(seen.has(key)) continue; seen.add(key); // one row per departure (a network can be in two timetables)
+          const sch = Date.parse(pl.scheduledDeparture || pl.scheduledArrival || ''), late = sch ? Math.round((when - sch)/60000) : 0, ln = x.routeShortName || x.displayName || '', l = st[4].find(q => q[0] === ln), k = kind0(x.mode || '');
+          rows.push({when, cat:{tram:'Trams', metro:'Metro', train:'Trains', bus:'Buses', ferry:'Boats'}[k] || 'Other',
+            html:row(l && l[1] || (k === 'bus' && CITYL.cur?.bus ? CITYL.cur.bus[0] : x.routeColor ? inkA('#' + x.routeColor.toLowerCase()) : '#5D6670'), tcase(x.headsign || x.tripTo?.name || ''), (ln ? ln + ' · ' : '') + (x.realTime ? (late >= 2 ? late + ' min late' : 'live') : 'timetable'), Math.max(0, Math.round((when - now)/60000)))}); }
+        if(!rows.length) note = near.length ? 'No departures from here in the next while.' : 'No stop found here in the timetables.'; }
     }catch(e){ note = 'Departures could not be loaded right now.'; }
     if(box.hidden) return;
     rows = (rows || []).filter(r => r && r.when > Date.now() - 60000).sort((a, b) => a.when - b.when);
@@ -3219,6 +3234,8 @@ function searchCityStations(text){
   for(const d of cityData()) for(const st of d.stations || []){ const n = stName(st[1]).toLowerCase(); if(n.startsWith(q) || (q.length >= 3 && n.includes(q))) out.push({cityHit:true, st, d, score:n.startsWith(q) ? 0 : 1}); }
   if(typeof nrOn === 'function' && nrOn()) for(const [crs, n, la, lo] of RAIL.stations){ const k = n.toLowerCase(); if(k.startsWith(q) || (q.length >= 4 && k.includes(q)) || crs.toLowerCase() === q)
     out.push({cityHit:true, st:[crs, n, la, lo, [['National Rail', '#5D6670', 'train']]], d:{url:'nr'}, score:crs.toLowerCase() === q ? -1 : k.startsWith(q) ? 0 : 1}); }
+  { const c0 = map.getCenter(); if(c0 && inFrance([c0.lat(), c0.lng()]) && FRST.list) for(const [uic, n, la, lo] of FRST.list){ const k = n.toLowerCase(); // France: SNCF's stations
+    if(k.startsWith(q) || (q.length >= 4 && k.includes(q))) out.push({cityHit:true, st:[uic, n, la, lo, [['Trains', '#5D6670', 'train']]], d:{url:'frgare'}, score:k.startsWith(q) ? 0.5 : 1.5}); } }
   const c = map.getCenter(), here = c ? [c.lat(), c.lng()] : [0, 0]; // same match: the nearer one first
   out.sort((a, b) => a.score - b.score || (dist(here, [a.st[2], a.st[3]]) > 60000) - (dist(here, [b.st[2], b.st[3]]) > 60000) || b.st[4].length - a.st[4].length);
   const kept = []; for(const x of out){ if(kept.some(k => stName(k.st[1]).toLowerCase() === stName(x.st[1]).toLowerCase() && dist([k.st[2], k.st[3]], [x.st[2], x.st[3]]) < 400)) continue; kept.push(x); } // one entry per station (two timetables can both list it)
@@ -3525,7 +3542,10 @@ function setLive(on){ LIVE.on = !!on; try{ localStorage.setItem('liveMode', LIVE
 $('mLive').onchange = () => setLive($('mLive').checked);
 $('mLive').checked = LIVE.on; document.body.classList.toggle('livemode', LIVE.on); $('bLook').hidden = !(LIVE.on && AR_OK);
 map.addListener('click', ev => { if(!ev.pixel) return; const {x, y} = ev.pixel, coarse = matchMedia('(pointer:coarse)').matches;
-  if(document.body.classList.contains('away')){ const cs = cityStationAt(x, y); if(cs) return openCityStation(cs); const us = ukStopAt(x, y); if(us) return openUKStop(us); }
+  if(document.body.classList.contains('away')){ const cs = cityStationAt(x, y); if(cs) return openCityStation(cs); const us = ukStopAt(x, y); if(us) return openUKStop(us);
+    const mc = map.getCenter(); if(FRST.list && PV.z >= 12 && SHOW_ST && mc && inFrance([mc.lat(), mc.lng()])){ let bd = coarse ? 14 : 10, best = null; // France: an SNCF station's dot
+      for(const s0 of FRST.list){ const c = scr(s0.slice(2, 4)); if(Math.abs(c.x - x) > bd || Math.abs(c.y - y) > bd) continue; const k = Math.hypot(c.x - x, c.y - y); if(k < bd){ bd = k; best = s0; } }
+      if(best) return openCityStation({st:[best[0], best[1], best[2], best[3], [['Trains', '#5D6670', 'train']]], src:'SNCF', url:'frgare'}); } }
   else if(document.body.classList.contains('edge')){ const us = ukStopAt(x, y); if(us) return openUKStop(us); } // Watford, Epping…: their bus stops // abroad: the city's stations first
   const onDot = stationAt(x, y, coarse ? 12 : 8); if(onDot) return goStation(onDot);
   if(nrLondon() && PV.z >= 13 && SHOW_ST){ let bd = coarse ? 14 : 9, best = null; for(const x0 of nrOnlyStations()){ const c = scr([x0[2], x0[3]]), k = Math.hypot(c.x - x, c.y - y); if(k < bd){ bd = k; best = x0; } }
