@@ -155,7 +155,8 @@ body.dark #simnote{background:#1f2a44;color:#c6dafc}
 @media (min-width:701px){#panel{width:336px}}
 /* phone: tap the handle to shrink the panel to title, search and any open card, for a bigger map */
 #grab{display:none}
-@media (max-width:700px){#grab{display:block;width:100%;height:18px;margin:-10px 0 2px;padding:0;border:0;background:none;cursor:pointer}
+@media (max-height:500px) and (min-width:701px){#panel{width:320px;padding:10px 12px;max-height:calc(100% - 16px);top:8px;left:8px} #grab{margin:-6px 0 0!important}} /* phone on its side: a slimmer panel that can shrink too */
+@media (max-width:700px), (max-height:500px){#grab{display:block;width:100%;height:18px;margin:-10px 0 2px;padding:0;border:0;background:none;cursor:pointer}
   #grab::before{content:'';display:block;width:40px;height:5px;margin:6px auto 0;border-radius:3px;background:var(--edge)}
   body.sheetMin #mModes, body.sheetMin #busNote, body.sheetMin #sbox, body.sheetMin #nrbox, body.sheetMin #lgAll, body.sheetMin #legend{display:none!important}}
 #status{font-size:13px;color:var(--mute);margin:-4px 0 10px}
@@ -2428,8 +2429,8 @@ function applyRegion(){
     else if(!RAIL.stations) railStations().catch(() => {});
     else { let st = null, sd = 2500; for(const x of RAIL.stations){ if(Math.abs(x[2] - p[0]) > 0.03) continue; const d = dist(p, [x[2], x[3]]); if(d < sd){ sd = d; st = x; } } // else the town of the nearest railway station
       if(st) $('ttl').textContent = st[1].replace(/\s*\(.*\)$/, '').replace(/\s+(Central|General|Parkway|Interchange|International|Priory|Paragon|Exchange|Junction|High Street|Town|City|Low Level|High Level|(North|South|East|West)( Street)?)$/i, '') + ' live map'; } }
-  { const t = $('ttl'), fit = () => { t.style.fontSize = ''; for(let f = 17; f >= 15 && t.scrollWidth > t.clientWidth + 1; f--) t.style.fontSize = f + 'px'; return t.scrollWidth <= t.clientWidth + 1; };
-    if(!fit() && / map$/.test(t.textContent)){ t.textContent = t.textContent.replace(/ map$/, ''); fit(); } } // long names shrink a little rather than being cut off
+  { const t = $('ttl'), fit = m => { t.style.fontSize = ''; for(let f = 17; f >= m && t.scrollWidth > t.clientWidth + 1; f--) t.style.fontSize = f + 'px'; return t.scrollWidth <= t.clientWidth + 1; };
+    if(!fit(15) && / map$/.test(t.textContent)){ t.textContent = t.textContent.replace(/ map$/, ''); fit(13); } } // long names shrink a little rather than being cut off
   $('bFit').title = away ? 'Near me (tap again: the area around you)' : 'Near me (tap again: all of London)';
   $('q').placeholder = !away ? 'Search a station or line (e.g. 172)' : abroad ? 'Search a station or line' : 'Search a station or route (e.g. X1)';
   if(typeof onTrainsUpdate === 'function') onTrainsUpdate(ACTIVE.reduce((s, l) => s + (shown(l) ? l.count : 0), 0));
