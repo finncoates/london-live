@@ -4,16 +4,30 @@
 # Run as the default user:  bash install.sh
 # Settings: connect.ps1 (on the PC) puts them in /etc/london-live-darwin.env, or by hand: sudo nano /etc/london-live-darwin.env
 set -euo pipefail
+export PATH="/opt/node/bin:$PATH"
 node_ok(){ command -v node >/dev/null && [ "$(node -p 'process.versions.node.split(".")[0]')" -ge 20 ]; }
+# The free 1 GB machines run out of memory while installing (dnf especially): add a 2 GB swap file once,
+# and stop Oracle Linux's hourly package-list refresh, which can freeze a machine this small.
+if [ ! -f /swapfile ] && [ "$(free -m | awk '/Mem:/{print $2}')" -lt 2000 ]; then
+  sudo dd if=/dev/zero of=/swapfile bs=1M count=2048 status=none && sudo chmod 600 /swapfile && sudo mkswap /swapfile >/dev/null && sudo swapon /swapfile
+  grep -q '^/swapfile' /etc/fstab || echo '/swapfile none swap sw 0 0' | sudo tee -a /etc/fstab >/dev/null
+fi
+sudo systemctl disable --now dnf-makecache.timer packagekit 2>/dev/null || true
+node_tarball(){ # official Node.js 22 build, checksum-checked, into /opt/node (no package manager needed)
+  local arch; arch=$(uname -m); case "$arch" in x86_64) arch=x64;; aarch64) arch=arm64;; esac
+  local base=https://nodejs.org/dist/latest-v22.x line file
+  line=$(curl -fsSL "$base/SHASUMS256.txt" | grep "linux-$arch.tar.xz$"); file=${line##* }
+  curl -fsSL "$base/$file" -o "/tmp/$file"
+  echo "$line" | sed "s#  #  /tmp/#" | sha256sum -c - >/dev/null
+  sudo rm -rf /opt/node && sudo mkdir -p /opt/node && sudo tar -xJf "/tmp/$file" -C /opt/node --strip-components=1 && rm -f "/tmp/$file"; }
 if command -v apt-get >/dev/null; then # Ubuntu / Debian
   sudo apt-get update -y
   sudo apt-get install -y git curl ca-certificates cron
   node_ok || { curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash -; sudo apt-get install -y nodejs; }
 else # Oracle Linux / RHEL
-  sudo dnf install -y git curl ca-certificates cronie
+  node_ok || node_tarball
+  command -v git >/dev/null && command -v crontab >/dev/null || sudo dnf install -y --setopt=install_weak_deps=False git-core cronie
   sudo systemctl enable --now crond
-  node_ok || { sudo dnf module reset -y nodejs && sudo dnf module enable -y nodejs:22 && sudo dnf install -y nodejs npm; } || true
-  node_ok || { curl -fsSL https://rpm.nodesource.com/setup_22.x | sudo bash -; sudo dnf install -y nodejs; }
 fi
 node_ok || { echo "Couldn't install Node.js 20+"; exit 1; }
 NODE=$(command -v node)
@@ -75,6 +89,6 @@ else # Ubuntu: iptables
   sudo netfilter-persistent save >/dev/null 2>&1 || true
 fi
 # keep the code current: pull and restart every night at 04:10
-( crontab -l 2>/dev/null | grep -v london-live-update; echo "10 4 * * * cd $HOME/london-live && git pull --ff-only -q && cd rail/darwin && npm ci --omit=dev --silent && sudo systemctl restart london-live-darwin # london-live-update" ) | crontab -
+( crontab -l 2>/dev/null | grep -v london-live-update; echo "10 4 * * * PATH=/opt/node/bin:/usr/local/bin:/usr/bin:/bin; cd $HOME/london-live && git pull --ff-only -q && cd rail/darwin && npm ci --omit=dev --silent && sudo systemctl restart london-live-darwin # london-live-update" ) | crontab -
 sudo systemctl restart london-live-darwin
 echo "Installed. Check: curl http://localhost:8080/health"
