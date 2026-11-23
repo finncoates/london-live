@@ -1929,10 +1929,11 @@ async function srvSetup(){
   try{ const h = await (await fetch(RAIL.relay + '/srv/health', {signal:AbortSignal.timeout(10000)})).json(); SRV.at = Date.now(); SRV.ferries = !!(h.ferries && h.ferries.on && h.ferries.ships);
     for(const [id, f] of Object.entries(h.feeds || {})){ if(!f.box || f.error && !f.vehicles) continue;
       if(SRV.feeds[id]){ const x = SRV.feeds[id].entry; x[1] = f.box; x[4] = new RegExp(f.tt || '^$', 'i'); x[5] = new RegExp(f.ttModes || 'BUS'); continue; } // known: just keep its settings current
-      SRV.feeds[id] = f; LIVE_ABROAD.push(f.entry = [f.name.replace(/ \(.*\)$/, ''), f.box, () => { const b = map.getBounds(), sw = b.getSouthWest(), ne = b.getNorthEast(); return `${RAIL.relay}/srv/rt?feed=${id}&bbox=${[sw.lat(), sw.lng(), ne.lat(), ne.lng()].map(x => x.toFixed(2)).join(',')}`; },
+      SRV.feeds[id] = f; SRV.added = true; LIVE_ABROAD.push(f.entry = [f.name.replace(/ \(.*\)$/, ''), f.box, () => { const b = map.getBounds(), sw = b.getSouthWest(), ne = b.getNorthEast(); return `${RAIL.relay}/srv/rt?feed=${id}&bbox=${[sw.lat(), sw.lng(), ne.lat(), ne.lng()].map(x => x.toFixed(2)).join(',')}`; },
         j => (j.vehicles || []).map(v => ({id:'la:' + id + ':' + v.id, line:v.line || '', op:v.op || f.name, dest:'', lat:v.lat, lon:v.lon, brg:v.bearing ? v.bearing : null, t:v.at || null, kind:v.kind, tram:v.kind === 'tram', metro:v.kind === 'metro', train:v.kind === 'train', col:v.kind === 'bus' && CITYL.cur?.bus ? CITYL.cur.bus[0] : v.col ? inkA(v.col.toLowerCase()) : null})), // buses in the city's one bus colour, as the timetable's
         new RegExp(f.tt || '^$', 'i'), new RegExp(f.ttModes || 'BUS')]); } }
-  catch(e){ console.warn('server', e); } }
+  catch(e){ console.warn('server', e); }
+  if(SRV.added){ SRV.added = false; setTimeout(() => refreshGps().catch(() => {}), 50); } } // new live feeds: show their vehicles now, not at the next refresh
 // live ferries (AIS, from the server): every passenger ship and fast ferry in view, where it really is
 async function refreshShips(){
   if(!SRV.ferries || !TRAINS_ON || GPS_OFF.has('ferry') || map.getZoom() < 7) return;
