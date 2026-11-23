@@ -188,7 +188,7 @@ elif not a.nobus:
         subprocess.run([sys.executable, '-I', os.path.join(HERE, 'citybus.py'), sub, bdir, str(S), str(W), str(N), str(E)], check=True, env=env)
     # the shared tiles are rebuilt from every French network's routes, each road once (fr_merge.py)
     nt = len(os.listdir(bdir)) if os.path.isdir(bdir) else 0
-    if nt: subprocess.run([sys.executable, '-I', os.path.join(HERE, 'fr_merge.py'), a.id], check=True, env=env)
+    if nt: subprocess.run([sys.executable, '-I', os.path.join(HERE, 'fr_merge.py'), os.path.basename(work)], check=True, env=env)  # (its build folder's name)
     report['bus_tiles'] = nt
 
 # 4b. its bus stops (name and place), for the map's bus stop layer (fr_stops.py puts every network's into cities/stops tiles)
