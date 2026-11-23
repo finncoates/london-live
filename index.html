@@ -2564,7 +2564,10 @@ async function refreshTT(){
       const res = await Promise.all(tiles.map(([la, lo]) => railGet(`/tt?la=${la}&lo=${lo}&s=${tiles.sz}&modes=${modes}&z=${Math.min(14, zq + 1)}`).catch(() => null)));
       TTV.ferries = new Map(); for(const r of res) for(const s of r?.vehicles || []) if(s[9] && s[6] > now && !TTV.ferries.has(s[8])){ const pts = decodePoly(s[9]); if(pts.length > 1) TTV.ferries.set(s[8], {s, pts}); }
       TTV.n = TTV.ferries.size; TTV.at = now; TTV.world = true;
-      BUS.note = (TTV.esLive && Date.now() - TTV.esLive < 120000 ? `${TTV.esN} Renfe trains live · ` : '') + (TTV.cityLive && Date.now() - TTV.cityLive.at < 120000 ? `${TTV.cityLive.n} ${TTV.cityLive.name} buses${TTV.cityLive.name === 'Toronto' ? ' and streetcars' : ''} live · ` : '') + `${TTV.n} trains, trams${zq >= 14 ? ', buses' : ''} and ferries here, placed from the timetable (Transitous open data${(TTV.esLive && Date.now() - TTV.esLive < 120000) || (TTV.cityLive && Date.now() - TTV.cityLive.at < 120000) ? '' : '; no live positions here yet'})${zq < 14 ? ' · zoom in for buses' : ''}`; renderBusNote();
+      BUS.note = (TTV.esLive && Date.now() - TTV.esLive < 120000 ? `${TTV.esN} Renfe trains live · ` : '') + (TTV.cityLive && Date.now() - TTV.cityLive.at < 120000 ? `${TTV.cityLive.n} ${TTV.cityLive.name} buses${TTV.cityLive.name === 'Toronto' ? ' and streetcars' : ''} live · ` : '') + `${TTV.n} trains, trams${zq >= 14 ? ', buses' : ''} and ferries here, placed from the timetable (Transitous open data${(TTV.esLive && Date.now() - TTV.esLive < 120000) || (TTV.cityLive && Date.now() - TTV.cityLive.at < 120000) ? '' : '; no live positions here yet'})${zq < 14 ? ' · zoom in for buses' : ''}`;
+      if(!TTV.n){ const c = map.getCenter(), h = (new Date().getUTCHours() + Math.round(c.lng()/15) + 24) % 24; // rough local hour from longitude
+        if(h >= 0 && h < 5) BUS.note = `Nothing running here right now: it's about ${h || 12} am locally and services have stopped for the night. They come back from about 5 am.`; }
+      renderBusNote();
     }catch(e){ console.warn('timetable vehicles', e); }
     TTV.busy = false; return; }
   TTV.world = false;
