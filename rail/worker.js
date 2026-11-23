@@ -329,7 +329,7 @@ async function tfl(url, env, cors){
         const cacheKey = new Request('https://tfl-cache.invalid' + key), cache = typeof caches !== 'undefined' ? caches.default : null;
         let r = cache ? await cache.match(cacheKey).catch(() => null) : null;
         if(!r){ const target = 'https://api.tfl.gov.uk' + path + '?' + qs + (env.TFL_KEY ? (qs ? '&' : '') + 'app_key=' + encodeURIComponent(env.TFL_KEY) : '');
-          const up = await fetch(target, {headers:{'user-agent':'london-live-relay'}});
+          const up = await fetch(target, {headers:{'user-agent':'london-live-relay'}, signal:AbortSignal.timeout(10000)});
           r = new Response(await up.text(), {status:up.status, headers:{'content-type':up.headers.get('content-type') || 'application/json', 'cache-control':'public, max-age=' + ttl}});
           if(up.ok && cache) await cache.put(cacheKey, r.clone()).catch(() => {}); }
         const v = {t:Date.now(), status:r.status, type:r.headers.get('content-type') || 'application/json', body:await r.text()};
@@ -349,7 +349,7 @@ async function transitous(url, cors){
   if(!/^\/api\/v\d+\/(plan|geocode|reverse-geocode|stoptimes|trip|map\/stops)$/.test(path)) return json({error:'not a Transitous path this relay passes on'}, 400, cors);
   const key = path + url.search, now = Date.now(), hit = TR_MEM.get(key);
   if(hit && now - hit.t < 60000) return new Response(hit.body, {status:200, headers:{'content-type':'application/json', 'cache-control':'public, max-age=60', ...cors}});
-  const up = await fetch('https://api.transitous.org' + key, {headers:{'user-agent':'LondonLive/1.0 (+https://github.com/finncoates/london-live)'}});
+  const up = await fetch('https://api.transitous.org' + key, {headers:{'user-agent':'LondonLive/1.0 (+https://github.com/finncoates/london-live)'}, signal:AbortSignal.timeout(25000)});
   const body = await up.text();
   if(up.ok){ TR_MEM.set(key, {t:now, body}); if(TR_MEM.size > 500) TR_MEM.delete(TR_MEM.keys().next().value); }
   return new Response(body, {status:up.status, headers:{'content-type':up.headers.get('content-type') || 'application/json', 'cache-control':up.ok ? 'public, max-age=60' : 'no-store', ...cors}}); }
@@ -369,7 +369,7 @@ async function ttTile(url, cors){
   if(!all){ let w = TT_WAIT.get(key);
     if(!w){ w = (async () => {
         const q = `zoom=14&min=${la},${lo}&max=${la + 0.5},${lo + 0.5}&startTime=${new Date(bucket).toISOString()}&endTime=${new Date(bucket + 240000).toISOString()}`;
-        const r = await fetch('https://api.transitous.org/api/v5/map/trips?' + q, {headers:{'user-agent':'LondonLive/1.0 (+https://github.com/finncoates/london-live)'}});
+        const r = await fetch('https://api.transitous.org/api/v5/map/trips?' + q, {headers:{'user-agent':'LondonLive/1.0 (+https://github.com/finncoates/london-live)'}, signal:AbortSignal.timeout(20000)});
         if(!r.ok) throw fail('Transitous: HTTP ' + r.status, 502);
         const stop = s => [s.name, s.stopCode || null, +s.lat.toFixed(5), +s.lon.toFixed(5)];
         const v = (await r.json()).map(s => [s.mode, s.routeColor || null, s.trips?.[0]?.displayName || '', stop(s.from), stop(s.to), Date.parse(s.departure), Date.parse(s.arrival), s.realTime ? 1 : 0, s.trips?.[0]?.tripId || '', s.polyline || '']);
