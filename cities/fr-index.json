@@ -628,5 +628,35 @@
 "#7E8BA3",
 "#97A6BF"
 ]
+},
+{
+"id": "kust",
+"name": "Belgian Coast",
+"box": [
+51.05,
+2.5,
+51.4,
+3.32
+],
+"url": "cities/be-kust.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "charleroi",
+"name": "Charleroi",
+"box": [
+50.33,
+4.35,
+50.48,
+4.56
+],
+"url": "cities/be-charleroi.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
 }
 ]
