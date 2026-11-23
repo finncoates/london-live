@@ -91,3 +91,8 @@ Findings and fixes:
 ## To do
 1. Deploy to GitHub Pages and test on the TV (Silk): check fps 15/20/30 and the refresh hitch.
 2. Tokyo version.
+
+## Live mode (23 Nov)
+Ideas from the Subwhere reel (an AR Tube app) built as **Live mode**, a separate switch in the Map menu (off by default, so the normal map is untouched): train cards with speed, depth, next stops and distance; ride along; Look down camera view on phones; pinned station. Details in ROADMAP.md (Built 23 Nov).
+- Look down still needs a real-phone test outdoors (desktop testing used `?ar=sim`).
+- A 3D tilted ride view would need a Google Maps Map ID.

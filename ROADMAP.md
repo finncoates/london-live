@@ -122,6 +122,18 @@ little value on a map), crowding (TfL crowding API is patchy), weather, social f
 | Region-aware panel: outside London the title, counts and notes describe what's live there; London legend/status/TfL chips hidden | Live map |
 | Map menu → Go to: London, Manchester, Birmingham, Leeds, Liverpool, Newcastle, Edinburgh, Glasgow, Bristol, Cardiff | Live map |
 
+## Built 23 Nov — Live mode (ideas from the Subwhere reel), all behind one switch
+Off by default, so the map is unchanged until you turn it on: Map menu → **Live mode**, remembered; `?live=1` / `?live=0`.
+| Feature | Notes |
+|---|---|
+| Train card | Tap a train: line status, progress bar between stations, speed (≈ average for the run, 0 at a platform), next station + time, next 3 stops, distance from you, train number |
+| Depth underground | Tube only, from TfL's station depth table (FOI-0493-2223) → `tube-depths.json` via `cities/tube_depths.py`; blended between stations, so "≈" |
+| Ride along | Zooms in and keeps the map on the train every frame; drag or ✕ to stop |
+| Look down (phones) | Camera view with Tube/Elizabeth/DLR lines drawn on the ground and cards for trains passing under you; GPS + compass, ⟲ ⟳ to line it up. `?ar=sim` tests it on a desktop (slider turns you round) |
+| Pinned station | ☆ Pin on a station card: it opens with live departures whenever the app starts (the web's stand-in for a home-screen widget) |
+| Installable live map | `manifest.webmanifest` with Near me (`?near=1`) and Live mode shortcuts |
+Not done: 3D tilted ride view (needs a Google Maps Map ID, a vector map); camera-based positioning like Subwhere's (no web equivalent).
+
 ## Next ideas (not built yet)
 - Switch on live National Rail: add `RDM_KEY` as a secret on the `london-rail` worker when the Rail Data Marketplace key arrives (no code change needed).
 - Other countries checked 21–22 Nov: Tallinn (transport.tallinn.ee/gps.txt, keyless, but no CORS → relay); Boston MBTA to try; Germany db.transport.rest down; Edinburgh TfE server down (522).

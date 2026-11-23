@@ -1,0 +1,19 @@
+{
+  "name": "London Live Trains",
+  "short_name": "London Live",
+  "description": "Every Tube, Overground, Elizabeth line, DLR and tram train, live on the map.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#0e0f12",
+  "theme_color": "#0e0f12",
+  "icons": [
+    {"src": "journey/icon-192.png", "sizes": "192x192", "type": "image/png"},
+    {"src": "journey/icon-512.png", "sizes": "512x512", "type": "image/png"},
+    {"src": "journey/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable"}
+  ],
+  "shortcuts": [
+    {"name": "Near me", "short_name": "Near me", "description": "Live departures from your nearest station", "url": "./?near=1", "icons": [{"src": "journey/icon-192.png", "sizes": "192x192"}]},
+    {"name": "Live mode", "short_name": "Live mode", "description": "Train cards, ride along and Look down", "url": "./?live=1", "icons": [{"src": "journey/icon-192.png", "sizes": "192x192"}]}
+  ]
+}
