@@ -365,13 +365,22 @@ async function transitous(url, cors){
 // [mode, colour, name, from:[name, code, lat, lon], to:[…], dep ms, arr ms, realTime, tripId]. One call to Transitous
 // per tile every 2 minutes, shared by every visitor (cached here).
 const TT_MEM = new Map(), TT_WAIT = new Map();
+// Polylines (precision 5): a country-sized tile only needs a rough shape, so points closer than tol° are dropped
+const polyDec = str => { const out = []; let i = 0, la = 0, lo = 0;
+  while(i < str.length){ for(const k of [0, 1]){ let b, sh = 0, r = 0; do{ b = str.charCodeAt(i++) - 63; r |= (b & 31) << sh; sh += 5; }while(b >= 32); const d = r & 1 ? ~(r >> 1) : r >> 1; if(k) lo += d; else la += d; } out.push([la, lo]); }
+  return out; };
+const polyEnc = pts => { let o = '', pa = 0, po = 0; const e = v => { v = v < 0 ? ~(v << 1) : v << 1; let c = ''; while(v >= 32){ c += String.fromCharCode((32 | (v & 31)) + 63); v >>= 5; } return c + String.fromCharCode(v + 63); };
+  for(const [a, b] of pts){ o += e(a - pa) + e(b - po); pa = a; po = b; } return o; };
+const polyThin = (str, tol) => { if(!tol || !str) return str; const p = polyDec(str), t = tol*1e5, out = [p[0]];
+  for(let i = 1; i < p.length - 1; i++){ const q = out[out.length - 1]; if(Math.abs(p[i][0] - q[0]) + Math.abs(p[i][1] - q[1]) >= t) out.push(p[i]); }
+  if(p.length > 1) out.push(p[p.length - 1]); return polyEnc(out); };
 const TT_MODES = {rail:/RAIL|LONG_DISTANCE|SUBURBAN|NIGHT_RAIL|HIGHSPEED/, tram:/TRAM|SUBWAY|METRO|FUNICULAR|CABLE/, bus:/BUS|COACH/, ferry:/FERRY/};
 async function ttTile(url, cors){
-  const sz = [0.5, 0.25, 0.125].includes(+url.searchParams.get('s')) ? +url.searchParams.get('s') : 0.5; // smaller tiles for dense cities (Paris)
+  const sz = [4, 2, 1, 0.5, 0.25, 0.125].includes(+url.searchParams.get('s')) ? +url.searchParams.get('s') : 0.5; // smaller tiles for dense cities (Paris); 1–4° tiles for a whole country zoomed out (Transitous then sends only intercity / high-speed)
   const la = Math.floor(+url.searchParams.get('la')/sz)*sz, lo = Math.floor(+url.searchParams.get('lo')/sz)*sz;
   if(!isFinite(la) || !isFinite(lo) || Math.abs(la) > 85 || Math.abs(lo) > 180) return json({error:'la, lo required'}, 400, cors);
   const want = (url.searchParams.get('modes') || 'rail').split(',').filter(m => TT_MODES[m] || m === 'all');
-  const zm = Math.max(6, Math.min(14, Math.round(+url.searchParams.get('z') || 14))); // Transitous shows fewer, bigger routes when zoomed out
+  const zm = Math.max(5, Math.min(14, Math.round(+url.searchParams.get('z') || 14))); // Transitous shows fewer, bigger routes when zoomed out
   const bucket = Math.floor(Date.now()/120000)*120000, key = la + ':' + lo + ':' + bucket + ':' + zm + ':' + sz;
   let all = TT_MEM.get(key);
   if(!all){ let w = TT_WAIT.get(key);
@@ -380,7 +389,7 @@ async function ttTile(url, cors){
         const r = await fetch('https://api.transitous.org/api/v5/map/trips?' + q, {headers:{'user-agent':'LondonLive/1.0 (+https://github.com/finncoates/london-live)'}, signal:AbortSignal.timeout(20000)});
         if(!r.ok) throw fail('Transitous: HTTP ' + r.status, 502);
         const stop = s => [s.name, s.stopCode || null, +s.lat.toFixed(5), +s.lon.toFixed(5)];
-        const v = (await r.json()).map(s => [s.mode, s.routeColor || null, s.trips?.[0]?.displayName || '', stop(s.from), stop(s.to), Date.parse(s.departure), Date.parse(s.arrival), s.realTime ? 1 : 0, s.trips?.[0]?.tripId || '', s.polyline || '']);
+        const v = (await r.json()).map(s => [s.mode, s.routeColor || null, s.trips?.[0]?.displayName || '', stop(s.from), stop(s.to), Date.parse(s.departure), Date.parse(s.arrival), s.realTime ? 1 : 0, s.trips?.[0]?.tripId || '', polyThin(s.polyline || '', sz >= 4 ? 0.02 : sz >= 2 ? 0.01 : sz >= 1 ? 0.005 : 0)]);
         TT_MEM.set(key, v); for(const k of TT_MEM.keys()) if(+k.split(':')[2] < bucket - 240000) TT_MEM.delete(k);
         return v; })().finally(() => TT_WAIT.delete(key));
       TT_WAIT.set(key, w); }
