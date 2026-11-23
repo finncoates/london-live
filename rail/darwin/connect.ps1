@@ -58,18 +58,15 @@ if(-not $NoPrompt){
     $lines += "DARWIN_BOOTSTRAP=$($boot.Trim())"
     $mech = Read-Host '  Darwin "SASL mechanism" (e.g. PLAIN)'
     if($mech){ $lines += "DARWIN_SASL=$($mech.Trim())" }
-    $cfg = Read-Secret '  Darwin "SASL config" (paste the whole line; hidden)'
-    $u = [regex]::Match($cfg, 'username\s*=\s*"([^"]*)"').Groups[1].Value
-    $p = [regex]::Match($cfg, 'password\s*=\s*"([^"]*)"').Groups[1].Value
-    if($u -and $p){ $lines += "DARWIN_USERNAME=$u"; $lines += "DARWIN_PASSWORD=$p"; Write-Host '    (found the username and password in it)' }
-    else { Write-Host "    Couldn't find username=`"…`" password=`"…`" in that; type them instead." -ForegroundColor Yellow
-      $u = Read-Host '  Darwin username'; if($u){ $lines += "DARWIN_USERNAME=$u" }
-      $p = Read-Secret '  Darwin password'; if($p){ $lines += "DARWIN_PASSWORD=$p" } }
+    # The Kafka login is the subscription's Consumer key + Consumer secret (NOT the website login).
+    $u = (Read-Host '  Darwin "Consumer key"').Trim()
+    $p = (Read-Secret '  Darwin "Consumer secret" (hidden)').Trim()
+    if($u -and $p){ $lines += "DARWIN_USERNAME=$u"; $lines += "DARWIN_PASSWORD=$p" }
     Remove-Variable cfg, u, p -ErrorAction SilentlyContinue
   }
   foreach($k in @(
-      @('DARWIN_TOPIC', 'Darwin topic (on the same page, often lower down; Enter if none)', $false),
-      @('DARWIN_GROUP', 'Darwin consumer group (Enter if none shown)', $false),
+      @('DARWIN_TOPIC', 'Darwin "Topic" (needed: on the same page)', $false),
+      @('DARWIN_GROUP', 'Darwin "Consumer group" (Enter if the page shows none)', $false),
       @('AISSTREAM_KEY', 'AISStream key (live ferries; aisstream.io)', $true),
       @('NTA_KEY', 'NTA key (Ireland live buses; developer.nationaltransport.ie)', $true),
       @('ODPT_KEY', 'ODPT key (Tokyo live trains; developer.odpt.org)', $true))){
