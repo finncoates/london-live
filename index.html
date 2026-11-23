@@ -3042,25 +3042,27 @@ const GBFS_CITIES = [
 ];
 const SHARE = {sys:new Map(), busy:false, city:null};
 const shareCity = p => GBFS_CITIES.find(([, a, b]) => dist(p, [a, b]) < 30000);
-async function gbfsGet(u){ const r = await fetch(u, {signal:AbortSignal.timeout(10000)}); if(!r.ok) throw new Error('HTTP ' + r.status); return r.json(); }
-async function gbfsSystem([name, url, col]){
+async function gbfsGet(u, relay){ const r = await fetch(relay ? RAIL.relay + '/gbfs?u=' + encodeURIComponent(u) : u, {signal:AbortSignal.timeout(10000)}); if(!r.ok) throw new Error('HTTP ' + r.status); return r.json(); } // relay: feeds browsers may not read directly
+// France: every open bike and scooter feed in the national catalogue, by town (cities/gbfs-fr.json, cities/fr_gbfs.py)
+fetch('cities/gbfs-fr.json').then(r => r.ok ? r.json() : []).then(l => GBFS_CITIES.push(...l)).catch(() => {});
+async function gbfsSystem([name, url0, col]){ const relay = url0.startsWith('relay:'), url = url0.replace(/^relay:/, ''), get = u => gbfsGet(u, relay);
   let s = SHARE.sys.get(url);
   if(!s){ s = {name, col, feeds:null, types:{}, stations:new Map(), vehicles:[], infoAt:0, at:0}; SHARE.sys.set(url, s); }
-  if(!s.feeds){ const d = await gbfsGet(url), dd = d.data || {};
+  if(!s.feeds){ const d = await get(url), dd = d.data || {};
     const list = dd.feeds || (dd.en || dd.nb || dd.de || dd.fi || dd.pl || dd.lt || Object.values(dd)[0] || {}).feeds || [];
     s.feeds = Object.fromEntries(list.map(f => [f.name, f.url])); }
   const F = s.feeds, now = Date.now();
   if(now - s.infoAt > 3600000){ // station names/places and vehicle types: hourly
-    if(F.vehicle_types){ try{ for(const t of (await gbfsGet(F.vehicle_types)).data.vehicle_types || []) s.types[t.vehicle_type_id] = t; }catch(e){} }
-    if(F.station_information){ const d = await gbfsGet(F.station_information); s.stations = new Map((d.data.stations || []).map(x => [x.station_id, {id:x.station_id, name:(x.name && (x.name[0]?.text || x.name)) || '', p:[+x.lat, +x.lon], cap:x.capacity}])); }
+    if(F.vehicle_types){ try{ for(const t of (await get(F.vehicle_types)).data.vehicle_types || []) s.types[t.vehicle_type_id] = t; }catch(e){} }
+    if(F.station_information){ const d = await get(F.station_information); s.stations = new Map((d.data.stations || []).map(x => [x.station_id, {id:x.station_id, name:(x.name && (x.name[0]?.text || x.name)) || '', p:[+x.lat, +x.lon], cap:x.capacity}])); }
     s.infoAt = now;
   }
-  if(F.station_status){ const d = await gbfsGet(F.station_status);
+  if(F.station_status){ const d = await get(F.station_status);
     for(const x of d.data.stations || []){ const st = s.stations.get(x.station_id); if(!st) continue;
       st.bikes = x.num_bikes_available ?? x.num_vehicles_available ?? 0; st.free = x.num_docks_available ?? null; st.open = x.is_renting !== false && x.is_renting !== 0;
       st.ebikes = (x.vehicle_types_available || []).reduce((n, v) => n + (/electric/.test(s.types[v.vehicle_type_id]?.propulsion_type || '') ? v.count : 0), 0); } }
   const vf = F.free_bike_status || F.vehicle_status;
-  if(vf){ const d = await gbfsGet(vf), list = d.data.bikes || d.data.vehicles || [];
+  if(vf){ const d = await get(vf), list = d.data.bikes || d.data.vehicles || [];
     s.vehicles = list.filter(v => v.lat && !v.station_id && !v.is_disabled && !v.is_reserved).map(v => { const t = s.types[v.vehicle_type_id] || {};
       return {id:v.bike_id || v.vehicle_id, p:[+v.lat, +v.lon], scooter:/scooter/.test(t.form_factor || '') || /scooter/i.test(name + ' ' + (t.name || '')) && !/bike|bicycle/.test(t.form_factor || ''),
         range:v.current_range_meters ?? null, fuel:v.current_fuel_percent ?? null, type:t.name || ''}; }); }

@@ -50,6 +50,7 @@ export default {
       if(url.pathname.startsWith('/tfl/')) return await tfl(url, env, cors);
       if(url.pathname.startsWith('/transitous/')) return await transitous(url, cors);
       if(url.pathname === '/tt') return await ttTile(url, cors);
+      if(url.pathname === '/gbfs') return await gbfsProxy(url, cors);
       if(url.pathname === '/darwin/trains') return await darwinTrains(url, env, cors);
       if(/^\/srv\/(health|ferries|rt)$/.test(url.pathname)) return await srv(url, env, cors);
       if(!env.RDM_KEY) return json({error:'RDM_KEY secret is not set on the worker'}, 503, cors);
@@ -386,6 +387,14 @@ const polyClip = (str, dep, arr, box, m) => { if(!str) return [str, dep, arr]; c
   const D = cum[cum.length - 1] || 1, T = arr - dep;
   return [polyEnc(p.slice(i0, i1 + 1)), Math.round(dep + T*cum[i0]/D), Math.round(dep + T*cum[i1]/D)]; };
 const TT_MODES = {rail:/RAIL|LONG_DISTANCE|SUBURBAN|NIGHT_RAIL|HIGHSPEED/, tram:/TRAM|SUBWAY|METRO|FUNICULAR|CABLE/, bus:/BUS|COACH/, ferry:/FERRY/};
+// bikes and scooters for hire whose open GBFS feeds don't let browsers read them (Vélib', Lime, Voi…): passed through,
+// only from these hosts (cities/gbfs-fr-hosts.json, made by cities/fr_gbfs.py), kept 30 s
+const GBFS_HOSTS = new Set(["api.gbfs.ecovelo.mobi", "api.gbfs.v2.2.ecovelo.mobi", "api.gbfs.v3.0.ecovelo.mobi", "api.voiapp.io", "data.lime.bike", "eu.ftp.opendatasoft.com", "gbfs.getapony.com", "services.rideyego.com", "stables.donkey.bike", "stce.transdev-hdf.fr", "velib-metropole-opendata.smovengo.cloud", "www.mobility-parc.net"]);
+async function gbfsProxy(url, cors){
+  const u = url.searchParams.get('u') || ''; let h = ''; try{ h = new URL(u).hostname; }catch(e){}
+  if(!GBFS_HOSTS.has(h)) return json({error:'not an allowed bike-share feed'}, 400, cors);
+  const r = await fetch(u, {headers:{'user-agent':'LondonLive/1.0 (+https://github.com/finncoates/london-live)'}, cf:{cacheTtl:30, cacheEverything:true}, signal:AbortSignal.timeout(15000)});
+  return new Response(r.body, {status:r.status, headers:{'content-type':'application/json', 'cache-control':'public, max-age=30', ...cors}}); }
 const TT_LAST = new Map(); // tile → its last good answer, for when Transitous briefly fails
 async function ttTile(url, cors){
   const sz = [4, 2, 1, 0.5, 0.25, 0.125].includes(+url.searchParams.get('s')) ? +url.searchParams.get('s') : 0.5; // smaller tiles for dense cities (Paris); 1–4° tiles for a whole country zoomed out (Transitous then sends only intercity / high-speed)
