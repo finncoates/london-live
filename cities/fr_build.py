@@ -184,7 +184,7 @@ elif not a.nobus:
     if roads and (pbf := region_pbf()):
         edges = os.path.join(work, 'edges.pkl'); report['bus_roads'] = os.path.basename(pbf)
         subprocess.run([sys.executable, '-I', os.path.join(HERE, 'busnet2.py'), 'match', pbf, edges, sub], check=True, env=env)
-        subprocess.run([sys.executable, '-I', os.path.join(HERE, 'busnet2.py'), 'tiles', bdir, edges], check=True, env=dict(env, NO_RAW='1' if gap is None or gap > 120 else '0'))
+        subprocess.run([sys.executable, '-I', os.path.join(HERE, 'busnet2.py'), 'tiles', bdir, edges], check=True, env=dict(env, NO_RAW='1' if gap is None or gap > 120 or shape_quality.long > 0.3 else '0'))  # straight published pieces never kept
     elif has_shapes:
         subprocess.run([sys.executable, '-I', os.path.join(HERE, 'citybus.py'), sub, bdir, str(S), str(W), str(N), str(E)], check=True, env=env)
     # the shared tiles are rebuilt from every French network's routes, each road once (fr_merge.py)

@@ -4,6 +4,15 @@
 #   python -I cities/rail_tiles.py
 import sys as _s; _s.stdout.reconfigure(encoding='utf-8', errors='replace'); _s.stderr.reconfigure(encoding='utf-8', errors='replace')  # Windows console: never crash on a name
 import os, json, math, subprocess, collections, sys
+# one writer at a time: two builds merging into the same shared tiles at once corrupt them (Windows: 'Invalid argument')
+import time as _t, atexit as _ax
+_LOCK = os.path.join(os.path.dirname(os.path.abspath(__file__)), '.build', 'merge.lock'); _t0 = _t.time()
+while True:
+    try: _fd = os.open(_LOCK, os.O_CREAT | os.O_EXCL | os.O_WRONLY); break
+    except FileExistsError:
+        if _t.time() - os.path.getmtime(_LOCK) > 1800: os.remove(_LOCK)  # left by a crashed run
+        _t.sleep(2)
+_ax.register(lambda: (os.close(_fd), os.remove(_LOCK)))
 HERE = os.path.dirname(os.path.abspath(__file__)); BASE = '6c9aa8ce'; R = os.path.join(HERE, '.build', 'rail'); os.makedirs(R, exist_ok=True)
 sys.setrecursionlimit(100000)
 def dp(p, eps):  # Douglas-Peucker, metres

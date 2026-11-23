@@ -6,6 +6,15 @@
 #   python -I cities/fr_merge.py [network ...]      (no names: every network)
 import sys as _s; _s.stdout.reconfigure(encoding='utf-8', errors='replace'); _s.stderr.reconfigure(encoding='utf-8', errors='replace')  # Windows console: never crash on a name
 import os, sys, json, math, subprocess
+# one writer at a time: two builds merging into the same shared tiles at once corrupt them (Windows: 'Invalid argument')
+import time as _t, atexit as _ax
+_LOCK = os.path.join(os.path.dirname(os.path.abspath(__file__)), '.build', 'merge.lock'); _t0 = _t.time()
+while True:
+    try: _fd = os.open(_LOCK, os.O_CREAT | os.O_EXCL | os.O_WRONLY); break
+    except FileExistsError:
+        if _t.time() - os.path.getmtime(_LOCK) > 1800: os.remove(_LOCK)  # left by a crashed run
+        _t.sleep(2)
+_ax.register(lambda: (os.close(_fd), os.remove(_LOCK)))
 HERE = os.path.dirname(os.path.abspath(__file__)); BASE = '6c9aa8ce'; root = os.path.join(HERE, '.build')
 nets = [c for c in os.listdir(root) if os.path.isdir(os.path.join(root, c, 'busnet'))]
 want = sys.argv[1:] or nets
