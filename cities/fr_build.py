@@ -19,7 +19,8 @@ ap.add_argument('--nolines', action='store_true', help='buses only (no city line
 ap.add_argument('--roads', default='auto', help='bus routes matched onto OpenStreetMap roads: auto (when the shapes are missing or only join the stops), on, off')
 ap.add_argument('--kind', help='NAME=kind,... e.g. "ORLYVAL=metro"'); ap.add_argument('--rename', help='NAME=New name,...')
 a = ap.parse_args()
-work = a.work or os.path.join(HERE, '.build', a.id)  # kept (git-ignored): downloads and each city's own bus routes; os.makedirs(work, exist_ok=True)
+work = a.work or os.path.join(HERE, '.build', a.id)  # kept (git-ignored): downloads and each city's own bus routes
+os.makedirs(work, exist_ok=True)
 feed = os.path.join(work, 'feed.zip')
 if os.path.exists(a.src): feed = a.src
 elif not os.path.exists(feed):
