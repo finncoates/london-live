@@ -1910,7 +1910,10 @@ async function bostonVehicles(){
       brg:a.bearing ?? null, t:Date.parse(a.updated_at) || null, train:rt.type === 2, metro:rt.type === 1, tram:rt.type === 0, kind, col:rt.color ? '#' + rt.color : '#FFC72C'}; })};
 }
 // keep only the vehicles of the source being shown (switching country drops the last one's)
-const GPS_SRC = ['fi:', 'hsl:', 'no:', 'us:', 'de:', 'sch:', 'co:', 'tf:', 'es:']; // (es: Renfe live) // (tf: ferries from the timetable)
+const GPS_SRC = ['fi:', 'hsl:', 'no:', 'us:', 'de:', 'sch:', 'co:', 'tf:', 'es:', 'la:']; // (es: Renfe live; la: other live city feeds abroad)
+// Live city feeds abroad that browsers can read directly (no key): [name, box minLat,minLon,maxLat,maxLon, url, parse → vehicles, timetable trips they replace]
+const LIVE_ABROAD = [['Rennes', [47.95, -1.95, 48.30, -1.45], 'https://data.explore.star.fr/api/explore/v2.1/catalog/datasets/tco-bus-vehicules-position-tr/exports/json?where=etat%3D%22En%20ligne%22',
+  j => j.filter(b => b.coordonnees).map(b => ({id:'la:star:' + b.idbus, line:b.nomcourtligne || '', op:'STAR Rennes', dest:b.destination || '', lat:b.coordonnees.lat, lon:b.coordonnees.lon, brg:null, t:null, late:b.ecartsecondes != null ? -b.ecartsecondes : null, kind:'bus'})), /star/i]]; // (tf: ferries from the timetable)
 function gpsOnly(...keep){ for(const k of [...GPS.list.keys()]){ const src = GPS_SRC.find(x => k.startsWith(x)) || 'uk'; if(!keep.includes(src)) GPS.list.delete(k); } }
 // ---- Berlin & Brandenburg: S-Bahn, U-Bahn, trams, buses, regional trains (VBB "radar": real-time positions, no key) ----
 const inOslo = p => p[0] > 59.75 && p[0] < 60.10 && p[1] > 10.45 && p[1] < 11.05, inBergen = p => p[0] > 60.25 && p[0] < 60.50 && p[1] > 5.15 && p[1] < 5.50, inTrondheim = p => p[0] > 63.35 && p[0] < 63.48 && p[1] > 10.20 && p[1] < 10.60;
@@ -2241,7 +2244,9 @@ async function refreshGps(){
     catch(e){ BUS.note = feedErr(e, rc[2] + '’s live feed'); }
     GPS.busy = false; renderBusNote(); return;
   }
-  if(regionOf(p) === 'world'){ gpsOnly('tf:', 'es:');
+  if(regionOf(p) === 'world'){ gpsOnly('tf:', 'es:', 'la:');
+    for(const [nm, bx, url, parse] of LIVE_ABROAD) if(p[0] > bx[0] && p[0] < bx[2] && p[1] > bx[1] && p[1] < bx[3] && z >= 11 && TRAINS_ON && !busOff()){ // a city with its own live feed
+      try{ const j = await (await fetch(url, {signal:AbortSignal.timeout(15000)})).json(), vs = parse(j); gpsMerge({vehicles:vs}, 'la:'); TTV.cityLive = {name:nm, at:Date.now(), n:vs.length}; }catch(e){} }
     if(p[0] > 35.8 && p[0] < 43.9 && p[1] > -9.6 && p[1] < 3.4 && z >= 7 && TRAINS_ON && RAIL.relay && RAIL.relay !== 'demo'){ // Spain: Renfe's trains live (Cercanías/Rodalies…)
       try{ const r = await railGet('/vehicles?src=renfe'); gpsMerge(r, 'es:'); TTV.esLive = Date.now(); TTV.esN = (r.vehicles || []).length; }catch(e){} } if(z < 9){ BUS.note = z >= 6 ? 'Zoom in to see the trains, trams and ferries running here (from the timetable)' : ''; renderBusNote(); } else if(!TTV.world) { BUS.note = 'Finding trains, trams and ferries…'; renderBusNote(); } return; } // (refreshTT fills these in)
   const on = !busOff() && TRAINS_ON && !inTfLArea(p);
@@ -2557,7 +2562,7 @@ async function refreshTT(){
       const res = await Promise.all(tiles.map(([la, lo]) => railGet(`/tt?la=${la}&lo=${lo}&s=${tiles.sz}&modes=${modes}&z=${Math.min(14, zq + 1)}`).catch(() => null)));
       TTV.ferries = new Map(); for(const r of res) for(const s of r?.vehicles || []) if(s[9] && s[6] > now && !TTV.ferries.has(s[8])){ const pts = decodePoly(s[9]); if(pts.length > 1) TTV.ferries.set(s[8], {s, pts}); }
       TTV.n = TTV.ferries.size; TTV.at = now; TTV.world = true;
-      BUS.note = (TTV.esLive && Date.now() - TTV.esLive < 120000 ? `${TTV.esN} Renfe trains live · ` : '') + `${TTV.n} trains, trams${zq >= 14 ? ', buses' : ''} and ferries here, placed from the timetable (Transitous open data; no live positions here yet)${zq < 14 ? ' · zoom in for buses' : ''}`; renderBusNote();
+      BUS.note = (TTV.esLive && Date.now() - TTV.esLive < 120000 ? `${TTV.esN} Renfe trains live · ` : '') + (TTV.cityLive && Date.now() - TTV.cityLive.at < 120000 ? `${TTV.cityLive.n} ${TTV.cityLive.name} buses live · ` : '') + `${TTV.n} trains, trams${zq >= 14 ? ', buses' : ''} and ferries here, placed from the timetable (Transitous open data${(TTV.esLive && Date.now() - TTV.esLive < 120000) || (TTV.cityLive && Date.now() - TTV.cityLive.at < 120000) ? '' : '; no live positions here yet'})${zq < 14 ? ' · zoom in for buses' : ''}`; renderBusNote();
     }catch(e){ console.warn('timetable vehicles', e); }
     TTV.busy = false; return; }
   TTV.world = false;
@@ -2611,7 +2616,8 @@ setInterval(() => { if(!TTV.ferries || !TRAINS_ON || inTfLArea([map.getCenter().
     if(!pts.cum){ pts.cum = [0]; for(let i = 1; i < pts.length; i++) pts.cum.push(pts.cum[i-1] + dist(pts[i-1], pts[i])); }
     const f = Math.max(0, Math.min(1, (now - dep)/((arr - dep) || 1))), L = pts.cum[pts.cum.length-1]*f; let i = 1; while(i < pts.length - 1 && pts.cum[i] < L) i++;
     const u = Math.max(0, Math.min(1, (L - pts.cum[i-1])/((pts.cum[i] - pts.cum[i-1]) || 1))), A = pts[i-1], B = pts[i], p = [A[0] + (B[0]-A[0])*u, A[1] + (B[1]-A[1])*u];
-    if(TTV.esLive && Date.now() - TTV.esLive < 120000 && /RENFE-?Cercan|Rodalies|Cercan/i.test(trip)) continue; // shown live by Renfe instead (its line is still drawn)
+    if(TTV.esLive && Date.now() - TTV.esLive < 120000 && /RENFE-?Cercan|Rodalies|Cercan/i.test(trip)) continue;
+    if(TTV.cityLive && Date.now() - TTV.cityLive.at < 120000 && /BUS/.test(s[0]) && LIVE_ABROAD.some(x => x[0] === TTV.cityLive.name && x[4].test(trip))) continue; // that city's buses are live // shown live by Renfe instead (its line is still drawn)
     const id = 'tf:' + trip; seen.add(id); let g = GPS.list.get(id);
     const m = s[0], kind = /FERRY/.test(m) ? 'ferry' : /BUS|COACH/.test(m) ? 'bus' : /TRAM/.test(m) ? 'tram' : /SUBWAY|METRO/.test(m) ? 'metro' : 'train';
     const feed = (s[8].split('_')[2] || '').replace(/^[a-z]{2}-/, '').replace(/[-_]+/g, ' ').replace(/\b\w/g, c => c.toUpperCase()).replace(/\bSncf\b/, 'SNCF').replace(/\bRatp\b/, 'RATP').replace(/\bFor\b/, 'for'); // the timetable it comes from (Transport for Ireland, SNCF…)
