@@ -27,7 +27,7 @@ html,body{margin:0;height:100%;background:var(--bg);color:var(--ink);font:15px/1
   background:var(--panel);border:1px solid var(--edge);border-radius:14px;box-shadow:0 6px 24px rgba(0,0,0,.2);padding:14px}
 h1{margin:0 0 10px;font-size:18px;font-weight:800;display:flex;align-items:center;gap:6px;white-space:nowrap}
 h1 .sp{flex:1}
-#mapMenu i.ldn-txt, #mapMenu i.away-txt{font-style:normal} #ttl{overflow:hidden;text-overflow:ellipsis;min-width:0} h1 .icon{padding:6px 7px;flex:none} h1{gap:5px}
+#mapMenu i.ldn-txt, #mapMenu i.away-txt{font-style:normal} #ttl{overflow:hidden;text-overflow:ellipsis;min-width:0} h1 .icon{padding:6px 6px;flex:none} h1{gap:4px}
 form{display:grid;gap:8px}
 .field{display:flex;align-items:center;gap:8px;background:var(--soft);border-radius:10px;padding:0 10px}
 .field label{font-size:12px;color:var(--mute);min-width:34px;white-space:nowrap}
@@ -2434,7 +2434,7 @@ function applyRegion(){
     else { let st = null, sd = 2500; for(const x of RAIL.stations){ if(Math.abs(x[2] - p[0]) > 0.03) continue; const d = dist(p, [x[2], x[3]]); if(d < sd){ sd = d; st = x; } } // else the town of the nearest railway station
       if(st) $('ttl').textContent = st[1].replace(/\s*\(.*\)$/, '').replace(/\s+(Central|General|Parkway|Interchange|International|Priory|Paragon|Exchange|Junction|High Street|Town|City|Low Level|High Level|(North|South|East|West)( Street)?)$/i, '') + ' live map'; } }
   { const t = $('ttl'), fit = m => { t.style.fontSize = ''; for(let f = 17; f >= m && t.scrollWidth > t.clientWidth + 1; f--) t.style.fontSize = f + 'px'; return t.scrollWidth <= t.clientWidth + 1; };
-    if(!fit(15) && / map$/.test(t.textContent)){ t.textContent = t.textContent.replace(/ map$/, ''); fit(13); } } // long names shrink a little rather than being cut off
+    if(!fit(14) && / map$/.test(t.textContent)){ t.textContent = t.textContent.replace(/ map$/, ''); fit(13); } } // long names shrink a little rather than being cut off
   $('bFit').title = away ? 'Near me (tap again: the area around you)' : 'Near me (tap again: all of London)';
   $('q').placeholder = !away ? 'Search a station or line (e.g. 172)' : abroad ? 'Search a station or line' : 'Search a station or route (e.g. X1)';
   if(typeof onTrainsUpdate === 'function') onTrainsUpdate(ACTIVE.reduce((s, l) => s + (shown(l) ? l.count : 0), 0));
