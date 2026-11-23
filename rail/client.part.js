@@ -98,7 +98,7 @@ async function refreshRail(){
     for(const l of ACTIVE) if(l.rail) l.count = 0;
     for(const t of trains.values()) if(t.rail && BY[t.line]) BY[t.line].count++;
     if(newStops){ if(typeof STATIONS !== 'undefined') STATIONS = null; if(typeof STIDX !== 'undefined') STIDX = null; } // station search/near-you indexes
-    RAIL.state = 'live'; RAIL.msg = `${[...trains.values()].filter(t => t.rail).length} trains`; RAIL.last = t0;
+    RAIL.state = 'live'; RAIL.liveN = seen.size; RAIL.msg = `${seen.size} trains${RAIL.src === 'darwin' ? ' (Darwin)' : ''}${RAIL.ttN ? ' · ' + RAIL.ttN + ' more from the timetable' : ''}`; RAIL.last = t0;
   }catch(e){ RAIL.state = 'error'; RAIL.msg = e.message; console.warn('rail', e); }
   if(typeof renderLegend === 'function') renderLegend();
   if(typeof renderRailStatus === 'function') renderRailStatus();

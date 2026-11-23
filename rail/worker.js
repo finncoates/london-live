@@ -181,7 +181,7 @@ async function vehicles(url, env, ctx){
     return {src, vehicles:parseTfe(await r.json())};
   });
   const OPEN = {gdansk:['https://ckan2.multimediagdansk.pl/gpsPositions?v=2', parseGdansk], tallinn:['https://transport.tallinn.ee/gps.txt', parseTallinn],
-    vilnius:['https://www.stops.lt/vilnius/gps_full.txt', parseVilnius]};
+    vilnius:['https://www.stops.lt/vilnius/gps_full.txt', parseVilnius], renfe:['https://gtfsrt.renfe.com/vehicle_positions.json', parseRenfe]};
   if(OPEN[src]) return cached(src, 15, ctx, async () => {
     const r = await fetch(OPEN[src][0], {signal:AbortSignal.timeout(8000)}); if(!r.ok) throw fail(src + ': HTTP ' + r.status, 502);
     return {src, vehicles:OPEN[src][1](await r.text())};
@@ -287,6 +287,11 @@ function parseGdansk(txt){
     lat:+v.lat, lon:+v.lon, brg:v.direction ?? null, t:Date.parse(v.generated) || null, tram:+v.routeShortName < 100 && v.routeShortName !== '', late:v.delay != null ? -v.delay : null}));
 }
 // Tallinn: type (1 trolleybus, 2 bus, 3 tram), route, lon×1e6, lat×1e6, -, heading, vehicle, -, -, destination
+// Spain: Renfe's live train positions (GTFS-realtime as JSON): Cercanías/Rodalies and more; the label starts with the line (C1-23560-…)
+function parseRenfe(txt){ let j; try{ j = JSON.parse(txt); }catch(e){ return []; }
+  return (j.entity || []).map(e => e.vehicle).filter(v => v && v.position && v.position.latitude).map(v => { const lab = v.vehicle?.label || '', line = (/^([A-Z]+\d*[a-z]?)-/.exec(lab) || [])[1] || '';
+    return {id:'es:' + (v.vehicle?.id || v.trip?.tripId), line, op:'Renfe', dest:'', lat:+v.position.latitude, lon:+v.position.longitude, brg:v.position.bearing ?? null, t:v.timestamp ? +v.timestamp*1000 : null, train:true, kind:'train'}; }); }
+
 function parseTallinn(txt){
   return txt.split('\n').map(l => l.trim().split(',')).filter(a => a.length >= 10 && +a[2] && +a[3]).map(a => ({id:'tln:' + a[6], line:(a[0] === '3' ? '' : a[0] === '1' ? 'T' : '') + a[1], op:'TLT ' + ({1:'trolleybus', 2:'bus', 3:'tram'}[a[0]] || ''),
     dest:a[9] || '', lat:+a[3]/1e6, lon:+a[2]/1e6, brg:a[5] === '' ? null : +a[5], t:null, tram:a[0] === '3'}));
