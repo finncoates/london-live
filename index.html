@@ -2014,11 +2014,14 @@ const CITYL = {list:[{name:'Helsinki', box:p => inHelsinki(p), urls:['cities/fin
   {name:'Edinburgh', box:p => p[0] > 55.88 && p[0] < 56.02 && p[1] > -3.45 && p[1] < -3.05, urls:['cities/edinburgh.json']},
   {name:'Glasgow', box:p => p[0] > 55.80 && p[0] < 55.92 && p[1] > -4.40 && p[1] < -4.15, urls:['cities/glasgow.json']},
   {name:'Nottingham', box:p => p[0] > 52.86 && p[0] < 53.06 && p[1] > -1.35 && p[1] < -1.05, urls:['cities/nottingham.json']},
-  {name:'Newcastle', box:p => p[0] > 54.85 && p[0] < 55.10 && p[1] > -1.80 && p[1] < -1.35, urls:['cities/tyneandwear.json']}, {name:'Boston', box:p => inBoston(p), urls:['cities/boston.json']}, {name:'Oslo', box:p => inOslo(p), urls:['cities/oslo.json']}, {name:'Bergen', box:p => inBergen(p), urls:['cities/bergen.json']}, {name:'Trondheim', box:p => inTrondheim(p), urls:['cities/trondheim.json']}, {name:'Norway', box:p => inNorway(p), urls:['cities/norway.json'], src:'Entur'}, {name:'Tallinn', box:p => relayCity(p)?.[0] === 'tallinn', urls:['cities/tallinn.json']}, {name:'Gdańsk', box:p => relayCity(p)?.[0] === 'gdansk', urls:['cities/gdansk.json']}], cur:null, data:new Map()};
+  {name:'Newcastle', box:p => p[0] > 54.85 && p[0] < 55.10 && p[1] > -1.80 && p[1] < -1.35, urls:['cities/tyneandwear.json']}, {name:'Boston', box:p => inBoston(p), urls:['cities/boston.json']}, {name:'Oslo', box:p => inOslo(p), urls:['cities/oslo.json']}, {name:'Bergen', box:p => inBergen(p), urls:['cities/bergen.json']}, {name:'Trondheim', box:p => inTrondheim(p), urls:['cities/trondheim.json']},
+  // France: each city's network from its own open timetable (transport.data.gouv.fr), official line colours
+  {name:'Paris', box:p => p[0] > 48.1 && p[0] < 49.25 && p[1] > 1.4 && p[1] < 3.6, urls:['cities/fr-paris.json'], bus:['#7E8BA3', '#97A6BF']}, {name:'Norway', box:p => inNorway(p), urls:['cities/norway.json'], src:'Entur'}, {name:'Tallinn', box:p => relayCity(p)?.[0] === 'tallinn', urls:['cities/tallinn.json']}, {name:'Gdańsk', box:p => relayCity(p)?.[0] === 'gdansk', urls:['cities/gdansk.json']}], cur:null, data:new Map()};
 const cityData = () => CITYL.cur ? CITYL.cur.urls.map(u => CITYL.data.get(u)).filter(d => d && d.grid) : [];
 const CELL = (la, lo) => Math.floor(la*200) + ',' + Math.floor(lo*100); // ~550 m × 600 m
 async function loadCityLines(p){
-  const c = CITYL.list.find(x => x.box(p)); CITYL.cur = c || null; if(!c) return;
+  const c = CITYL.list.find(x => x.box(p)), was = CITYL.cur; CITYL.cur = c || null; if(!c) return;
+  if(c !== was && c.bus) setTimeout(() => { TTV.busy || refreshTT(); }, 50); // just arrived in a city with a bus map: fetch its buses now, not at the next minute
   await Promise.all(c.urls.filter(u => !CITYL.data.has(u)).map(async url => { CITYL.data.set(url, null);
     try{ const d = await (await fetch(url, {signal:AbortSignal.timeout(15000)})).json(), grid = new Map();
       d.lines.forEach((l, li) => { for(let i = 1; i < l.pts.length; i++){ const a = l.pts[i-1], b = l.pts[i], n = Math.max(1, Math.ceil(dist(a, b)/300));
@@ -2077,7 +2080,7 @@ function cityShare(d){
 function drawCityLines(ctx){ for(const d of cityData()) drawLineSet(ctx, d); }
 function drawLineSet(ctx, d){
   // line shapes are built once per whole zoom level (world pixels) and then just moved/scaled: cheap every frame
-  const zc = Math.floor(PV.z), k = 2 ** (PV.z - zc), W = lineW(), order = {ferry:0, train:1, tram:2, metro:3}, kb = Math.round(k*4);
+  const zc = Math.floor(PV.z), k = 2 ** (PV.z - zc), W = lineW(), order = {ferry:0, cable:1, train:2, tram:3, metro:4}, kb = Math.round(k*4);
   const O = orgAt(zc);
   if(d.pz !== zc + ':' + kb + ':' + ORG.id){ const SH = cityShare(d); d.paths = [];
     [...d.lines.keys()].sort((a, b) => order[d.lines[a].kind] - order[d.lines[b].kind]).forEach(li => { const l = d.lines[li], sh = SH[li], P = l.pts.map(q => wl(q, zc, O)), n = P.length;
@@ -2384,9 +2387,9 @@ function busnetTiles(){
 }
 const BUSNET_COL = {berlin:['#A5027D', '#B8509E'], boston:['#E0A000', '#9C8436'], helsinki:['#007AC9', '#3AA0E8'], oslo:['#E60000', '#FF5A5A']};
 function drawBusNet(ctx){
-  if(busOff() || GPS_OFF.has('bus') || PV.z < 12) return; const c = map.getCenter(); if(!c) return; const rg = regionOf([c.lat(), c.lng()]); { if(rg !== 'uk' && rg !== 'edinburgh' && rg !== 'london' && rg !== 'berlin' && rg !== 'boston' && !(rg === 'finland' && inHelsinki([c.lat(), c.lng()])) && rg !== 'norway' && rg !== 'city' && !CITYL.cur?.name?.match(/Manchester/)) return; } // Berlin, Boston, Helsinki: from their own timetables
+  if(busOff() || GPS_OFF.has('bus') || PV.z < 12) return; const c = map.getCenter(); if(!c) return; const rg = regionOf([c.lat(), c.lng()]); { if(rg !== 'uk' && rg !== 'edinburgh' && rg !== 'london' && rg !== 'berlin' && rg !== 'boston' && !(rg === 'finland' && inHelsinki([c.lat(), c.lng()])) && rg !== 'norway' && rg !== 'city' && !CITYL.cur?.name?.match(/Manchester/) && !(CITYL.cur?.bus && CITYL.cur.box([c.lat(), c.lng()]))) return; } // Berlin, Boston, Helsinki: from their own timetables
   const zc = Math.floor(PV.z), k = 2 ** (PV.z - zc), look = lineLook('bus', lineW());
-  const O = orgAt(zc); ctx.save(); localView(ctx, O, k); ctx.globalAlpha = dark ? Math.min(1, look.alpha*1.4) : look.alpha; ctx.strokeStyle = (BUSNET_COL[rg === 'finland' ? 'helsinki' : rg === 'norway' ? 'oslo' : rg] || ['#DC241F', '#E8574F'])[dark ? 1 : 0]; /* the colour of the city's own buses (Berlin purple, Boston yellow, Helsinki blue); red in Britain */ ctx.lineWidth = look.w/k; ctx.lineJoin = 'round'; ctx.lineCap = 'round';
+  const O = orgAt(zc); ctx.save(); localView(ctx, O, k); ctx.globalAlpha = dark ? Math.min(1, look.alpha*1.4) : look.alpha; ctx.strokeStyle = (BUSNET_COL[rg === 'finland' ? 'helsinki' : rg === 'norway' ? 'oslo' : rg] || CITYL.cur?.bus || ['#DC241F', '#E8574F'])[dark ? 1 : 0]; /* the colour of the city's own buses (Berlin purple, Boston yellow, Helsinki blue); red in Britain */ ctx.lineWidth = look.w/k; ctx.lineJoin = 'round'; ctx.lineCap = 'round';
   const ldn = regionOf([c.lat(), c.lng()]) === 'london';
   for(const t of busnetTiles()){
     if(ldn && !BUSNET.tiles.has(t)){ const [a, b] = t.split('_').map(Number); if([[a, b], [a + 1, b], [a, b + 1], [a + 1, b + 1]].every(([y, x]) => inGreaterLondon([y/10, x/10]))) { BUSNET.tiles.set(t, []); continue; } } // deep inside London: TfL's routes, no tile
@@ -2585,15 +2588,15 @@ async function refreshTT(){
     tiles.sz = sz;
     if(tiles.length > (sz >= 4 ? 20 : sz >= 2 ? 15 : 12)){ const m = [c0.lat() - 0.25, c0.lng() - 0.25]; tiles.sort((x, y) => Math.hypot(x[0] - m[0], (x[1] - m[1])*0.6) - Math.hypot(y[0] - m[0], (y[1] - m[1])*0.6)); tiles.length = 12; }
     TTV.busy = true;
-    try{ const now = Date.now(), modes = 'rail,tram,ferry' + (zq >= 14 && !busOff() ? ',bus' : '');
+    try{ const now = Date.now(), modes = 'rail,tram,ferry' + ((zq >= 14 || (zq >= 13 && CITYL.cur?.bus)) && !busOff() ? ',bus' : ''); // buses from zoom 13 where the city's bus map is drawn (as Berlin)
       // each tile is added as soon as it arrives (no waiting for the slowest); every stretch of each journey is kept
       // (keyed by trip and time: a bus passing three stops in the window has three), and older ones go once all are in
-      const fresh = new Set(), add = r => { for(const s of r?.vehicles || []) if(s[9] && s[6] > now){ const k = s[8] + '|' + s[5]; fresh.add(k); if(TTV.ferries?.has(k)) continue; const pts = decodePoly(s[9]); if(pts.length > 1) (TTV.ferries ||= new Map()).set(k, {s, pts}); } };
+      const fresh = new Set(), failed = new Set(), add = (r, tk) => { for(const s of r?.vehicles || []) if(s[9] && s[6] > now){ const k = s[8] + '|' + s[5]; fresh.add(k); if(TTV.ferries?.has(k)) continue; const pts = decodePoly(s[9]); if(pts.length > 1) (TTV.ferries ||= new Map()).set(k, {s, pts, tk}); } };
       if(!TTV.world) TTV.ferries = new Map();
-      const res = await Promise.all(tiles.map(([la, lo]) => railGet(`/tt?la=${la}&lo=${lo}&s=${tiles.sz}&modes=${modes}&z=${zq < 7 ? 6 : zq < 9 ? 8 : Math.min(14, zq + 1)}`).then(r => { add(r); TTV.world = true; clearTimeout(TTV.dt); TTV.dt = setTimeout(ttTick, 50); return r; }).catch(() => null))); // vehicles appear as each tile lands
-      for(const k of [...TTV.ferries.keys()]) if(!fresh.has(k)) TTV.ferries.delete(k);
+      const res = await Promise.all(tiles.map(([la, lo]) => railGet(`/tt?la=${la}&lo=${lo}&s=${tiles.sz}&modes=${modes}&z=${zq < 7 ? 6 : zq < 9 ? 8 : Math.min(14, zq + 1)}`).then(r => { add(r, la + ',' + lo); TTV.world = true; clearTimeout(TTV.dt); TTV.dt = setTimeout(ttTick, 50); return r; }).catch(() => { failed.add(la + ',' + lo); return null; }))); // vehicles appear as each tile lands
+      for(const [k, e] of [...TTV.ferries]) if(!fresh.has(k) && !failed.has(e.tk)) TTV.ferries.delete(k); // an area that failed this time keeps what it had
       TTV.n = TTV.ferries.size; TTV.at = now; TTV.world = true;
-      BUS.note = (TTV.esLive && Date.now() - TTV.esLive < 120000 ? `${TTV.esN} Renfe trains live · ` : '') + (TTV.cityLive && Date.now() - TTV.cityLive.at < 120000 ? `${TTV.cityLive.n} ${TTV.cityLive.name} ${TTV.cityLive.name === 'Toronto' ? 'buses and streetcars' : TTV.cityLive.what || 'buses'} live · ` : '') + `${TTV.n} ${zq < 7 ? 'high-speed and intercity trains' : zq < 9 ? 'trains' : 'trains, trams' + (zq >= 14 ? ', buses' : '') + ' and ferries'} here, placed from the timetable (Transitous open data${(TTV.esLive && Date.now() - TTV.esLive < 120000) || (TTV.cityLive && Date.now() - TTV.cityLive.at < 120000) ? '' : '; no live positions here yet'})${zq < 7 ? ' · zoom in for regional trains' : zq < 9 ? ' · zoom in for trams and metros' : zq < 14 ? ' · zoom in for buses' : ''}`;
+      BUS.note = (TTV.esLive && Date.now() - TTV.esLive < 120000 ? `${TTV.esN} Renfe trains live · ` : '') + (TTV.cityLive && Date.now() - TTV.cityLive.at < 120000 ? `${TTV.cityLive.n} ${TTV.cityLive.name} ${TTV.cityLive.name === 'Toronto' ? 'buses and streetcars' : TTV.cityLive.what || 'buses'} live · ` : '') + `${TTV.n} ${zq < 7 ? 'high-speed and intercity trains' : zq < 9 ? 'trains' : 'trains, trams' + (zq >= 14 ? ', buses' : '') + ' and ferries'} here, placed from the timetable (Transitous open data${(TTV.esLive && Date.now() - TTV.esLive < 120000) || (TTV.cityLive && Date.now() - TTV.cityLive.at < 120000) ? '' : '; no live positions here yet'})${zq < 7 ? ' · zoom in for regional trains' : zq < 9 ? ' · zoom in for trams and metros' : zq < (CITYL.cur?.bus ? 13 : 14) ? ' · zoom in for buses' : ''}`;
       if(!TTV.n){ const c = map.getCenter(), h = (new Date().getUTCHours() + Math.round(c.lng()/15) + 24) % 24; // rough local hour from longitude
         if(h >= 0 && h < 5) BUS.note = `Nothing running here right now: it's about ${h || 12} am locally and services have stopped for the night. They come back from about 5 am.`; }
       renderBusNote();
@@ -2636,7 +2639,10 @@ window.__TTV = TTV;
 // abroad: each timetable vehicle's route drawn as a line (one look per kind of transport, as everywhere): trains a double line, trams thinner, buses light, ferries dashed
 function drawTTLines(ctx){
   const W = lineW(), s0 = mapSize(), groups = new Map();
+  // where the city's whole network is drawn (cities/*.json), its lines aren't drawn again from the timetable
+  const cd = cityData(), drawn = cd.length ? (CITYL.cur.names ||= new Set(cd.flatMap(d => d.lines.map(l => l.kind + '|' + l.name)))) : null;
   for(const {s, pts} of TTV.ferries.values()){ const m = s[0], kind = /FERRY/.test(m) ? 'ferry' : /BUS|COACH/.test(m) ? 'bus' : /TRAM/.test(m) ? 'tram' : /SUBWAY|METRO/.test(m) ? 'metro' : 'train';
+    if(drawn && (drawn.has(kind + '|' + s[2]) || (kind === 'tram' && drawn.has('metro|' + s[2])))) continue;
     if(GPS_OFF.has(kind) || (kind === 'bus' && busOff())) continue; const col = s[1] && /^[0-9a-f]{6}$/i.test(s[1]) ? '#' + s[1] : {ferry:'#00A0E2', train:'#5D6670', tram:'#7A1F3D', metro:'#0E4C92', bus:'#DC241F'}[kind];
     const P = pts.map(scr); if(!P.some(q => q.x > -50 && q.y > -50 && q.x < s0.x + 50 && q.y < s0.y + 50)) continue;
     const k = kind + '|' + col; (groups.get(k) || groups.set(k, []).get(k)).push(P); }
@@ -2663,7 +2669,7 @@ function ttTick(){ if(!TTV.ferries || !TRAINS_ON || inTfLArea([map.getCenter().l
     const m = s[0], kind = /FERRY/.test(m) ? 'ferry' : /BUS|COACH/.test(m) ? 'bus' : /TRAM/.test(m) ? 'tram' : /SUBWAY|METRO/.test(m) ? 'metro' : 'train';
     const feed = (s[8].split('_')[2] || '').replace(/^[a-z]{2}-/, '').replace(/[-_]+/g, ' ').replace(/\b\w/g, c => c.toUpperCase()).replace(/\bSncf\b/, 'SNCF').replace(/\bRatp\b/, 'RATP').replace(/\bFor\b/, 'for'); // the timetable it comes from (Transport for Ireland, SNCF…)
     const v = {id, line:/^(rail|bus|tram|train)$/i.test(name) ? '' : name, op:kind !== 'ferry' ? feed || 'Timetable' : /^CM\d|^\d+[A-Z]?$/.test(name) ? 'CalMac' : 'Ferry', dest:to[0].replace(/ (Ferry )?Terminal$/i, ''), from:from[0].replace(/ (Ferry )?Terminal$/i, ''), lat:p[0], lon:p[1], kind, sched:true, t:null,
-      train:kind === 'train', tram:kind === 'tram', metro:kind === 'metro', col:col && /^[0-9a-f]{6}$/i.test(col) ? '#' + col : {ferry:'#00A0E2', train:'#1D5BA0', tram:'#7A1F3D', metro:'#0E4C92', bus:'#DC241F'}[kind],
+      train:kind === 'train', tram:kind === 'tram', metro:kind === 'metro', col:kind === 'bus' && CITYL.cur?.bus ? CITYL.cur.bus[0] /* one colour for a city's buses (as London's red), not their route colours, which clash with the metro's */ : col && /^[0-9a-f]{6}$/i.test(col) ? '#' + col : {ferry:'#00A0E2', train:'#1D5BA0', tram:'#7A1F3D', metro:'#0E4C92', bus:'#DC241F'}[kind],
       segAng:Math.atan2(-(B[0]-A[0]), (B[1]-A[1])*Math.cos(A[0]*rad))};
     if(!g){ g = {from:p, to:p, t0:now, dur:2000}; GPS.list.set(id, g); } else { g.from = gpsPos(g, now); g.to = p; g.t0 = now; g.dur = 2000; }
     g.v = v; g.seen = now; }

@@ -386,6 +386,7 @@ const polyClip = (str, dep, arr, box, m) => { if(!str) return [str, dep, arr]; c
   const D = cum[cum.length - 1] || 1, T = arr - dep;
   return [polyEnc(p.slice(i0, i1 + 1)), Math.round(dep + T*cum[i0]/D), Math.round(dep + T*cum[i1]/D)]; };
 const TT_MODES = {rail:/RAIL|LONG_DISTANCE|SUBURBAN|NIGHT_RAIL|HIGHSPEED/, tram:/TRAM|SUBWAY|METRO|FUNICULAR|CABLE/, bus:/BUS|COACH/, ferry:/FERRY/};
+const TT_LAST = new Map(); // tile → its last good answer, for when Transitous briefly fails
 async function ttTile(url, cors){
   const sz = [4, 2, 1, 0.5, 0.25, 0.125].includes(+url.searchParams.get('s')) ? +url.searchParams.get('s') : 0.5; // smaller tiles for dense cities (Paris); 1–4° tiles for a whole country zoomed out (Transitous then sends only intercity / high-speed)
   const la = Math.floor(+url.searchParams.get('la')/sz)*sz, lo = Math.floor(+url.searchParams.get('lo')/sz)*sz;
@@ -397,13 +398,16 @@ async function ttTile(url, cors){
   if(!all){ let w = TT_WAIT.get(key);
     if(!w){ w = (async () => {
         const q = `zoom=${zm}&min=${la},${lo}&max=${la + sz},${lo + sz}&startTime=${new Date(bucket).toISOString()}&endTime=${new Date(bucket + 240000).toISOString()}`;
-        const r = await fetch('https://api.transitous.org/api/v5/map/trips?' + q, {headers:{'user-agent':'LondonLive/1.0 (+https://github.com/finncoates/london-live)'}, signal:AbortSignal.timeout(20000)});
-        if(!r.ok) throw fail('Transitous: HTTP ' + r.status, 502);
+        const get = () => fetch('https://api.transitous.org/api/v5/map/trips?' + q, {headers:{'user-agent':'LondonLive/1.0 (+https://github.com/finncoates/london-live)'}, signal:AbortSignal.timeout(20000)}).catch(e => ({ok:false, status:e.message}));
+        let r = await get(); if(!r.ok){ await new Promise(ok => setTimeout(ok, 700)); r = await get(); } // Transitous turns away the odd burst: once more
+        const lastKey = la + ':' + lo + ':' + zm + ':' + sz, last = TT_LAST.get(lastKey);
+        if(!r.ok){ if(last && bucket - last.at <= 600000) return last.v; throw fail('Transitous: HTTP ' + r.status, 502); } // keep showing the last good answer (up to 10 min)
         const stop = s => [s.name, s.stopCode || null, +s.lat.toFixed(5), +s.lon.toFixed(5)];
         const box = [la, lo, la + sz, lo + sz], tol = sz >= 4 ? 0.02 : sz >= 2 ? 0.01 : sz >= 1 ? 0.005 : 0.0002;
         const v = (await r.json()).map(s => { const c = polyClip(s.polyline || '', Date.parse(s.departure), Date.parse(s.arrival), box, Math.max(0.03, sz*0.4));
           return [s.mode, s.routeColor || null, s.trips?.[0]?.displayName || '', stop(s.from), stop(s.to), c[1], c[2], s.realTime ? 1 : 0, s.trips?.[0]?.tripId || '', polyThin(c[0], tol)]; });
         TT_MEM.set(key, v); for(const k of TT_MEM.keys()) if(+k.split(':')[2] < bucket - 240000) TT_MEM.delete(k);
+        TT_LAST.set(lastKey, {at:bucket, v}); if(TT_LAST.size > 400) TT_LAST.delete(TT_LAST.keys().next().value);
         return v; })().finally(() => TT_WAIT.delete(key));
       TT_WAIT.set(key, w); }
     all = await w; }

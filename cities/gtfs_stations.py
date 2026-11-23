@@ -5,7 +5,7 @@ import sys, zipfile, csv, io, json, collections, os
 zf, jf, typemap = sys.argv[1], sys.argv[2], dict(x.split(':') for x in sys.argv[3].split(','))
 BOX = [float(x) for x in sys.argv[4].split(',')] if len(sys.argv) > 4 else None
 z = zipfile.ZipFile(zf); rd = lambda n: csv.DictReader(io.TextIOWrapper(z.open(n), 'utf-8-sig'))
-data = json.load(open(jf)); colour = {}
+data = json.load(open(jf, encoding='utf-8')); colour = {}
 for l in data['lines']: colour.setdefault((l['name'], l['kind']), l['col'])
 routes = {r['route_id']: (typemap[r['route_type']], r.get('route_short_name') or r.get('route_long_name')) for r in rd('routes.txt') if r['route_type'] in typemap}
 pick = {}  # a few trips per (route, shape): enough to see every stop
@@ -47,5 +47,5 @@ for sid, e in stations.items():
     lines = sorted(e['lines'], key=lambda x: (['metro','train','tram','ferry'].index(x[1]) if x[1] in ['metro','train','tram','ferry'] else 9, x[0]))
     out.append([sid, e['name'], round(e['lat'], 5), round(e['lon'], 5), [[n, colour.get((n, k), ''), k] for n, k in lines]])
 data['stations'] = out
-json.dump(data, open(jf, 'w'), separators=(',', ':'), ensure_ascii=False)
+json.dump(data, open(jf, 'w', encoding='utf-8'), separators=(',', ':'), ensure_ascii=False)
 print(len(out), 'stations', os.path.getsize(jf), 'bytes')
