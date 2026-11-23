@@ -37,7 +37,8 @@ agencies = {r.get('agency_id', ''): r.get('agency_name', '') for r in rd('agency
 routes = [r for r in rd('routes.txt') if not a.agency or re.search(a.agency, (r.get('agency_id') or '') + ' ' + agencies.get(r.get('agency_id') or '', ''), re.I)]
 if not routes: sys.exit('no routes match')
 rids = {r['route_id'] for r in routes}
-trips = [t for t in rd('trips.txt') if t['route_id'] in rids]; tids = {t['trip_id'] for t in trips}; sids = {t.get('shape_id') for t in trips}
+KEEP = ('route_id', 'service_id', 'trip_id', 'trip_headsign', 'direction_id', 'shape_id')  # only what the tools read: big feeds' trips (TEC, De Lijn) don't fit in memory whole
+trips = [{k: t.get(k, '') for k in KEEP} for t in rd('trips.txt') if t['route_id'] in rids]; tids = {t['trip_id'] for t in trips}; sids = {t.get('shape_id') for t in trips}
 need_stops = set()
 sub = os.path.join(work, 'city.zip')
 with zipfile.ZipFile(sub, 'w', zipfile.ZIP_DEFLATED) as out:
