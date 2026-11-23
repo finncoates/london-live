@@ -2701,6 +2701,8 @@ function drawTTLines(ctx){
     if(look.stripe && look.w >= 2.5){ ctx.setLineDash([]); ctx.globalAlpha = 1; ctx.strokeStyle = MAP_BG(); ctx.lineWidth = look.w/3; ctx.stroke(); } }
   ctx.restore(); }
 // every 2 s: each ferry's place along its route now (a vehicle like the GPS ones, so it's drawn, tapped and toggled the same way)
+// networks' own names for the timetable's feeds (cities/feed-names.json: 'TBM', 'IDFM', 'Tisséo'…), not their dataset ids
+let FEEDN = {}; fetch('cities/feed-names.json').then(r => r.ok ? r.json() : {}).then(j => { FEEDN = j; }).catch(() => {});
 const kind0 = m => /FERRY/.test(m) ? 'ferry' : /BUS|COACH/.test(m) ? 'bus' : /TRAM/.test(m) ? 'tram' : /SUBWAY|METRO/.test(m) ? 'metro' : 'train';
 function ttTick(){ if(!TTV.ferries || !TRAINS_ON || inTfLArea([map.getCenter().lat(), map.getCenter().lng()])) return; const now = Date.now(), seen = new Set();
   const liveKinds = new Set(); for(const [k, g] of GPS.list) if(k.startsWith('la:')) liveKinds.add(g.v.kind || 'bus'); // what the city's live feed actually has (Amsterdam's has no metro, Rotterdam's does)
@@ -2719,7 +2721,7 @@ function ttTick(){ if(!TTV.ferries || !TRAINS_ON || inTfLArea([map.getCenter().l
     { const lk = liveAt.get(kind0(s[0]) + '|' + String(name || '').toLowerCase()); if(lk && lk.some(q => Math.abs(q[0] - p[0]) < 0.011 && Math.abs(q[1] - p[1]) < 0.016 && dist(q, p) < 1200)) continue; }
     const id = 'tf:' + trip; seen.add(id); let g = GPS.list.get(id);
     const m = s[0], kind = /FERRY/.test(m) ? 'ferry' : /BUS|COACH/.test(m) ? 'bus' : /TRAM/.test(m) ? 'tram' : /SUBWAY|METRO/.test(m) ? 'metro' : 'train';
-    const feed = (s[8].split('_')[2] || '').replace(/^[a-z]{2}-/, '').replace(/[-_]+/g, ' ').replace(/\b\w/g, c => c.toUpperCase()).replace(/\bSncf\b/, 'SNCF').replace(/\bRatp\b/, 'RATP').replace(/\bFor\b/, 'for'); // the timetable it comes from (Transport for Ireland, SNCF…)
+    const fid = s[8].split('_')[2] || '', feed = FEEDN[fid] != null ? FEEDN[fid] : fid.replace(/^[a-z]{2}-/, '').replace(/[-_]+/g, ' ').replace(/\b\w/g, c => c.toUpperCase()).replace(/\bSncf\b/, 'SNCF').replace(/\bRatp\b/, 'RATP').replace(/\bFor\b/, 'for'); // the timetable it comes from (Transport for Ireland, SNCF…)
     const v = {id, line:/^(rail|bus|tram|train)$/i.test(name) ? '' : name, op:kind !== 'ferry' ? feed || 'Timetable' : /^CM\d|^\d+[A-Z]?$/.test(name) ? 'CalMac' : 'Ferry', dest:(TRIPI.get(trip)?.dest || to[0]).replace(/ (Ferry )?Terminal$/i, ''), from:TRIPI.get(trip) ? null : from[0].replace(/ (Ferry )?Terminal$/i, ''), next:TRIPI.get(trip) ? to[0] : null, trip, lat:p[0], lon:p[1], kind, sched:true, t:null,
       train:kind === 'train', tram:kind === 'tram', metro:kind === 'metro', col:kind === 'bus' && CITYL.cur?.bus ? CITYL.cur.bus[0] /* one colour for a city's buses (as London's red), not their route colours, which clash with the metro's */ : col && /^[0-9a-f]{6}$/i.test(col) ? inkA('#' + col.toLowerCase()) : {ferry:'#00A0E2', train:'#1D5BA0', tram:'#7A1F3D', metro:'#0E4C92', bus:'#DC241F'}[kind],
       segAng:Math.atan2(-(B[0]-A[0]), (B[1]-A[1])*Math.cos(A[0]*rad))};
