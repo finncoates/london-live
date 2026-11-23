@@ -1959,13 +1959,13 @@ function drawLineSet(ctx, d){
   // stations: dots from zoom 13 (bigger where lines meet), names from zoom 14 when the map's own labels are hidden — as in London
   if(!d.stations || PV.z < 13 || !SHOW_ST) return; const s0 = mapSize(), r = Math.max(2.5, W*0.55), names = QUIET_ON && PV.z >= 14;
   ctx.lineWidth = Math.max(1.5, W*0.3); if(names){ ctx.font = `600 ${PV.z >= 15 ? 13 : 11.5}px "Hanken Grotesk", system-ui, sans-serif`; ctx.textBaseline = 'middle'; ctx.textAlign = 'start'; }
-  const bnd = map.getBounds(), sw = bnd && bnd.getSouthWest(), ne = bnd && bnd.getNorthEast();
+  const bnd = map.getBounds(), sw = bnd && bnd.getSouthWest(), ne = bnd && bnd.getNorthEast(), named = [];
   for(const st of d.stations){ if(sw && (st[2] < sw.lat() - 0.01 || st[2] > ne.lat() + 0.01 || st[3] < sw.lng() - 0.01 || st[3] > ne.lng() + 0.01)) continue; if(!showSt(d, st)) continue;
     if(st[4].every(l => l[2] === 'tram') && PV.z < 15) continue; // tram stops only close up
     const c = scr([st[2], st[3]]); if(c.x < -20 || c.y < -20 || c.x > s0.x + 20 || c.y > s0.y + 20) continue;
     const rr = st[4].length > 1 && st[4].some(l => l[2] !== 'tram') ? r*1.35 : r;
     ctx.beginPath(); ctx.arc(c.x, c.y, rr, 0, 7); ctx.fillStyle = dark ? '#1b1c1f' : '#fff'; ctx.fill(); ctx.strokeStyle = dark ? '#e6e6e6' : '#1b1c1f'; ctx.stroke();
-    if(names && stLabelFree(c.x + rr + 4, c.y, ctx.measureText(stName(st[1])).width)){ ctx.lineWidth = 3; ctx.strokeStyle = dark ? 'rgba(0,0,0,.85)' : 'rgba(255,255,255,.95)'; ctx.strokeText(stName(st[1]), c.x + rr + 4, c.y);
+    if(names && !named.some(q => q[0] === stName(st[1]) && Math.hypot(q[1] - c.x, q[2] - c.y) < 120) && stLabelFree(c.x + rr + 4, c.y, ctx.measureText(stName(st[1])).width)){ named.push([stName(st[1]), c.x, c.y]); ctx.lineWidth = 3; // one name per stop (not one per platform) ctx.strokeStyle = dark ? 'rgba(0,0,0,.85)' : 'rgba(255,255,255,.95)'; ctx.strokeText(stName(st[1]), c.x + rr + 4, c.y);
       ctx.fillStyle = dark ? '#eee' : '#1b1c1f'; ctx.fillText(stName(st[1]), c.x + rr + 4, c.y); ctx.lineWidth = Math.max(1.5, W*0.3); } }
 }
 const showSt = (d, st) => st[4].some(l => !GPS_OFF.has(l[2])) && !(d.dupRail && st[4].every(l => l[2] === 'train'));
