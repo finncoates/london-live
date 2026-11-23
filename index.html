@@ -1914,7 +1914,7 @@ function snapGps(v){
 function cityShare(d){
   if(d.share) return d.share;
   const kx = Math.cos(d.lines[0]?.pts[0]?.[0]*rad || 0.9)*111320, ky = 111320, grid = new Map(), C = 30, cell = (x, y) => Math.floor(x/C) + ',' + Math.floor(y/C);
-  const key = l => l.name;
+  const key = l => l.col || l.name; // lines of one colour (Oslo's T-bane, Boston's Green Line branches) share track as one line, not as stripes of the same colour
   const names = [...new Set(d.lines.map(key))];
   d.lines.forEach((l, li) => { for(let i = 1; i < l.pts.length; i++){ const a = l.pts[i-1], b = l.pts[i], ax = a[1]*kx, ay = a[0]*ky, bx = b[1]*kx, by = b[0]*ky, L = Math.hypot(bx-ax, by-ay) || 1, m = Math.max(1, Math.ceil(L/12));
     for(let t = 0; t <= m; t++){ const x = ax + (bx-ax)*t/m, y = ay + (by-ay)*t/m, c = cell(x, y); (grid.get(c) || grid.set(c, []).get(c)).push([x, y, (bx-ax)/L, (by-ay)/L, key(l), l.kind]); } } });
