@@ -1549,11 +1549,11 @@ window.onTrainsUpdate = n => {
     const gl = typeof GPS !== 'undefined' ? [...GPS.list.values()].filter(g => !GPS_OFF.has(vkind(g.v))) : [], gt = gl.filter(g => g.v.train).length, rt = [...trains.values()].filter(t => t.rail && BY[t.line] && shown(BY[t.line])).length;
     const sh = typeof SHARE !== 'undefined' && SHARE.city && !MODES_OFF.has('bike') ? SHARE.city[3].reduce((n, x) => { const q = SHARE.sys.get(x[1]); return n + (q ? q.vehicles.length + [...q.stations.values()].reduce((m, d) => m + (d.open !== false && d.bikes || 0), 0) : 0); }, 0) : 0;
     if(sh && !(gt + rt || gl.length)){ $('status').innerHTML = `<b>${sh}</b> bikes &amp; scooters to hire · updated ${new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}`; renderLegend(); return; }
-    $('status').innerHTML = (gt + rt || gl.length) ? `${gt + rt ? `<b>${gt + rt}</b> trains` : ''}${gt + rt && gl.length - gt ? ' · ' : ''}${gl.length - gt ? `<b>${gl.length - gt}</b> ${(k => k.length > 1 ? k.slice(0, -1).join(', ') + ' &amp; ' + k.at(-1) : k[0])([gl.some(g => g.v.tram) && 'trams', gl.some(g => g.v.metro) && 'metros', gl.some(g => !g.v.train && !g.v.tram && !g.v.metro && !g.v.coach) && 'buses', gl.some(g => g.v.coach) && 'coaches'].filter(Boolean))}` : ''} · updated ${new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit', second:'2-digit'})}` : 'Nothing live here yet';
+    $('status').innerHTML = (gt + rt || gl.length) ? `${gt + rt ? `<b>${gt + rt}</b> train${gt + rt === 1 ? '' : 's'}` : ''}${gt + rt && gl.length - gt ? ' · ' : ''}${gl.length - gt ? `<b>${gl.length - gt}</b> ${(k => k.length > 1 ? k.slice(0, -1).join(', ') + ' &amp; ' + k.at(-1) : k[0])([gl.some(g => g.v.tram) && 'trams', gl.some(g => g.v.metro) && 'metros', gl.some(g => !g.v.train && !g.v.tram && !g.v.metro && !g.v.coach) && 'buses', gl.some(g => g.v.coach) && 'coaches'].filter(Boolean).map(w => gl.length - gt === 1 ? {buses:'bus', coaches:'coach', trams:'tram', metros:'metro'}[w] : w))}` : ''} · updated ${new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit', second:'2-digit'})}` : 'Nothing live here yet';
     renderLegend(); return; }
   let nb = ACTIVE.reduce((s, l) => s + (l.mode === 'bus' && shown(l) ? l.count : 0), 0); n -= nb; let nc = 0; if(typeof GPS !== 'undefined'){ const L = [...GPS.list.values()], gt = L.filter(g => g.v.train).length, b = map.getBounds();
     nc = L.filter(g => g.v.coach && b && b.contains({lat:g.to[0], lng:g.to[1]})).length; nb += L.filter(g => !g.v.train && !g.v.coach).length; n += gt; }
-  $('status').innerHTML = `<b>${n}</b> trains${nb ? ` · <b>${nb}</b> buses` : ''}${nc ? ` · <b>${nc}</b> coaches` : ''} · updated ${new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit', second:'2-digit'})}`;
+  $('status').innerHTML = `<b>${n}</b> train${n === 1 ? '' : 's'}${nb ? ` · <b>${nb}</b> bus${nb === 1 ? '' : 'es'}` : ''}${nc ? ` · <b>${nc}</b> coach${nc === 1 ? '' : 'es'}` : ''} · updated ${new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit', second:'2-digit'})}`;
   renderLegend();
 };
 function renderLegend(){
@@ -2041,7 +2041,7 @@ async function refreshGps(){
     gpsOnly('fi:', 'hsl:'); if(GPS.busy) return; GPS.busy = true;
     let hsl = '';
     if(inHelsinki(p) && z >= 12){ try{ await hslWatch(); for(const [k, g] of GPS.list) if(k.startsWith('hsl:') && Date.now() - g.seen > 60000) GPS.list.delete(k);
-      const n = [...GPS.list.keys()].filter(k => k.startsWith('hsl:')).length; hsl = ` · ${n} trams, metros${busOff() ? '' : ', buses'} and ferries in view (HSL, live every second)${busOff() ? '. Turn on Buses for buses too' : ''}`; }catch(e){ hsl = ' · Helsinki live feed: ' + e.message; } }
+      const n = [...GPS.list.keys()].filter(k => k.startsWith('hsl:')).length; hsl = ` · ${n} ${n === 1 ? 'vehicle' : `trams, metros${busOff() ? '' : ', buses'} and ferries`} in view (HSL, live every second)${busOff() ? '. Turn on Buses for buses too' : ''}`; }catch(e){ hsl = ' · Helsinki live feed: ' + e.message; } }
     else { hslStop(); if(inHelsinki(p)) hsl = ' · zoom in for Helsinki trams, metro and buses'; }
     try{ gpsMerge(await finlandTrains(), 'fi:'); const n = [...GPS.list.keys()].filter(k => k.startsWith('fi:')).length; BUS.note = `${n} trains moving in Finland (live GPS)${hsl}`; }
     catch(e){ BUS.note = e.message; }
