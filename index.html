@@ -485,7 +485,7 @@ const ink = c => c==='#000000'&&dark ? '#d9d9d9' : c;
 const INK = new Map();
 const inkA = c => { if(!dark || typeof c !== 'string' || !/^#[0-9a-f]{6}$/i.test(c)) return c; if(/^#000000$/.test(c)) return '#d9d9d9'; let o = INK.get(c); if(o) return o;
   const v = [1, 3, 5].map(i => parseInt(c.slice(i, i + 2), 16)), m = Math.max(...v); // a colour whose brightest part is dim (navy, brown) is lost on the dark map; bright reds aren't
-  o = m >= 150 ? c : '#' + v.map(x => Math.round(x + (255 - x)*((150 - m)/150*0.6 + 0.15)).toString(16).padStart(2, '0')).join(''); INK.set(c, o); return o; };
+  o = m >= 170 ? c : '#' + v.map(x => Math.round(x + (255 - x)*((170 - m)/170*0.6 + 0.25)).toString(16).padStart(2, '0')).join(''); INK.set(c, o); return o; };
 const LINE_W = 4.5;
 // ---- Lines drawn like the TfL map: solid colours, and lines that share track run side by side ----
 // Track is matched between lines by their station-to-station edges (endpoints rounded to ~10 m).
