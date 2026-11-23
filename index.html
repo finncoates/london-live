@@ -1430,6 +1430,7 @@ async function railStations(){
   const base = location.pathname.includes('/journey') ? '../rail/' : 'rail/';
   const list = await (await fetch(base + 'stations.json')).json();
   RAIL.stations = list; for(const [crs, n, lat, lon] of list) RAIL.byCrs[crs] = {n, p:[lat, lon]};
+  if(typeof applyRegion === 'function') try{ applyRegion(); }catch(e){} // the title can name the town now
   return list;
 }
 const nearestCrs = (p, max = 350) => { let best = null, bd = max; for(const [crs, , lat, lon] of RAIL.stations || []){ const d = dist([lat, lon], p); if(d < bd){ bd = d; best = crs; } } return best; };
@@ -2422,7 +2423,10 @@ function applyRegion(){
   $('ttl').textContent = !away ? 'London live trains' : inHelsinki([c.lat(), c.lng()]) && map.getZoom() >= 10 ? 'Helsinki live map' : {finland:'Finland live trains', norway:'Norway live map', boston:'Boston live map', berlin:'Berlin live map', city:(relayCity([c.lat(), c.lng()]) || [, , ''])[2] + ' live map', edinburgh:'Edinburgh live map', uk:'UK live map', world:'Live map', london:'London live trains'}[r];
   if(r === 'uk' && map.getZoom() >= 11){ const p = [c.lat(), c.lng()]; let best = null, bd = 15000; // the town in view, when it's one Explore knows
     for(const ct of CATALOG) for(const co of ct.countries) for(const ci of co.cities){ if(ci.at[2] <= 7 || ci.name === 'London') continue; const d = dist(p, ci.at); if(d < bd){ bd = d; best = ci; } }
-    if(best) $('ttl').textContent = best.name + ' live map'; }
+    if(best) $('ttl').textContent = best.name + ' live map';
+    else if(!RAIL.stations) railStations().catch(() => {});
+    else { let st = null, sd = 2500; for(const x of RAIL.stations){ if(Math.abs(x[2] - p[0]) > 0.03) continue; const d = dist(p, [x[2], x[3]]); if(d < sd){ sd = d; st = x; } } // else the town of the nearest railway station
+      if(st) $('ttl').textContent = st[1].replace(/\s*\(.*\)$/, '').replace(/\s+(Central|General|Parkway|Interchange|International|Priory|Paragon|Exchange|Junction|High Street|Town|City|Low Level|High Level|(North|South|East|West)( Street)?)$/i, '') + ' live map'; } }
   { const t = $('ttl'), fit = () => { t.style.fontSize = ''; for(let f = 17; f >= 15 && t.scrollWidth > t.clientWidth + 1; f--) t.style.fontSize = f + 'px'; return t.scrollWidth <= t.clientWidth + 1; };
     if(!fit() && / map$/.test(t.textContent)){ t.textContent = t.textContent.replace(/ map$/, ''); fit(); } } // long names shrink a little rather than being cut off
   $('bFit').title = away ? 'Near me (tap again: the area around you)' : 'Near me (tap again: all of London)';
