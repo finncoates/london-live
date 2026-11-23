@@ -25,6 +25,7 @@
 //   GET /vehicles?src=coach → every long-distance coach in England (National Express, Megabus, FlixBus…)
 //   GET /vehicles?src=tfe       → Edinburgh buses and trams
 //   GET /vehicles?src=gdansk|tallinn|vilnius → those cities' buses and trams (open data, no key; they don't allow browsers directly)
+//   GET /vehicles?src=gdstop&id=<ZTM stop id> → a Gdańsk stop's next departures
 //   GET /metrolink              → Manchester Metrolink departures by stop
 
 const DEFAULT_BOARD_URL = 'https://api1.raildata.org.uk/1010-live-departure-board-dep1_2/LDBWS/api/20220120/GetDepBoardWithDetails/{crs}?numRows=10';
@@ -190,6 +191,15 @@ async function vehicles(url, env, ctx){
       return {src, vehicles:parseBustimes(await r.json())};
     });
   }
+  if(src === 'gdstop'){ // a Gdańsk stop's next departures (ZTM Gdańsk open data; no CORS for browsers), cached 20 s
+    const id = (url.searchParams.get('id') || '').replace(/[^0-9]/g, '').slice(0, 8); if(!id) throw fail('id required', 400);
+    return cached('gd:' + id, 20, ctx, async () => {
+      const r = await fetch(`https://ckan2.multimediagdansk.pl/departures?stopId=${id}`, {signal:AbortSignal.timeout(8000)});
+      if(!r.ok) throw fail('ztm: HTTP ' + r.status, 502);
+      const j = await r.json();
+      return {src, id, departures:(j.departures || []).map(d => ({line:String(d.routeShortName ?? d.routeId ?? ''), dest:d.headsign || '', t:Date.parse(d.estimatedTime || d.theoreticalTime) || null, late:d.delayInSeconds ?? null, live:d.status === 'REALTIME'})).filter(d => d.t).slice(0, 30)};
+    });
+  }
   if(src === 'stop'){ // a bus stop's next departures anywhere in Britain (bustimes.org: timetable + live predictions), cached 45 s
     const id = (url.searchParams.get('id') || '').replace(/[^A-Za-z0-9]/g, '').slice(0, 20); if(!id) throw fail('id required', 400);
     return cached('stop:' + id, 45, ctx, async () => {
@@ -212,7 +222,7 @@ async function vehicles(url, env, ctx){
       return {src, vehicles:out};
     });
   }
-  if(src !== 'bods') throw fail('src must be bods, coach, stop, bustimes, tfe, gdansk, tallinn or vilnius', 400);
+  if(src !== 'bods') throw fail('src must be bods, coach, stop, gdstop, bustimes, tfe, gdansk, tallinn or vilnius', 400);
   if(!env.BODS_KEY) throw fail('BODS_KEY secret is not set on the worker', 503);
   // bounding box, rounded so nearby viewers share the cache; at most ~0.5° × 0.35° (a city)
   const b = (url.searchParams.get('bbox') || '').split(',').map(Number);
