@@ -2634,8 +2634,9 @@ function searchLines(text){
   const q = text.trim().toLowerCase().replace(/^(bus|route|line)\s+/, '').replace(/\s+(bus|line)$/, ''); if(!q) return [];
   const out = [], seen = new Set();
   if(!document.body.classList.contains('away')){
+    const alias = q.length >= 3 ? Object.entries({uber:'river', boat:'river', 'river bus':'river', clipper:'river', thames:'river', 'cable car':'cable', emirates:'cable', 'tram':'tram'}).find(([a]) => a.startsWith(q) || q.startsWith(a)) : null; // 'Uber Boat' → the river buses
     for(const l of ACTIVE){ if(l.mode === 'bus' && !l.layer) continue; const n = l.name.toLowerCase();
-      if(n === q || n.startsWith(q) || (q.length >= 3 && n.includes(q))){ out.push({lineHit:true, id:l.id, name:l.name, col:l.colour, mode:l.mode, exact:n === q}); seen.add(l.id); } }
+      if(n === q || n.startsWith(q) || (q.length >= 3 && n.includes(q)) || (alias && alias[1] === l.mode && !seen.has(l.id))){ out.push({lineHit:true, id:l.id, name:l.name, col:l.colour, mode:l.mode, exact:n === q}); seen.add(l.id); } }
     if(/^[a-z]{0,2}\d{1,3}[a-z]?$/i.test(q) && !seen.has(q)) out.push({lineHit:true, id:q, name:q.toUpperCase(), col:'#DC241F', mode:'bus', exact:true, bus:true});
   } else for(const d of cityData()){ const names = new Map(); for(const l of d.lines) if(!names.has(l.name)) names.set(l.name, l);
     for(const [n, l] of names){ const k = String(n).toLowerCase(); if(k === q || k.startsWith(q)) out.push({lineHit:true, city:true, name:n, col:l.col, mode:l.kind, exact:k === q}); } }
@@ -2648,7 +2649,7 @@ function searchLines(text){
 }
 const lineResult = (s, i) => `<li role="option" data-i="${i}" class="${i===SR.sel?'on':''}" aria-selected="${i===SR.sel}">
   <span class="dots">${symbol(s.mode === 'bus' ? 'tube' : s.mode === 'train' || s.mode === 'rail' ? 'rail' : 'tube', s.col, 18)}</span>
-  <span><b>${esc(s.mode === 'bus' ? (s.coach ? (s.op || 'Coach') + ' ' : 'Bus ') + s.name : s.name + (/line|^dlr$/i.test(s.name) || s.city ? '' : ' line'))}</b><small>${s.live ? (s.coach ? 'Long-distance coach · show where its coaches are' : esc(s.op || '') + ' · show its buses live') : 'Show the route and its ' + (s.mode === 'bus' ? 'buses' : 'trains') + ' live'}</small></span></li>`;
+  <span><b>${esc(s.mode === 'bus' ? (s.coach ? (s.op || 'Coach') + ' ' : 'Bus ') + s.name : s.name + (/line|^dlr$|bus$|ferry|car$|^trams$/i.test(s.name) || s.city ? '' : ' line'))}</b><small>${s.live ? (s.coach ? 'Long-distance coach · show where its coaches are' : esc(s.op || '') + ' · show its buses live') : 'Show the route and its ' + ({bus:'buses', river:'boats', cable:'cabins', tram:'trams', ferry:'boats'}[s.mode] || 'trains') + ' live'}</small></span></li>`;
 function searchCityStations(text){
   const q = text.trim().toLowerCase(); if(q.length < 2) return []; const out = [];
   for(const d of cityData()) for(const st of d.stations || []){ const n = stName(st[1]).toLowerCase(); if(n.startsWith(q) || (q.length >= 3 && n.includes(q))) out.push({cityHit:true, st, d, score:n.startsWith(q) ? 0 : 1}); }
@@ -2681,7 +2682,7 @@ async function focusLine(x){
   if(pts.length){ const b = new google.maps.LatLngBounds(); for(const p of pts) b.extend({lat:p[0], lng:p[1]}); map.fitBounds(b, phone() ? 30 : {top:40, bottom:40, left:380, right:40});
     google.maps.event.addListenerOnce(map, 'idle', () => { if(map.getZoom() > 15) map.setZoom(15); }); } // one vehicle: don't dive to street level
   const count = () => x.city ? [...GPS.list.values()].filter(lfMatch).length : (BY[LF.id] ? BY[LF.id].count : 0);
-  const upd = () => { if(box.hidden || (!LF.id && !LF.city)) return; const n = count(); const w = x.coach ? (n === 1 ? 'coach' : 'coaches') : x.mode === 'bus' ? (n === 1 ? 'bus' : 'buses') : x.mode === 'tram' ? (n === 1 ? 'tram' : 'trams') : (n === 1 ? 'train' : 'trains');
+  const upd = () => { if(box.hidden || (!LF.id && !LF.city)) return; const n = count(); const w = x.coach ? (n === 1 ? 'coach' : 'coaches') : x.mode === 'bus' ? (n === 1 ? 'bus' : 'buses') : x.mode === 'tram' ? (n === 1 ? 'tram' : 'trams') : x.mode === 'river' || x.mode === 'ferry' ? (n === 1 ? 'boat' : 'boats') : x.mode === 'cable' ? (n === 1 ? 'cabin' : 'cabins') : (n === 1 ? 'train' : 'trains');
     box.innerHTML = head(`${n} ${w} on the route now · everything else is faded. Tap ✕ to show all.`); };
   clearTimeout(focusLine.t); focusLine.t = setTimeout(upd, 2500); clearInterval(focusTimer); focusTimer = setInterval(upd, 15000); focusLoad = upd;
 }
