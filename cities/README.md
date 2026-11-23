@@ -27,4 +27,5 @@ Rebuild (e.g. after timetable changes):
 | nottingham.json | Nottingham NET from OpenStreetMap only (`osm_tramnet.py`): lines and stops, no open timetable |
 | nr/ | National Rail network (OpenStreetMap railway=rail main/branch, one line per pair of tracks): 0.5° tiles + `all.json` overview (`osm_nr.py`) |
 | busnet/ (Northern Ireland) | Translink Metro/Glider and Ulsterbus/Goldliner route links from OpenDataNI (MapInfo MIF, `ni_routes.py` → edges for `busnet2.py tiles`) |
+| greater_london.json / .py | Greater London's boundary (OpenStreetMap relation 175342, simplified to ~30 m). `busnet2.py` and `busstops.py` leave out only what is inside it (TfL's own routes and stops), so towns at London's edge (Watford, Dartford, Epsom…) are in `busnet/` and `stops/`; the page uses a ~200 m version to decide when a zoomed-in view is 'London' |
 | stops/ | Every bus stop outside London (Bus Open Data GTFS stops + the routes calling there, `busstops.py`; Northern Ireland from the OpenDataNI Translink stop list), 0.05° tiles. Departures come live from the relay (`/vehicles?src=stop&id=<ATCO>`, bustimes.org departures, cached 45 s). |
