@@ -46,7 +46,7 @@ Anywhere without its own feed now shows the trains, trams, metros and ferries ru
 **France** (Lyon: TGV, OUIGO, metro, trams; rural France: TGV/TER). Dense Paris is very heavy: it works with small
 map tiles but the first view can be slow or miss some vehicles.
 Live already (own feeds): Finland/Helsinki, Norway, Berlin, Boston, Tallinn, Gdańsk, Vilnius.
-**Explore menu**: Europe (UK, Ireland, France, Spain), North America (Toronto) and **Asia — Japan** (Tokyo, Osaka, Kyoto, Sapporo, Fukuoka). Japan is timetable-only (Transitous): no open live positions exist for JR or the Tokyo Metro without a paid ODPT/partner key.
+**Explore menu**: Europe (UK, Ireland, France, Spain), North America (Toronto) and **Asia — Japan** (Tokyo, Osaka, Kyoto, Sapporo, Fukuoka). Japan is timetable-only (Transitous) for now. Live Tokyo trains (Tokyo Metro, Toei, some JR East) come from ODPT (developer.odpt.org): free sign-up, approved in a few days; add the key as `ODPT_KEY` on the relay once you have it.
 
 **New live feeds**: **Spain** — Renfe's trains live (~430: Cercanías/Rodalies in Madrid, Barcelona, Seville…; AVE/long distance from the timetable); **Rennes** — every STAR bus live; **Toronto** — TTC streetcars and buses live (~1,150; subway from the timetable).
 Other cities checked and not possible without a key: Paris (RATP/IDFM: free PRIM key), Ireland's buses (NTA: free key), Netherlands (live positions open, but no route names without a 200 MB timetable), Brussels, Switzerland, Prague, Warsaw (keys).
