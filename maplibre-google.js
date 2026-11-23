@@ -47,7 +47,8 @@
     getBounds(){ const b = this.ml.getBounds(), r = new LatLngBounds(); r.s = b.getSouth(); r.n = b.getNorth(); r.w = b.getWest(); r.e = b.getEast(); return r; }
     // panTo and setZoom right after each other make one smooth move (not two that cancel each other)
     _later(k, v){ (this.pend ||= {})[k] = v; if(this.pend.t) return; this.pend.t = true;
-      queueMicrotask(() => { const p = this.pend; this.pend = null; const o = {duration:p.zoom != null && Math.abs(p.zoom - this.ml.getZoom()) > 2.5 ? 0 : 450};
+      queueMicrotask(() => { const p = this.pend; this.pend = null; const c = this.ml.getCenter(), far = p.center && Math.hypot(p.center.lat - c.lat, (p.center.lng - c.lng)*Math.cos(c.lat*Math.PI/180)) > 3; // another city: jump, don't slide
+        const o = {duration:far || (p.zoom != null && Math.abs(p.zoom - this.ml.getZoom()) > 2.5) ? 0 : 450};
         if(p.center) o.center = p.center; if(p.zoom != null) o.zoom = p.zoom; this.ml.easeTo(o); }); }
     panTo(p){ this._later('center', {lng:ll(p)[0], lat:ll(p)[1]}); }
     setZoom(z){ this._later('zoom', z - 1); }

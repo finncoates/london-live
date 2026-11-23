@@ -355,7 +355,7 @@ const MAP_ENGINE = Q.get('map') === 'google' ? 'google' : 'maplibre';
 function loadMapLibre(){
   const add = (tag, attrs) => new Promise((res, rej) => { const e = Object.assign(document.createElement(tag), attrs); e.onload = res; e.onerror = () => rej(new Error('Could not load the map')); document.head.appendChild(e); });
   return Promise.all([add('link', {rel:'stylesheet', href:'https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css'}), add('script', {src:'https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js'})])
-    .then(() => add('script', {src:'../maplibre-google.js'})).then(() => window.installMapLibreAsGoogle()); }
+    .then(() => add('script', {src:'../maplibre-google.js?v=3'})).then(() => window.installMapLibreAsGoogle()); }
 const loadMap = () => MAP_ENGINE === 'google' ? loadGoogle() : (loadMap.p ||= loadMapLibre());
 
 // ---------- map ----------
