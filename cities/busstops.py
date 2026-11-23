@@ -5,7 +5,7 @@
 # times: [minutes after midnight, route index, destination index]; "dests": [names]  (a typical weekday / Saturday / Sunday)
 import sys, os, zipfile, csv, io, json, math, collections, datetime
 out = sys.argv[1]; os.makedirs(out, exist_ok=True)
-LON = lambda a, b: 51.28 < a < 51.70 and -0.52 < b < 0.34
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__))); from greater_london import in_london as LON  # Greater London has TfL's own bus routes (the boundary, not a box: Watford, Dartford, Epsom are outside it)
 T = collections.defaultdict(lambda: {'stops': {}, 'routes': {}, 'dests': {}, 'deps': collections.defaultdict(lambda: {'w': [], 'sa': [], 'su': []})})
 today = datetime.date.today()
 def day_of(wd):  # the next date with this weekday (0 = Monday)

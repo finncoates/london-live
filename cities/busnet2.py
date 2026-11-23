@@ -6,7 +6,7 @@
 import sys, os, zipfile, csv, io, json, math, pickle, collections, heapq
 import numpy as np
 
-LON = lambda a, b: 51.28 < a < 51.70 and -0.52 < b < 0.34  # London has TfL's own bus routes
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__))); from greater_london import in_london as LON  # Greater London has TfL's own bus routes (the boundary, not a box: Watford, Dartford, Epsom are outside it)
 COACH_NOC = {'NATX', 'MEGA', 'SMGB', 'FLIX', 'CTLK', 'SCTL', 'SCLK', 'NXSH'}
 
 COACH_NAMES = {'National Express', 'Megabus', 'megabus', 'FlixBus', 'Flixbus', 'Scottish Citylink', 'Citylink'}
