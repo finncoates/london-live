@@ -154,6 +154,31 @@ def vectorise(sk, r0, c0, my, mx, border, a, b, terminus):
             for n in cand: visited.add(n)
             path.append(nxt); prev, cur = cur, nxt
         if len(path) > 3: k = newnode(p); path.append(p); edges.append([k, k, path])
+    # a trace that stopped next to another line (a T-junction the pixel pattern didn't mark) is joined to it there
+    D0 = collections.Counter()
+    for u, v, _ in edges: D0[u] += 1; D0[v] += 1
+    owner = {}
+    for ei, (u, v, path) in enumerate(edges):
+        for k in range(1, len(path) - 1): owner[path[k]] = (ei, k)
+    splits = collections.defaultdict(dict)
+    for ei, (u, v, path) in enumerate(edges):
+        for node, p in ((u, path[0]), (v, path[-1])):
+            if D0[node] != 1 or u == v: continue
+            y, x = divmod(p, W); best = None
+            for dy in (-2, -1, 0, 1, 2):
+                for dx in (-2, -1, 0, 1, 2):
+                    o = owner.get((y + dy) * W + x + dx) if 0 <= x + dx < W else None
+                    if o is None or o[0] == ei: continue
+                    dd = dy * dy + dx * dx
+                    if best is None or dd < best[0]: best = (dd, o)
+            if best is None: continue
+            tei, tk = best[1]
+            if tk in splits[tei]: alias = splits[tei][tk]; edges[ei][0 if node == u else 1] = alias; D0[alias] += 1; continue
+            splits[tei][tk] = node; cen[node] = (float(edges[tei][2][tk] // W), float(edges[tei][2][tk] % W)); D0[node] += 2
+    for tei, sp in splits.items():
+        u, v, path = edges[tei]; ks = sorted(sp); a0, n0 = 0, u
+        for k in ks: edges.append([n0, sp[k], path[a0:k + 1]]); a0, n0 = k, sp[k]
+        edges[tei] = [n0, v, path[a0:]]
     # pixel paths -> metric polylines (x east, y north, metres in a local frame); ends at the node centres
     def pt(p): y, x = divmod(p, W); return (float(y), float(x))
     E = {}
@@ -166,18 +191,16 @@ def vectorise(sk, r0, c0, my, mx, border, a, b, terminus):
         return D
     onborder = lambda k: border(*cen[k])
     def merge2():  # join chains through nodes with exactly two edges
-        changed = True
-        while changed:
-            changed = False; D = deg(); inc = collections.defaultdict(list)
-            for i, (u, v, _) in E.items(): inc[u].append(i); inc[v].append(i)
-            for k, es in inc.items():
-                if D[k] != 2 or len(es) != 2 or es[0] == es[1]: continue
-                i, j = es
-                if i not in E or j not in E: continue
-                u1, v1, P1 = E[i]; u2, v2, P2 = E[j]
-                if v1 != k: u1, v1, P1 = v1, u1, P1[::-1]
-                if u2 != k: u2, v2, P2 = v2, u2, P2[::-1]
-                del E[j]; E[i] = [u1, v2, P1 + P2[1:]]; changed = True; break
+        inc = collections.defaultdict(list)
+        for i, (u, v, _) in E.items(): inc[u].append(i); inc[v].append(i)
+        for k in list(inc):
+            es = inc[k]
+            if len(es) != 2 or es[0] == es[1]: continue
+            i, j = es; u1, v1, P1 = E[i]; u2, v2, P2 = E[j]
+            if v1 != k: u1, v1, P1 = v1, u1, P1[::-1]
+            if u2 != k: u2, v2, P2 = v2, u2, P2[::-1]
+            del E[j]; E[i] = [u1, v2, P1 + P2[1:]]; inc[k] = []
+            f = inc[v2]; f[f.index(j)] = i
     merge2()
     for _ in range(4):
         D = deg(); cut = False
