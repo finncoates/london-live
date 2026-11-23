@@ -2956,7 +2956,7 @@ $('bFit').onclick = () => {
   $('bFit').textContent = '…';
   navigator.geolocation.getCurrentPosition(pos => { $('bFit').textContent = '⌖'; nearMode = true;
     me = [pos.coords.latitude, pos.coords.longitude]; meAcc = pos.coords.accuracy || 0;
-    if(!inLondonView(me)){ map.panTo(LL(me)); map.setZoom(15); return; }
+    if(!inLondonView(me) && !(me[0] > 51.2 && me[0] < 51.8 && me[1] > -0.7 && me[1] < 0.4)){ map.panTo(LL(me)); map.setZoom(15); return; } // near London (Epping, Watford…): still the nearest TfL station
     if(!STATIONS || STATIONS.length < 50) STATIONS = stationIndex();
     let best = null, bd = 3000; for(const st of STATIONS){ const river = [...st.lines].every(id => BY[id] && (BY[id].mode === 'river' || BY[id].mode === 'cable')); const d = dist(st.p, me) + (river ? 400 : 0); if(d < bd){ bd = d; best = st; } } // piers only when much closer
     if(best) goStation(best); map.panTo(LL(me)); map.setZoom(15);
