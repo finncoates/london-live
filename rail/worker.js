@@ -361,14 +361,16 @@ async function transitous(url, cors){
 const TT_MEM = new Map(), TT_WAIT = new Map();
 const TT_MODES = {rail:/RAIL|LONG_DISTANCE|SUBURBAN|NIGHT_RAIL|HIGHSPEED/, tram:/TRAM|SUBWAY|METRO|FUNICULAR|CABLE/, bus:/BUS|COACH/, ferry:/FERRY/};
 async function ttTile(url, cors){
-  const la = Math.floor(+url.searchParams.get('la')*2)/2, lo = Math.floor(+url.searchParams.get('lo')*2)/2;
+  const sz = [0.5, 0.25, 0.125].includes(+url.searchParams.get('s')) ? +url.searchParams.get('s') : 0.5; // smaller tiles for dense cities (Paris)
+  const la = Math.floor(+url.searchParams.get('la')/sz)*sz, lo = Math.floor(+url.searchParams.get('lo')/sz)*sz;
   if(!isFinite(la) || !isFinite(lo) || Math.abs(la) > 85 || Math.abs(lo) > 180) return json({error:'la, lo required'}, 400, cors);
   const want = (url.searchParams.get('modes') || 'rail').split(',').filter(m => TT_MODES[m] || m === 'all');
-  const bucket = Math.floor(Date.now()/120000)*120000, key = la + ':' + lo + ':' + bucket;
+  const zm = Math.max(6, Math.min(14, Math.round(+url.searchParams.get('z') || 14))); // Transitous shows fewer, bigger routes when zoomed out
+  const bucket = Math.floor(Date.now()/120000)*120000, key = la + ':' + lo + ':' + bucket + ':' + zm + ':' + sz;
   let all = TT_MEM.get(key);
   if(!all){ let w = TT_WAIT.get(key);
     if(!w){ w = (async () => {
-        const q = `zoom=14&min=${la},${lo}&max=${la + 0.5},${lo + 0.5}&startTime=${new Date(bucket).toISOString()}&endTime=${new Date(bucket + 240000).toISOString()}`;
+        const q = `zoom=${zm}&min=${la},${lo}&max=${la + sz},${lo + sz}&startTime=${new Date(bucket).toISOString()}&endTime=${new Date(bucket + 240000).toISOString()}`;
         const r = await fetch('https://api.transitous.org/api/v5/map/trips?' + q, {headers:{'user-agent':'LondonLive/1.0 (+https://github.com/finncoates/london-live)'}, signal:AbortSignal.timeout(20000)});
         if(!r.ok) throw fail('Transitous: HTTP ' + r.status, 502);
         const stop = s => [s.name, s.stopCode || null, +s.lat.toFixed(5), +s.lon.toFixed(5)];
