@@ -170,7 +170,9 @@ report['lines'] = sorted({(l['name'], l['kind'], l['col']) for l in d['lines']})
 
 # 4. buses: built into a folder of their own, then merged into the shared tiles. Routes follow the timetable's shapes, or,
 # when it has none or they only join the stops with straight lines (Nantes), are matched onto OpenStreetMap's roads.
-if not a.nobus:
+BUS_TYPES = ('3', '11', '700', '702', '704', '715')
+if not a.nobus and not any(r['route_type'] in BUS_TYPES for r in routes): report['bus'] = 'no bus routes'
+elif not a.nobus:
     bdir = os.path.join(work, 'busnet'); shutil.rmtree(bdir, ignore_errors=True)
     gap = shape_quality(); share = shapeless_share(); report['bus_shape_gap_m'] = gap and round(gap); report['bus_trips_without_shape'] = round(share, 3)
     roads = a.roads == 'on' or (a.roads == 'auto' and (gap is None or gap > 120 or share > 0.03))

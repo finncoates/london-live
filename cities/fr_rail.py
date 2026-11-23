@@ -32,22 +32,9 @@ def dp(p, eps):  # Douglas-Peucker, metres
         if d > best: best, bi = d, i
     return [a, b] if best <= eps else dp(p[:bi+1], eps)[:-1] + dp(p[bi:], eps)
 import sys; sys.setrecursionlimit(100000)
-# tiles: each line cut where it crosses into the next 0.5° tile (sharing the crossing point, so no gaps)
-T = collections.defaultdict(list); tk = lambda q: f'{math.floor(q[0]*2)}_{math.floor(q[1]*2)}'
-for l in lines:
-    q = dp(l, 8); run = [q[0]]
-    for pt in q[1:]:
-        run.append(pt)
-        if tk(pt) != tk(run[0]): T[tk(run[0])].append(run); run = [pt]
-    if len(run) > 1: T[tk(run[0])].append(run)
-nrd = os.path.join(HERE, 'nr'); n = 0
-for t, ps in T.items():
-    base = subprocess.run(['git', '-C', HERE, 'show', f'{BASE}:cities/nr/{t}.json'], capture_output=True, text=True)
-    old = json.loads(base.stdout) if base.returncode == 0 else []
-    json.dump(old + [[[a, b] for a, b in p] for p in ps], open(os.path.join(nrd, t + '.json'), 'w'), separators=(',', ':')); n += 1
-base = json.loads(subprocess.run(['git', '-C', HERE, 'show', f'{BASE}:cities/nr/all.json'], capture_output=True, text=True).stdout)
-ov = [[[round(a, 4), round(b, 4)] for a, b in dp(l, 80)] for l in lines]
-json.dump(base + [p for p in ov if len(p) > 1], open(os.path.join(nrd, 'all.json'), 'w'), separators=(',', ':'))
+# its lines go to cities/.build/rail/fr.json; rail_tiles.py rebuilds the shared tiles from every country's
+os.makedirs(os.path.join(HERE, '.build', 'rail'), exist_ok=True)
+json.dump([[[a, b] for a, b in l] for l in lines], open(os.path.join(HERE, '.build', 'rail', 'fr.json'), 'w'), separators=(',', ':'))
 # stations: one per UIC code, passenger ones only
 st = {}
 for g in G:
@@ -57,4 +44,5 @@ for g in G:
     if 'lat' in c: st[p['code_uic']] = [p['code_uic'], p['libelle'], round(c['lat'], 5), round(c['lon'], 5)]
 json.dump(sorted(st.values(), key=lambda s: s[1]), open(os.path.join(HERE, 'fr-gares.json'), 'w', encoding='utf-8'), separators=(',', ':'), ensure_ascii=False)
 km = sum(math.hypot((b[0]-a[0])*111.32, (b[1]-a[1])*111.32*math.cos(math.radians(a[0]))) for l in lines for a, b in zip(l, l[1:]))
-print(len(lines), 'line pieces', round(km), 'km ->', n, 'tiles;', len(st), 'passenger stations')
+print(len(lines), 'line pieces', round(km), 'km;', len(st), 'passenger stations')
+subprocess.run([sys.executable, '-I', os.path.join(HERE, 'rail_tiles.py')], check=True)

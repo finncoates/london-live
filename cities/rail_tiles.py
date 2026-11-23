@@ -1,0 +1,34 @@
+# Rebuild the National Rail map tiles (cities/nr/<lat*2>_<lon*2>.json and the overview all.json) from Britain's own
+# (git, BASE: before any other country) + every other country's railway lines (cities/.build/rail/<cc>.json: a list of
+# polylines [[lat, lon], ...], made by fr_rail.py for France, rail_gtfs.py for the Netherlands…).
+#   python -I cities/rail_tiles.py
+import os, json, math, subprocess, collections, sys
+HERE = os.path.dirname(os.path.abspath(__file__)); BASE = '6c9aa8ce'; R = os.path.join(HERE, '.build', 'rail'); os.makedirs(R, exist_ok=True)
+sys.setrecursionlimit(100000)
+def dp(p, eps):  # Douglas-Peucker, metres
+    if len(p) < 3: return p
+    k = math.cos(math.radians(p[0][0])); a, b = p[0], p[-1]
+    ax, ay, bx, by = a[1]*k*111320, a[0]*111320, b[1]*k*111320, b[0]*111320; L2 = math.hypot(bx-ax, by-ay) or 1e-9; best, bi = 0, 0
+    for i in range(1, len(p)-1):
+        x, y = p[i][1]*k*111320, p[i][0]*111320; d = abs((bx-ax)*(ay-y) - (ax-x)*(by-ay))/L2
+        if d > best: best, bi = d, i
+    return [a, b] if best <= eps else dp(p[:bi+1], eps)[:-1] + dp(p[bi:], eps)
+lines = []
+for f in sorted(os.listdir(R)):
+    if f.endswith('.json'): lines += [[tuple(q) for q in l] for l in json.load(open(os.path.join(R, f)))]
+T = collections.defaultdict(list); tk = lambda q: f'{math.floor(q[0]*2)}_{math.floor(q[1]*2)}'
+for l in lines:  # cut where a line crosses into the next 0.5° tile, sharing the crossing point (no gaps)
+    q = dp(l, 8); run = [q[0]]
+    for pt in q[1:]:
+        run.append(pt)
+        if tk(pt) != tk(run[0]): T[tk(run[0])].append(run); run = [pt]
+    if len(run) > 1: T[tk(run[0])].append(run)
+nrd = os.path.join(HERE, 'nr')
+git = lambda f: subprocess.run(['git', '-C', HERE, 'show', f'{BASE}:cities/nr/{f}'], capture_output=True, text=True)
+for t, ps in T.items():
+    b = git(t + '.json'); old = json.loads(b.stdout) if b.returncode == 0 else []
+    json.dump(old + [[[a, c] for a, c in p] for p in ps], open(os.path.join(nrd, t + '.json'), 'w'), separators=(',', ':'))
+base = json.loads(git('all.json').stdout)
+ov = [[[round(a, 4), round(c, 4)] for a, c in dp(l, 80)] for l in lines]
+json.dump(base + [p for p in ov if len(p) > 1], open(os.path.join(nrd, 'all.json'), 'w'), separators=(',', ':'))
+print(len(lines), 'lines from', ', '.join(f[:-5] for f in sorted(os.listdir(R)) if f.endswith('.json')), '->', len(T), 'tiles')

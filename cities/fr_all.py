@@ -13,7 +13,7 @@ if not os.path.exists(cat) or time.time() - os.path.getmtime(cat) > 86400:
 done = {}
 if os.path.exists(LOG):
     for line in open(LOG, encoding='utf-8'):
-        try: j = json.loads(line); done[j['slug']] = j
+        try: j = json.loads(line); done.update({j['slug']: j} if j.get('ok') else {})
         except Exception: pass
 OVERSEAS = re.compile(r'Martinique|Guadeloupe|R[ée]union|Guyane|Mayotte|Cal[ée]donie|Polyn[ée]sie|Saint-Martin|Saint-Barth|Wallis|Miquelon|Grand Sud Cara|Cara[ïi]be|Cap Excellence|CINOR|CIVIS|CIREST|TCO|Estival|Nord Basse-Terre|Riviera du Levant', re.I)
 SKIP = re.compile(r'^Agr[ée]gat|SNCF|FlixBus|BlaBlaCar|Eurostar|Trenitalia|Renfe|europ[ée]en|^R[ée]seau scolaire|scolaire de |Navettes? A[ée]roport|covoiturage|TER\b|a[ée]rien', re.I)
