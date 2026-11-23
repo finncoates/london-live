@@ -58,10 +58,12 @@ if(-not $NoPrompt){
     $lines += "DARWIN_BOOTSTRAP=$($boot.Trim())"
     $mech = Read-Host '  Darwin "SASL mechanism" (e.g. PLAIN)'
     if($mech){ $lines += "DARWIN_SASL=$($mech.Trim())" }
-    # The Kafka login is the subscription's Consumer key + Consumer secret (NOT the website login).
-    $u = (Read-Host '  Darwin "Consumer key"').Trim()
-    $p = (Read-Secret '  Darwin "Consumer secret" (hidden)').Trim()
-    if($u -and $p){ $lines += "DARWIN_USERNAME=$u"; $lines += "DARWIN_PASSWORD=$p" }
+    # The Kafka login is inside the "SASL config" line: ... username='…' password='…';  (NOT the website login)
+    $cfg = Read-Secret '  Darwin "SASL config" (copy the whole box and paste; hidden)'
+    $u = [regex]::Match($cfg, 'username\s*=\s*["'']([^"'']+)["'']').Groups[1].Value
+    $p = [regex]::Match($cfg, 'password\s*=\s*["'']([^"'']+)["'']').Groups[1].Value
+    if($u -and $p){ $lines += "DARWIN_USERNAME=$u"; $lines += "DARWIN_PASSWORD=$p"; Write-Host "    found the login in it ($($u.Length)-character username)" -ForegroundColor Green }
+    else { Write-Host "    That didn't contain username='…' password='…'. Copy the whole SASL config box and run this again." -ForegroundColor Yellow }
     Remove-Variable cfg, u, p -ErrorAction SilentlyContinue
   }
   foreach($k in @(
