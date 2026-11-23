@@ -1969,7 +1969,7 @@ function drawLineSet(ctx, d){
       ctx.fillStyle = dark ? '#eee' : '#1b1c1f'; ctx.fillText(stName(st[1]), c.x + rr + 4, c.y); ctx.lineWidth = Math.max(1.5, W*0.3); } }
 }
 const showSt = (d, st) => st[4].some(l => !GPS_OFF.has(l[2])) && !(d.dupRail && st[4].every(l => l[2] === 'train'));
-const stName = n => String(n).replace(/ \((Berlin|Helsinki|Helsingfors|Manchester Metrolink)\)$/, '').replace(/ Bhf\b/, '').trim();
+const stName = n => String(n).replace(/ \((Berlin|Helsinki|Helsingfors|Manchester Metrolink)\)$/, '').replace(/ Bhf\b/, '').replace(/ (0\d|T\d)$/, '').trim(); // Gdańsk's platform numbers (Śródmieście SKM 01) off the name
 // departures grouped by kind (train, metro, tram, bus…), soonest first, a few of each
 function depGroups(rows, per = 4){
   const g = new Map(); for(const r of rows){ const k = r.cat || 'Departures'; if(!g.has(k)) g.set(k, []); g.get(k).push(r); }
