@@ -1961,6 +1961,8 @@ async function openCityStation(hit){
     <div class="st-lines">${st[4].slice(0, 14).map(([n, col, k]) => `<span class="pill" style="--c:${col || '#888'}">${symbol(k === 'train' ? 'rail' : 'tube', col || '#888', 14)} ${esc(n)}</span>`).join('')}</div>`;
   box.hidden = false; box.innerHTML = head + '<div class="muted">Loading departures…</div>';
   map.panTo({lat:st[2], lng:st[3]});
+  focusMarker = new google.maps.Marker({position:{lat:st[2], lng:st[3]}, map, zIndex:50, clickable:false, // ringed, as in London
+    icon:{path:google.maps.SymbolPath.CIRCLE, scale:14, fillColor:'#fff', fillOpacity:.25, strokeColor:ink((st[4][0] || [])[1] || '#5D6670'), strokeWeight:4}});
   const row = (col, to, sub, mins) => `<li><span class="sw" style="background:${col}"></span><span class="to">${esc(to)}<small>${esc(sub)}</small></span><b>${mins < 1 ? 'due' : mins + ' min'}</b></li>`;
   const load = async () => {
     let rows = null, note = '';
@@ -2242,6 +2244,7 @@ function ukStopAt(x, y){ let best = null, bd = matchMedia('(pointer:coarse)').ma
 function openUKStop([st, d]){
   const box = $('station'); unfocusLine(); clearFocus(); $('tip').style.display = 'none'; box.hidden = false;
   const routes = st[4].map(i => d.routes[i]);
+  focusMarker = new google.maps.Marker({position:{lat:st[2], lng:st[3]}, map, zIndex:50, clickable:false, icon:{path:google.maps.SymbolPath.CIRCLE, scale:11, fillColor:'#fff', fillOpacity:.25, strokeColor:'#DC241F', strokeWeight:3}});
   const head = `<div class="st-h"><b>${esc(st[1])}</b><button type="button" class="x" id="stClose" aria-label="Close">✕</button></div>
     <div class="st-lines">${[...new Map(routes.map(r => [r[0], r])).values()].sort((a, b) => String(a[0]).localeCompare(String(b[0]), undefined, {numeric:true})).slice(0, 24).map(r => `<span class="pill" style="--c:${r[2] ? '#' + r[2] : '#DC241F'}">${esc(r[0])}</span>`).join('')}</div>`;
   box.innerHTML = head + '<div class="muted">Loading departures…</div>';
