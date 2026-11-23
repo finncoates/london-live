@@ -2109,7 +2109,7 @@ function drawLineSet(ctx, d){
     d.pz = zc + ':' + kb + ':' + ORG.id; }
   ctx.save(); localView(ctx, O, k);
   ctx.lineJoin = 'round';
-  for(const [l, path, cnt] of d.paths){ if(GPS_OFF.has(l.kind)) continue; const look = lineLook(l.kind, W), c = cnt || 1;
+  for(const [l, path, cnt] of d.paths){ if(GPS_OFF.has(l.kind)) continue; const look = lineLook(d.tramMain && l.kind === 'tram' ? 'metro' : l.kind, W) /* where trams are the main network (no metro: Bordeaux, Antwerp), drawn solid and full width like the Tube */, c = cnt || 1;
     ctx.globalAlpha = look.alpha * (LF.city ? (l.name === LF.city ? 1 : 0.12) : 1);
     ctx.lineCap = look.dash || c > 1 ? 'butt' : 'round'; ctx.setLineDash(look.dash ? look.dash.map(x => x/k) : []);
     ctx.strokeStyle = inkA(l.col); ctx.lineWidth = look.w/c/k; ctx.stroke(path);
