@@ -1938,7 +1938,7 @@ async function refreshShips(){
   if(!SRV.ferries || !TRAINS_ON || GPS_OFF.has('ferry') || map.getZoom() < 7) return;
   const b = map.getBounds(); if(!b) return; const sw = b.getSouthWest(), ne = b.getNorthEast();
   try{ const j = await (await fetch(`${RAIL.relay}/srv/ferries?bbox=${[sw.lat(), sw.lng(), ne.lat(), ne.lng()].map(x => x.toFixed(2)).join(',')}`, {signal:AbortSignal.timeout(10000)})).json();
-    const vs = (j.ships || []).filter(sh => !inTfLArea([sh.lat, sh.lon])).map(sh => ({id:'ais:' + sh.mmsi, line:sh.name || 'Ferry', op:'Live position (AIS)', dest:sh.dest || '', lat:sh.lat, lon:sh.lon,
+    const vs = (j.ships || []).filter(sh => !inTfLArea([sh.lat, sh.lon]) && !(sh.sog != null && sh.sog < 1)).map(sh => ({ // moving ships only: moored cruise and canal tour boats (Amsterdam) are passenger ships tooid:'ais:' + sh.mmsi, line:sh.name || 'Ferry', op:'Live position (AIS)', dest:sh.dest || '', lat:sh.lat, lon:sh.lon,
       brg:sh.hdg != null ? sh.hdg : sh.sog > 1 && sh.cog != null ? sh.cog : null, speed:sh.sog != null ? Math.round(sh.sog*1.852) : null, t:sh.at, kind:'ferry', col:'#00A0E2'}));
     gpsMerge({vehicles:vs}, 'ais:'); SRV.shipsAt = Date.now(); }
   catch(e){} }
