@@ -2442,6 +2442,8 @@ function applyRegion(){
   if(typeof onTrainsUpdate === 'function') onTrainsUpdate(ACTIVE.reduce((s, l) => s + (shown(l) ? l.count : 0), 0));
 }
 map.addListener('idle', applyRegion);
+// the address keeps the place in view, so a copied link (or a reload) opens the same spot
+map.addListener('idle', () => { if(Q.get('tour') || Q.get('auto') || document.body.classList.contains('kiosk')) return; clearTimeout(applyRegion.ut); applyRegion.ut = setTimeout(() => { try{ const c = map.getCenter(), u = new URL(location.href); u.searchParams.set('view', c.lat().toFixed(4) + ',' + c.lng().toFixed(4) + ',' + map.getZoom()); history.replaceState(null, '', u.toString().replace(/%2C/g, ',')); }catch(e){} }, 800); });
 // ---------- bikes for hire: Santander Cycles docks (TfL, live) ----------
 // (Lime, Forest, Voi and Dott don't publish open data for London.)
 const BIKES = {docks:[], at:0, busy:false};
@@ -2789,7 +2791,7 @@ async function stationExtras(st, naptan){
   return `<div class="st-x">${html}</div>`;
 }
 // keep the open station in the address, so it can be bookmarked or shared
-function setStationUrl(name){ try{ const u = new URL(location.href); name ? u.searchParams.set('station', name) : u.searchParams.delete('station'); history.replaceState(null, '', u); }catch(e){} }
+function setStationUrl(name){ try{ const u = new URL(location.href); name ? u.searchParams.set('station', name) : u.searchParams.delete('station'); history.replaceState(null, '', u.toString().replace(/%2C/g, ',')); }catch(e){} }
 // the chosen station: zoom in, mark it, list its next trains
 let focusMarker = null, focusTimer = 0, focusLoad = null;
 function clearFocus(){ clearTimeout(focusLine.t); focusLoad = null; if(focusMarker){ focusMarker.setMap(null); focusMarker = null; } $('station').hidden = true; clearInterval(focusTimer); }
@@ -2944,7 +2946,7 @@ let nearMode = false, nearWatch = null;
 $('bFit').onclick = () => {
   if(nearMode || !navigator.geolocation){ nearMode = false; if(nearWatch != null){ navigator.geolocation.clearWatch(nearWatch); nearWatch = null; } const was = me; me = null;
     if(document.body.classList.contains('away') && was){ map.panTo(LL(was)); map.setZoom(12); return; } // outside London: the area around you, not London
-    map.panTo(LL(HOME[0])); map.setZoom(Math.round(HOME[1])); return; }
+    map.panTo(LL([51.512, -0.11])); map.setZoom(11); return; } // all of London
   $('bFit').textContent = '…';
   navigator.geolocation.getCurrentPosition(pos => { $('bFit').textContent = '⌖'; nearMode = true;
     me = [pos.coords.latitude, pos.coords.longitude]; meAcc = pos.coords.accuracy || 0;
