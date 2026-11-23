@@ -2072,6 +2072,8 @@ async function refreshCoaches(p, z){
   if(COACH.res && COACH.on) for(const v of COACH.res.vehicles) if(!GPS.list.has(v.id)) gpsMerge({vehicles:[v]}); // put back any a region switch cleared
   return COACH.on ? `${COACH.n} coaches on the road` : '';
 }
+// a live feed that failed: say so in words (not 'signal timed out'); vehicles already on the map stay until the next try
+const feedErr = (e, who) => /abort|time|fetch|network|HTTP 5/i.test(e && e.message || '') ? `${who} is slow to answer right now · trying again shortly` : `${who}: ${e && e.message || 'not available right now'}`;
 async function refreshGps(){
   const c = map.getCenter(), p = [c.lat(), c.lng()], z = map.getZoom(); await loadCityLines(p).catch(() => {}); // the city's timetable first, so its trams show straight away
   if(inFinland(p) && (!TRAINS_ON || z < 5)){ gpsOnly(); hslStop(); BUS.note = ''; renderBusNote(); return; }
@@ -2079,10 +2081,10 @@ async function refreshGps(){
     gpsOnly('fi:', 'hsl:'); if(GPS.busy) return; GPS.busy = true;
     let hsl = '';
     if(inHelsinki(p) && z >= 12){ try{ await hslWatch(); for(const [k, g] of GPS.list) if(k.startsWith('hsl:') && Date.now() - g.seen > 60000) GPS.list.delete(k);
-      const n = [...GPS.list.keys()].filter(k => k.startsWith('hsl:')).length; if(n) refreshGps.hn = 0; if(!n && (refreshGps.hn = (refreshGps.hn || 0) + 1) <= 4){ hsl = ' · Helsinki trams, metro and buses: connecting…'; clearTimeout(refreshGps.ht); refreshGps.ht = setTimeout(refreshGps, 3000); } /* just connected: count again shortly */ else hsl = ` · ${n} ${n === 1 ? 'vehicle' : `trams, metros${busOff() ? '' : ', buses'} and ferries`} in view (HSL, live every second)${busOff() ? '. Turn on Buses for buses too' : ''}`; }catch(e){ hsl = ' · Helsinki live feed: ' + e.message; } }
+      const n = [...GPS.list.keys()].filter(k => k.startsWith('hsl:')).length; if(n) refreshGps.hn = 0; if(!n && (refreshGps.hn = (refreshGps.hn || 0) + 1) <= 4){ hsl = ' · Helsinki trams, metro and buses: connecting…'; clearTimeout(refreshGps.ht); refreshGps.ht = setTimeout(refreshGps, 3000); } /* just connected: count again shortly */ else hsl = ` · ${n} ${n === 1 ? 'vehicle' : `trams, metros${busOff() ? '' : ', buses'} and ferries`} in view (HSL, live every second)${busOff() ? '. Turn on Buses for buses too' : ''}`; }catch(e){ hsl = ' · ' + feedErr(e, 'HSL’s live feed'); } }
     else { hslStop(); if(inHelsinki(p)) hsl = ' · zoom in for Helsinki trams, metro and buses'; }
     try{ gpsMerge(await finlandTrains(), 'fi:'); const n = [...GPS.list.keys()].filter(k => k.startsWith('fi:')).length; BUS.note = `${n} trains moving in Finland (live GPS)${hsl}`; }
-    catch(e){ BUS.note = e.message; }
+    catch(e){ BUS.note = feedErr(e, 'Finland’s live trains feed'); }
     GPS.busy = false; renderBusNote(); return;
   }
   hslStop(); for(const [k] of GPS.list) if(k.startsWith('fi:')) GPS.list.delete(k);
@@ -2092,7 +2094,7 @@ async function refreshGps(){
     if(GPS.busy) return; GPS.busy = true;
     try{ gpsMerge(await norwayVehicles(), 'no:'); const n = [...GPS.list.keys()].filter(k => k.startsWith('no:')).length;
       BUS.note = `${n} vehicle${n === 1 ? '' : 's'} live here (Entur, GPS)${busOff() ? '. Turn on Buses for buses too' : ''}`; }
-    catch(e){ BUS.note = e.message; }
+    catch(e){ BUS.note = feedErr(e, 'Entur (Norway)'); }
     GPS.busy = false; renderBusNote(); return;
   }
   for(const k of [...GPS.list.keys()]) if(k.startsWith('no:')) GPS.list.delete(k);
@@ -2102,7 +2104,7 @@ async function refreshGps(){
     if(GPS.busy) return; GPS.busy = true;
     try{ gpsMerge(await bostonVehicles(), 'us:'); const n = [...GPS.list.keys()].filter(k => k.startsWith('us:')).length;
       BUS.note = `${n} MBTA vehicles live (GPS)${busOff() ? '. Turn on Buses for buses too' : ''}`; }
-    catch(e){ BUS.note = e.message; }
+    catch(e){ BUS.note = feedErr(e, 'The MBTA (Boston)'); }
     GPS.busy = false; renderBusNote(); return;
   }
   if(inBerlin(p) && TRAINS_ON){
@@ -2111,7 +2113,7 @@ async function refreshGps(){
     if(GPS.busy) return; GPS.busy = true;
     try{ gpsMerge(await berlinVehicles(), 'de:'); const n = [...GPS.list.keys()].filter(k => k.startsWith('de:')).length;
       BUS.note = `${n} BVG and S-Bahn ${n === 1 ? 'vehicle' : 'vehicles'} live here (VBB real-time positions)${busOff() ? '. Turn on Buses for buses too' : ''}`; }
-    catch(e){ BUS.note = e.message; }
+    catch(e){ BUS.note = feedErr(e, 'VBB (Berlin)'); }
     GPS.busy = false; renderBusNote(); return;
   }
   gpsOnly('uk', 'sch:', 'co:'); schedVehicles();
@@ -2124,7 +2126,7 @@ async function refreshGps(){
       { const tl = cityData().flatMap(d => d.lines).filter(l => l.kind === 'tram'); for(const v of res.vehicles) if(v.tram && !v.col){ const l = tl.find(l => String(l.name).replace(/^T/, '') === String(v.line).replace(/^T/, '')) || tl[0]; if(l) v.col = l.col; } } // trams in their line's colour, as the lines are drawn
       gpsMerge(res);
       BUS.note = `${GPS.list.size} ${(t => busOff() ? 'trams' : t ? 'buses and trams' : 'buses and trolleybuses')([...GPS.list.values()].some(g => g.v.tram))} live in ${rc[2]} (GPS)${busOff() ? '. Turn on Buses for buses too' : ''}`; }
-    catch(e){ BUS.note = rc[2] + ': ' + e.message; }
+    catch(e){ BUS.note = feedErr(e, rc[2] + '’s live feed'); }
     GPS.busy = false; renderBusNote(); return;
   }
   if(regionOf(p) === 'world'){ GPS.list.clear(); BUS.note = z >= 8 ? 'No live data for this area yet. Live now: London, every bus, tram and coach across the UK, Finland, Helsinki, Norway, Berlin, Boston, Tallinn, Gdańsk and Vilnius.' : ''; renderBusNote(); return; }
