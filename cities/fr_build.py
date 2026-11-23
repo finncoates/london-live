@@ -96,7 +96,9 @@ def shape_quality():
         if q['shape_id'] not in bs: continue
         p = (float(q['shape_pt_lat']), float(q['shape_pt_lon'])); o = last.get(q['shape_id']); last[q['shape_id']] = p
         if o: gaps.append(math.hypot((p[0]-o[0])*111320, (p[1]-o[1])*111320*math.cos(math.radians(p[0]))))
+    if gaps: shape_quality.long = sum(g for g in gaps if g > 400)/(sum(gaps) or 1)  # share of the shapes' length in straight jumps (Rouen: partly stop-to-stop)
     gaps.sort(); return gaps[len(gaps)//2] if gaps else None
+shape_quality.long = 0
 def shapeless_share():  # bus trips with no shape at all (Strasbourg: most of them): those routes would be missing
     zz = zipfile.ZipFile(sub); rr = lambda n: csv.DictReader(io.TextIOWrapper(zz.open(n), 'utf-8-sig'))
     bus = {r['route_id'] for r in rr('routes.txt') if r['route_type'] in ('3', '11', '700', '702', '704', '715')}
@@ -176,7 +178,8 @@ if not a.nobus and not any(r['route_type'] in BUS_TYPES for r in routes): report
 elif not a.nobus:
     bdir = os.path.join(work, 'busnet'); shutil.rmtree(bdir, ignore_errors=True)
     gap = shape_quality(); share = shapeless_share(); report['bus_shape_gap_m'] = gap and round(gap); report['bus_trips_without_shape'] = round(share, 3)
-    roads = a.roads == 'on' or (a.roads == 'auto' and (gap is None or gap > 120 or share > 0.03))
+    report['bus_long_jumps'] = round(shape_quality.long, 3)
+    roads = a.roads == 'on' or (a.roads == 'auto' and (gap is None or gap > 120 or share > 0.03 or shape_quality.long > 0.15))
     if roads and (pbf := region_pbf()):
         edges = os.path.join(work, 'edges.pkl'); report['bus_roads'] = os.path.basename(pbf)
         subprocess.run([sys.executable, '-I', os.path.join(HERE, 'busnet2.py'), 'match', pbf, edges, sub], check=True, env=env)
