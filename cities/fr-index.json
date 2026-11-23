@@ -313,5 +313,320 @@
 "#7E8BA3",
 "#97A6BF"
 ]
+},
+{
+"id": "n-angers-loire-metropole-reseau-ir-baea57",
+"name": "Angers Loire Métropole",
+"box": [
+47.345,
+-0.772,
+47.614,
+-0.289
+],
+"url": "cities/fr-n-angers-loire-metropole-reseau-ir-baea57.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "n-fil-bleu-syndicat-des-mobilites-d39dc6",
+"name": "Tours Métropole Val de Loire",
+"box": [
+47.297,
+0.48,
+47.492,
+0.875
+],
+"url": "cities/fr-n-fil-bleu-syndicat-des-mobilites-d39dc6.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "n-offre-de-transport-du-reseau-gra-5b472c",
+"name": "Grand Reims",
+"box": [
+49.157,
+3.662,
+49.405,
+4.316
+],
+"url": "cities/fr-n-offre-de-transport-du-reseau-gra-5b472c.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "n-syndicat-mixte-des-transports-en-cd4f63",
+"name": "Clermont Auvergne Métropole",
+"box": [
+45.686,
+2.955,
+45.874,
+3.29
+],
+"url": "cities/fr-n-syndicat-mixte-des-transports-en-cd4f63.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "n-gtfs-netex-et-gtfs-rt-reseau-tao-c78b88",
+"name": "Orléans Métropole",
+"box": [
+47.793,
+1.775,
+47.987,
+2.089
+],
+"url": "cities/fr-n-gtfs-netex-et-gtfs-rt-reseau-tao-c78b88.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "n-caen-la-mer-reseau-twisto-gtfs-s-d2925c",
+"name": "Caen la Mer",
+"box": [
+49.078,
+-0.572,
+49.322,
+-0.153
+],
+"url": "cities/fr-n-caen-la-mer-reseau-twisto-gtfs-s-d2925c.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "n-fr-200052264-t0014-0000-1-19aa15",
+"name": "Mulhouse Alsace Agglomération",
+"box": [
+47.665,
+7.071,
+47.889,
+7.574
+],
+"url": "cities/fr-n-fr-200052264-t0014-0000-1-19aa15.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "n-offre-de-transport-solea-et-tram-d65762",
+"name": "Mulhouse Alsace Agglomération",
+"box": [
+47.665,
+7.071,
+47.889,
+7.574
+],
+"url": "cities/fr-n-offre-de-transport-solea-et-tram-d65762.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "n-reseau-de-transport-en-commun-li-ff9f5d",
+"name": "Le Havre Seine Métropole",
+"box": [
+49.444,
+0.04,
+49.709,
+0.384
+],
+"url": "cities/fr-n-reseau-de-transport-en-commun-li-ff9f5d.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "n-gtfs-diviamobilites-793bb1",
+"name": "Dijon Métropole",
+"box": [
+47.221,
+4.907,
+47.388,
+5.179
+],
+"url": "cities/fr-n-gtfs-diviamobilites-793bb1.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "n-fichiers-gtfs-eurometropole-de-m-f4768c",
+"name": "Metz Métropole",
+"box": [
+48.97,
+5.987,
+49.221,
+6.338
+],
+"url": "cities/fr-n-fichiers-gtfs-eurometropole-de-m-f4768c.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "n-horaires-theoriques-et-temps-ree-3362f0",
+"name": "Brest Métropole",
+"box": [
+48.335,
+-4.648,
+48.476,
+-4.319
+],
+"url": "cities/fr-n-horaires-theoriques-et-temps-ree-3362f0.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "n-horaires-theoriques-du-reseau-iz-e347fb",
+"name": "Lorient Agglomération",
+"box": [
+47.618,
+-3.551,
+48.01,
+-3.061
+],
+"url": "cities/fr-n-horaires-theoriques-du-reseau-iz-e347fb.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "n-gtfs-et-siri-du-reseau-ginko-bes-8fbfe4",
+"name": "Grand Besançon Métropole",
+"box": [
+47.118,
+5.769,
+47.367,
+6.215
+],
+"url": "cities/fr-n-gtfs-et-siri-du-reseau-ginko-bes-8fbfe4.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "n-reseau-orizo-grand-avignon-e75221",
+"name": "Grand Avignon (COGA)",
+"box": [
+43.869,
+4.645,
+44.07,
+5.045
+],
+"url": "cities/fr-n-reseau-orizo-grand-avignon-e75221.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "n-arrets-horaires-et-parcours-theo-ff9006",
+"name": "La Rochelle",
+"box": [
+46.025,
+-1.247,
+46.266,
+-0.912
+],
+"url": "cities/fr-n-arrets-horaires-et-parcours-theo-ff9006.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "n-telepherique-du-mont-faron-d9d77b",
+"name": "Toulon",
+"box": [
+43.117,
+5.9,
+43.169,
+5.964
+],
+"url": "cities/fr-n-telepherique-du-mont-faron-d9d77b.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "brussels",
+"name": "Brussels",
+"box": [
+50.756,
+4.245,
+50.939,
+4.529
+],
+"url": "cities/be-brussels.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "n-horaires-theoriques-du-telepheri-3f9dea",
+"name": "Grenoble",
+"box": [
+45.173,
+5.695,
+45.219,
+5.756
+],
+"url": "cities/fr-n-horaires-theoriques-du-telepheri-3f9dea.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "antwerp",
+"name": "Antwerp",
+"box": [
+51.13,
+4.25,
+51.32,
+4.55
+],
+"url": "cities/be-antwerp.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "gent",
+"name": "Ghent",
+"box": [
+50.98,
+3.6,
+51.12,
+3.85
+],
+"url": "cities/be-gent.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
 }
 ]
