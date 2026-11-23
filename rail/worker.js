@@ -43,7 +43,7 @@ export default {
     if(request.method !== 'GET') return json({error:'GET only'}, 405, cors);
     try{
       if(url.pathname === '/' || url.pathname === '/health')
-        return json({ok:true, configured:!!env.RDM_KEY, rail:!!env.RDM_KEY, bods:!!env.BODS_KEY, tfe:true, metrolink:!!env.TFGM_KEY, tfl:true, tflKey:!!env.TFL_KEY, darwin:!!env.DARWIN_URL,
+        return json({ok:true, configured:!!env.RDM_KEY, rail:!!env.RDM_KEY, bods:!!env.BODS_KEY, tfe:true, metrolink:!!env.TFGM_KEY, tfl:true, tflKey:!!env.TFL_KEY, darwin:!!env.DARWIN_URL, server:!!env.DARWIN_URL,
           boardUrl:(env.BOARD_URL || DEFAULT_BOARD_URL).replace(/\?.*$/, '')}, 200, cors);
       if(url.pathname === '/vehicles') return json(await vehicles(url, env, ctx), 200, cors, 10);
       if(url.pathname === '/metrolink') return json(await metrolink(env, ctx), 200, cors, 20);
@@ -51,6 +51,7 @@ export default {
       if(url.pathname.startsWith('/transitous/')) return await transitous(url, cors);
       if(url.pathname === '/tt') return await ttTile(url, cors);
       if(url.pathname === '/darwin/trains') return await darwinTrains(url, env, cors);
+      if(/^\/srv\/(health|ferries|rt)$/.test(url.pathname)) return await srv(url, env, cors);
       if(!env.RDM_KEY) return json({error:'RDM_KEY secret is not set on the worker'}, 503, cors);
       if(url.pathname === '/board'){
         const crs = cleanCrs(url.searchParams.get('crs'));
@@ -396,6 +397,22 @@ async function ttTile(url, cors){
     all = await w; }
   const out = want.includes('all') ? all : all.filter(s => want.some(m => TT_MODES[m].test(s[0])));
   return json({tile:[la, lo], at:bucket, vehicles:out}, 200, cors, 60); }
+
+// ---------- the London Live server's other parts (rail/darwin): live ferries (AIS) and big live feeds (feeds.json) ----------
+// /srv/health (what's on, and where), /srv/ferries?bbox, /srv/rt?feed=id&bbox. Boxes are rounded to 0.05° so nearby views
+// share an answer; answers are kept 10 s (health 60 s).
+const SRV_MEM = new Map();
+async function srv(url, env, cors){
+  if(!env.DARWIN_URL) return json({error:'the London Live server is not connected (DARWIN_URL)'}, 503, cors);
+  const p = url.pathname.slice(4), q = new URLSearchParams();
+  const b = (url.searchParams.get('bbox') || '').split(',').map(Number);
+  if(b.length === 4 && b.every(isFinite)) q.set('bbox', b.map((x, i) => (i < 2 ? Math.floor(x*20) : Math.ceil(x*20))/20).join(','));
+  if(p === '/rt'){ const f = url.searchParams.get('feed') || ''; if(!/^[a-z0-9-]{1,30}$/.test(f)) return json({error:'feed=id required'}, 400, cors); q.set('feed', f); }
+  const key = p + '?' + q, ttl = p === '/health' ? 60000 : 10000, hit = SRV_MEM.get(key);
+  if(hit && Date.now() - hit.t < ttl) return new Response(hit.body, {status:hit.status, headers:{'content-type':'application/json', 'cache-control':'public, max-age=' + ttl/1000, ...cors}});
+  const r = await fetch(env.DARWIN_URL.replace(/\/+$/, '') + key, {headers:{'x-relay-token':env.RELAY_TOKEN || ''}, signal:AbortSignal.timeout(10000)});
+  const body = await r.text(); if(r.ok){ SRV_MEM.set(key, {t:Date.now(), body, status:r.status}); if(SRV_MEM.size > 500) SRV_MEM.delete(SRV_MEM.keys().next().value); }
+  return new Response(body, {status:r.status, headers:{'content-type':'application/json', 'cache-control':'public, max-age=' + (r.ok ? ttl/1000 : 5), ...cors}}); }
 
 // ---------- Darwin (every train's real running), from the London Live Darwin server (rail/darwin) ----------
 // Set DARWIN_URL (e.g. http://SERVER-IP:8080) and RELAY_TOKEN (the same secret as on the server). Answers are kept 20 s.

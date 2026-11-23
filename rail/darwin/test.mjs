@@ -49,3 +49,22 @@ test('updates for a train whose schedule we never saw still place it', () => {
   const D = new Darwin(); D.ingest(ts); const [t] = D.calls(TPL, Date.parse('2026-11-23T15:25:00Z'), null, NAMES);
   assert.ok(t); assert.deepEqual(t.calls.map(c => c[0]), ['EUS', 'WFJ', 'MKC']);
 });
+
+// ---------- live ferries (AIS) and live feeds ----------
+import {Ais} from './ais.mjs';
+import {csv, kindOf} from './rt.mjs';
+test('AIS: a passenger ship shows once its type is known, cargo ships never', () => {
+  const a = new Ais('/nonexistent/ais.json'), md = (mmsi, name) => ({MMSI:mmsi, ShipName:name, latitude:50.79, longitude:-1.10});
+  const pos = (mmsi, name) => ({MessageType:'PositionReport', MetaData:md(mmsi, name), Message:{PositionReport:{Cog:181.4, Sog:14.2, TrueHeading:180}}});
+  a.ingest(pos(235000001, 'ST CLARE ')); assert.equal(a.list(null).length, 0); // type not known yet
+  a.ingest({MessageType:'ShipStaticData', MetaData:md(235000001, 'ST CLARE'), Message:{ShipStaticData:{Type:60, Destination:'FISHBOURNE'}}});
+  a.ingest({MessageType:'ShipStaticData', MetaData:md(235000002, 'BOX SHIP'), Message:{ShipStaticData:{Type:70}}});
+  a.ingest(pos(235000001, 'ST CLARE ')); a.ingest(pos(235000002, 'BOX SHIP'));
+  const l = a.list([50, -2, 51, 0]); assert.equal(l.length, 1); assert.equal(l[0].name, 'ST CLARE'); assert.equal(l[0].hdg, 180); assert.equal(l[0].cog, 181);
+  assert.equal(a.list([52, -2, 53, 0]).length, 0); // outside the box
+});
+test('GTFS: quoted CSV and route kinds', () => {
+  const r = csv('﻿route_id,route_short_name,route_type\r\n1,"Line ""A"", east",0\r\n2,M1,401\n3,,3\n');
+  assert.equal(r.length, 3); assert.equal(r[0].route_short_name, 'Line "A", east');
+  assert.deepEqual(['0', '1', '2', '3', '4', '401', '109', '900', '1200', '700'].map(kindOf), ['tram', 'metro', 'train', 'bus', 'ferry', 'metro', 'train', 'tram', 'ferry', 'bus']);
+});

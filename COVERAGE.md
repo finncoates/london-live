@@ -46,6 +46,8 @@ Anywhere without its own feed now shows the trains, trams, metros and ferries ru
 **France** (Lyon: TGV, OUIGO, metro, trams; rural France: TGV/TER). Dense Paris is very heavy: it works with small
 map tiles but the first view can be slow or miss some vehicles.
 Live already (own feeds): Finland/Helsinki, Norway, Berlin, Boston, Tallinn, Gdańsk, Vilnius.
+**Ready for the Oracle machine** (rail/darwin/SETUP.md; one command, `connect.ps1`): besides Darwin, the server reads big live feeds the relay can't: every bus, tram and metro live in **the Netherlands**, **Rome**, **Kraków**, **Brisbane** and **Tokyo's Toei buses** (no keys; tested), plus **live ferries by AIS** (free AISStream key), **Ireland's live buses** (free NTA key) and **Tokyo Metro** (free ODPT key). The map hides a city's timetable vehicles only where its live feed has that kind (Amsterdam's metro stays from the timetable; Rotterdam's goes live).
+
 **Whole countries** (Explore → a country → *Whole country (trains)*): zoomed out, every high-speed and intercity train in the country; one step in, every regional train too; at city zoom, metros, trams, ferries and buses as before. All from the timetable (Transitous), refreshed every minute. Countries: Ireland (with Northern Ireland), France, Spain, Germany, Poland, Italy, Switzerland, Austria, the Netherlands, Belgium, Denmark, Sweden, Czechia, Portugal and Japan (Finland's is live GPS).
 
 **Gaps in the open timetables** (nothing the app can do until the operator publishes one): Metro de Madrid; the subways in Osaka, Kyoto, Sapporo and Fukuoka (Tokyo's are there). South Korea, Australia and New Zealand have too little in Transitous for a country view yet.

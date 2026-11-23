@@ -1,0 +1,22 @@
+{
+  "_about": "tt / ttModes: the timetable trips (Transitous feed name, modes) the live vehicles replace on the map. Live vehicle feeds (GTFS-realtime) the server reads. 'needs' lists the settings (in /etc/london-live-darwin.env) a feed requires; without them it's skipped. box = [minLat, minLon, maxLat, maxLon]: where the map asks for it. gtfs = its timetable zip (route names, colours and kinds). every = seconds between reads.",
+  "feeds": [
+    {"id":"nl", "name":"OVapi (Netherlands)", "box":[50.7, 3.2, 53.7, 7.3], "tt":"nl-OpenOV", "ttModes":"BUS|TRAM|SUBWAY|FERRY", "every":60,
+     "url":"http://gtfs.ovapi.nl/nl/vehiclePositions.pb", "gtfs":"http://gtfs.ovapi.nl/nl/gtfs-nl.zip"},
+    {"id":"rome", "name":"Roma Mobilità", "box":[41.6, 12.2, 42.2, 12.9], "tt":"it-Lazio-Rome", "ttModes":"BUS", "every":30,
+     "url":"https://romamobilita.it/sites/default/files/rome_rtgtfs_vehicle_positions_feed.pb", "gtfs":"https://romamobilita.it/sites/default/files/rome_static_gtfs.zip"},
+    {"id":"krk-tram", "name":"MPK Kraków", "box":[49.9, 19.7, 50.2, 20.3], "tt":"Krak.w-T", "ttModes":"TRAM", "every":20, "kind":"tram", "trips":true,
+     "url":"https://gtfs.ztp.krakow.pl/VehiclePositions_T.pb", "gtfs":"https://gtfs.ztp.krakow.pl/GTFS_KRK_T.zip"},
+    {"id":"krk-bus", "name":"MPK Kraków", "box":[49.9, 19.7, 50.2, 20.3], "tt":"Krak.w-[AM]", "ttModes":"BUS", "every":20, "trips":true,
+     "url":"https://gtfs.ztp.krakow.pl/VehiclePositions_A.pb", "gtfs":"https://gtfs.ztp.krakow.pl/GTFS_KRK_A.zip"},
+    {"id":"brisbane", "name":"Translink (SEQ)", "box":[-28.4, 152.3, -26.2, 153.6], "tt":"au-qld|translink", "ttModes":"BUS|TRAM|FERRY", "every":30,
+     "url":"https://gtfsrt.api.translink.com.au/api/realtime/SEQ/VehiclePositions", "gtfs":"https://gtfsrt.api.translink.com.au/GTFS/SEQ_GTFS.zip"},
+    {"id":"toei-bus", "name":"Toei Bus", "box":[35.5, 139.5, 35.9, 140.0], "tt":"toei", "ttModes":"BUS", "every":30,
+     "url":"https://api-public.odpt.org/api/v4/gtfs/realtime/ToeiBus", "gtfs":"https://api-public.odpt.org/api/v4/files/Toei/data/ToeiBus-GTFS.zip"},
+    {"id":"ie", "name":"Transport for Ireland", "box":[51.3, -10.7, 55.5, -5.9], "tt":"ie-transport-for-ireland", "ttModes":"BUS", "every":60, "needs":["NTA_KEY"],
+     "url":"https://api.nationaltransport.ie/gtfsr/v2/Vehicles", "headers":{"x-api-key":"$NTA_KEY"},
+     "gtfs":"https://www.transportforireland.ie/transitData/Data/GTFS_Realtime.zip"},
+    {"id":"tokyo-odpt", "name":"ODPT (Tokyo trains)", "box":[35.4, 139.3, 36.0, 140.1], "tt":"TokyoMetro|tokyo-metro", "ttModes":"SUBWAY", "every":30, "needs":["ODPT_KEY"], "kind":"train", "check":"endpoint name to confirm once the key arrives",
+     "url":"https://api.odpt.org/api/v4/gtfs/realtime/odpt_TokyoMetro_AllLines_vehicle?acl:consumerKey=$ODPT_KEY"}
+  ]
+}

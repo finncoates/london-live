@@ -1910,13 +1910,36 @@ async function bostonVehicles(){
       brg:a.bearing ?? null, t:Date.parse(a.updated_at) || null, train:rt.type === 2, metro:rt.type === 1, tram:rt.type === 0, kind, col:rt.color ? '#' + rt.color : '#FFC72C'}; })};
 }
 // keep only the vehicles of the source being shown (switching country drops the last one's)
-const GPS_SRC = ['fi:', 'hsl:', 'no:', 'us:', 'de:', 'sch:', 'co:', 'tf:', 'es:', 'la:']; // (es: Renfe live; la: other live city feeds abroad)
+const GPS_SRC = ['fi:', 'hsl:', 'no:', 'us:', 'de:', 'sch:', 'co:', 'tf:', 'es:', 'la:', 'ais:']; // (es: Renfe live; la: other live city feeds abroad)
 // Live city feeds abroad that browsers can read directly (no key): [name, box minLat,minLon,maxLat,maxLon, url, parse → vehicles, timetable trips they replace]
 const LIVE_ABROAD = [['Rennes', [47.95, -1.95, 48.30, -1.45], 'https://data.explore.star.fr/api/explore/v2.1/catalog/datasets/tco-bus-vehicules-position-tr/exports/json?where=etat%3D%22En%20ligne%22',
   j => j.filter(b => b.coordonnees).map(b => ({id:'la:star:' + b.idbus, line:b.nomcourtligne || '', op:'STAR Rennes', dest:b.destination || '', lat:b.coordonnees.lat, lon:b.coordonnees.lon, brg:null, t:null, late:b.ecartsecondes != null ? -b.ecartsecondes : null, kind:'bus'})), /star/i],
   ['Toronto', [43.55, -79.75, 43.95, -79.05], 'https://retro.umoiq.com/service/publicJSONFeed?command=vehicleLocations&a=ttc&t=0', // TTC streetcars (500s) and buses
   j => (j.vehicle || []).map(v => { const tram = +v.routeTag >= 500 && +v.routeTag < 600; return {id:'la:ttc:' + v.id, line:v.routeTag, op:'TTC', dest:'', lat:+v.lat, lon:+v.lon, brg:v.heading != null && +v.heading >= 0 ? +v.heading : null, speed:v.speedKmHr != null ? +v.speedKmHr : null, t:Date.now() - (+v.secsSinceReport || 0)*1000, kind:tram ? 'tram' : 'bus', tram, col:tram ? '#DA251D' : null}; }), /ttc/i, /BUS|TRAM/]]; // (tf: ferries from the timetable)
-function gpsOnly(...keep){ for(const k of [...GPS.list.keys()]){ const src = GPS_SRC.find(x => k.startsWith(x)) || 'uk'; if(!keep.includes(src)) GPS.list.delete(k); } }
+// The London Live server (rail/darwin, on the always-on machine): big live feeds (the Netherlands, Rome, Kraków, Brisbane,
+// Tokyo's Toei buses, Ireland…) and live ferries (AIS). When the relay is connected to it, its feeds join the list above.
+const SRV = {feeds:{}, ferries:false, at:0};
+async function srvSetup(){
+  if(!RAIL.relay || RAIL.relay === 'demo' || !RAIL.darwin) return;
+  try{ const h = await (await fetch(RAIL.relay + '/srv/health', {signal:AbortSignal.timeout(10000)})).json(); SRV.at = Date.now(); SRV.ferries = !!(h.ferries && h.ferries.on && h.ferries.ships);
+    for(const [id, f] of Object.entries(h.feeds || {})){ if(!f.box || f.error && !f.vehicles) continue;
+      if(SRV.feeds[id]){ const x = SRV.feeds[id].entry; x[1] = f.box; x[4] = new RegExp(f.tt || '^$', 'i'); x[5] = new RegExp(f.ttModes || 'BUS'); continue; } // known: just keep its settings current
+      SRV.feeds[id] = f; LIVE_ABROAD.push(f.entry = [f.name.replace(/ \(.*\)$/, ''), f.box, () => { const b = map.getBounds(), sw = b.getSouthWest(), ne = b.getNorthEast(); return `${RAIL.relay}/srv/rt?feed=${id}&bbox=${[sw.lat(), sw.lng(), ne.lat(), ne.lng()].map(x => x.toFixed(2)).join(',')}`; },
+        j => (j.vehicles || []).map(v => ({id:'la:' + id + ':' + v.id, line:v.line || '', op:v.op || f.name, dest:'', lat:v.lat, lon:v.lon, brg:v.bearing ? v.bearing : null, t:v.at || null, kind:v.kind, tram:v.kind === 'tram', metro:v.kind === 'metro', train:v.kind === 'train', col:v.col || null})),
+        new RegExp(f.tt || '^$', 'i'), new RegExp(f.ttModes || 'BUS')]); } }
+  catch(e){ console.warn('server', e); } }
+// live ferries (AIS, from the server): every passenger ship and fast ferry in view, where it really is
+async function refreshShips(){
+  if(!SRV.ferries || !TRAINS_ON || GPS_OFF.has('ferry') || map.getZoom() < 7) return;
+  const b = map.getBounds(); if(!b) return; const sw = b.getSouthWest(), ne = b.getNorthEast();
+  try{ const j = await (await fetch(`${RAIL.relay}/srv/ferries?bbox=${[sw.lat(), sw.lng(), ne.lat(), ne.lng()].map(x => x.toFixed(2)).join(',')}`, {signal:AbortSignal.timeout(10000)})).json();
+    const vs = (j.ships || []).filter(sh => !inTfLArea([sh.lat, sh.lon])).map(sh => ({id:'ais:' + sh.mmsi, line:sh.name || 'Ferry', op:'Live position (AIS)', dest:sh.dest || '', lat:sh.lat, lon:sh.lon,
+      brg:sh.hdg != null ? sh.hdg : sh.sog > 1 && sh.cog != null ? sh.cog : null, speed:sh.sog != null ? Math.round(sh.sog*1.852) : null, t:sh.at, kind:'ferry', col:'#00A0E2'}));
+    gpsMerge({vehicles:vs}, 'ais:'); SRV.shipsAt = Date.now(); }
+  catch(e){} }
+setInterval(refreshShips, 20000); map.addListener('idle', () => { clearTimeout(SRV.st); SRV.st = setTimeout(refreshShips, 1200); });
+setTimeout(srvSetup, 4000); setTimeout(srvSetup, 15000); setInterval(srvSetup, 600000);
+function gpsOnly(...keep){ keep.push('ais:'); for(const k of [...GPS.list.keys()]){ const src = GPS_SRC.find(x => k.startsWith(x)) || 'uk'; if(!keep.includes(src)) GPS.list.delete(k); } } // (live ferries stay everywhere)
 // ---- Berlin & Brandenburg: S-Bahn, U-Bahn, trams, buses, regional trains (VBB "radar": real-time positions, no key) ----
 const inOslo = p => p[0] > 59.75 && p[0] < 60.10 && p[1] > 10.45 && p[1] < 11.05, inBergen = p => p[0] > 60.25 && p[0] < 60.50 && p[1] > 5.15 && p[1] < 5.50, inTrondheim = p => p[0] > 63.35 && p[0] < 63.48 && p[1] > 10.20 && p[1] < 10.60;
 const inBerlin = p => p[0] > 52.2 && p[0] < 52.8 && p[1] > 12.9 && p[1] < 13.9;
@@ -2247,8 +2270,10 @@ async function refreshGps(){
     GPS.busy = false; renderBusNote(); return;
   }
   if(regionOf(p) === 'world'){ gpsOnly('tf:', 'es:', 'la:');
-    for(const [nm, bx, url, parse] of LIVE_ABROAD) if(p[0] > bx[0] && p[0] < bx[2] && p[1] > bx[1] && p[1] < bx[3] && z >= 11 && TRAINS_ON){ // a city with its own live feed (buses hidden by the Buses switch as usual)
-      try{ const j = await (await fetch(url, {signal:AbortSignal.timeout(15000)})).json(), vs = parse(j); gpsMerge({vehicles:vs}, 'la:'); TTV.cityLive = {name:nm, at:Date.now(), n:vs.length}; }catch(e){} }
+    for(const [nm, bx, url0, parse] of LIVE_ABROAD) if(p[0] > bx[0] && p[0] < bx[2] && p[1] > bx[1] && p[1] < bx[3] && z >= 11 && TRAINS_ON){ // a city with its own live feed (buses hidden by the Buses switch as usual)
+      try{ const url = typeof url0 === 'function' ? url0() : url0, j = await (await fetch(url, {signal:AbortSignal.timeout(15000)})).json(), vs = parse(j); gpsMerge({vehicles:vs}, 'la:');
+        const kinds = [...new Set(vs.map(v => v.kind === 'tram' ? 'trams' : v.kind === 'metro' ? 'metros' : v.kind === 'ferry' ? 'boats' : v.kind === 'train' ? 'trains' : 'buses'))];
+        TTV.cityLive = {name:nm, at:Date.now(), n:(TTV.cityLive && TTV.cityLive.name === nm && Date.now() - TTV.cityLive.at < 5000 ? TTV.cityLive.n : 0) + vs.length, what:kinds.length > 1 ? kinds.slice(0, -1).join(', ') + ' and ' + kinds.at(-1) : kinds[0] || 'vehicles'}; }catch(e){} }
     if(p[0] > 35.8 && p[0] < 43.9 && p[1] > -9.6 && p[1] < 3.4 && z >= 7 && TRAINS_ON && RAIL.relay && RAIL.relay !== 'demo'){ // Spain: Renfe's trains live (Cercanías/Rodalies…)
       try{ const r = await railGet('/vehicles?src=renfe'); gpsMerge(r, 'es:'); TTV.esLive = Date.now(); TTV.esN = (r.vehicles || []).length; }catch(e){} } if(z < 5){ BUS.note = 'Zoom in to see the trains running here (from the timetable)'; renderBusNote(); } else if(!TTV.world) { BUS.note = z < 7 ? 'Finding high-speed and intercity trains…' : 'Finding trains, trams and ferries…'; renderBusNote(); } return; } // (refreshTT fills these in)
   const on = !busOff() && TRAINS_ON && !inTfLArea(p);
@@ -2564,7 +2589,7 @@ async function refreshTT(){
       const res = await Promise.all(tiles.map(([la, lo]) => railGet(`/tt?la=${la}&lo=${lo}&s=${tiles.sz}&modes=${modes}&z=${zq < 7 ? 6 : zq < 9 ? 8 : Math.min(14, zq + 1)}`).catch(() => null)));
       TTV.ferries = new Map(); for(const r of res) for(const s of r?.vehicles || []) if(s[9] && s[6] > now && !TTV.ferries.has(s[8])){ const pts = decodePoly(s[9]); if(pts.length > 1) TTV.ferries.set(s[8], {s, pts}); }
       TTV.n = TTV.ferries.size; TTV.at = now; TTV.world = true;
-      BUS.note = (TTV.esLive && Date.now() - TTV.esLive < 120000 ? `${TTV.esN} Renfe trains live · ` : '') + (TTV.cityLive && Date.now() - TTV.cityLive.at < 120000 ? `${TTV.cityLive.n} ${TTV.cityLive.name} buses${TTV.cityLive.name === 'Toronto' ? ' and streetcars' : ''} live · ` : '') + `${TTV.n} ${zq < 7 ? 'high-speed and intercity trains' : zq < 9 ? 'trains' : 'trains, trams' + (zq >= 14 ? ', buses' : '') + ' and ferries'} here, placed from the timetable (Transitous open data${(TTV.esLive && Date.now() - TTV.esLive < 120000) || (TTV.cityLive && Date.now() - TTV.cityLive.at < 120000) ? '' : '; no live positions here yet'})${zq < 7 ? ' · zoom in for regional trains' : zq < 9 ? ' · zoom in for trams and metros' : zq < 14 ? ' · zoom in for buses' : ''}`;
+      BUS.note = (TTV.esLive && Date.now() - TTV.esLive < 120000 ? `${TTV.esN} Renfe trains live · ` : '') + (TTV.cityLive && Date.now() - TTV.cityLive.at < 120000 ? `${TTV.cityLive.n} ${TTV.cityLive.name} ${TTV.cityLive.name === 'Toronto' ? 'buses and streetcars' : TTV.cityLive.what || 'buses'} live · ` : '') + `${TTV.n} ${zq < 7 ? 'high-speed and intercity trains' : zq < 9 ? 'trains' : 'trains, trams' + (zq >= 14 ? ', buses' : '') + ' and ferries'} here, placed from the timetable (Transitous open data${(TTV.esLive && Date.now() - TTV.esLive < 120000) || (TTV.cityLive && Date.now() - TTV.cityLive.at < 120000) ? '' : '; no live positions here yet'})${zq < 7 ? ' · zoom in for regional trains' : zq < 9 ? ' · zoom in for trams and metros' : zq < 14 ? ' · zoom in for buses' : ''}`;
       if(!TTV.n){ const c = map.getCenter(), h = (new Date().getUTCHours() + Math.round(c.lng()/15) + 24) % 24; // rough local hour from longitude
         if(h >= 0 && h < 5) BUS.note = `Nothing running here right now: it's about ${h || 12} am locally and services have stopped for the night. They come back from about 5 am.`; }
       renderBusNote();
@@ -2620,12 +2645,14 @@ function drawTTLines(ctx){
   ctx.restore(); }
 // every 2 s: each ferry's place along its route now (a vehicle like the GPS ones, so it's drawn, tapped and toggled the same way)
 setInterval(() => { if(!TTV.ferries || !TRAINS_ON || inTfLArea([map.getCenter().lat(), map.getCenter().lng()])) return; const now = Date.now(), seen = new Set();
+  const liveKinds = new Set(); for(const [k, g] of GPS.list) if(k.startsWith('la:')) liveKinds.add(g.v.kind || 'bus'); // what the city's live feed actually has (Amsterdam's has no metro, Rotterdam's does)
   for(const [trip, {s, pts}] of TTV.ferries){ const [, col, name, from, to, dep, arr] = s; if(now < dep - 60000 || now > arr + 60000) continue;
     if(!pts.cum){ pts.cum = [0]; for(let i = 1; i < pts.length; i++) pts.cum.push(pts.cum[i-1] + dist(pts[i-1], pts[i])); }
     const f = Math.max(0, Math.min(1, (now - dep)/((arr - dep) || 1))), L = pts.cum[pts.cum.length-1]*f; let i = 1; while(i < pts.length - 1 && pts.cum[i] < L) i++;
     const u = Math.max(0, Math.min(1, (L - pts.cum[i-1])/((pts.cum[i] - pts.cum[i-1]) || 1))), A = pts[i-1], B = pts[i], p = [A[0] + (B[0]-A[0])*u, A[1] + (B[1]-A[1])*u];
     if(TTV.esLive && Date.now() - TTV.esLive < 120000 && /RENFE-?Cercan|Rodalies|Cercan/i.test(trip)) continue;
-    if(TTV.cityLive && Date.now() - TTV.cityLive.at < 120000 && LIVE_ABROAD.some(x => x[0] === TTV.cityLive.name && x[4].test(trip) && (x[5] || /BUS/).test(s[0]))) continue; // that city's buses (and trams) are live // shown live by Renfe instead (its line is still drawn)
+    if(SRV.shipsAt && Date.now() - SRV.shipsAt < 120000 && /FERRY/.test(s[0])) continue; // ships live by AIS instead (their routes still drawn)
+    if(TTV.cityLive && Date.now() - TTV.cityLive.at < 120000 && liveKinds.has(/FERRY/.test(s[0]) ? 'ferry' : /BUS|COACH/.test(s[0]) ? 'bus' : /TRAM/.test(s[0]) ? 'tram' : /SUBWAY|METRO/.test(s[0]) ? 'metro' : 'train') && LIVE_ABROAD.some(x => x[0] === TTV.cityLive.name && x[4].test(trip) && (x[5] || /BUS/).test(s[0]))) continue; // that city's buses (and trams) are live // shown live by Renfe instead (its line is still drawn)
     const id = 'tf:' + trip; seen.add(id); let g = GPS.list.get(id);
     const m = s[0], kind = /FERRY/.test(m) ? 'ferry' : /BUS|COACH/.test(m) ? 'bus' : /TRAM/.test(m) ? 'tram' : /SUBWAY|METRO/.test(m) ? 'metro' : 'train';
     const feed = (s[8].split('_')[2] || '').replace(/^[a-z]{2}-/, '').replace(/[-_]+/g, ' ').replace(/\b\w/g, c => c.toUpperCase()).replace(/\bSncf\b/, 'SNCF').replace(/\bRatp\b/, 'RATP').replace(/\bFor\b/, 'for'); // the timetable it comes from (Transport for Ireland, SNCF…)

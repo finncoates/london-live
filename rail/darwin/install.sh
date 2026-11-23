@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
-# Install the London Live Darwin server on a fresh Ubuntu machine (Oracle Cloud free tier).
+# Install the London Live server (Darwin trains, live ferries, live city feeds) on a fresh Ubuntu machine (Oracle Cloud free tier).
+# Safe to run again: it updates the code and keeps the settings.
 # Run as the default user (ubuntu):  bash install.sh
-# Then put the Darwin settings in /etc/london-live-darwin.env (see SETUP.md) and: sudo systemctl restart london-live-darwin
+# Settings: connect.ps1 (on the PC) puts them in /etc/london-live-darwin.env, or by hand: sudo nano /etc/london-live-darwin.env
 set -euo pipefail
 sudo apt-get update -y
 sudo apt-get install -y git curl ca-certificates
@@ -25,12 +26,18 @@ DARWIN_GROUP=
 # A long random secret; the same value goes on the relay as RELAY_TOKEN
 RELAY_TOKEN=
 PORT=8080
+# Live ferries: a free key from https://aisstream.io (sign in with GitHub → API Keys)
+AISSTREAM_KEY=
+# Ireland's live buses: a free key from https://developer.nationaltransport.ie
+NTA_KEY=
+# Tokyo's live trains: a free key from https://developer.odpt.org
+ODPT_KEY=
 EOF
   sudo chmod 600 /etc/london-live-darwin.env
 fi
 sudo tee /etc/systemd/system/london-live-darwin.service >/dev/null <<EOF
 [Unit]
-Description=London Live Darwin server
+Description=London Live server (Darwin, ferries, live feeds)
 After=network-online.target
 Wants=network-online.target
 
@@ -47,6 +54,13 @@ WantedBy=multi-user.target
 EOF
 sudo systemctl daemon-reload
 sudo systemctl enable --now london-live-darwin
-# open the port in Ubuntu's own firewall (Oracle images block everything but SSH by default)
-sudo iptables -I INPUT 6 -m state --state NEW -p tcp --dport 8080 -j ACCEPT && sudo netfilter-persistent save || true
+# open port 80 (the relay calls http://IP.sslip.io, port 80, which goes to the server on 8080) in Ubuntu's own firewall:
+# Oracle's images block everything but SSH by default. (Oracle's Security List needs port 80 open too: see SETUP.md.)
+sudo DEBIAN_FRONTEND=noninteractive apt-get install -y iptables-persistent >/dev/null 2>&1 || true
+for port in 80 8080; do sudo iptables -C INPUT -p tcp --dport $port -j ACCEPT 2>/dev/null || sudo iptables -I INPUT 5 -p tcp --dport $port -j ACCEPT; done
+sudo iptables -t nat -C PREROUTING -p tcp --dport 80 -j REDIRECT --to-port 8080 2>/dev/null || sudo iptables -t nat -A PREROUTING -p tcp --dport 80 -j REDIRECT --to-port 8080
+sudo netfilter-persistent save >/dev/null 2>&1 || true
+# keep the code current: pull and restart every night at 04:10
+( crontab -l 2>/dev/null | grep -v london-live-update; echo "10 4 * * * cd $HOME/london-live && git pull --ff-only -q && cd rail/darwin && npm ci --omit=dev --silent && sudo systemctl restart london-live-darwin # london-live-update" ) | crontab -
+sudo systemctl restart london-live-darwin
 echo "Installed. Check: curl http://localhost:8080/health"

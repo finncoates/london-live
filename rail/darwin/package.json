@@ -9,9 +9,12 @@
     "start": "node server.mjs",
     "test": "node --test test.mjs"
   },
-  "engines": { "node": ">=20" },
+  "engines": {
+    "node": ">=20"
+  },
   "dependencies": {
     "fast-xml-parser": "4.5.0",
+    "gtfs-realtime-bindings": "1.1.1",
     "kafkajs": "2.2.4"
   }
 }
