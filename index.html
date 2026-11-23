@@ -2089,7 +2089,7 @@ async function refreshGps(){
     if(z < 11){ GPS.list.clear(); BUS.note = 'Berlin: zoom in to see S-Bahn, U-Bahn, trams and buses live'; renderBusNote(); return; }
     if(GPS.busy) return; GPS.busy = true;
     try{ gpsMerge(await berlinVehicles(), 'de:'); const n = [...GPS.list.keys()].filter(k => k.startsWith('de:')).length;
-      BUS.note = `${n} ${busOff() ? 'trains and trams' : 'trains, trams and buses'} live here (VBB real-time positions)${busOff() ? '. Turn on Buses for buses too' : ''}`; }
+      BUS.note = `${n} BVG and S-Bahn ${n === 1 ? 'vehicle' : 'vehicles'} live here (VBB real-time positions)${busOff() ? '. Turn on Buses for buses too' : ''}`; }
     catch(e){ BUS.note = e.message; }
     GPS.busy = false; renderBusNote(); return;
   }
