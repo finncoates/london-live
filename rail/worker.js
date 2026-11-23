@@ -248,12 +248,12 @@ function parseTfe(j){
     dest:v.destination || '', lat:+v.latitude, lon:+v.longitude, brg:v.heading ?? null, t:v.last_gps_fix ? v.last_gps_fix*1000 : null, tram:v.vehicle_type === 'tram'}));
 }
 function parseBustimes(list){
-  // no operator_id: the vehicle's page names it (acah-25119 → ACAH), except Irish fleet numbers (ie-663-…): those take the operator of another vehicle on the same service
+  // no operator_id: the vehicle's page names it (acah-25119 → ACAH), except Irish fleet numbers (ie-663-…) and unknown owners (none-…): those take the operator of another vehicle on the same service, or none
   const pre = v => (((v.vehicle || {}).url || '').split('/')[2] || '').split('-')[0].toUpperCase(), bySvc = new Map();
-  for(const v of list || []){ const o = v.operator_id || (pre(v) !== 'IE' ? pre(v) : ''); if(o && v.service_id != null && !bySvc.has(v.service_id)) bySvc.set(v.service_id, o); }
+  for(const v of list || []){ const o = v.operator_id || (pre(v) !== 'IE' && pre(v) !== 'NONE' ? pre(v) : ''); if(o && v.service_id != null && !bySvc.has(v.service_id)) bySvc.set(v.service_id, o); }
   return (list || []).filter(v => v.coordinates).map(v => { const slug = ((v.vehicle || {}).url || '').split('/')[2] || '';
     const brand = ((v.vehicle || {}).name || '') + ' ' + ((v.service || {}).url || ''), named = /flix/i.test(brand) ? 'FLIX' : /megabus/i.test(brand) ? 'MEGA' : /national.express/i.test(brand) ? 'NATX' : /citylink/i.test(brand) ? 'SCLK' : '';
-    return {id:'bt:' + v.id, line:(v.service || {}).line_name || '', op:v.operator_id || (pre(v) === 'IE' && bySvc.get(v.service_id)) || slug.split('-')[0].toUpperCase() || named, dest:v.destination || '',
+    return {id:'bt:' + v.id, line:(v.service || {}).line_name || '', op:v.operator_id || ((pre(v) === 'IE' || pre(v) === 'NONE') && (bySvc.get(v.service_id) || named)) || (pre(v) === 'NONE' ? '' : slug.split('-')[0].toUpperCase()) || named, dest:v.destination || '',
       lat:+v.coordinates[1], lon:+v.coordinates[0], brg:v.heading ?? null, t:Date.parse(v.datetime) || null, col:(v.vehicle || {}).colour || null, late:v.delay != null ? -v.delay : null}; })
     .filter(v => (!v.t || Date.now() - v.t < 600000) && !/^(test|dummy)/i.test(v.op));
 }
