@@ -39,7 +39,14 @@ from scipy.sparse import csr_matrix
 from scipy.sparse.csgraph import dijkstra
 from scipy.spatial import cKDTree
 N8 = [(-1, -1), (-1, 0), (-1, 1), (0, -1), (0, 1), (1, -1), (1, 0), (1, 1)]
-def dp(p, eps):
+def dp(p, eps):  # closed loops (a ring line, a circular bus route) split at their farthest point first: measured against
+    # a line from a point to itself, the whole loop would collapse to nothing (Copenhagen's M3 did)
+    if len(p) > 3 and abs(p[0][0] - p[-1][0]) < 2e-5 and abs(p[0][1] - p[-1][1]) < 3e-5:
+        k = max(range(len(p)), key=lambda i: (p[i][0] - p[0][0])**2 + ((p[i][1] - p[0][1])*0.65)**2)
+        if 0 < k < len(p) - 1: return _dp_open(p[:k+1], eps)[:-1] + _dp_open(p[k:], eps)
+    return _dp_open(p, eps)
+_dp_loop = True
+def _dp_open(p, eps):
     if len(p) < 3: return p
     a, b = np.array(p[0]), np.array(p[-1]); d = b - a; L = np.hypot(*d) or 1e-9; P = np.array(p)
     e = np.abs(d[0]*(a[1]-P[:, 1]) - d[1]*(a[0]-P[:, 0])) / L; i = int(e.argmax())

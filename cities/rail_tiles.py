@@ -15,7 +15,14 @@ while True:
 _ax.register(lambda: (os.close(_fd), os.remove(_LOCK)))
 HERE = os.path.dirname(os.path.abspath(__file__)); BASE = '6c9aa8ce'; R = os.path.join(HERE, '.build', 'rail'); os.makedirs(R, exist_ok=True)
 sys.setrecursionlimit(100000)
-def dp(p, eps):  # Douglas-Peucker, metres
+def dp(p, eps):  # closed loops (a ring line, a circular bus route) split at their farthest point first: measured against
+    # a line from a point to itself, the whole loop would collapse to nothing (Copenhagen's M3 did)
+    if len(p) > 3 and abs(p[0][0] - p[-1][0]) < 2e-5 and abs(p[0][1] - p[-1][1]) < 3e-5:
+        k = max(range(len(p)), key=lambda i: (p[i][0] - p[0][0])**2 + ((p[i][1] - p[0][1])*0.65)**2)
+        if 0 < k < len(p) - 1: return _dp_open(p[:k+1], eps)[:-1] + _dp_open(p[k:], eps)
+    return _dp_open(p, eps)
+_dp_loop = True
+def _dp_open(p, eps):  # Douglas-Peucker, metres
     if len(p) < 3: return p
     k = math.cos(math.radians(p[0][0])); a, b = p[0], p[-1]
     ax, ay, bx, by = a[1]*k*111320, a[0]*111320, b[1]*k*111320, b[0]*111320; L2 = math.hypot(bx-ax, by-ay) or 1e-9; best, bi = 0, 0

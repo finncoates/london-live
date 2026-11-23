@@ -117,7 +117,14 @@ extra.sort(key=len, reverse=True); n0 = len(runs)
 for S in extra: draw(S, 600)  # long enough to be a line of its own, not a platform road or a siding
 print(len(runs) - n0, 'runs from lines without services', flush=True)
 # output: 0.5° tiles (~1 m detail) + overview
-def dp(p, eps):  # p in lat/lon, eps in metres
+def dp(p, eps):  # closed loops (a ring line, a circular bus route) split at their farthest point first: measured against
+    # a line from a point to itself, the whole loop would collapse to nothing (Copenhagen's M3 did)
+    if len(p) > 3 and abs(p[0][0] - p[-1][0]) < 2e-5 and abs(p[0][1] - p[-1][1]) < 3e-5:
+        k = max(range(len(p)), key=lambda i: (p[i][0] - p[0][0])**2 + ((p[i][1] - p[0][1])*0.65)**2)
+        if 0 < k < len(p) - 1: return _dp_open(p[:k+1], eps)[:-1] + _dp_open(p[k:], eps)
+    return _dp_open(p, eps)
+_dp_loop = True
+def _dp_open(p, eps):  # p in lat/lon, eps in metres
     if len(p) < 3: return p
     k = math.cos(math.radians(p[0][0])); ax, ay, bx, by = p[0][1]*k*111320, p[0][0]*111320, p[-1][1]*k*111320, p[-1][0]*111320
     L = math.hypot(bx-ax, by-ay) or 1e-9; best, bi = 0, 0

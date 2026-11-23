@@ -748,5 +748,50 @@
 "#7E8BA3",
 "#97A6BF"
 ]
+},
+{
+"id": "copenhagen",
+"name": "Copenhagen",
+"box": [
+55.45,
+12.05,
+55.98,
+12.7
+],
+"url": "cities/dk-copenhagen.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "aarhus",
+"name": "Aarhus",
+"box": [
+56.0,
+9.9,
+56.45,
+10.45
+],
+"url": "cities/dk-aarhus.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "odense",
+"name": "Odense",
+"box": [
+55.3,
+10.25,
+55.47,
+10.5
+],
+"url": "cities/dk-odense.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
 }
 ]
