@@ -741,6 +741,7 @@ function renderOff(zi, T, k){
   c.width = Math.ceil(box.w*odpr); c.height = Math.ceil(box.h*odpr);
   const g = c.getContext('2d'); g.setTransform(odpr, 0, 0, odpr, -box.x*odpr, -box.y*odpr);
   g.lineJoin = 'round'; g.lineCap = 'round'; const W = lineW(zi);
+  if(typeof drawNRWorld === 'function') drawNRWorld(g, zi, W); // National Rail underneath
   for(const {l, n:cnt, path} of LPATHS.values()){
     const op = lineStyle(l).opacity; if(!op) continue;
     // solid lines always; service problems are shown in the legend and station cards
@@ -769,7 +770,7 @@ function renderOff(zi, T, k){
   }
   OFF = {canvas:c, zi, box, odpr, sig:offSig()}; linesSig = ''; // force the on-screen copy to update
 }
-const offSig = () => [dark, MAP_STYLE, QUIET_ON, LAYOUT, SHOW_ST, SF_ON, !!LIFTMAP, lpathSig, ...ACTIVE.map(l => lineStyle(l).opacity + ':' + (STATUS.get(l.id)?.lv || 0))].join();
+const offSig = () => [dark, MAP_STYLE, QUIET_ON, LAYOUT, SHOW_ST, SF_ON, !!LIFTMAP, lpathSig, typeof NRNET !== 'undefined' && nrLondon() ? 'nr' + NRNET.n + ':' + (map.getZoom() >= 13 && SHOW_ST ? nrOnlyStations().length : 0) : '', ...ACTIVE.map(l => lineStyle(l).opacity + ':' + (STATUS.get(l.id)?.lv || 0))].join();
 function drawLines(){
   if(!ov.getProjection() || !PV) return;
   if(!LANES) buildLanes();
@@ -1625,7 +1626,7 @@ function renderModeChips(){
     ['Bikes & scooters', ['bike']], ['Boats', ['river']], ['Road works', ['road']]];
   const names = Object.fromEntries(MODE_GROUPS), ni = document.body.classList.contains('ni'); if(ni) names.rail = 'NI Railways'; // Northern Ireland: Translink's railway, not National Rail
   $('mModes').innerHTML = CATS.map(([cat, ms]) => `<div class="mcat" data-cat="${esc(cat)}"><div class="mcat-h">${esc(ni && cat === 'National Rail' ? 'Railways' : cat)}</div><div class="chips">${ms.filter(m => names[m]).map(m => [m, names[m]]).map(([m, name]) => {
-    const nrLines = m === 'rail' && document.body.classList.contains('away') && !document.body.classList.contains('abroad') && !(typeof railOn === 'function' && railOn());
+    const nrLines = m === 'rail' && !document.body.classList.contains('abroad') && !(typeof railOn === 'function' && railOn());
     const has = m === 'bus' || m === 'bike' || m === 'road' || ACTIVE.some(l => l.mode === m) || (m === 'rail' && typeof railOn === 'function' && railOn()) || nrLines;
     const off = m === 'bus' && (document.body.classList.contains('away') || document.body.classList.contains('edge')) ? GPS_OFF.has('bus') : MODES_OFF.has(m);
     return `<button type="button" class="chip2" data-mode="${m}" aria-pressed="${has && !off}" ${has ? '' : 'disabled title="Coming soon"'}>${m === 'bus' && (document.body.classList.contains('away') || document.body.classList.contains('edge')) ? symbol('busg', '#DC241F', 16) : symbol(GROUP_SYM[m][0], GROUP_SYM[m][1], 16)}${name}${has ? (nrLines ? (ni ? ' <small>lines</small>' : ' <small>lines · live trains soon</small>') : '') : ' <small>soon</small>'}</button>`;
@@ -2247,15 +2248,41 @@ function busRoadAng(v, prev){
   return best;
 }
 // the National Rail network (OpenStreetMap main and branch lines): a grey double line, like London's rail lines; live trains need the rail data key
-const NRNET = {tiles:new Map(), path:new Map(), all:null, loading:false};
+const NRNET = {tiles:new Map(), path:new Map(), all:null, loading:false, n:0};
+function nrPolysets(z){ const polysets = []; // the National Rail map tiles for the view (fetched as needed)
+  if(z < 9){ if(!NRNET.all){ if(!NRNET.loading){ NRNET.loading = true; fetch('cities/nr/all.json').then(r => r.json()).then(j => { NRNET.all = j; NRNET.n++; }).catch(() => { NRNET.loading = false; }); } return polysets; } polysets.push(['all', NRNET.all]); }
+  else { const b = map.getBounds(); if(!b) return polysets; const sw = b.getSouthWest(), ne = b.getNorthEast();
+    for(let la = Math.floor(sw.lat()*2); la <= Math.floor(ne.lat()*2); la++) for(let lo = Math.floor(sw.lng()*2); lo <= Math.floor(ne.lng()*2); lo++){ const t = la + '_' + lo;
+      if(!NRNET.tiles.has(t)){ NRNET.tiles.set(t, null); fetch('cities/nr/' + t + '.json').then(r => r.ok ? r.json() : []).then(j => { NRNET.tiles.set(t, j); NRNET.n++; }).catch(() => NRNET.tiles.set(t, [])); continue; }
+      const ps = NRNET.tiles.get(t); if(ps && ps.length) polysets.push([t, ps]); } }
+  return polysets; }
+// London: the National Rail network under the TfL lines (grey double line, as elsewhere), until live National Rail trains arrive with the rail data key
+const nrLondon = () => !document.body.classList.contains('away') && !MODES_OFF.has('rail') && !(typeof railOn === 'function' && railOn());
+function drawNRWorld(g, zi, W){
+  if(!nrLondon() || zi < 9) return; const sets = nrPolysets(zi); if(!sets.length) return;
+  g.save(); g.lineJoin = 'round'; g.lineCap = 'round'; const w = Math.max(1.6, W*(zi >= 12 ? 0.95 : 0.75));
+  for(const [t, ps] of sets){ const key = 'w' + t + '@' + zi; let path = NRNET.path.get(key);
+    if(!path){ path = new Path2D(); for(const poly of ps) poly.forEach((q, i) => { const p2 = world(q, zi); i ? path.lineTo(p2[0], p2[1]) : path.moveTo(p2[0], p2[1]); }); NRNET.path.set(key, path); if(NRNET.path.size > 120) NRNET.path.delete(NRNET.path.keys().next().value); }
+    g.globalAlpha = zi < 12 ? 0.5 : 0.75; g.strokeStyle = dark ? '#8A939C' : '#5D6670'; g.lineWidth = w; g.stroke(path); // London's network is dense: a step quieter than the Tube
+    if(zi >= 10 && w >= 2.5){ g.globalAlpha = 1; g.strokeStyle = MAP_BG(); g.lineWidth = w/3; g.stroke(path); } }
+  if(zi >= 13 && SHOW_ST){ const r = Math.max(2.5, W*0.55); g.globalAlpha = 1; g.lineWidth = Math.max(1.5, W*0.3); // stations only National Rail serves (Bromley South, Queens Road Peckham…)
+    for(const st of nrOnlyStations()){ const p2 = world(nrSnap(st, sets), zi); g.beginPath(); g.arc(p2[0], p2[1], r, 0, 7); g.fillStyle = dark ? '#1b1c1f' : '#fff'; g.fill(); g.strokeStyle = dark ? '#c9ced4' : '#5D6670'; g.stroke(); } }
+  g.restore(); }
+// a station's point moved onto its line (the station list's points sit a few metres off the track); worked out once per station
+function nrSnap(st, sets){ const key = st[0]; if(NRNET.snap?.has(key)) return NRNET.snap.get(key); const la = st[2], lo = st[3], kx = Math.cos(la*rad);
+  let bd = 80/111320, best = null, seen = false;
+  for(const [t, ps] of sets){ const [a, b] = t.split('_').map(Number); if(t !== 'all' && !(la*2 >= a - 0.1 && la*2 < a + 1.1 && lo*2 >= b - 0.1 && lo*2 < b + 1.1)) continue; seen = true;
+    for(const poly of ps) for(let i = 1; i < poly.length; i++){ const A = poly[i-1], B = poly[i]; if(Math.abs(A[0] - la) > 0.01 && Math.abs(B[0] - la) > 0.01) continue;
+      const dx = (B[1] - A[1])*kx, dy = B[0] - A[0], L2 = dx*dx + dy*dy || 1e-12, t2 = Math.max(0, Math.min(1, ((lo - A[1])*kx*dx + (la - A[0])*dy)/L2)), q = [A[0] + dy*t2, A[1] + (B[1] - A[1])*t2], d = Math.hypot((q[1] - lo)*kx, q[0] - la);
+      if(d < bd){ bd = d; best = q; } } }
+  const out = best || [la, lo]; if(seen) (NRNET.snap || (NRNET.snap = new Map())).set(key, out); return out; }
+// National Rail stations in London with no Tube/Overground/Elizabeth/DLR/tram station beside them (those have their own dots and cards)
+function nrOnlyStations(){ if(!RAIL.stations){ railStations().then(() => { NRNET.n++; }).catch(() => {}); return []; } const k = ACTIVE.filter(l => l.mode !== 'bus' && l.stops).length; if(nrOnlyStations.c && nrOnlyStations.k === k) return nrOnlyStations.c; // (cheap: called every frame)
+  const tfl = stationIndex(); if(tfl.length < 200) return []; nrOnlyStations.k = k; // TfL's stations not loaded yet
+  return nrOnlyStations.c = RAIL.stations.filter(x => x[2] > 51.2 && x[2] < 51.8 && x[3] > -0.7 && x[3] < 0.45 && !tfl.some(t => Math.abs(t.p[0] - x[2]) < 0.003 && dist(t.p, [x[2], x[3]]) < 220)); }
 function drawNR(ctx){
   if(MODES_OFF.has('rail') || PV.z < 6) return;
-  const zc = Math.floor(PV.z), k = 2 ** (PV.z - zc), W = lineW(), polysets = [];
-  if(PV.z < 9){ if(!NRNET.all){ if(!NRNET.loading){ NRNET.loading = true; fetch('cities/nr/all.json').then(r => r.json()).then(j => { NRNET.all = j; }).catch(() => { NRNET.loading = false; }); } return; } polysets.push(['all', NRNET.all]); }
-  else { const b = map.getBounds(); if(!b) return; const sw = b.getSouthWest(), ne = b.getNorthEast();
-    for(let la = Math.floor(sw.lat()*2); la <= Math.floor(ne.lat()*2); la++) for(let lo = Math.floor(sw.lng()*2); lo <= Math.floor(ne.lng()*2); lo++){ const t = la + '_' + lo;
-      if(!NRNET.tiles.has(t)){ NRNET.tiles.set(t, null); fetch('cities/nr/' + t + '.json').then(r => r.ok ? r.json() : []).then(j => NRNET.tiles.set(t, j)).catch(() => NRNET.tiles.set(t, [])); continue; }
-      const ps = NRNET.tiles.get(t); if(ps && ps.length) polysets.push([t, ps]); } }
+  const zc = Math.floor(PV.z), k = 2 ** (PV.z - zc), W = lineW(), polysets = nrPolysets(PV.z); if(!polysets.length) return;
   const O = orgAt(zc); ctx.save(); localView(ctx, O, k); ctx.lineJoin = 'round'; ctx.lineCap = 'round';
   const w = Math.max(1.6, W*(PV.z >= 12 ? 0.95 : 0.75))/k;
   for(const [t, ps] of polysets){ const key = t + '@' + zc + ':' + ORG.id; let path = NRNET.path.get(key);
@@ -2920,6 +2947,8 @@ map.addListener('click', ev => { if(!ev.pixel) return; const {x, y} = ev.pixel, 
   if(document.body.classList.contains('away')){ const cs = cityStationAt(x, y); if(cs) return openCityStation(cs); const us = ukStopAt(x, y); if(us) return openUKStop(us); }
   else if(document.body.classList.contains('edge')){ const us = ukStopAt(x, y); if(us) return openUKStop(us); } // Watford, Epping…: their bus stops // abroad: the city's stations first
   const onDot = stationAt(x, y, coarse ? 12 : 8); if(onDot) return goStation(onDot);
+  if(nrLondon() && PV.z >= 13 && SHOW_ST){ let bd = coarse ? 14 : 9, best = null; for(const x0 of nrOnlyStations()){ const c = scr([x0[2], x0[3]]), k = Math.hypot(c.x - x, c.y - y); if(k < bd){ bd = k; best = x0; } }
+    if(best) return openCityStation({st:[best[0], best[1], best[2], best[3], [['National Rail', '#5D6670', 'train']]], src:'National Rail', url:'nr'}); } // a National Rail-only station
   const bs = busStopAt(x, y); if(bs) return openBusStop(bs); // right on a dot: the station, even with a train waiting there
   const t = nearest(x, y); if(t) return follow(t, map.getZoom());
   const st = stationAt(x, y); if(st) goStation(st); });
@@ -2992,7 +3021,7 @@ tick(); setInterval(tick, 1000);
 map.addListener('dragstart', () => { $('tip').style.display = 'none'; hover = null; });
 map.addListener('zoom_changed', () => { $('tip').style.display = 'none'; hover = null; });
 renderModeChips(); renderLegend(); syncMapMenu();
-if(DEBUG) window.LLT = {ghit: () => draw.ghit || [], STL, ukStops: () => ukStopsHere(), ukStopAt: (x, y) => ukStopAt(x, y), RV: () => RIVER_E, st: () => ({coach:COACH.on, cn:COACH.n, busOff:busOff(), TRAINS_ON, away:document.body.classList.contains("away"), GPS_OFF:[...GPS_OFF], MODES_OFF:[...MODES_OFF], note:BUS.note, size:GPS.list.size}), AUTO, autoNext: () => autoNext(), trains, ACTIVE, BY, placeTrain, segTime, refresh, map, draw, goStation, searchStations, scr, stationAt, GPS, gpsPos, BIKES, SHARE, cityData: () => cityData(), stationExtras, BUS, ROADS, LP: () => LPATHS};
+if(DEBUG) window.LLT = {nrOnly: () => nrOnlyStations(), ghit: () => draw.ghit || [], STL, ukStops: () => ukStopsHere(), ukStopAt: (x, y) => ukStopAt(x, y), RV: () => RIVER_E, st: () => ({coach:COACH.on, cn:COACH.n, busOff:busOff(), TRAINS_ON, away:document.body.classList.contains("away"), GPS_OFF:[...GPS_OFF], MODES_OFF:[...MODES_OFF], note:BUS.note, size:GPS.list.size}), AUTO, autoNext: () => autoNext(), trains, ACTIVE, BY, placeTrain, segTime, refresh, map, draw, goStation, searchStations, scr, stationAt, GPS, gpsPos, BIKES, SHARE, cityData: () => cityData(), stationExtras, BUS, ROADS, LP: () => LPATHS};
 
 // ---------- boot ----------
 (async () => {
