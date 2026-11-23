@@ -19,6 +19,7 @@ ap.add_argument('--drop', help='regex of line names to leave out (e.g. ^TER$: dr
 ap.add_argument('--country', default='fr', help='two-letter prefix of the city file (fr-paris.json, nl-amsterdam.json)')
 ap.add_argument('--nolines', action='store_true', help='buses only (no city line file, no map entry of its own)')
 ap.add_argument('--roads', default='auto', help='bus routes matched onto OpenStreetMap roads: auto (when the shapes are missing or only join the stops), on, off')
+ap.add_argument('--colour', help='NAME=#hex,... for lines the timetable gives no colour (Luas Green, DART)')
 ap.add_argument('--kind', help='NAME=kind,... e.g. "ORLYVAL=metro"'); ap.add_argument('--rename', help='NAME=New name,...')
 a = ap.parse_args()
 work = a.work or os.path.join(HERE, '.build', a.id)  # kept (git-ignored): downloads and each city's own bus routes
@@ -139,10 +140,11 @@ elif tmap and has_shapes:
     d = json.load(open(jf, encoding='utf-8'))
     kinds = dict(x.split('=') for x in a.kind.split(',')) if a.kind else {}; ren = dict(x.split('=') for x in a.rename.split(',')) if a.rename else {}
     drop = lambda n: bool(a.drop and re.search(a.drop, n))
-    d['lines'] = [dict(l, kind=kinds.get(l['name'], l['kind']), name=ren.get(l['name'], l['name'])) for l in d['lines'] if not drop(l['name'])]
+    cols = dict(x.split('=') for x in a.colour.split(',')) if a.colour else {}
+    d['lines'] = [dict(l, kind=kinds.get(l['name'], l['kind']), name=ren.get(l['name'], l['name']), col=cols.get(l['name'], l['col'])) for l in d['lines'] if not drop(l['name'])]
     sts = []
     for st in d.get('stations', []):
-        ls = [[ren.get(x[0], x[0]), x[1], kinds.get(x[0], x[2])] for x in st[4] if not drop(x[0])]
+        ls = [[ren.get(x[0], x[0]), cols.get(x[0], x[1]), kinds.get(x[0], x[2])] for x in st[4] if not drop(x[0])]
         if ls: sts.append(st[:4] + [ls])
     d['stations'] = sts
     json.dump(d, open(jf, 'w', encoding='utf-8'), separators=(',', ':'), ensure_ascii=False)

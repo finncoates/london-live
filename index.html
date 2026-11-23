@@ -2039,7 +2039,7 @@ async function loadCityLines(p){
     try{ const d = await (await fetch(url, {signal:AbortSignal.timeout(15000)})).json(), grid = new Map();
       d.lines.forEach((l, li) => { for(let i = 1; i < l.pts.length; i++){ const a = l.pts[i-1], b = l.pts[i], n = Math.max(1, Math.ceil(dist(a, b)/300));
         for(let k = 0; k <= n; k++){ const q = CELL(a[0] + (b[0]-a[0])*k/n, a[1] + (b[1]-a[1])*k/n); let g = grid.get(q); if(!g) grid.set(q, g = new Set()); g.add(li*100000 + i); } } });
-      d.grid = grid; d.url = url; d.dupRail = /helsinki\.json/.test(url); d.tramMain = /\/(fr|nl|be|de|ch|lu|es|it|at|pt)-/.test(url) && !d.lines.some(l => l.kind === 'metro'); CITYL.data.set(url, d); }
+      d.grid = grid; d.url = url; d.dupRail = /helsinki\.json/.test(url); d.tramMain = /\/[a-z]{2}-[^/]*\.json$/.test(url) && !d.lines.some(l => l.kind === 'metro'); CITYL.data.set(url, d); }
     catch(e){ CITYL.data.delete(url); console.warn('city lines', e.message); } }));
 }
 const lineKey = n => String(n).toLowerCase().replace(/\s+line$/, '').trim();
@@ -2468,7 +2468,8 @@ const NRNET = {tiles:new Map(), path:new Map(), all:null, loading:false, n:0};
 const RAILC = [{name:'France', test:p => inFrance(p), url:'cities/fr-gares.json', op:'SNCF', list:null, loading:false},
   {name:'Netherlands', test:p => inNL(p), url:'cities/nl-stations.json', op:'NS', list:null, loading:false},
   {name:'Belgium', test:p => inBE(p), url:'cities/be-stations.json', op:'SNCB', list:null, loading:false},
-  {name:'Luxembourg', test:p => inLU(p), url:'cities/lu-stations.json', op:'CFL', list:null, loading:false}];
+  {name:'Luxembourg', test:p => inLU(p), url:'cities/lu-stations.json', op:'CFL', list:null, loading:false},
+  {name:'Ireland', test:p => inIrelandNotUK(p), url:'cities/ie-stations.json', op:'Irish Rail', list:null, loading:false}];
 const LU_POLY = [[50.18, 6.03], [50.10, 6.14], [49.95, 6.24], [49.82, 6.52], [49.70, 6.52], [49.55, 6.37], [49.46, 6.37], [49.45, 6.10], [49.50, 5.92], [49.55, 5.82], [49.68, 5.89], [49.85, 5.75], [50.00, 5.82], [50.13, 5.98]];
 const inLU = p => p[0] > 49.4 && p[0] < 50.2 && p[1] > 5.7 && p[1] < 6.55 && inPoly(LU_POLY, p);
 // Belgium, roughly (~5 km), sharing its northern border with the Netherlands outline below
@@ -2692,7 +2693,7 @@ function drawTTLines(ctx){
   // where the city's whole network is drawn (cities/*.json), its lines aren't drawn again from the timetable
   const cd = cityData(), drawn = cd.length ? (CITYL.cur.names ||= new Set(cd.flatMap(d => d.lines.map(l => l.kind + '|' + l.name)))) : null;
   for(const {s, pts} of TTV.ferries.values()){ const m = s[0], kind = /FERRY/.test(m) ? 'ferry' : /BUS|COACH/.test(m) ? 'bus' : /TRAM/.test(m) ? 'tram' : /SUBWAY|METRO/.test(m) ? 'metro' : 'train';
-    if(drawn && (drawn.has(kind + '|' + s[2]) || (kind === 'tram' && drawn.has('metro|' + s[2])))) continue;
+    if(drawn && (drawn.has(kind + '|' + s[2]) || (kind === 'tram' && drawn.has('metro|' + s[2])) || (s[2] && [...drawn].some(k => k.startsWith(kind + '|') && k.endsWith(' ' + s[2]))))) continue;
     if(kind === 'bus' && CITYL.cur?.bus) continue; // the city's bus map already draws every bus road, in one colour (as London)
     if(kind === 'train' && railC(s[3].slice(2))) continue; // France's whole rail network is drawn (cities/nr): trains run on it
     if(GPS_OFF.has(kind) || (kind === 'bus' && busOff())) continue; const col = s[1] && /^[0-9a-f]{6}$/i.test(s[1]) ? inkA('#' + s[1].toLowerCase()) : {ferry:'#00A0E2', train:'#5D6670', tram:'#7A1F3D', metro:'#0E4C92', bus:'#DC241F'}[kind];
@@ -2710,7 +2711,9 @@ function drawTTLines(ctx){
 let FEEDN = {}; fetch('cities/feed-names.json').then(r => r.ok ? r.json() : {}).then(j => { FEEDN = j; }).catch(() => {});
 // a vehicle without a colour of its own takes its line's, as drawn from the city's file (Luxembourg's tram: same colour as its line)
 const cityLineCol = (kind, name) => { const c = CITYL.cur; if(!c || !name) return null; if(!c.lineCols){ const m = new Map(); for(const d of cityData()) for(const l of d.lines) m.set(l.kind + '|' + l.name, l.col); if(!m.size) return null; c.lineCols = m; }
-  const v = c.lineCols.get(kind + '|' + name) || (kind === 'tram' && c.lineCols.get('metro|' + name)); return v ? inkA(v) : null; };
+  let v = c.lineCols.get(kind + '|' + name) || (kind === 'tram' && c.lineCols.get('metro|' + name));
+  if(!v) for(const [k, col] of c.lineCols) if(k.startsWith(kind + '|') && k.endsWith(' ' + name)){ v = col; break; } // a line renamed in the city file ('Green' → 'Luas Green')
+  return v ? inkA(v) : null; };
 const kind0 = m => /FERRY/.test(m) ? 'ferry' : /BUS|COACH/.test(m) ? 'bus' : /TRAM/.test(m) ? 'tram' : /SUBWAY|METRO/.test(m) ? 'metro' : 'train';
 function ttTick(){ if(!TTV.ferries || !TRAINS_ON || inTfLArea([map.getCenter().lat(), map.getCenter().lng()])) return; const now = Date.now(), seen = new Set();
   const liveKinds = new Set(); for(const [k, g] of GPS.list) if(k.startsWith('la:')) liveKinds.add(g.v.kind || 'bus'); // what the city's live feed actually has (Amsterdam's has no metro, Rotterdam's does)
