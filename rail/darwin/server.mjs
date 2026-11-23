@@ -43,16 +43,26 @@ console.log('feeds on:', [...FEEDS.keys()].join(', ') || 'none', '· ferries:', 
 async function consume(){
   if(!env.DARWIN_BOOTSTRAP){ console.warn('DARWIN_BOOTSTRAP not set: Darwin off (serving saved state only)'); return; }
   const {Kafka, logLevel} = await import('kafkajs');
+  // small machines are slow to open TLS connections: kafkajs's 1 s default times out on some brokers
   const kafka = new Kafka({clientId:'london-live', brokers:env.DARWIN_BOOTSTRAP.split(','), ssl:true, logLevel:logLevel.WARN,
+    connectionTimeout:15000, authenticationTimeout:15000, requestTimeout:60000, retry:{retries:10, initialRetryTime:1000},
     sasl:{mechanism:(env.DARWIN_SASL || 'plain').toLowerCase(), username:env.DARWIN_USERNAME, password:env.DARWIN_PASSWORD}});
   const consumer = kafka.consumer({groupId:env.DARWIN_GROUP || 'london-live', sessionTimeout:45000});
+  consumer.on(consumer.events.GROUP_JOIN, e => console.log('darwin: joined the group,', Object.values(e.payload.memberAssignment || {}).flat().length, 'partitions'));
+  consumer.on(consumer.events.CRASH, e => console.warn('darwin: consumer crashed:', e.payload.error && e.payload.error.message, e.payload.restart ? '(restarting)' : ''));
   await consumer.connect();
   await consumer.subscribe({topic:env.DARWIN_TOPIC, fromBeginning:false});
   await consumer.run({eachMessage:async ({message}) => { try{ D.ingest(message.value); }catch(e){ console.warn('message', e.message); } }});
   console.log('reading', env.DARWIN_TOPIC);
+  // watchdog: Darwin sends several messages a second, so 3 minutes of silence means a stuck connection: start again
+  const since = D.msgs, started = Date.now();
+  const dog = setInterval(async () => { const quiet = Date.now() - (D.last && D.msgs > since ? D.last : started);
+    if(quiet < 180000) return; clearInterval(dog); console.warn('darwin: nothing for 3 minutes, reconnecting');
+    try{ await consumer.disconnect(); }catch(e){} loop(); }, 30000);
 }
 // the stream can drop (it does now and then): reconnect with a back-off
-(async function loop(delay = 5000){ try{ await consume(); }catch(e){ console.warn('kafka', e.message, '- retrying in', delay/1000, 's'); setTimeout(() => loop(Math.min(delay*2, 300000)), delay); } })();
+async function loop(delay = 5000){ try{ await consume(); }catch(e){ console.warn('kafka', e.message, '- retrying in', delay/1000, 's'); setTimeout(() => loop(Math.min(delay*2, 300000)), delay); } }
+loop();
 
 http.createServer((req, res) => {
   const u = new URL(req.url, 'http://x'), send = (code, body) => { res.writeHead(code, {'content-type':'application/json', 'cache-control':'no-store', 'access-control-allow-origin':'*'}); res.end(JSON.stringify(body)); };
