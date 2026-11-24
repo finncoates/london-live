@@ -439,7 +439,9 @@ async function srv(url, env, cors){
   if(p === '/rt'){ const f = url.searchParams.get('feed') || ''; if(!/^[a-z0-9-]{1,30}$/.test(f)) return json({error:'feed=id required'}, 400, cors); q.set('feed', f); }
   const key = p + '?' + q, ttl = p === '/health' ? 60000 : 10000, hit = SRV_MEM.get(key);
   if(hit && Date.now() - hit.t < ttl) return new Response(hit.body, {status:hit.status, headers:{'content-type':'application/json', 'cache-control':'public, max-age=' + ttl/1000, ...cors}});
-  const r = await fetch(env.DARWIN_URL.replace(/\/+$/, '') + key, {headers:{'x-relay-token':env.RELAY_TOKEN || ''}, signal:AbortSignal.timeout(10000)});
+  // the small server can be slow for a moment: 20 s, and its last good answer (up to 5 min old) if it doesn't come
+  const r = await fetch(env.DARWIN_URL.replace(/\/+$/, '') + key, {headers:{'x-relay-token':env.RELAY_TOKEN || ''}, signal:AbortSignal.timeout(20000)}).catch(e => ({ok:false, status:504, text:async () => JSON.stringify({error:e.message})}));
+  if(!r.ok && hit && Date.now() - hit.t < 300000) return new Response(hit.body, {status:hit.status, headers:{'content-type':'application/json', 'cache-control':'public, max-age=5', ...cors}});
   const body = await r.text(); if(r.ok){ SRV_MEM.set(key, {t:Date.now(), body, status:r.status}); if(SRV_MEM.size > 500) SRV_MEM.delete(SRV_MEM.keys().next().value); }
   return new Response(body, {status:r.status, headers:{'content-type':'application/json', 'cache-control':'public, max-age=' + (r.ok ? ttl/1000 : 5), ...cors}}); }
 
@@ -451,8 +453,8 @@ async function darwinTrains(url, env, cors){
   const b = (url.searchParams.get('bbox') || '').split(',').map(Number); if(b.length !== 4 || !b.every(isFinite)) return json({error:'bbox=minLat,minLon,maxLat,maxLon required'}, 400, cors);
   const q = b.map((x, i) => (i < 2 ? Math.floor(x*4) : Math.ceil(x*4))/4).join(','), hit = DW_MEM.get(q); // rounded to 0.25°, so nearby views share an answer
   if(hit && Date.now() - hit.t < 20000) return new Response(hit.body, {headers:{'content-type':'application/json', 'cache-control':'public, max-age=20', ...cors}});
-  const r = await fetch(env.DARWIN_URL.replace(/\/+$/, '') + '/trains?bbox=' + q, {headers:{'x-relay-token':env.RELAY_TOKEN || ''}, signal:AbortSignal.timeout(10000)});
-  if(!r.ok) throw fail('Darwin server: HTTP ' + r.status, 502);
+  const r = await fetch(env.DARWIN_URL.replace(/\/+$/, '') + '/trains?bbox=' + q, {headers:{'x-relay-token':env.RELAY_TOKEN || ''}, signal:AbortSignal.timeout(20000)}).catch(e => ({ok:false, status:e.message}));
+  if(!r.ok){ if(hit && Date.now() - hit.t < 300000) return new Response(hit.body, {headers:{'content-type':'application/json', 'cache-control':'public, max-age=5', ...cors}}); throw fail('Darwin server: HTTP ' + r.status, 502); } // (its last good answer, up to 5 min, rather than no trains)
   const body = await r.text(); DW_MEM.set(q, {t:Date.now(), body}); if(DW_MEM.size > 300) DW_MEM.delete(DW_MEM.keys().next().value);
   return new Response(body, {headers:{'content-type':'application/json', 'cache-control':'public, max-age=20', ...cors}}); }
 
