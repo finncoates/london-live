@@ -3,3 +3,5 @@ rail/.wrangler/
 cities/.build/
 tools/node_modules/
 tools/shot.mjs
+inbox/*
+!inbox/README.md
