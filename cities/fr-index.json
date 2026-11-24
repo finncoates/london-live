@@ -90,21 +90,6 @@
 ]
 },
 {
-"id": "n-syndicat-mixte-des-transports-en-cd4f63",
-"name": "Clermont Auvergne Métropole",
-"box": [
-45.686,
-2.955,
-45.874,
-3.29
-],
-"url": "cities/fr-n-syndicat-mixte-des-transports-en-cd4f63.json",
-"bus": [
-"#7E8BA3",
-"#97A6BF"
-]
-},
-{
 "id": "n-gtfs-netex-et-gtfs-rt-reseau-tao-c78b88",
 "name": "Orléans Métropole",
 "box": [
@@ -2904,6 +2889,66 @@
 6.338
 ],
 "url": "cities/fr-n-fichiers-gtfs-eurometropole-de-m-f4768c.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "n-syndicat-mixte-des-transports-en-cd4f63",
+"name": "Clermont Auvergne Métropole",
+"box": [
+45.686,
+2.955,
+45.874,
+3.29
+],
+"url": "cities/fr-n-syndicat-mixte-des-transports-en-cd4f63.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "andorra",
+"name": "Andorra",
+"box": [
+42.433,
+1.445,
+42.64,
+1.726
+],
+"url": "cities/ad-andorra.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "zurich",
+"name": "Zürich",
+"box": [
+47.202,
+7.822,
+47.492,
+8.959
+],
+"url": "cities/ch-zurich.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "basel",
+"name": "Basel",
+"box": [
+47.371,
+7.469,
+47.613,
+7.896
+],
+"url": "cities/ch-basel.json",
 "bus": [
 "#7E8BA3",
 "#97A6BF"

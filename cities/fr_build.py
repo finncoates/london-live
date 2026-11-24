@@ -116,16 +116,18 @@ def region_pbf():  # the smallest Geofabrik extract that covers the whole city
             for (x1, y1), (x2, y2) in zip(ring, ring[1:]):
                 if (y1 > y) != (y2 > y) and x < (x2 - x1)*(y - y1)/(y2 - y1) + x1: c = not c
         return c
-    best = None
+    best = None; centre = None  # (centre: the smallest region holding the centre, the fallback when only a huge extract covers the area)
     for f in json.load(open(ix, encoding='utf-8'))['features']:
         g = f.get('geometry'); url = f['properties'].get('urls', {}).get('pbf')
         if not g or not url: continue
         polys = g['coordinates'] if g['type'] == 'MultiPolygon' else [g['coordinates']]
         if not f['properties'].get('parent'): continue  # a whole continent (Europe: 30 GB) is never the answer
         mid = ((S + N)/2, (W + E)/2); inset = [((mid[0] + y)/2, (mid[1] + x)/2) for y in (S, N) for x in (W, E)]
-        if any(inside(mid, pl) for pl in polys) and sum(any(inside(q, pl) for pl in polys) for q in inset) >= 3:  # the city's centre (Lille's area reaches into Belgium) and most of its area (a national network: the country, not the region in its middle)
+        if any(inside(mid, pl) for pl in polys):  # the city's centre (Lille's area reaches into Belgium)...
             xs = [c[0] for pl in polys for c in pl[0]]; ys = [c[1] for pl in polys for c in pl[0]]; area = (max(xs)-min(xs))*(max(ys)-min(ys))
-            if not best or area < best[0]: best = (area, url, f['properties']['id'])
+            if not centre or area < centre[0]: centre = (area, url, f['properties']['id'])
+            if sum(any(inside(q, pl) for pl in polys) for q in inset) >= 3 and (not best or area < best[0]): best = (area, url, f['properties']['id'])  # ...and most of its area (a national network: the country, not the region in its middle)
+    if best and best[0] > 30: best = centre  # never a huge extract (France 4.5 GB, the Alps): a region-wide network takes its centre's region
     if not best: return None
     fn = os.path.join(od, best[2].replace('/', '_') + '.osm.pbf')
     if not os.path.exists(fn):
