@@ -33,6 +33,29 @@ def _dp_open(p, eps):  # Douglas-Peucker, metres
 lines = []
 for f in sorted(os.listdir(R)):
     if f.endswith('.json'): lines += [[tuple(q) for q in l] for l in json.load(open(os.path.join(R, f)))]
+# a line ending just short of another (a junction or crossover dropped as a parallel duplicate: the Garonne crossing at
+# Bordeaux showed a 35 m gap) is joined on to the nearest point of the other within 60 m
+def _m(a, b): return math.hypot((a[0]-b[0])*111320, (a[1]-b[1])*111320*math.cos(math.radians(a[0])))
+_G = collections.defaultdict(list)
+for i, l in enumerate(lines):
+    for q in l: _G[(round(q[0]*1500), round(q[1]*1000))].append((q, i))
+def _ang(a, b): return math.atan2(b[0]-a[0], (b[1]-a[1])*math.cos(math.radians(a[0])))
+def _near(q, i, prev):  # (only straight on from the line's last piece, within 30°: not across to a parallel track)
+    best = None; h = _ang(prev, q)
+    for dx in (-1, 0, 1):
+        for dy in (-1, 0, 1):
+            for r, j in _G.get((round(q[0]*1500)+dx, round(q[1]*1000)+dy), ()):
+                if j == i: continue
+                d = _m(q, r)
+                if d < 60 and (best is None or d < best[0]) and (d <= 0.5 or abs((_ang(q, r) - h + math.pi) % (2*math.pi) - math.pi) < math.radians(30)): best = (d, r)
+    return best
+joined = 0
+for i, l in enumerate(lines):
+    if len(l) < 2: continue
+    a = _near(l[0], i, l[1]); b = _near(l[-1], i, l[-2])
+    if a and a[0] > 0.5: l.insert(0, a[1]); joined += 1
+    if b and b[0] > 0.5: l.append(b[1]); joined += 1
+print(joined, 'line ends joined to a neighbour')
 T = collections.defaultdict(list); tk = lambda q: f'{math.floor(q[0]*2)}_{math.floor(q[1]*2)}'
 for l in lines:  # cut where a line crosses into the next 0.5° tile, sharing the crossing point (no gaps)
     q = dp(l, 8); run = [q[0]]
