@@ -1380,21 +1380,6 @@
 ]
 },
 {
-"id": "bordeaux",
-"name": "Bordeaux",
-"box": [
-44.738,
--0.812,
-45.034,
--0.444
-],
-"url": "cities/fr-bordeaux.json",
-"bus": [
-"#7E8BA3",
-"#97A6BF"
-]
-},
-{
 "id": "paris",
 "name": "Paris",
 "box": [
@@ -3074,6 +3059,21 @@
 14.153
 ],
 "url": "cities/cz-usti.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "bordeaux",
+"name": "Bordeaux",
+"box": [
+44.738,
+-0.812,
+45.034,
+-0.444
+],
+"url": "cities/fr-bordeaux.json",
 "bus": [
 "#7E8BA3",
 "#97A6BF"

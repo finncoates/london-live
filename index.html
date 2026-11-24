@@ -2836,7 +2836,7 @@ function ttTick(){ if(!TTV.ferries || !TRAINS_ON || inTfLArea([map.getCenter().l
   const best = ttPlace(now);
   for(const [trip, {s, p, A, B}] of best){ const [, col, name, from, to, dep, arr] = s;
     if(TTV.esLive && Date.now() - TTV.esLive < 120000 && /RENFE-?Cercan|Rodalies|Cercan/i.test(trip)) continue;
-    if(SRV.shipsAt && Date.now() - SRV.shipsAt < 120000 && /FERRY/.test(s[0])) continue; // ships live by AIS instead (their routes still drawn)
+    if(SRV.shipsAt && Date.now() - SRV.shipsAt < 120000 && /FERRY/.test(s[0]) && [...GPS.list].some(([k, g]) => k.startsWith('ais:') && dist(g.to || [g.v.lat, g.v.lon], p) < 600)) continue; // a ship live by AIS right there instead (only then: Bordeaux's river shuttles have no AIS, and all ferries vanished whenever any ship was tracked)
     if(TTV.cityLive && Date.now() - TTV.cityLive.at < 120000 && liveKinds.has(/FERRY/.test(s[0]) ? 'ferry' : /BUS|COACH/.test(s[0]) ? 'bus' : /TRAM/.test(s[0]) ? 'tram' : /SUBWAY|METRO/.test(s[0]) ? 'metro' : 'train') && LIVE_ABROAD.some(x => Date.now() - (TTV.live?.get(x[0])?.at || 0) < 120000 && x[4].test(trip) && (x[5] || /BUS/).test(s[0]))) continue; // that city's buses (and trams) are live // shown live by Renfe instead (its line is still drawn)
     { const lk = liveAt.get(kind0(s[0]) + '|' + String(name || '').toLowerCase()); if(lk && lk.some(q => Math.abs(q[0] - p[0]) < 0.011 && Math.abs(q[1] - p[1]) < 0.016 && dist(q, p) < 1200)) continue; }
     const id = 'tf:' + trip; seen.add(id); let g = GPS.list.get(id);

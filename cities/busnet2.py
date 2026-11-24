@@ -135,7 +135,11 @@ def match(pbf, out, zips):
                         if c == last[1] or link(last[1], c, dist): hit = c; break
                 if hit is not None: stats['matched'] += 1; last = (q, hit)
                 else:
-                    seq_ = [lq] + miss + [q]; raw.extend(zip(seq_, seq_[1:])); stats['raw'] += 1; last = (q, cands[0])
+                    # a stretch of the shape off the roads (cut straight across a block: Bordeaux's TBM shapes): the roads
+                    # between the last point on a road and this one, if there's a route not much longer than the cut
+                    ns = astar_multi(lq, [last[1]], set(cands), 1.6 * dist + 300) if dist < 3000 else None
+                    if ns: addpath(ns); stats['bridged'] += 1; last = (q, ns[-1])
+                    else: seq_ = [lq] + miss + [q]; raw.extend(zip(seq_, seq_[1:])); stats['raw'] += 1; last = (q, cands[0])
                 miss = []
             if miss and last is not None: seq_ = [last[0]] + miss; raw.extend(zip(seq_, seq_[1:]))
         else:  # stops only: road path stop to stop

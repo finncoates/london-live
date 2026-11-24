@@ -21,6 +21,7 @@ ap.add_argument('--nolines', action='store_true', help='buses only (no city line
 ap.add_argument('--roads', default='auto', help='bus routes matched onto OpenStreetMap roads: auto (when the shapes are missing or only join the stops), on, off')
 ap.add_argument('--colour', help='NAME=#hex,... for lines the timetable gives no colour (Luas Green, DART)')
 ap.add_argument('--kind', help='NAME=kind,... e.g. "ORLYVAL=metro"'); ap.add_argument('--rename', help='NAME=New name,...')
+ap.add_argument('--busonly', action='store_true', help='rebuild the buses only: the city line file and map entry are left as they are')
 ap.add_argument('--region', help='the Geofabrik extract to match roads on (id, e.g. netherlands), when the automatic choice is too small')
 a = ap.parse_args()
 work = a.work or os.path.join(HERE, '.build', a.id)  # kept (git-ignored): downloads and each city's own bus routes
@@ -147,6 +148,7 @@ def region_pbf():  # the smallest Geofabrik extract that covers the whole city
 jf = os.path.join(HERE, f'{a.country}-{a.id}.json')
 env = dict(os.environ, USE_ROUTE_COLOR='1' if colours else '0', PYTHONIOENCODING='utf-8')
 if a.nolines: d = {'lines':[], 'stations':[]}; tmap = ''
+elif a.busonly: d = json.load(open(jf, encoding='utf-8')) if os.path.exists(jf) else {'lines':[], 'stations':[]}; tmap = ''  # (lines kept: snapped to the track, coloured from OpenStreetMap)
 elif tmap and has_shapes:
     subprocess.run([sys.executable, '-I', os.path.join(HERE, 'gtfs_lines.py'), sub, jf, tmap, '', box], check=True, env=env)
     subprocess.run([sys.executable, '-I', os.path.join(HERE, 'gtfs_stations.py'), sub, jf, tmap, box], check=True, env=env)
@@ -225,7 +227,7 @@ if not a.nobus:
 # 5. the city's entry for the map (bus-only networks have none: the France-wide entry covers their buses). An area much
 # bigger than a city (a department's boats, a stray far-off stop) gets none either: it would cover other places.
 if not a.nolines and (N - S > 1.0 or E - W > 1.4) and not a.box: report['no_entry'] = f'area too big ({N-S:.1f}° x {E-W:.1f}°)'
-if a.nolines or report.get('no_entry'):
+if a.nolines or a.busonly or report.get('no_entry'):
     print(json.dumps(report, ensure_ascii=False)); sys.exit(0)
 ix = os.path.join(HERE, 'fr-index.json'); idx = json.load(open(ix, encoding='utf-8')) if os.path.exists(ix) else []
 idx = [c for c in idx if c['id'] != a.id] + [{'id':a.id, 'name':a.name, 'box':[round(S, 3), round(W, 3), round(N, 3), round(E, 3)], 'url':f'cities/{a.country}-{a.id}.json', 'bus':a.bus.split(',')}]
