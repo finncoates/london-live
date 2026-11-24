@@ -1,35 +1,5 @@
 [
 {
-"id": "lyon",
-"name": "Lyon",
-"box": [
-45.546,
-4.265,
-46.278,
-5.102
-],
-"url": "cities/fr-lyon.json",
-"bus": [
-"#7E8BA3",
-"#97A6BF"
-]
-},
-{
-"id": "bordeaux",
-"name": "Bordeaux",
-"box": [
-44.738,
--0.812,
-45.034,
--0.444
-],
-"url": "cities/fr-bordeaux.json",
-"bus": [
-"#7E8BA3",
-"#97A6BF"
-]
-},
-{
 "id": "toulouse",
 "name": "Toulouse",
 "box": [
@@ -39,66 +9,6 @@
 1.65
 ],
 "url": "cities/fr-toulouse.json",
-"bus": [
-"#7E8BA3",
-"#97A6BF"
-]
-},
-{
-"id": "marseille",
-"name": "Marseille",
-"box": [
-43.209,
-5.28,
-43.427,
-5.54
-],
-"url": "cities/fr-marseille.json",
-"bus": [
-"#7E8BA3",
-"#97A6BF"
-]
-},
-{
-"id": "nice",
-"name": "Nice",
-"box": [
-43.636,
-6.904,
-44.248,
-7.408
-],
-"url": "cities/fr-nice.json",
-"bus": [
-"#7E8BA3",
-"#97A6BF"
-]
-},
-{
-"id": "paris",
-"name": "Paris",
-"box": [
-48.1,
-1.4,
-49.25,
-3.6
-],
-"url": "cities/fr-paris.json",
-"bus": [
-"#7E8BA3",
-"#97A6BF"
-]
-},
-{
-"id": "nantes",
-"name": "Nantes",
-"box": [
-47.106,
--1.782,
-47.341,
--1.349
-],
-"url": "cities/fr-nantes.json",
 "bus": [
 "#7E8BA3",
 "#97A6BF"
@@ -129,36 +39,6 @@
 4.067
 ],
 "url": "cities/fr-montpellier.json",
-"bus": [
-"#7E8BA3",
-"#97A6BF"
-]
-},
-{
-"id": "strasbourg",
-"name": "Strasbourg",
-"box": [
-48.449,
-7.574,
-48.698,
-7.856
-],
-"url": "cities/fr-strasbourg.json",
-"bus": [
-"#7E8BA3",
-"#97A6BF"
-]
-},
-{
-"id": "rennes",
-"name": "Rennes",
-"box": [
-47.926,
--1.962,
-48.285,
--1.472
-],
-"url": "cities/fr-rennes.json",
 "bus": [
 "#7E8BA3",
 "#97A6BF"
@@ -1095,6 +975,336 @@
 "cities/pt-lisbon-metro.json",
 "cities/pt-lisbon-ferries.json"
 ],
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "paris",
+"name": "Paris",
+"box": [
+48.1,
+1.4,
+49.25,
+3.6
+],
+"url": "cities/fr-paris.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "lyon",
+"name": "Lyon",
+"box": [
+45.546,
+4.265,
+46.278,
+5.102
+],
+"url": "cities/fr-lyon.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "bordeaux",
+"name": "Bordeaux",
+"box": [
+44.738,
+-0.812,
+45.034,
+-0.444
+],
+"url": "cities/fr-bordeaux.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "marseille",
+"name": "Marseille",
+"box": [
+43.209,
+5.28,
+43.427,
+5.54
+],
+"url": "cities/fr-marseille.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "nice",
+"name": "Nice",
+"box": [
+43.636,
+6.904,
+44.248,
+7.408
+],
+"url": "cities/fr-nice.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "nantes",
+"name": "Nantes",
+"box": [
+47.106,
+-1.782,
+47.341,
+-1.349
+],
+"url": "cities/fr-nantes.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "ljubljana",
+"name": "Ljubljana",
+"box": [
+45.953,
+14.393,
+46.146,
+14.768
+],
+"url": "cities/si-ljubljana.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "maribor",
+"name": "Maribor",
+"box": [
+46.495,
+15.549,
+46.629,
+15.776
+],
+"url": "cities/si-maribor.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "celje",
+"name": "Celje",
+"box": [
+46.191,
+15.192,
+46.299,
+15.354
+],
+"url": "cities/si-celje.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "kranj",
+"name": "Kranj",
+"box": [
+46.177,
+14.299,
+46.352,
+14.428
+],
+"url": "cities/si-kranj.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "koper",
+"name": "Koper",
+"box": [
+45.5,
+13.66,
+45.574,
+13.795
+],
+"url": "cities/si-koper.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "novomesto",
+"name": "Novo mesto",
+"box": [
+45.761,
+15.096,
+45.854,
+15.239
+],
+"url": "cities/si-novomesto.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "velenje",
+"name": "Velenje",
+"box": [
+46.303,
+15.052,
+46.406,
+15.213
+],
+"url": "cities/si-velenje.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "ptuj",
+"name": "Ptuj",
+"box": [
+46.365,
+15.795,
+46.473,
+15.947
+],
+"url": "cities/si-ptuj.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "murskasobota",
+"name": "Murska Sobota",
+"box": [
+46.629,
+16.106,
+46.7,
+16.234
+],
+"url": "cities/si-murskasobota.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "novagorica",
+"name": "Nova Gorica",
+"box": [
+45.885,
+13.59,
+45.995,
+13.718
+],
+"url": "cities/si-novagorica.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "postojna",
+"name": "Postojna",
+"box": [
+45.742,
+14.099,
+45.834,
+14.252
+],
+"url": "cities/si-postojna.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "sevnica",
+"name": "Sevnica",
+"box": [
+45.986,
+15.252,
+46.036,
+15.349
+],
+"url": "cities/si-sevnica.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "brezice",
+"name": "Brežice",
+"box": [
+45.88,
+15.561,
+45.938,
+15.639
+],
+"url": "cities/si-brezice.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "jesenice",
+"name": "Jesenice",
+"box": [
+46.387,
+13.972,
+46.471,
+14.138
+],
+"url": "cities/si-jesenice.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "strasbourg",
+"name": "Strasbourg",
+"box": [
+48.449,
+7.574,
+48.698,
+7.856
+],
+"url": "cities/fr-strasbourg.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "rennes",
+"name": "Rennes",
+"box": [
+47.926,
+-1.962,
+48.285,
+-1.472
+],
+"url": "cities/fr-rennes.json",
 "bus": [
 "#7E8BA3",
 "#97A6BF"
