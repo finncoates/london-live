@@ -2471,7 +2471,10 @@ const RAILC = [{name:'France', test:p => inFrance(p), url:'cities/fr-gares.json'
   {name:'Luxembourg', test:p => inLU(p), url:'cities/lu-stations.json', op:'CFL', list:null, loading:false},
   {name:'Ireland', test:p => inIrelandNotUK(p), url:'cities/ie-stations.json', op:'Irish Rail', list:null, loading:false},
   {name:'Denmark', test:p => inDK(p), url:'cities/dk-stations.json', op:'DSB', list:null, loading:false},
-  {name:'Lithuania', test:p => inLT(p), url:'cities/lt-stations.json', op:'LTG Link', list:null, loading:false}];
+  {name:'Lithuania', test:p => inLT(p), url:'cities/lt-stations.json', op:'LTG Link', list:null, loading:false},
+  {name:'Estonia', test:p => inEE(p), url:'cities/ee-stations.json', op:'Elron', list:null, loading:false}];
+const EE_POLY = [[59.62, 23.3], [59.7, 24.8], [59.62, 26.5], [59.48, 27.9], [59.4, 28.22], [59.0, 28.1], [58.6, 27.6], [58.0, 27.65], [57.52, 27.35], [57.6, 26.5], [57.75, 25.8], [57.88, 25.1], [57.88, 24.35], [57.85, 22.6], [57.85, 21.95], [58.35, 21.75], [58.95, 22.3], [59.15, 22.6], [59.4, 23.3]];
+const inEE = p => p[0] > 57.5 && p[0] < 59.75 && p[1] > 21.7 && p[1] < 28.3 && inPoly(EE_POLY, p);
 const LT_POLY = [[56.07, 21.05], [56.38, 22.0], [56.42, 23.0], [56.37, 24.0], [56.4, 25.0], [56.15, 25.8], [55.95, 26.25], [55.75, 26.65], [55.65, 26.8], [55.2, 26.4], [54.9, 25.8], [54.55, 25.7], [54.3, 25.5], [54.15, 25.05], [53.95, 24.0], [53.93, 23.5], [54.25, 23.25], [54.4, 22.75], [54.75, 22.8], [55.05, 22.4], [55.088, 21.88], [55.07, 21.6], [55.3, 21.3], [55.25, 20.95], [55.75, 21.02]];
 const inLT = p => p[0] > 53.85 && p[0] < 56.5 && p[1] > 20.9 && p[1] < 26.9 && inPoly(LT_POLY, p);
 // Denmark: Jutland and the islands (Flensburg, Malmö and Helsingborg outside), and Bornholm
@@ -2485,7 +2488,7 @@ const inBE = p => p[0] > 49.4 && p[0] < 51.6 && p[1] > 2.4 && p[1] < 6.5 && inPo
 // the Netherlands, roughly (~5 km): Belgium, Germany and the sea around it
 const NL_POLY = [[53.62, 7.1], [53.25, 7.23], [52.85, 7.1], [52.63, 6.75], [52.45, 7.08], [52.23, 7.07], [52.03, 6.72], [51.85, 6.85], [51.88, 6.1], [51.65, 6.12], [51.36, 6.24], [51.17, 6.1], [50.9, 6.1], [50.74, 6.03], [50.75, 5.63], [50.98, 5.73], [51.12, 5.86], [51.26, 5.53], [51.3, 5.08], [51.43, 4.78], [51.5, 4.4], [51.36, 4.18], [51.37, 3.95], [51.26, 3.78], [51.21, 3.37], [51.38, 3.35], [51.75, 3.65], [52.0, 4.0], [52.48, 4.55], [52.97, 4.68], [53.25, 4.75], [53.52, 5.6], [53.62, 6.4]];
 const inNL = p => p[0] > 50.7 && p[0] < 53.7 && p[1] > 3.3 && p[1] < 7.3 && inPoly(NL_POLY, p);
-const inCountry = (cc, p) => ({fr:inFrance, nl:inNL, be:inBE, lu:inLU, ie:inIrelandNotUK, dk:inDK, lt:inLT}[cc] || (() => true))(p);
+const inCountry = (cc, p) => ({fr:inFrance, nl:inNL, be:inBE, lu:inLU, ie:inIrelandNotUK, dk:inDK, lt:inLT, ee:inEE}[cc] || (() => true))(p);
 const railC = p => p && RAILC.find(c => c.test(p)) || null;
 function nrPolysets(z){ const polysets = []; // the National Rail map tiles for the view (fetched as needed)
   if(z < 9){ if(!NRNET.all){ if(!NRNET.loading){ NRNET.loading = true; fetch('cities/nr/all.json').then(r => r.json()).then(j => { NRNET.all = j; NRNET.n++; }).catch(() => { NRNET.loading = false; }); } return polysets; } polysets.push(['all', NRNET.all]); }
