@@ -1499,7 +1499,7 @@ const abroadAt = n => { const k = String(n || '').toLowerCase().normalize('NFD')
 RAIL.railKey = null; // null = not checked yet
 const railOn = () => !!RAIL.relay && (RAIL.relay === 'demo' || RAIL.railKey === true);
 async function railHealth(){ if(!RAIL.relay) return; if(RAIL.relay === 'demo'){ setTimeout(refreshRail, 2500); RAIL.timer = setInterval(refreshRail, 60000); return; }
-  try{ const h = await (await fetch(RAIL.relay + '/health', {signal:AbortSignal.timeout(8000)})).json(); RAIL.railKey = !!(h.rail ?? h.configured); RAIL.darwin = !!h.darwin; window.__tflRelay = h.tfl ? RAIL.relay + '/tfl' : null; }catch(e){ RAIL.railKey = false; } // (TfL data through the relay: one shared copy for everyone)
+  try{ const h = await (await fetch(RAIL.relay + '/health', {signal:AbortSignal.timeout(8000)})).json(); RAIL.railKey = !!(h.rail ?? h.configured); RAIL.darwin = !!h.darwin; window.__tflRelay = h.tfl ? RAIL.relay + '/tfl' : null; setTimeout(() => { try{ refreshTT(); }catch(e){} }, 0); }catch(e){ RAIL.railKey = false; } // (timetable vehicles as soon as the relay answers, not at the next timer) // (TfL data through the relay: one shared copy for everyone)
   if(typeof renderModeChips === 'function') renderModeChips(); if(typeof renderRailStatus === 'function') renderRailStatus();
   if(railOn() && !RAIL.timer){ refreshRail(); RAIL.timer = setInterval(refreshRail, 60000); } }
 // which stations to poll: London's termini/hubs in London, elsewhere the 25 nearest stations to the view
@@ -2356,7 +2356,7 @@ function gpsMerge(res, prefix){
     { const n = (res.vehicles || []).filter(v => v.op === 'Edinburgh Trams').length; if(n){ LIVE_TRAMS.n = n; if(n >= (LIVE_TRAMS.sn || 0)*0.6) for(const [k, g] of [...GPS.list]) if(k.startsWith('sch:') && g.v.op === 'Edinburgh Trams') GPS.list.delete(k); } } // live trams covering most of them: drop the timetable ones at once
     for(const v of res.vehicles || []){ const sn = snapGps(v); if(sn){ v.lat = sn.lat; v.lon = sn.lon; v.segAng = sn.ang; if(sn.col) v.col = sn.col; }
       let g = GPS.list.get(v.id);
-      if(vkind(v) === 'bus' && !sn){ const ra = v.coach ? coachRoadAng(v, g ? g.ang : null) : busRoadAng(v, g ? g.ang : null); if(ra != null) v.segAng = ra; } // parallel to its road, moving or at rest
+      if(vkind(v) === 'bus' && !sn){ const ra = (v.coach ? coachRoadAng(v, g ? g.ang : null) : null) ?? busRoadAng(v, g ? g.ang : null); if(ra != null) v.segAng = ra; } // parallel to its road, moving or at rest
       if(g && vkind(v) === 'bus'){ const tr = g.trail || (g.trail = [[g.to[0], g.to[1]]]); const last = tr[tr.length - 1]; if(dist(last, [v.lat, v.lon]) > 15){ tr.push([v.lat, v.lon]); if(tr.length > 40) tr.shift(); } } // the road it has driven
       if(!g){ g = {from:[v.lat, v.lon], to:[v.lat, v.lon], t0:now}; GPS.list.set(v.id, g); }
       else if(g.to[0] !== v.lat || g.to[1] !== v.lon){ g.from = gpsPos(g, now); g.to = [v.lat, v.lon]; g.t0 = now; }
@@ -2387,7 +2387,7 @@ function drawGps(ctx, s, hl0, hw0, mpp){
   ctx.lineWidth = 1; ctx.font = '700 10.5px system-ui, sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
   for(const g of GPS.list.values()){
     if(gOff(g.v)) continue;
-    if(vkind(g.v) === 'bus' && g.v.segAng == null && !g.v.sn && PV.z >= 11 && now - (g.raT || 0) > 1500){ g.raT = now; const ra = g.v.coach ? coachRoadAng(g.v, g.ang) : busRoadAng(g.v, g.ang); if(ra != null) g.v.segAng = ra; } // not yet known: once the road map is in
+    if(vkind(g.v) === 'bus' && g.v.segAng == null && !g.v.sn && PV.z >= 11 && now - (g.raT || 0) > 1500){ g.raT = now; const ra = (g.v.coach ? coachRoadAng(g.v, g.ang) : null) ?? busRoadAng(g.v, g.ang); if(ra != null) g.v.segAng = ra; } // not yet known: once the road map is in
     ctx.globalAlpha = (LF.city && !lfMatch(g)) || LF.id ? 0.2 : !g.v.line && !g.v.dest && !g.v.coach && vkind(g.v) === 'bus' ? 0.45 : 1; // a bus out of service: faded
     const p = gpsPos(g, now), c = scr(p); if(c.x < -30 || c.y < -30 || c.x > s.x + 30 || c.y > s.y + 30) continue;
     if((g.v.tram || g.v.metro) && PV.z >= 12){ const sh = laneShift(g.v, p); if(sh){ c.x += sh.x; c.y += sh.y; } } // on its own line where lines run side by side
@@ -2440,6 +2440,7 @@ function drawBusNet(ctx){
 BUSNET.grid = new Map();
 // a coach: parallel to the main road it is on (the coach route map: every National Express / FlixBus / Citylink road), else a local bus road
 function coachRoadAng(v, prev){
+  if(!COACHNET.data && !COACHNET.on) return null; // (only once the coach map is on: 1 MB downloaded on every London visit just to angle coach icons)
   if(!COACHNET.data){ if(!COACHNET.loading){ COACHNET.loading = true; fetch('cities/coachnet.json').then(r => r.json()).then(j => { COACHNET.data = j; }).catch(() => { COACHNET.loading = false; }); } return null; }
   let G = COACHNET.grid;
   if(!G){ G = COACHNET.grid = new Map(); for(const d of Object.values(COACHNET.data.ops)) for(const poly of d.lines) for(let i = 1; i < poly.length; i++){ const a = poly[i-1], b = poly[i];
@@ -2676,6 +2677,15 @@ async function tripInfo(trip){ if(!trip || TRIPI.has(trip)) return; TRIPI.set(tr
 const TT_OP = {Eurostar:'ES', 'NI Railways':'NI', LNER:'GR', EMR:'EM', 'East Midlands Railway':'EM', Avanti:'VT', 'Avanti West Coast':'VT', CrossCountry:'XC', XC:'XC', Northern:'NT', TransPennine:'TP', 'TransPennine Express':'TP', TPE:'TP', ScotRail:'SR', Southern:'SN', Thameslink:'TL', SWR:'SW', 'South Western Railway':'SW', Southeastern:'SE', GWR:'GW', 'Great Western Railway':'GW', c2c:'CC', 'Greater Anglia':'LE', 'Great Northern':'GN', Chiltern:'CH', 'Chiltern Railways':'CH', 'Grand Central':'GC', 'Hull Trains':'HT', TfW:'AW', 'Transport for Wales':'AW', WMR:'LM', 'West Midlands Railway':'LM', LNR:'LM', 'London Northwestern Railway':'LM', Merseyrail:'ME', Lumo:'LD', 'Caledonian Sleeper':'CS', 'Heathrow Express':'HX', 'Gatwick Express':'GX', 'Island Line':'IL', 'Night Riviera':'GW'};
 const TT_NAME = {ES:'Eurostar', GR:'LNER', EM:'East Midlands Railway', VT:'Avanti West Coast', XC:'CrossCountry', NT:'Northern', TP:'TransPennine Express', SR:'ScotRail', SN:'Southern', TL:'Thameslink', SW:'South Western Railway', SE:'Southeastern', GW:'Great Western Railway', CC:'c2c', LE:'Greater Anglia', GN:'Great Northern', CH:'Chiltern Railways', GC:'Grand Central', HT:'Hull Trains', AW:'Transport for Wales', LM:'West Midlands Railway', ME:'Merseyrail', LD:'Lumo', CS:'Caledonian Sleeper', HX:'Heathrow Express', GX:'Gatwick Express', IL:'Island Line', NI:'NI Railways'};
 const TT_TFL = /elizabeth|overground|liberty|lioness|mildmay|suffragette|weaver|windrush|^dlr$|docklands light|^XR\d|tramlink|london trams/i; // run by TfL: shown live by the TfL engine (Transitous files the DLR as regional rail, and the Elizabeth line's trains by their XR numbers)
+// a timetable tile fetched in the last 50 s is used again rather than downloaded again: the start-up timers and each
+// map move asked for the same tiles three times in Paris's first 20 s (560 KB each time). A tile with buses also
+// answers for the same tile without them.
+const TT_CACHE = new Map();
+function ttGet(path){ const now = Date.now(), hit = TT_CACHE.get(path) || (path.includes(',bus&') ? null : TT_CACHE.get(path.replace('&z=', ',bus&z=')));
+  if(hit && now - hit.at < 50000) return hit.p;
+  const p = railGet(path); TT_CACHE.set(path, {at:now, p}); p.catch(() => TT_CACHE.delete(path));
+  if(TT_CACHE.size > 300) for(const [k, v] of TT_CACHE) if(now - v.at > 60000) TT_CACHE.delete(k);
+  return p; }
 async function refreshTT(){
   const c0 = map.getCenter(), world = c0 && regionOf([c0.lat(), c0.lng()]) === 'world'; // beyond the places with their own feeds (France, Ireland…): everything from the timetable
   if(TTV.busy || !RAIL.relay || RAIL.relay === 'demo' || !TRAINS_ON || map.getZoom() < (world ? 5 : 8)) return;
@@ -2694,7 +2704,7 @@ async function refreshTT(){
       // (keyed by trip and time: a bus passing three stops in the window has three), and older ones go once all are in
       const fresh = new Set(), failed = new Set(), add = (r, tk) => { for(const s of r?.vehicles || []) if(s[9] && s[6] > now){ const k = s[8] + '|' + s[5]; fresh.add(k); if(TTV.ferries?.has(k)) continue; const pts = decodePoly(s[9]); if(pts.length > 1) (TTV.ferries ||= new Map()).set(k, {s, pts, tk}); } };
       if(!TTV.world) TTV.ferries = new Map();
-      const res = await Promise.all(tiles.map(([la, lo]) => railGet(`/tt?la=${la}&lo=${lo}&s=${tiles.sz}&modes=${modes}&z=${zq < 7 ? 6 : zq < 9 ? 8 : Math.min(14, zq + 1)}`).then(r => { add(r, la + ',' + lo); TTV.world = true; clearTimeout(TTV.dt); TTV.dt = setTimeout(ttTick, 50); return r; }).catch(() => { failed.add(la + ',' + lo); return null; }))); // vehicles appear as each tile lands
+      const res = await Promise.all(tiles.map(([la, lo]) => ttGet(`/tt?la=${la}&lo=${lo}&s=${tiles.sz}&modes=${modes}&z=${zq < 7 ? 6 : zq < 9 ? 8 : Math.min(14, zq + 1)}`).then(r => { add(r, la + ',' + lo); TTV.world = true; clearTimeout(TTV.dt); TTV.dt = setTimeout(ttTick, 50); return r; }).catch(() => { failed.add(la + ',' + lo); return null; }))); // vehicles appear as each tile lands
       for(const [k, e] of [...TTV.ferries]) if(!fresh.has(k) && !failed.has(e.tk)) TTV.ferries.delete(k); // an area that failed this time keeps what it had
       TTV.n = TTV.ferries.size; TTV.at = now; TTV.world = true;
       BUS.note = (TTV.esLive && Date.now() - TTV.esLive < 120000 ? `${TTV.esN} Renfe trains live · ` : '') + (TTV.cityLive && Date.now() - TTV.cityLive.at < 120000 ? `${TTV.cityLive.n} ${TTV.cityLive.name} ${TTV.cityLive.name === 'Toronto' ? 'buses and streetcars' : TTV.cityLive.what || 'buses'} live · ` : '') + `${TTV.n} ${zq < 7 ? 'high-speed and intercity trains' : zq < 9 ? 'trains' : 'trains, trams' + (zq >= 14 ? ', buses' : '') + ' and ferries'} here, placed from the timetable (Transitous open data${(TTV.esLive && Date.now() - TTV.esLive < 120000) || (TTV.cityLive && Date.now() - TTV.cityLive.at < 120000) ? '' : '; no live positions here yet'})${zq < 7 ? ' · zoom in for regional trains' : zq < 9 ? ' · zoom in for trams and metros' : zq < (CITYL.cur?.bus ? 13 : 14) ? ' · zoom in for buses' : ''}`;
