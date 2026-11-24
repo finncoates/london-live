@@ -2775,7 +2775,7 @@ function drawTTLines(ctx){
   for(const {s, pts} of TTV.ferries.values()){ const m = s[0], kind = /FERRY/.test(m) ? 'ferry' : /BUS|COACH/.test(m) ? 'bus' : /TRAM/.test(m) ? 'tram' : /SUBWAY|METRO/.test(m) ? 'metro' : 'train';
     if(drawn && (drawn.has(kind + '|' + s[2]) || (kind === 'tram' && drawn.has('metro|' + s[2])) || (s[2] && [...drawn].some(k => k.startsWith(kind + '|') && k.endsWith(' ' + s[2]))))) continue;
     if(kind === 'bus' && CITYL.cur?.bus) continue; // the city's bus map already draws every bus road, in one colour (as London)
-    if(kind === 'train' && railC(s[3].slice(2))) continue; // France's whole rail network is drawn (cities/nr): trains run on it
+    if(kind === 'train' && (railC(s[3].slice(2)) || railC(s[4].slice(2)))) continue; // France's whole rail network is drawn (cities/nr): trains run on it (either end: an international train from Germany was drawn straight across Amsterdam)
     if(GPS_OFF.has(kind) || (kind === 'bus' && busOff())) continue; const col = s[1] && /^[0-9a-f]{6}$/i.test(s[1]) ? inkA('#' + s[1].toLowerCase()) : {ferry:'#00A0E2', train:'#5D6670', tram:'#7A1F3D', metro:'#0E4C92', bus:'#DC241F'}[kind];
     const P = pts.map(scr); if(!P.some(q => q.x > -50 && q.y > -50 && q.x < s0.x + 50 && q.y < s0.y + 50)) continue;
     const k = kind + '|' + col; (groups.get(k) || groups.set(k, []).get(k)).push(P); }
