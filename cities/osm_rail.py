@@ -11,7 +11,7 @@ class H(osmium.SimpleHandler):
     def __init__(h): super().__init__(); h.ways = []
     def way(h, w):
         t = w.tags
-        if t.get('railway') != 'rail' or t.get('service') or t.get('usage') in ('industrial', 'military', 'tourism', 'test', 'freight') or t.get('railway:preserved') == 'yes': return
+        if t.get('railway') not in ('rail', 'narrow_gauge') or t.get('service') or t.get('usage') in ('industrial', 'military', 'tourism', 'test', 'freight') or t.get('railway:preserved') == 'yes': return  # (narrow gauge: the Rhaetian Railway, Matterhorn Gotthard, Zentralbahn)
         if t.get('usage') not in ('main', 'branch', None): return
         try: p = [(round(n.lat, 5), round(n.lon, 5)) for n in w.nodes]
         except osmium.InvalidLocationError: return

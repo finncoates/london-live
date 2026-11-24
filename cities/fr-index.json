@@ -45,36 +45,6 @@
 ]
 },
 {
-"id": "n-offre-de-transport-du-reseau-gra-5b472c",
-"name": "Grand Reims",
-"box": [
-49.157,
-3.662,
-49.405,
-4.316
-],
-"url": "cities/fr-n-offre-de-transport-du-reseau-gra-5b472c.json",
-"bus": [
-"#7E8BA3",
-"#97A6BF"
-]
-},
-{
-"id": "n-gtfs-netex-et-gtfs-rt-reseau-tao-c78b88",
-"name": "Orléans Métropole",
-"box": [
-47.793,
-1.775,
-47.987,
-2.089
-],
-"url": "cities/fr-n-gtfs-netex-et-gtfs-rt-reseau-tao-c78b88.json",
-"bus": [
-"#7E8BA3",
-"#97A6BF"
-]
-},
-{
 "id": "n-caen-la-mer-reseau-twisto-gtfs-s-d2925c",
 "name": "Caen la Mer",
 "box": [
@@ -129,21 +99,6 @@
 0.384
 ],
 "url": "cities/fr-n-reseau-de-transport-en-commun-li-ff9f5d.json",
-"bus": [
-"#7E8BA3",
-"#97A6BF"
-]
-},
-{
-"id": "n-gtfs-diviamobilites-793bb1",
-"name": "Dijon Métropole",
-"box": [
-47.221,
-4.907,
-47.388,
-5.179
-],
-"url": "cities/fr-n-gtfs-diviamobilites-793bb1.json",
 "bus": [
 "#7E8BA3",
 "#97A6BF"
@@ -3059,6 +3014,51 @@
 0.875
 ],
 "url": "cities/fr-n-fil-bleu-syndicat-des-mobilites-d39dc6.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "n-gtfs-netex-et-gtfs-rt-reseau-tao-c78b88",
+"name": "Orléans Métropole",
+"box": [
+47.793,
+1.775,
+47.987,
+2.089
+],
+"url": "cities/fr-n-gtfs-netex-et-gtfs-rt-reseau-tao-c78b88.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "n-offre-de-transport-du-reseau-gra-5b472c",
+"name": "Grand Reims",
+"box": [
+49.157,
+3.662,
+49.405,
+4.316
+],
+"url": "cities/fr-n-offre-de-transport-du-reseau-gra-5b472c.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "n-gtfs-diviamobilites-793bb1",
+"name": "Dijon Métropole",
+"box": [
+47.221,
+4.907,
+47.388,
+5.179
+],
+"url": "cities/fr-n-gtfs-diviamobilites-793bb1.json",
 "bus": [
 "#7E8BA3",
 "#97A6BF"
