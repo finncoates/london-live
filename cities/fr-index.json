@@ -840,15 +840,261 @@
 ]
 },
 {
+"id": "liepaja",
+"name": "Liepāja",
+"box": [
+56.453,
+20.97,
+56.636,
+21.129
+],
+"url": "cities/lv-liepaja.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "n-horaires-des-bacs-de-loire-en-lo-e81cf4",
+"name": "Couëron",
+"box": [
+47.175,
+-1.785,
+47.226,
+-1.644
+],
+"url": "cities/fr-n-horaires-des-bacs-de-loire-en-lo-e81cf4.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
 "id": "riga",
 "name": "Riga",
 "box": [
-56.845,
-23.893,
-57.084,
-24.368
+56.843,
+23.884,
+57.081,
+24.37
 ],
 "url": "cities/lv-riga.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "daugavpils",
+"name": "Daugavpils",
+"box": [
+55.825,
+26.417,
+55.954,
+26.65
+],
+"url": "cities/lv-daugavpils.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "liepaja",
+"name": "Liepāja",
+"box": [
+56.453,
+20.97,
+56.636,
+21.129
+],
+"url": "cities/lv-liepaja.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "rezekne",
+"name": "Rēzekne",
+"box": [
+56.392,
+27.203,
+56.602,
+27.515
+],
+"url": "cities/lv-rezekne.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "jelgava",
+"name": "Jelgava",
+"box": [
+56.511,
+23.557,
+56.722,
+23.884
+],
+"url": "cities/lv-jelgava.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "ventspils",
+"name": "Ventspils",
+"box": [
+57.204,
+21.503,
+57.5,
+21.722
+],
+"url": "cities/lv-ventspils.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "jekabpils",
+"name": "Jēkabpils",
+"box": [
+56.449,
+25.733,
+56.584,
+26.005
+],
+"url": "cities/lv-jekabpils.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "porto-metro",
+"name": "Porto",
+"box": [
+41.079,
+-8.788,
+41.398,
+-8.512
+],
+"url": "cities/pt-porto-metro.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "jurmala",
+"name": "Jūrmala",
+"box": [
+56.906,
+23.457,
+57.015,
+23.952
+],
+"url": "cities/lv-jurmala.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "n-bacs-de-ecouflant-cantenay-epina-d2e646",
+"name": "Cantenay-Épinard",
+"box": [
+47.506,
+-0.694,
+47.6,
+-0.498
+],
+"url": "cities/fr-n-bacs-de-ecouflant-cantenay-epina-d2e646.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "n-breizhgo-bateaux-72d947",
+"name": "Belle Ile en Mer",
+"box": [
+47.586,
+-2.823,
+47.658,
+-2.732
+],
+"url": "cities/fr-n-breizhgo-bateaux-72d947.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "n-funiculaire-des-arcs-c063b1",
+"name": "Bourg-Saint-Maurice",
+"box": [
+45.578,
+6.744,
+45.634,
+6.825
+],
+"url": "cities/fr-n-funiculaire-des-arcs-c063b1.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "n-arrets-horaires-et-circuit-de-la-4ef77c",
+"name": "L'Île-d'Yeu",
+"box": [
+46.706,
+-2.377,
+46.913,
+-2.109
+],
+"url": "cities/fr-n-arrets-horaires-et-circuit-de-la-4ef77c.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "n-gtfs-du-reseau-des-transports-bu-10fa4a",
+"name": "Le Mans Métropole",
+"box": [
+47.887,
+0.049,
+48.09,
+0.375
+],
+"url": "cities/fr-n-gtfs-du-reseau-des-transports-bu-10fa4a.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "lisbon",
+"name": "Lisbon",
+"box": [
+38.617,
+-9.273,
+38.814,
+-8.976
+],
+"url": "cities/pt-lisbon-carris.json",
+"urls": [
+"cities/pt-lisbon-carris.json",
+"cities/pt-lisbon-mts.json",
+"cities/pt-lisbon-metro.json",
+"cities/pt-lisbon-ferries.json"
+],
 "bus": [
 "#7E8BA3",
 "#97A6BF"

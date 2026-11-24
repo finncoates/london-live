@@ -2472,7 +2472,15 @@ const RAILC = [{name:'France', test:p => inFrance(p), url:'cities/fr-gares.json'
   {name:'Ireland', test:p => inIrelandNotUK(p), url:'cities/ie-stations.json', op:'Irish Rail', list:null, loading:false},
   {name:'Denmark', test:p => inDK(p), url:'cities/dk-stations.json', op:'DSB', list:null, loading:false},
   {name:'Lithuania', test:p => inLT(p), url:'cities/lt-stations.json', op:'LTG Link', list:null, loading:false},
-  {name:'Estonia', test:p => inEE(p), url:'cities/ee-stations.json', op:'Elron', list:null, loading:false}];
+  {name:'Estonia', test:p => inEE(p), url:'cities/ee-stations.json', op:'Elron', list:null, loading:false},
+  {name:'Latvia', test:p => inLV(p), url:'cities/lv-stations.json', op:'Vivi', list:null, loading:false},
+  {name:'Portugal', test:p => inPT(p), url:'cities/pt-stations.json', op:'CP', list:null, loading:false}];
+// mainland Portugal (Spain's border towns outside: Badajoz, Ayamonte, Tui), Madeira and the Azores
+const PT_POLY = [[41.87, -8.92], [42.08, -8.62], [42.15, -8.2], [41.95, -8.08], [41.82, -7.9], [41.88, -7.6], [41.86, -7.2], [41.98, -6.85], [41.95, -6.55], [41.65, -6.2], [41.57, -6.3], [41.03, -6.8], [40.8, -6.85], [40.35, -6.8], [40.25, -7.0], [39.97, -6.9], [39.65, -7.5], [39.45, -7.3], [39.0, -7.0], [38.75, -7.25], [38.45, -7.3], [38.2, -6.95], [38.0, -7.25], [37.55, -7.5], [37.17, -7.42], [36.9, -7.9], [36.9, -8.7], [37.0, -9.05], [37.5, -8.9], [38.0, -8.95], [38.4, -9.35], [38.7, -9.6], [39.4, -9.5], [40.2, -9.0], [41.0, -8.8]];
+const inPT = p => (p[0] > 36.8 && p[0] < 42.2 && p[1] > -9.7 && p[1] < -6.1 && inPoly(PT_POLY, p)) || (p[0] > 32.3 && p[0] < 33.2 && p[1] > -17.4 && p[1] < -16.2) || (p[0] > 36.8 && p[0] < 39.9 && p[1] > -31.5 && p[1] < -24.9);
+// Latvia: its borders with Estonia and Lithuania match their outlines
+const LV_POLY = [[57.88, 24.35], [57.88, 25.1], [57.75, 25.8], [57.6, 26.5], [57.52, 27.35], [57.3, 27.85], [56.85, 28.2], [56.2, 28.15], [55.95, 27.6], [55.75, 26.65], [55.95, 26.25], [56.15, 25.8], [56.4, 25.0], [56.37, 24.0], [56.42, 23.0], [56.38, 22.0], [56.07, 21.05], [56.5, 20.95], [57.1, 21.3], [57.6, 21.7], [57.77, 22.6], [57.3, 23.1], [56.95, 23.95], [57.3, 24.35]];
+const inLV = p => p[0] > 55.6 && p[0] < 58.1 && p[1] > 20.9 && p[1] < 28.3 && inPoly(LV_POLY, p);
 const EE_POLY = [[59.62, 23.3], [59.7, 24.8], [59.62, 26.5], [59.48, 27.9], [59.4, 28.22], [59.0, 28.1], [58.6, 27.6], [58.0, 27.65], [57.52, 27.35], [57.6, 26.5], [57.75, 25.8], [57.88, 25.1], [57.88, 24.35], [57.85, 22.6], [57.85, 21.95], [58.35, 21.75], [58.95, 22.3], [59.15, 22.6], [59.4, 23.3]];
 const inEE = p => p[0] > 57.5 && p[0] < 59.75 && p[1] > 21.7 && p[1] < 28.3 && inPoly(EE_POLY, p);
 const LT_POLY = [[56.07, 21.05], [56.38, 22.0], [56.42, 23.0], [56.37, 24.0], [56.4, 25.0], [56.15, 25.8], [55.95, 26.25], [55.75, 26.65], [55.65, 26.8], [55.2, 26.4], [54.9, 25.8], [54.55, 25.7], [54.3, 25.5], [54.15, 25.05], [53.95, 24.0], [53.93, 23.5], [54.25, 23.25], [54.4, 22.75], [54.75, 22.8], [55.05, 22.4], [55.088, 21.88], [55.07, 21.6], [55.3, 21.3], [55.25, 20.95], [55.75, 21.02]];
@@ -2488,7 +2496,7 @@ const inBE = p => p[0] > 49.4 && p[0] < 51.6 && p[1] > 2.4 && p[1] < 6.5 && inPo
 // the Netherlands, roughly (~5 km): Belgium, Germany and the sea around it
 const NL_POLY = [[53.62, 7.1], [53.25, 7.23], [52.85, 7.1], [52.63, 6.75], [52.45, 7.08], [52.23, 7.07], [52.03, 6.72], [51.85, 6.85], [51.88, 6.1], [51.65, 6.12], [51.36, 6.24], [51.17, 6.1], [50.9, 6.1], [50.74, 6.03], [50.75, 5.63], [50.98, 5.73], [51.12, 5.86], [51.26, 5.53], [51.3, 5.08], [51.43, 4.78], [51.5, 4.4], [51.36, 4.18], [51.37, 3.95], [51.26, 3.78], [51.21, 3.37], [51.38, 3.35], [51.75, 3.65], [52.0, 4.0], [52.48, 4.55], [52.97, 4.68], [53.25, 4.75], [53.52, 5.6], [53.62, 6.4]];
 const inNL = p => p[0] > 50.7 && p[0] < 53.7 && p[1] > 3.3 && p[1] < 7.3 && inPoly(NL_POLY, p);
-const inCountry = (cc, p) => ({fr:inFrance, nl:inNL, be:inBE, lu:inLU, ie:inIrelandNotUK, dk:inDK, lt:inLT, ee:inEE}[cc] || (() => true))(p);
+const inCountry = (cc, p) => ({fr:inFrance, nl:inNL, be:inBE, lu:inLU, ie:inIrelandNotUK, dk:inDK, lt:inLT, ee:inEE, lv:inLV, pt:inPT}[cc] || (() => true))(p);
 const railC = p => p && RAILC.find(c => c.test(p)) || null;
 function nrPolysets(z){ const polysets = []; // the National Rail map tiles for the view (fetched as needed)
   if(z < 9){ if(!NRNET.all){ if(!NRNET.loading){ NRNET.loading = true; fetch('cities/nr/all.json').then(r => r.json()).then(j => { NRNET.all = j; NRNET.n++; }).catch(() => { NRNET.loading = false; }); } return polysets; } polysets.push(['all', NRNET.all]); }
@@ -2900,6 +2908,13 @@ const CATALOG = [
     {name:'Estonia', flag:'🇪🇪', cities:[{name:'Tallinn', at:[59.437, 24.754, 14], live:'now', modes:[['tram','Trams'], ['bus','Buses & trolleybuses']], note:'Every tram and bus live by GPS (open data); tram stops show their next departures.'},
       {name:"Tartu", at:[58.378, 26.729, 13], live:'now', modes:[['train',"Trains"], ['bus',"Buses"]], note:"Every city and county bus and Elron's trains, from the timetable."},
       {name:"Pärnu", at:[58.385, 24.497, 13], live:'now', modes:[['bus',"Buses"]], note:"Every bus route, from the timetable."}]},
+    {name:'Latvia', flag:'🇱🇻', cities:[{name:"Riga", at:[56.949, 24.106, 14], live:'now', modes:[['tram',"Trams"], ['bus',"Buses and trolleybuses"], ['train',"Trains"]], note:"Every Rīgas satiksme tram, trolleybus and bus route, Vivi's trains and every intercity bus, from the timetable (pieturas.lv)."},
+      {name:"Daugavpils", at:[55.874, 26.536, 14], live:'now', modes:[['tram',"Trams"], ['bus',"Buses"], ['train',"Trains"]], note:"Every tram and bus route, from the timetable."},
+      {name:"Liepāja", at:[56.508, 21.011, 14], live:'now', modes:[['tram',"Tram"], ['bus',"Buses"], ['train',"Trains"]], note:"The tram and every bus route, from the timetable."},
+      {name:"Jelgava", at:[56.651, 23.721, 14], live:'now', modes:[['bus',"Buses"], ['train',"Trains"]], note:"Every bus route, from the timetable."},
+      {name:"Jūrmala", at:[56.968, 23.770, 13], live:'now', modes:[['bus',"Buses"], ['train',"Trains"]], note:"Every bus route and Vivi's trains, from the timetable."},
+      {name:"Ventspils", at:[57.394, 21.564, 14], live:'now', modes:[['bus',"Buses"]], note:"Every bus route, from the timetable."},
+      {name:"Rēzekne", at:[56.510, 27.333, 14], live:'now', modes:[['bus',"Buses"], ['train',"Trains"]], note:"Every bus route, from the timetable."}]},
     {name:'Poland', flag:'🇵🇱', cities:[{name:'Gdańsk', at:[54.352, 18.647, 13], live:'now', modes:[['tram','Trams'], ['bus','Buses'], ['bike','MEVO bikes']], note:'Every tram and bus live by GPS (ZTM Gdańsk open data); tram stops show their next departures.'},
       {name:'Whole country (trains)', at:[52.0, 19.2, 6], live:'now', modes:[['train','Trains']], note:'Every train in the country, placed from the timetable (Transitous open data): high-speed and intercity zoomed out, regional trains closer in.'}]},
     {name:'Lithuania', flag:'🇱🇹', cities:[{name:"Kaunas", at:[54.897, 23.892, 13], live:'now', modes:[['train',"Trains"], ['bus',"Buses and trolleybuses"]], note:"Every bus and trolleybus route, from the timetable (visimarsrutai.lt)."},
@@ -2967,7 +2982,13 @@ const CATALOG = [
       {name:'Whole country (trains)', at:[56.0, 10.5, 7], live:'now', modes:[['train','Trains']], note:'Every train in the country, placed from the timetable (Transitous open data): high-speed and intercity zoomed out, regional trains closer in.'}]},
     {name:'Sweden', flag:'🇸🇪', cities:[{name:'Whole country (trains)', at:[60.0, 15.5, 5], live:'now', modes:[['train','Trains']], note:'Every train in the country, placed from the timetable (Transitous open data): high-speed and intercity zoomed out, regional trains closer in.'}]},
     {name:'Czechia', flag:'🇨🇿', cities:[{name:'Whole country (trains)', at:[49.8, 15.5, 7], live:'now', modes:[['train','Trains']], note:'Every train in the country, placed from the timetable (Transitous open data): high-speed and intercity zoomed out, regional trains closer in.'}]},
-    {name:'Portugal', flag:'🇵🇹', cities:[{name:'Whole country (trains)', at:[39.6, -8.2, 7], live:'now', modes:[['train','Trains']], note:'Every train in the country, placed from the timetable (Transitous open data): high-speed and intercity zoomed out, regional trains closer in.'}]}]},
+    {name:'Portugal', flag:'🇵🇹', cities:[{name:"Lisbon", at:[38.712, -9.139, 14], live:'now', modes:[['metro',"Metro"], ['tram',"Trams & funiculars"], ['bus',"Buses"], ['ferry',"Tagus ferries"], ['train',"Trains"]], note:"The Metro, Carris's trams, funiculars and buses, Carris Metropolitana, the Tagus ferries, Metro Sul do Tejo and CP's and Fertagus's trains, from the timetables."},
+      {name:"Porto", at:[41.149, -8.611, 14], live:'now', modes:[['metro',"Metro"], ['bus',"Buses"], ['train',"Trains"]], note:"Metro do Porto, every STCP bus and CP's trains, from the timetables."},
+      {name:"Coimbra", at:[40.207, -8.429, 14], live:'now', modes:[['bus',"Buses"], ['train',"Trains"]], note:"Every SMTUC bus and the Metro Mondego busway, from the timetables."},
+      {name:"Braga", at:[41.551, -8.420, 14], live:'now', modes:[['bus',"Buses"], ['train',"Trains"]], note:"Every TUB bus, from the timetable."},
+      {name:"Faro", at:[37.017, -7.935, 14], live:'now', modes:[['bus',"Buses"], ['train',"Trains"]], note:"Faro's city buses and the Algarve's Vamus buses, from the timetables."},
+      {name:"Funchal", at:[32.650, -16.909, 14], live:'now', modes:[['bus',"Buses"]], note:"Every Horários do Funchal and SIGA bus on Madeira, from the timetables."},
+      {name:'Whole country (trains)', at:[39.6, -8.2, 7], live:'now', modes:[['train','Trains']], note:'Every train in the country, placed from the timetable (Transitous open data): high-speed and intercity zoomed out, regional trains closer in.'}]}]},
   {name:'North America', countries:[
     {name:'United States', flag:'🇺🇸', cities:[
       {name:'Boston', at:[42.355, -71.065, 13], live:'now', modes:[['metro','Subway'], ['train','Commuter rail'], ['tram','Green Line & Mattapan'], ['bus','Buses'], ['ferry','Ferries'], ['bike','Bluebikes']], note:'MBTA vehicles by GPS, on the subway lines in their own colours.'}]},
@@ -3030,7 +3051,7 @@ const inIrelandNotUK = p => p[0] > 51.35 && p[0] < 55.45 && p[1] < -5.4 && !(p[1
 // Spain (not the French side of the Pyrenees: Toulouse, Perpignan and Bayonne are inside Spain's rectangle): south of the
 // border, which runs from Hendaye (43.36°N, 1.78°W) down to Cerbère (42.43°N, 3.17°E)
 const pyrenees = lon => lon < -1.78 ? 43.4 : lon < 0 ? 43.36 - (lon + 1.78)/1.78*0.66 : lon < 1.5 ? 42.70 - lon/1.5*0.2 : 42.50 - (lon - 1.5)/1.67*0.07;
-const inSpain = p => p[0] > 35.8 && p[0] < 43.9 && p[1] > -9.6 && p[1] < 3.4 && p[0] < pyrenees(p[1]);
+const inSpain = p => !inPT(p) && p[0] > 35.8 && p[0] < 43.9 && p[1] > -9.6 && p[1] < 3.4 && p[0] < pyrenees(p[1]);
 function regionOf(p){ return inLondonView(p) ? 'london' : inFinland(p) ? 'finland' : inNorway(p) ? 'norway' : inBoston(p) ? 'boston' : inBerlin(p) ? 'berlin' : relayCity(p) ? 'city' : inEdinburgh(p) ? 'edinburgh' : p[0] > 49.8 && p[0] < 60.9 && p[1] > -8.7 && p[1] < 1.9 && !inIrelandNotUK(p) ? 'uk' : 'world'; }
 const NO_TOWNS = [['Stavanger', 58.970, 5.733], ['Sandnes', 58.852, 5.737], ['Kristiansand', 58.146, 7.996], ['Drammen', 59.744, 10.204], ['Fredrikstad', 59.218, 10.930], ['Sarpsborg', 59.284, 11.110], ['Tønsberg', 59.267, 10.407], ['Sandefjord', 59.131, 10.217], ['Larvik', 59.054, 10.028], ['Skien', 59.209, 9.609], ['Porsgrunn', 59.141, 9.656], ['Arendal', 58.461, 8.772], ['Haugesund', 59.414, 5.268], ['Ålesund', 62.472, 6.150], ['Molde', 62.737, 7.161], ['Kristiansund', 63.110, 7.728], ['Bodø', 67.280, 14.405], ['Tromsø', 69.649, 18.955], ['Alta', 69.968, 23.272], ['Hammerfest', 70.663, 23.682], ['Narvik', 68.438, 17.427], ['Harstad', 68.798, 16.541], ['Hamar', 60.795, 11.068], ['Lillehammer', 61.115, 10.466], ['Gjøvik', 60.795, 10.692], ['Moss', 59.434, 10.658], ['Halden', 59.122, 11.388], ['Kongsberg', 59.668, 9.650], ['Steinkjer', 64.015, 11.495], ['Mo i Rana', 66.313, 14.143], ['Lillestrøm', 59.956, 11.050], ['Asker', 59.833, 10.435], ['Sandvika', 59.889, 10.523], ['Ski', 59.719, 10.835], ['Jessheim', 60.142, 11.175], ['Elverum', 60.881, 11.564], ['Førde', 61.452, 5.857], ['Florø', 61.600, 5.033], ['Kirkenes', 69.727, 30.045], ['Vadsø', 70.074, 29.750]];
 // a French network's area as a town's name: 'Angers Loire Métropole' → Angers, 'Grand Reims' → Reims, 'Caen la Mer' → Caen
