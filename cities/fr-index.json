@@ -15,36 +15,6 @@
 ]
 },
 {
-"id": "lille",
-"name": "Lille",
-"box": [
-50.501,
-2.782,
-50.803,
-3.278
-],
-"url": "cities/fr-lille.json",
-"bus": [
-"#7E8BA3",
-"#97A6BF"
-]
-},
-{
-"id": "montpellier",
-"name": "Montpellier",
-"box": [
-43.507,
-3.675,
-43.749,
-4.067
-],
-"url": "cities/fr-montpellier.json",
-"bus": [
-"#7E8BA3",
-"#97A6BF"
-]
-},
-{
 "id": "nl-amsterdam",
 "name": "Amsterdam",
 "box": [
@@ -960,27 +930,6 @@
 ]
 },
 {
-"id": "lisbon",
-"name": "Lisbon",
-"box": [
-38.617,
--9.273,
-38.814,
--8.976
-],
-"url": "cities/pt-lisbon-carris.json",
-"urls": [
-"cities/pt-lisbon-carris.json",
-"cities/pt-lisbon-mts.json",
-"cities/pt-lisbon-metro.json",
-"cities/pt-lisbon-ferries.json"
-],
-"bus": [
-"#7E8BA3",
-"#97A6BF"
-]
-},
-{
 "id": "paris",
 "name": "Paris",
 "box": [
@@ -1305,6 +1254,286 @@
 -1.472
 ],
 "url": "cities/fr-rennes.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "lille",
+"name": "Lille",
+"box": [
+50.501,
+2.782,
+50.803,
+3.278
+],
+"url": "cities/fr-lille.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "split",
+"name": "Split",
+"box": [
+43.371,
+16.031,
+43.878,
+16.924
+],
+"url": "cities/hr-split.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "rijeka",
+"name": "Rijeka",
+"box": [
+45.148,
+14.189,
+45.503,
+14.686
+],
+"url": "cities/hr-rijeka.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "zadar",
+"name": "Zadar",
+"box": [
+43.891,
+14.905,
+44.378,
+15.818
+],
+"url": "cities/hr-zadar.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "dubrovnik",
+"name": "Dubrovnik",
+"box": [
+42.433,
+17.147,
+42.999,
+18.472
+],
+"url": "cities/hr-dubrovnik.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "karlovac",
+"name": "Karlovac",
+"box": [
+45.349,
+15.445,
+45.598,
+15.832
+],
+"url": "cities/hr-karlovac.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "sibenik",
+"name": "Šibenik",
+"box": [
+43.606,
+15.793,
+43.828,
+16.152
+],
+"url": "cities/hr-sibenik.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "sisak",
+"name": "Sisak",
+"box": [
+45.424,
+15.962,
+45.824,
+16.466
+],
+"url": "cities/hr-sisak.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "slavonskibrod",
+"name": "Slavonski Brod",
+"box": [
+45.112,
+17.943,
+45.238,
+18.121
+],
+"url": "cities/hr-slavonskibrod.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "porec",
+"name": "Poreč",
+"box": [
+45.188,
+13.568,
+45.293,
+13.778
+],
+"url": "cities/hr-porec.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "opatija",
+"name": "Opatija",
+"box": [
+45.303,
+14.267,
+45.375,
+14.351
+],
+"url": "cities/hr-opatija.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "crikvenica",
+"name": "Crikvenica",
+"box": [
+45.135,
+14.586,
+45.25,
+14.755
+],
+"url": "cities/hr-crikvenica.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "svetanedelja",
+"name": "Sveta Nedelja",
+"box": [
+45.731,
+15.735,
+45.835,
+15.867
+],
+"url": "cities/hr-svetanedelja.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "rab",
+"name": "Rab",
+"box": [
+44.686,
+14.407,
+45.348,
+14.956
+],
+"url": "cities/hr-rab.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "rab-ferries",
+"name": "Rab ferries",
+"box": [
+44.672,
+14.706,
+44.774,
+14.921
+],
+"url": "cities/hr-rab-ferries.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "lisbon",
+"name": "Lisbon",
+"box": [
+38.617,
+-9.273,
+38.814,
+-8.976
+],
+"url": "cities/pt-lisbon-carris.json",
+"urls": [
+"cities/pt-lisbon-carris.json",
+"cities/pt-lisbon-mts.json",
+"cities/pt-lisbon-metro.json",
+"cities/pt-lisbon-ferries.json"
+],
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "zagreb",
+"name": "Zagreb",
+"box": [
+45.592,
+15.758,
+45.957,
+16.218
+],
+"url": "cities/hr-zagreb-zet.json",
+"urls": [
+"cities/hr-zagreb-zet.json",
+"cities/hr-zagreb-extra.json"
+],
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "montpellier",
+"name": "Montpellier",
+"box": [
+43.507,
+3.675,
+43.749,
+4.067
+],
+"url": "cities/fr-montpellier.json",
 "bus": [
 "#7E8BA3",
 "#97A6BF"

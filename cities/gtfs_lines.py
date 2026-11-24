@@ -3,7 +3,7 @@
 import sys as _s; _s.stdout.reconfigure(encoding='utf-8', errors='replace'); _s.stderr.reconfigure(encoding='utf-8', errors='replace')  # Windows console: never crash on a name
 import os, sys, zipfile, csv, io, json, math, re, collections
 zf, out, typemap = sys.argv[1], sys.argv[2], dict(x.split(':') for x in sys.argv[3].split(','))
-COL = {'tram':'#00985F', 'metro':'#FF6319', 'train':'#8C4799', 'ferry':'#00B9E4'}
+COL = {'tram':'#00985F', 'metro':'#FF6319', 'train':'#8C4799', 'ferry':'#00B9E4', 'cable':'#E21836'}
 if len(sys.argv) > 4 and sys.argv[4]: COL.update(json.loads(sys.argv[4]))
 BOX = [float(x) for x in sys.argv[5].split(',')] if len(sys.argv) > 5 else None  # south,west,north,east
 USE_RC = os.environ.get('USE_ROUTE_COLOR') == '1'

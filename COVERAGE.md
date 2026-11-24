@@ -72,10 +72,12 @@ Other cities checked and not possible without a key: Paris (RATP/IDFM: free PRIM
 | **Latvia** | Riga (trams), Daugavpils (trams), Liepāja (tram), Jelgava, Jūrmala, Ventspils, Rēzekne, Jēkabpils; Vivi's railway (147 stations) | Every city bus and trolleybus and every regional and intercity bus (pieturas.lv's national timetable) | From the timetable | Transitous |
 | **Portugal** | Lisbon (Metro, Carris trams, funiculars and Santa Justa lift, Tagus ferries, Metro Sul do Tejo), Porto (Metro), Coimbra (Metro Mondego busway); the railway from OpenStreetMap, 457 CP stations | Carris, Carris Metropolitana, STCP, TCB, MobiCascais, TUB (Braga), SMTUC (Coimbra), the Algarve (Vamus and town buses), Madeira (Horários do Funchal, SIGA) | From the timetable | Transitous |
 | **Slovenia** | SŽ's railway from OpenStreetMap | LPP (Ljubljana), Marprom (Maribor), Celje, Kranj, Koper, Novo mesto, Velenje, Ptuj, Murska Sobota, Nova Gorica, Postojna, Sevnica, Brežice, Jesenice; every intercity bus (Nomago, Arriva, AP Murska Sobota) | From the timetable | Transitous |
+| **Croatia** | Zagreb (ZET trams, the funicular, the Sljeme cable car); the railway from OpenStreetMap, 453 HŽ stations; Rab's ferries | ZET, Promet Split, Autotrolej (Rijeka), Liburnija (Zadar), Libertas (Dubrovnik), Karlovac, Šibenik, Sisak, Slavonski Brod, Poreč, Opatija, Crikvenica, Sveta Nedelja, Rab | From the timetable | Transitous |
 
 Also: bikes and scooters for hire in 86 French towns (Vélib', Vélo'v, V³, Lime, Voi, Dott, Pony…); FlixBus and
 BlaBlaCar coaches in their own colours; tapping a timetable vehicle shows where it's really going.
-**Gaps**: Portugal's regional buses outside Lisbon, Porto, Braga, Coimbra, the Algarve and Madeira publish no open timetable
+**Gaps**: Croatia's Pula and Osijek (trams) networks, Jadrolinija's ferries and its intercity buses publish only behind a
+login on the national access point (promet-info.hr), so they're missing. Portugal's regional buses outside Lisbon, Porto, Braga, Coimbra, the Algarve and Madeira publish no open timetable
 (Rede Expressos, Transdev, Rodonorte…), so only FlixBus is shown between cities there. Amsterdam's and Le Havre's trams have no official colours in the open data (drawn in one tram green);
 Paris has no open live positions (IDFM's need a free PRIM key); Lille and Strasbourg publish live data only as SIRI.
 
