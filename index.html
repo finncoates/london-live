@@ -2852,6 +2852,9 @@ function ttPlace(now){
   TTV.lastP = new Map([...out].map(([t, v]) => [t, v.p]));
   return out; }
 window.__ttPlace = ttPlace;
+// for tools/smoke.mjs: what's on the map now (lines drawn, city files loaded, timetable vehicles off their line)
+window.__smoke = () => ({city:CITYL.cur?.name || null, cityFiles:cityData().length, cityLines:cityData().reduce((n, d) => n + d.lines.length, 0),
+  tfl:ACTIVE.filter(l => l.layer).length, gps:GPS.list.size, tt:TTV.ferries ? TTV.ferries.size : 0});
 function ttTick(){ if(!TTV.ferries || !TRAINS_ON || inTfLArea([map.getCenter().lat(), map.getCenter().lng()])) return; const now = Date.now(), seen = new Set();
   const liveKinds = new Set(); for(const [k, g] of GPS.list) if(k.startsWith('la:')) liveKinds.add(g.v.kind || 'bus'); // what the city's live feed actually has (Amsterdam's has no metro, Rotterdam's does)
   // live vehicles here, by kind and line: a timetable vehicle with a live twin nearby (same kind and line, within ~1.2 km,
@@ -3230,7 +3233,7 @@ function applyRegion(){
       else if(map.getZoom() >= 11 && rc.list){ let st = null, sd = 5000; for(const x of rc.list){ if(Math.abs(x[2] - p[0]) > 0.05) continue; const d = dist(p, [x[2], x[3]]); if(d < sd){ sd = d; st = x; } }
         $('ttl').textContent = !st ? rc.name + ' live map' : st[1].replace(/\s*\/.*$/, '').replace(/[- ](Ville|Centre|Centraal|Central|Centrum|Gare|Hbf|Station|Nord|Sud|Est|Ouest|Midi|Noord|Zuid|Oost|West|Saint-Jean|Part-Dieu|Perrache|Flandres|Europe|Matabiau|Saint-Charles|Viotte|Guillemins|Rive[ -]Droite|Rive[ -]Gauche|B[ée]n[ée]dictins|Saint-Roch|Vauban|Porte[ -]Neuve|Saint-Laud|St-Laud|Ch[âa]teaucreux|Sud de France|Saint-Sauveur|Mont-Bernanchon|Monts-Jura|Thiers|Saint-Gervais|Jean-Jaur[eè]s|Saint-Germain|Central|Carnot|Centraal|Zentrum|Rive|Gare|Hôpital|Port|Ville|Montparnasse|Saint-Lazare|Austerlitz|Bercy)\b.*$/i, '').replace(/^Bruxelles$/, 'Brussels') + ' live map'; }
       else { $('ttl').textContent = rc.name + ' live map'; if(map.getZoom() >= 11 && !rc.list && !rc.loading){ rc.loading = true; fetch(rc.url).then(r => r.json()).then(j => { rc.list = j; applyRegion(); }).catch(() => { rc.loading = false; }); } } } } // (the station list loads, then the title follows)
-  document.title = !away ? 'London Live Trains' : $('ttl').textContent.replace(/\b\w/g, c => c.toUpperCase()); // the browser tab says where too
+  document.title = !away ? 'London Live Trains' : $('ttl').textContent.replace(/(^|[\s\-'’])(\p{Ll})/gu, (m, a, c) => a + c.toUpperCase()); // the browser tab says where too (words start after a space or hyphen: \b split 'Zürich' into 'ZüRich')
   { const t = $('ttl'), fit = m => { t.style.fontSize = ''; for(let f = 17; f >= m && t.scrollWidth > t.clientWidth + 1; f--) t.style.fontSize = f + 'px'; return t.scrollWidth <= t.clientWidth + 1; };
     if(!fit(14) && / map$/.test(t.textContent)){ t.textContent = t.textContent.replace(/ map$/, ''); fit(13); } } // long names shrink a little rather than being cut off
   $('bFit').title = away ? 'Near me (tap again: the area around you)' : 'Near me (tap again: all of London)';
