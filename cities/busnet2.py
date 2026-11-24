@@ -16,7 +16,7 @@ def is_coach(a):  # long-distance coaches only: National Express West Midlands /
 def feed_routes(zf):
     z = zipfile.ZipFile(zf); rd = lambda n: csv.DictReader(io.TextIOWrapper(z.open(n), 'utf-8-sig'))
     coach = {a['agency_id'] for a in rd('agency.txt') if is_coach(a)}
-    bus = {r['route_id'] for r in rd('routes.txt') if r['route_type'] in ('3', '11', '700', '701', '702', '704', '705', '711', '712', '715', '800') and r.get('agency_id') not in coach}
+    bus = {r['route_id'] for r in rd('routes.txt') if r['route_type'] in ('3', '11', '200', '201', '202', '204', '209', '700', '701', '702', '704', '705', '711', '712', '715', '800') and r.get('agency_id') not in coach}
     shapes = set(); pick = collections.defaultdict(list)
     for t in rd('trips.txt'):
         if t['route_id'] not in bus: continue

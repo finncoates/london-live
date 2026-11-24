@@ -5,7 +5,7 @@
 import sys as _s; _s.stdout.reconfigure(encoding='utf-8', errors='replace'); _s.stderr.reconfigure(encoding='utf-8', errors='replace')
 import os, json, zipfile, csv, io, urllib.request, shutil, tempfile
 HERE = os.path.dirname(os.path.abspath(__file__)); B = os.path.join(HERE, '.build')
-BUS = ('3', '11', '700', '701', '702', '704', '705', '711', '712', '715', '800')
+BUS = ('3', '11', '200', '201', '202', '204', '209', '700', '701', '702', '704', '705', '711', '712', '715', '800')
 urls = {}
 if os.path.exists(os.path.join(B, 'fr_all.log')):
     for line in open(os.path.join(B, 'fr_all.log'), encoding='utf-8'):

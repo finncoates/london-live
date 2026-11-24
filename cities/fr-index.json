@@ -15,36 +15,6 @@
 ]
 },
 {
-"id": "n-caen-la-mer-reseau-twisto-gtfs-s-d2925c",
-"name": "Caen la Mer",
-"box": [
-49.078,
--0.572,
-49.322,
--0.153
-],
-"url": "cities/fr-n-caen-la-mer-reseau-twisto-gtfs-s-d2925c.json",
-"bus": [
-"#7E8BA3",
-"#97A6BF"
-]
-},
-{
-"id": "n-gtfs-et-siri-du-reseau-ginko-bes-8fbfe4",
-"name": "Grand Besançon Métropole",
-"box": [
-47.118,
-5.769,
-47.367,
-6.215
-],
-"url": "cities/fr-n-gtfs-et-siri-du-reseau-ginko-bes-8fbfe4.json",
-"bus": [
-"#7E8BA3",
-"#97A6BF"
-]
-},
-{
 "id": "n-arrets-horaires-et-parcours-theo-ff9006",
 "name": "La Rochelle",
 "box": [
@@ -114,21 +84,6 @@
 4.56
 ],
 "url": "cities/be-charleroi.json",
-"bus": [
-"#7E8BA3",
-"#97A6BF"
-]
-},
-{
-"id": "n-fr-200052264-t0017-0000-1-fab834",
-"name": "Saint-Louis Agglomération",
-"box": [
-47.478,
-7.209,
-47.71,
-7.657
-],
-"url": "cities/fr-n-fr-200052264-t0017-0000-1-fab834.json",
 "bus": [
 "#7E8BA3",
 "#97A6BF"
@@ -3059,6 +3014,66 @@
 7.574
 ],
 "url": "cities/fr-n-offre-de-transport-solea-et-tram-d65762.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "n-fr-200052264-t0017-0000-1-fab834",
+"name": "Saint-Louis Agglomération",
+"box": [
+47.478,
+7.209,
+47.71,
+7.657
+],
+"url": "cities/fr-n-fr-200052264-t0017-0000-1-fab834.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "n-gtfs-et-siri-du-reseau-ginko-bes-8fbfe4",
+"name": "Grand Besançon Métropole",
+"box": [
+47.118,
+5.769,
+47.367,
+6.215
+],
+"url": "cities/fr-n-gtfs-et-siri-du-reseau-ginko-bes-8fbfe4.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "n-caen-la-mer-reseau-twisto-gtfs-s-d2925c",
+"name": "Caen la Mer",
+"box": [
+49.078,
+-0.572,
+49.322,
+-0.153
+],
+"url": "cities/fr-n-caen-la-mer-reseau-twisto-gtfs-s-d2925c.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "n-telecabine-eau-dolle-express-all-117fed",
+"name": "Eau d'Olle Express",
+"box": [
+45.106,
+6.008,
+45.147,
+6.102
+],
+"url": "cities/fr-n-telecabine-eau-dolle-express-all-117fed.json",
 "bus": [
 "#7E8BA3",
 "#97A6BF"
