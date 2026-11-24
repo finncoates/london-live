@@ -705,66 +705,6 @@
 ]
 },
 {
-"id": "plzen",
-"name": "Plzeň",
-"box": [
-49.637,
-13.17,
-49.837,
-13.527
-],
-"url": "cities/cz-plzen.json",
-"bus": [
-"#7E8BA3",
-"#97A6BF"
-]
-},
-{
-"id": "olomouc",
-"name": "Olomouc",
-"box": [
-49.537,
-17.149,
-49.663,
-17.394
-],
-"url": "cities/cz-olomouc.json",
-"bus": [
-"#7E8BA3",
-"#97A6BF"
-]
-},
-{
-"id": "most",
-"name": "Most",
-"box": [
-50.402,
-13.497,
-50.646,
-13.734
-],
-"url": "cities/cz-most.json",
-"bus": [
-"#7E8BA3",
-"#97A6BF"
-]
-},
-{
-"id": "usti",
-"name": "Ústí nad Labem",
-"box": [
-50.569,
-13.89,
-50.726,
-14.153
-],
-"url": "cities/cz-usti.json",
-"bus": [
-"#7E8BA3",
-"#97A6BF"
-]
-},
-{
 "id": "nl-utrecht",
 "name": "Utrecht",
 "box": [
@@ -774,51 +714,6 @@
 5.68
 ],
 "url": "cities/nl-nl-utrecht.json",
-"bus": [
-"#7E8BA3",
-"#97A6BF"
-]
-},
-{
-"id": "ostrava",
-"name": "Ostrava",
-"box": [
-49.712,
-18.05,
-49.944,
-18.421
-],
-"url": "cities/cz-ostrava.json",
-"bus": [
-"#7E8BA3",
-"#97A6BF"
-]
-},
-{
-"id": "liberec",
-"name": "Liberec",
-"box": [
-50.694,
-14.902,
-50.83,
-15.456
-],
-"url": "cities/cz-liberec.json",
-"bus": [
-"#7E8BA3",
-"#97A6BF"
-]
-},
-{
-"id": "brno",
-"name": "Brno",
-"box": [
-48.6,
-15.5,
-49.7,
-17.7
-],
-"url": "cities/cz-brno.json",
 "bus": [
 "#7E8BA3",
 "#97A6BF"
@@ -1215,186 +1110,6 @@
 ]
 },
 {
-"id": "kazincbarcika",
-"name": "Kazincbarcika",
-"box": [
-48.204,
-20.553,
-48.284,
-20.658
-],
-"url": "cities/hu-kazincbarcika.json",
-"bus": [
-"#7E8BA3",
-"#97A6BF"
-]
-},
-{
-"id": "keszthely",
-"name": "Keszthely",
-"box": [
-46.729,
-17.197,
-46.807,
-17.307
-],
-"url": "cities/hu-keszthely.json",
-"bus": [
-"#7E8BA3",
-"#97A6BF"
-]
-},
-{
-"id": "komarom",
-"name": "Komárom",
-"box": [
-47.708,
-17.99,
-47.77,
-18.228
-],
-"url": "cities/hu-komarom.json",
-"bus": [
-"#7E8BA3",
-"#97A6BF"
-]
-},
-{
-"id": "komlo",
-"name": "Komló",
-"box": [
-46.155,
-18.188,
-46.248,
-18.328
-],
-"url": "cities/hu-komlo.json",
-"bus": [
-"#7E8BA3",
-"#97A6BF"
-]
-},
-{
-"id": "kormend",
-"name": "Körmend",
-"box": [
-46.982,
-16.514,
-47.045,
-16.636
-],
-"url": "cities/hu-kormend.json",
-"bus": [
-"#7E8BA3",
-"#97A6BF"
-]
-},
-{
-"id": "lenti",
-"name": "Lenti",
-"box": [
-46.564,
-16.491,
-46.701,
-16.611
-],
-"url": "cities/hu-lenti.json",
-"bus": [
-"#7E8BA3",
-"#97A6BF"
-]
-},
-{
-"id": "mako",
-"name": "Makó",
-"box": [
-46.199,
-20.446,
-46.263,
-20.541
-],
-"url": "cities/hu-mako.json",
-"bus": [
-"#7E8BA3",
-"#97A6BF"
-]
-},
-{
-"id": "mezokovesd",
-"name": "Mezőkövesd",
-"box": [
-47.773,
-20.494,
-47.833,
-20.621
-],
-"url": "cities/hu-mezokovesd.json",
-"bus": [
-"#7E8BA3",
-"#97A6BF"
-]
-},
-{
-"id": "mezotur",
-"name": "Mezőtúr",
-"box": [
-46.975,
-20.568,
-47.023,
-20.659
-],
-"url": "cities/hu-mezotur.json",
-"bus": [
-"#7E8BA3",
-"#97A6BF"
-]
-},
-{
-"id": "mohacs",
-"name": "Mohács",
-"box": [
-45.969,
-18.63,
-46.059,
-18.735
-],
-"url": "cities/hu-mohacs.json",
-"bus": [
-"#7E8BA3",
-"#97A6BF"
-]
-},
-{
-"id": "morahalom",
-"name": "Mórahalom",
-"box": [
-46.19,
-19.841,
-46.244,
-19.92
-],
-"url": "cities/hu-morahalom.json",
-"bus": [
-"#7E8BA3",
-"#97A6BF"
-]
-},
-{
-"id": "mosonmagyarovar",
-"name": "Mosonmagyaróvár",
-"box": [
-47.83,
-17.226,
-47.916,
-17.33
-],
-"url": "cities/hu-mosonmagyarovar.json",
-"bus": [
-"#7E8BA3",
-"#97A6BF"
-]
-},
-{
 "id": "n-reseau-de-transport-urbain-de-la-0875dc",
 "name": "Toulon-Provence-Méditerranée",
 "box": [
@@ -1434,216 +1149,6 @@
 5.964
 ],
 "url": "cities/fr-n-telepherique-du-mont-faron-d9d77b.json",
-"bus": [
-"#7E8BA3",
-"#97A6BF"
-]
-},
-{
-"id": "nagyatad",
-"name": "Nagyatád",
-"box": [
-46.201,
-17.327,
-46.255,
-17.407
-],
-"url": "cities/hu-nagyatad.json",
-"bus": [
-"#7E8BA3",
-"#97A6BF"
-]
-},
-{
-"id": "nagykanizsa",
-"name": "Nagykanizsa",
-"box": [
-46.373,
-16.899,
-46.526,
-17.102
-],
-"url": "cities/hu-nagykanizsa.json",
-"bus": [
-"#7E8BA3",
-"#97A6BF"
-]
-},
-{
-"id": "nyiregyhaza",
-"name": "Nyíregyháza",
-"box": [
-47.836,
-21.567,
-48.048,
-21.834
-],
-"url": "cities/hu-nyiregyhaza.json",
-"bus": [
-"#7E8BA3",
-"#97A6BF"
-]
-},
-{
-"id": "oroszlany",
-"name": "Oroszlány",
-"box": [
-47.449,
-18.258,
-47.517,
-18.356
-],
-"url": "cities/hu-oroszlany.json",
-"bus": [
-"#7E8BA3",
-"#97A6BF"
-]
-},
-{
-"id": "ozd",
-"name": "Ózd",
-"box": [
-48.154,
-20.187,
-48.296,
-20.394
-],
-"url": "cities/hu-ozd.json",
-"bus": [
-"#7E8BA3",
-"#97A6BF"
-]
-},
-{
-"id": "szentes",
-"name": "Szentes",
-"box": [
-46.63,
-20.217,
-46.694,
-20.302
-],
-"url": "cities/hu-szentes.json",
-"bus": [
-"#7E8BA3",
-"#97A6BF"
-]
-},
-{
-"id": "szigetvar",
-"name": "Szigetvár",
-"box": [
-46.024,
-17.746,
-46.101,
-17.89
-],
-"url": "cities/hu-szigetvar.json",
-"bus": [
-"#7E8BA3",
-"#97A6BF"
-]
-},
-{
-"id": "szolnok",
-"name": "Szolnok",
-"box": [
-47.099,
-20.099,
-47.219,
-20.272
-],
-"url": "cities/hu-szolnok.json",
-"bus": [
-"#7E8BA3",
-"#97A6BF"
-]
-},
-{
-"id": "tata",
-"name": "Tata",
-"box": [
-47.598,
-18.264,
-47.69,
-18.416
-],
-"url": "cities/hu-tata.json",
-"bus": [
-"#7E8BA3",
-"#97A6BF"
-]
-},
-{
-"id": "tiszafured",
-"name": "Tiszafüred",
-"box": [
-47.584,
-20.688,
-47.647,
-20.787
-],
-"url": "cities/hu-tiszafured.json",
-"bus": [
-"#7E8BA3",
-"#97A6BF"
-]
-},
-{
-"id": "tiszaujvaros",
-"name": "Tiszaújváros",
-"box": [
-47.886,
-21.002,
-47.953,
-21.11
-],
-"url": "cities/hu-tiszaujvaros.json",
-"bus": [
-"#7E8BA3",
-"#97A6BF"
-]
-},
-{
-"id": "ujszasz",
-"name": "Újszász",
-"box": [
-47.257,
-20.026,
-47.322,
-20.106
-],
-"url": "cities/hu-ujszasz.json",
-"bus": [
-"#7E8BA3",
-"#97A6BF"
-]
-},
-{
-"id": "vac",
-"name": "Vác",
-"box": [
-47.75,
-19.075,
-47.85,
-19.183
-],
-"url": "cities/hu-vac.json",
-"bus": [
-"#7E8BA3",
-"#97A6BF"
-]
-},
-{
-"id": "zalaegerszeg",
-"name": "Zalaegerszeg",
-"box": [
-46.765,
-16.754,
-46.907,
-16.91
-],
-"url": "cities/hu-zalaegerszeg.json",
 "bus": [
 "#7E8BA3",
 "#97A6BF"
@@ -1695,51 +1200,6 @@
 ]
 },
 {
-"id": "papa",
-"name": "Pápa",
-"box": [
-47.256,
-17.401,
-47.365,
-17.556
-],
-"url": "cities/hu-papa.json",
-"bus": [
-"#7E8BA3",
-"#97A6BF"
-]
-},
-{
-"id": "salgotarjan",
-"name": "Salgótarján",
-"box": [
-48.024,
-19.73,
-48.188,
-19.895
-],
-"url": "cities/hu-salgotarjan.json",
-"bus": [
-"#7E8BA3",
-"#97A6BF"
-]
-},
-{
-"id": "siklos",
-"name": "Siklós",
-"box": [
-45.836,
-18.24,
-45.896,
-18.327
-],
-"url": "cities/hu-siklos.json",
-"bus": [
-"#7E8BA3",
-"#97A6BF"
-]
-},
-{
 "id": "n-horaires-theoriques-et-temps-ree-92d6f3",
 "name": "Grand Calais Terres et Mers",
 "box": [
@@ -1749,66 +1209,6 @@
 1.999
 ],
 "url": "cities/fr-n-horaires-theoriques-et-temps-ree-92d6f3.json",
-"bus": [
-"#7E8BA3",
-"#97A6BF"
-]
-},
-{
-"id": "siofok",
-"name": "Siófok",
-"box": [
-46.831,
-17.964,
-46.96,
-18.16
-],
-"url": "cities/hu-siofok.json",
-"bus": [
-"#7E8BA3",
-"#97A6BF"
-]
-},
-{
-"id": "sopron",
-"name": "Sopron",
-"box": [
-47.63,
-16.459,
-47.746,
-16.696
-],
-"url": "cities/hu-sopron.json",
-"bus": [
-"#7E8BA3",
-"#97A6BF"
-]
-},
-{
-"id": "szekesfehervar",
-"name": "Székesfehérvár",
-"box": [
-47.117,
-18.327,
-47.26,
-18.549
-],
-"url": "cities/hu-szekesfehervar.json",
-"bus": [
-"#7E8BA3",
-"#97A6BF"
-]
-},
-{
-"id": "szekszard",
-"name": "Szekszárd",
-"box": [
-46.289,
-18.632,
-46.4,
-18.758
-],
-"url": "cities/hu-szekszard.json",
 "bus": [
 "#7E8BA3",
 "#97A6BF"
@@ -3074,6 +2474,606 @@
 20.965
 ],
 "url": "cities/hu-karcag.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "kazincbarcika",
+"name": "Kazincbarcika",
+"box": [
+48.204,
+20.553,
+48.284,
+20.658
+],
+"url": "cities/hu-kazincbarcika.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "keszthely",
+"name": "Keszthely",
+"box": [
+46.729,
+17.197,
+46.807,
+17.307
+],
+"url": "cities/hu-keszthely.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "komarom",
+"name": "Komárom",
+"box": [
+47.708,
+17.99,
+47.77,
+18.228
+],
+"url": "cities/hu-komarom.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "komlo",
+"name": "Komló",
+"box": [
+46.155,
+18.188,
+46.248,
+18.328
+],
+"url": "cities/hu-komlo.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "kormend",
+"name": "Körmend",
+"box": [
+46.982,
+16.514,
+47.045,
+16.636
+],
+"url": "cities/hu-kormend.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "lenti",
+"name": "Lenti",
+"box": [
+46.564,
+16.491,
+46.701,
+16.611
+],
+"url": "cities/hu-lenti.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "mako",
+"name": "Makó",
+"box": [
+46.199,
+20.446,
+46.263,
+20.541
+],
+"url": "cities/hu-mako.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "mezokovesd",
+"name": "Mezőkövesd",
+"box": [
+47.773,
+20.494,
+47.833,
+20.621
+],
+"url": "cities/hu-mezokovesd.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "mezotur",
+"name": "Mezőtúr",
+"box": [
+46.975,
+20.568,
+47.023,
+20.659
+],
+"url": "cities/hu-mezotur.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "mohacs",
+"name": "Mohács",
+"box": [
+45.969,
+18.63,
+46.059,
+18.735
+],
+"url": "cities/hu-mohacs.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "morahalom",
+"name": "Mórahalom",
+"box": [
+46.19,
+19.841,
+46.244,
+19.92
+],
+"url": "cities/hu-morahalom.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "mosonmagyarovar",
+"name": "Mosonmagyaróvár",
+"box": [
+47.83,
+17.226,
+47.916,
+17.33
+],
+"url": "cities/hu-mosonmagyarovar.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "nagyatad",
+"name": "Nagyatád",
+"box": [
+46.201,
+17.327,
+46.255,
+17.407
+],
+"url": "cities/hu-nagyatad.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "nagykanizsa",
+"name": "Nagykanizsa",
+"box": [
+46.373,
+16.899,
+46.526,
+17.102
+],
+"url": "cities/hu-nagykanizsa.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "nyiregyhaza",
+"name": "Nyíregyháza",
+"box": [
+47.836,
+21.567,
+48.048,
+21.834
+],
+"url": "cities/hu-nyiregyhaza.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "oroszlany",
+"name": "Oroszlány",
+"box": [
+47.449,
+18.258,
+47.517,
+18.356
+],
+"url": "cities/hu-oroszlany.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "ozd",
+"name": "Ózd",
+"box": [
+48.154,
+20.187,
+48.296,
+20.394
+],
+"url": "cities/hu-ozd.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "papa",
+"name": "Pápa",
+"box": [
+47.256,
+17.401,
+47.365,
+17.556
+],
+"url": "cities/hu-papa.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "salgotarjan",
+"name": "Salgótarján",
+"box": [
+48.024,
+19.73,
+48.188,
+19.895
+],
+"url": "cities/hu-salgotarjan.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "siklos",
+"name": "Siklós",
+"box": [
+45.836,
+18.24,
+45.896,
+18.327
+],
+"url": "cities/hu-siklos.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "siofok",
+"name": "Siófok",
+"box": [
+46.831,
+17.964,
+46.96,
+18.16
+],
+"url": "cities/hu-siofok.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "sopron",
+"name": "Sopron",
+"box": [
+47.63,
+16.459,
+47.746,
+16.696
+],
+"url": "cities/hu-sopron.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "szekesfehervar",
+"name": "Székesfehérvár",
+"box": [
+47.117,
+18.327,
+47.26,
+18.549
+],
+"url": "cities/hu-szekesfehervar.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "szekszard",
+"name": "Szekszárd",
+"box": [
+46.289,
+18.632,
+46.4,
+18.758
+],
+"url": "cities/hu-szekszard.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "szentes",
+"name": "Szentes",
+"box": [
+46.63,
+20.217,
+46.694,
+20.302
+],
+"url": "cities/hu-szentes.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "szigetvar",
+"name": "Szigetvár",
+"box": [
+46.024,
+17.746,
+46.101,
+17.89
+],
+"url": "cities/hu-szigetvar.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "szolnok",
+"name": "Szolnok",
+"box": [
+47.099,
+20.099,
+47.219,
+20.272
+],
+"url": "cities/hu-szolnok.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "tata",
+"name": "Tata",
+"box": [
+47.598,
+18.264,
+47.69,
+18.416
+],
+"url": "cities/hu-tata.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "tiszafured",
+"name": "Tiszafüred",
+"box": [
+47.584,
+20.688,
+47.647,
+20.787
+],
+"url": "cities/hu-tiszafured.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "tiszaujvaros",
+"name": "Tiszaújváros",
+"box": [
+47.886,
+21.002,
+47.953,
+21.11
+],
+"url": "cities/hu-tiszaujvaros.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "ujszasz",
+"name": "Újszász",
+"box": [
+47.257,
+20.026,
+47.322,
+20.106
+],
+"url": "cities/hu-ujszasz.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "vac",
+"name": "Vác",
+"box": [
+47.75,
+19.075,
+47.85,
+19.183
+],
+"url": "cities/hu-vac.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "zalaegerszeg",
+"name": "Zalaegerszeg",
+"box": [
+46.765,
+16.754,
+46.907,
+16.91
+],
+"url": "cities/hu-zalaegerszeg.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "brno",
+"name": "Brno",
+"box": [
+48.6,
+15.5,
+49.7,
+17.7
+],
+"url": "cities/cz-brno.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "plzen",
+"name": "Plzeň",
+"box": [
+49.637,
+13.17,
+49.837,
+13.527
+],
+"url": "cities/cz-plzen.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "olomouc",
+"name": "Olomouc",
+"box": [
+49.537,
+17.149,
+49.663,
+17.394
+],
+"url": "cities/cz-olomouc.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "ostrava",
+"name": "Ostrava",
+"box": [
+49.712,
+18.05,
+49.944,
+18.421
+],
+"url": "cities/cz-ostrava.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "liberec",
+"name": "Liberec",
+"box": [
+50.694,
+14.902,
+50.83,
+15.456
+],
+"url": "cities/cz-liberec.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "most",
+"name": "Most",
+"box": [
+50.402,
+13.497,
+50.646,
+13.734
+],
+"url": "cities/cz-most.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "usti",
+"name": "Ústí nad Labem",
+"box": [
+50.569,
+13.89,
+50.726,
+14.153
+],
+"url": "cities/cz-usti.json",
 "bus": [
 "#7E8BA3",
 "#97A6BF"
