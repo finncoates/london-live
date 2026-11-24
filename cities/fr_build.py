@@ -68,7 +68,10 @@ with zipfile.ZipFile(sub, 'w', zipfile.ZIP_DEFLATED) as out:
 # 2. the area: the box given, or where the city's stops are (trimmed of the odd far-away stop)
 if a.box: S, W, N, E = map(float, a.box.split(','))
 else:
-    la = sorted(float(byid[s]['stop_lat']) for s in need_stops if s in byid and byid[s]['stop_lat']); lo = sorted(float(byid[s]['stop_lon']) for s in need_stops if s in byid and byid[s]['stop_lon'])
+    ok_ = lambda s: s in byid and byid[s]['stop_lat'] and byid[s]['stop_lon'] and not (abs(float(byid[s]['stop_lat'])) < 1 and abs(float(byid[s]['stop_lon'])) < 1)  # (stops at 0°, 0°: Toul's)
+    P_ = [(float(byid[s]['stop_lat']), float(byid[s]['stop_lon'])) for s in need_stops if ok_(s)]
+    if P_: mla, mlo = sorted(p[0] for p in P_)[len(P_)//2], sorted(p[1] for p in P_)[len(P_)//2]; P_ = [p for p in P_ if abs(p[0]-mla) < 1.5 and abs(p[1]-mlo) < 2]  # stops placed far off (Toul's: in the Sahara)
+    la = sorted(p[0] for p in P_); lo = sorted(p[1] for p in P_)
     q = lambda v, f: v[min(len(v) - 1, max(0, int(len(v)*f)))]
     if not la or not lo: sys.exit('no stops with a place in this timetable')
     S, N, W, E = q(la, 0.005) - 0.02, q(la, 0.995) + 0.02, q(lo, 0.005) - 0.03, q(lo, 0.995) + 0.03

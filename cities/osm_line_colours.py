@@ -43,5 +43,9 @@ for f in files:
     for st in d.get('stations', []):
         for x in st[4]:
             if x[0] in cols and x[1].lower() in DEFAULT: x[1] = cols[x[0]]
-    json.dump(d, open(f, 'w', encoding='utf-8'), ensure_ascii=False, separators=(',', ':'))
+    for _k in range(20):  # written whole then swapped in, retried: Windows refuses a file another process has open
+        try:
+            with open(f + '.tmp', 'w', encoding='utf-8') as o_: json.dump(d, o_, separators=(',', ':'), ensure_ascii=False)
+            os.replace(f + '.tmp', f); break
+        except OSError: __import__('time').sleep(0.5)
     print(os.path.basename(f), n, 'of', len(d['lines']), 'lines coloured from OpenStreetMap', sorted({(l['name'], l['col']) for l in d['lines']})[:30], flush=True)

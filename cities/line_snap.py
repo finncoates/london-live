@@ -27,5 +27,9 @@ for f in files:
         L = sum(m(p[j-1], p[j]) for j in range(1, len(p)))
         if L > 1.6*m(a, b) + 500: continue  # a detour, not the same line
         l['pts'][i+1:i+1] = [[round(x, 5), round(y, 5)] for x, y in p[1:-1]]; fixed += 1
-    json.dump(d, open(f, 'w', encoding='utf-8'), separators=(',', ':'), ensure_ascii=False)
+    for _k in range(20):  # written whole then swapped in, retried: Windows refuses a file another process has open
+        try:
+            with open(f + '.tmp', 'w', encoding='utf-8') as o_: json.dump(d, o_, separators=(',', ':'), ensure_ascii=False)
+            os.replace(f + '.tmp', f); break
+        except OSError: __import__('time').sleep(0.5)
     print(os.path.basename(f), fixed, 'of', len(todo), 'straight hops put on the track', flush=True)

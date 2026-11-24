@@ -1,35 +1,5 @@
 [
 {
-"id": "corse",
-"name": "Corse",
-"box": [
-41.3,
-8.5,
-43.1,
-9.6
-],
-"url": "cities/fr-corse.json",
-"bus": [
-"#7E8BA3",
-"#97A6BF"
-]
-},
-{
-"id": "antwerp",
-"name": "Antwerp",
-"box": [
-51.13,
-4.25,
-51.32,
-4.55
-],
-"url": "cities/be-antwerp.json",
-"bus": [
-"#7E8BA3",
-"#97A6BF"
-]
-},
-{
 "id": "gent",
 "name": "Ghent",
 "box": [
@@ -75,36 +45,6 @@
 ]
 },
 {
-"id": "dublin",
-"name": "Dublin",
-"box": [
-53.2,
--6.5,
-53.5,
--6.0
-],
-"url": "cities/ie-dublin.json",
-"bus": [
-"#7E8BA3",
-"#97A6BF"
-]
-},
-{
-"id": "aarhus",
-"name": "Aarhus",
-"box": [
-56.0,
-9.9,
-56.45,
-10.45
-],
-"url": "cities/dk-aarhus.json",
-"bus": [
-"#7E8BA3",
-"#97A6BF"
-]
-},
-{
 "id": "odense",
 "name": "Odense",
 "box": [
@@ -114,21 +54,6 @@
 10.5
 ],
 "url": "cities/dk-odense.json",
-"bus": [
-"#7E8BA3",
-"#97A6BF"
-]
-},
-{
-"id": "copenhagen",
-"name": "Copenhagen",
-"box": [
-55.45,
-12.05,
-55.98,
-12.7
-],
-"url": "cities/dk-copenhagen.json",
 "bus": [
 "#7E8BA3",
 "#97A6BF"
@@ -174,21 +99,6 @@
 -1.644
 ],
 "url": "cities/fr-n-horaires-des-bacs-de-loire-en-lo-e81cf4.json",
-"bus": [
-"#7E8BA3",
-"#97A6BF"
-]
-},
-{
-"id": "riga",
-"name": "Riga",
-"box": [
-56.843,
-23.884,
-57.081,
-24.37
-],
-"url": "cities/lv-riga.json",
 "bus": [
 "#7E8BA3",
 "#97A6BF"
@@ -369,96 +279,6 @@
 -2.109
 ],
 "url": "cities/fr-n-arrets-horaires-et-circuit-de-la-4ef77c.json",
-"bus": [
-"#7E8BA3",
-"#97A6BF"
-]
-},
-{
-"id": "n-gtfs-du-reseau-des-transports-bu-10fa4a",
-"name": "Le Mans Métropole",
-"box": [
-47.887,
-0.049,
-48.09,
-0.375
-],
-"url": "cities/fr-n-gtfs-du-reseau-des-transports-bu-10fa4a.json",
-"bus": [
-"#7E8BA3",
-"#97A6BF"
-]
-},
-{
-"id": "paris",
-"name": "Paris",
-"box": [
-48.1,
-1.4,
-49.25,
-3.6
-],
-"url": "cities/fr-paris.json",
-"bus": [
-"#7E8BA3",
-"#97A6BF"
-]
-},
-{
-"id": "bordeaux",
-"name": "Bordeaux",
-"box": [
-44.738,
--0.812,
-45.034,
--0.444
-],
-"url": "cities/fr-bordeaux.json",
-"bus": [
-"#7E8BA3",
-"#97A6BF"
-]
-},
-{
-"id": "marseille",
-"name": "Marseille",
-"box": [
-43.209,
-5.28,
-43.427,
-5.54
-],
-"url": "cities/fr-marseille.json",
-"bus": [
-"#7E8BA3",
-"#97A6BF"
-]
-},
-{
-"id": "nice",
-"name": "Nice",
-"box": [
-43.636,
-6.904,
-44.248,
-7.408
-],
-"url": "cities/fr-nice.json",
-"bus": [
-"#7E8BA3",
-"#97A6BF"
-]
-},
-{
-"id": "nantes",
-"name": "Nantes",
-"box": [
-47.106,
--1.782,
-47.341,
--1.349
-],
-"url": "cities/fr-nantes.json",
 "bus": [
 "#7E8BA3",
 "#97A6BF"
@@ -675,21 +495,6 @@
 ]
 },
 {
-"id": "strasbourg",
-"name": "Strasbourg",
-"box": [
-48.449,
-7.574,
-48.698,
-7.856
-],
-"url": "cities/fr-strasbourg.json",
-"bus": [
-"#7E8BA3",
-"#97A6BF"
-]
-},
-{
 "id": "rennes",
 "name": "Rennes",
 "box": [
@@ -699,21 +504,6 @@
 -1.472
 ],
 "url": "cities/fr-rennes.json",
-"bus": [
-"#7E8BA3",
-"#97A6BF"
-]
-},
-{
-"id": "lille",
-"name": "Lille",
-"box": [
-50.501,
-2.782,
-50.803,
-3.278
-],
-"url": "cities/fr-lille.json",
 "bus": [
 "#7E8BA3",
 "#97A6BF"
@@ -945,21 +735,6 @@
 ]
 },
 {
-"id": "nl-amsterdam",
-"name": "Amsterdam",
-"box": [
-52.255,
-4.73,
-52.442,
-5.069
-],
-"url": "cities/nl-nl-amsterdam.json",
-"bus": [
-"#7E8BA3",
-"#97A6BF"
-]
-},
-{
 "id": "plzen",
 "name": "Plzeň",
 "box": [
@@ -984,21 +759,6 @@
 17.394
 ],
 "url": "cities/cz-olomouc.json",
-"bus": [
-"#7E8BA3",
-"#97A6BF"
-]
-},
-{
-"id": "nl-rotterdam",
-"name": "Rotterdam",
-"box": [
-51.802,
-4.101,
-52.084,
-4.688
-],
-"url": "cities/nl-nl-rotterdam.json",
 "bus": [
 "#7E8BA3",
 "#97A6BF"
@@ -1035,21 +795,6 @@
 ]
 },
 {
-"id": "nl-denhaag",
-"name": "Den Haag",
-"box": [
-51.961,
-4.191,
-52.163,
-4.564
-],
-"url": "cities/nl-nl-denhaag.json",
-"bus": [
-"#7E8BA3",
-"#97A6BF"
-]
-},
-{
 "id": "nl-utrecht",
 "name": "Utrecht",
 "box": [
@@ -1059,21 +804,6 @@
 5.68
 ],
 "url": "cities/nl-nl-utrecht.json",
-"bus": [
-"#7E8BA3",
-"#97A6BF"
-]
-},
-{
-"id": "prague",
-"name": "Prague",
-"box": [
-49.3,
-13.3,
-50.8,
-15.65
-],
-"url": "cities/cz-prague.json",
 "bus": [
 "#7E8BA3",
 "#97A6BF"
@@ -1104,36 +834,6 @@
 15.456
 ],
 "url": "cities/cz-liberec.json",
-"bus": [
-"#7E8BA3",
-"#97A6BF"
-]
-},
-{
-"id": "toulouse",
-"name": "Toulouse",
-"box": [
-43.4,
-1.155,
-43.747,
-1.65
-],
-"url": "cities/fr-toulouse.json",
-"bus": [
-"#7E8BA3",
-"#97A6BF"
-]
-},
-{
-"id": "brussels",
-"name": "Brussels",
-"box": [
-50.756,
-4.245,
-50.939,
-4.529
-],
-"url": "cities/be-brussels.json",
 "bus": [
 "#7E8BA3",
 "#97A6BF"
@@ -1530,21 +1230,6 @@
 ]
 },
 {
-"id": "n-horaires-theoriques-du-reseau-ta-cb5a48",
-"name": "Grenoble-Alpes-Métropole",
-"box": [
-44.97,
-5.582,
-45.379,
-5.985
-],
-"url": "cities/fr-n-horaires-theoriques-du-reseau-ta-cb5a48.json",
-"bus": [
-"#7E8BA3",
-"#97A6BF"
-]
-},
-{
 "id": "balassagyarmat",
 "name": "Balassagyarmat",
 "box": [
@@ -1884,21 +1569,6 @@
 21.447
 ],
 "url": "cities/hu-hajduszoboszlo.json",
-"bus": [
-"#7E8BA3",
-"#97A6BF"
-]
-},
-{
-"id": "n-horaires-theoriques-et-temps-ree-3362f0",
-"name": "Brest Métropole",
-"box": [
-48.335,
--4.648,
-48.476,
--4.319
-],
-"url": "cities/fr-n-horaires-theoriques-et-temps-ree-3362f0.json",
 "bus": [
 "#7E8BA3",
 "#97A6BF"
@@ -2385,66 +2055,6 @@
 ]
 },
 {
-"id": "lisbon",
-"name": "Lisbon",
-"box": [
-38.617,
--9.273,
-38.814,
--8.976
-],
-"url": "cities/pt-lisbon-carris.json",
-"urls": [
-"cities/pt-lisbon-carris.json",
-"cities/pt-lisbon-mts.json",
-"cities/pt-lisbon-metro.json",
-"cities/pt-lisbon-ferries.json"
-],
-"bus": [
-"#7E8BA3",
-"#97A6BF"
-]
-},
-{
-"id": "zagreb",
-"name": "Zagreb",
-"box": [
-45.592,
-15.758,
-45.957,
-16.218
-],
-"url": "cities/hr-zagreb-zet.json",
-"urls": [
-"cities/hr-zagreb-zet.json",
-"cities/hr-zagreb-extra.json"
-],
-"bus": [
-"#7E8BA3",
-"#97A6BF"
-]
-},
-{
-"id": "budapest",
-"name": "Budapest",
-"box": [
-47.15,
-18.65,
-47.85,
-19.45
-],
-"url": "cities/hu-budapest-bkk.json",
-"urls": [
-"cities/hu-budapest-bkk.json",
-"cities/hu-budapest-funicular.json",
-"cities/hu-budapest-chairlift.json"
-],
-"bus": [
-"#7E8BA3",
-"#97A6BF"
-]
-},
-{
 "id": "n-uba-horaires-navettes-maritimes-0129ab",
 "name": "Andernos-les-Bains",
 "box": [
@@ -2514,21 +2124,6 @@
 19.895
 ],
 "url": "cities/hu-salgotarjan.json",
-"bus": [
-"#7E8BA3",
-"#97A6BF"
-]
-},
-{
-"id": "n-simouv-horaires-theoriques-forma-f6e4f9",
-"name": "Valenciennes Métropole",
-"box": [
-50.234,
-3.235,
-50.528,
-3.7
-],
-"url": "cities/fr-n-simouv-horaires-theoriques-forma-f6e4f9.json",
 "bus": [
 "#7E8BA3",
 "#97A6BF"
@@ -2640,21 +2235,6 @@
 ]
 },
 {
-"id": "n-syndicat-mixte-des-transports-en-cd4f63",
-"name": "Clermont Auvergne Métropole",
-"box": [
-45.686,
-2.955,
-45.874,
-3.29
-],
-"url": "cities/fr-n-syndicat-mixte-des-transports-en-cd4f63.json",
-"bus": [
-"#7E8BA3",
-"#97A6BF"
-]
-},
-{
 "id": "andorra",
 "name": "Andorra",
 "box": [
@@ -2664,146 +2244,6 @@
 1.726
 ],
 "url": "cities/ad-andorra.json",
-"bus": [
-"#7E8BA3",
-"#97A6BF"
-]
-},
-{
-"id": "basel",
-"name": "Basel",
-"box": [
-47.371,
-7.469,
-47.613,
-7.896
-],
-"url": "cities/ch-basel.json",
-"bus": [
-"#7E8BA3",
-"#97A6BF"
-],
-"urls": [
-"cities/ch-basel.json",
-"cities/ch-lifts.json",
-"cities/ch-boats.json"
-]
-},
-{
-"id": "bern",
-"name": "Bern",
-"box": [
-46.787,
-7.205,
-47.028,
-7.655
-],
-"url": "cities/ch-bern.json",
-"bus": [
-"#7E8BA3",
-"#97A6BF"
-],
-"urls": [
-"cities/ch-bern.json",
-"cities/ch-lifts.json",
-"cities/ch-boats.json"
-]
-},
-{
-"id": "lucerne",
-"name": "Lucerne",
-"box": [
-46.944,
-8.043,
-47.18,
-8.581
-],
-"url": "cities/ch-lucerne.json",
-"bus": [
-"#7E8BA3",
-"#97A6BF"
-],
-"urls": [
-"cities/ch-lucerne.json",
-"cities/ch-lifts.json",
-"cities/ch-boats.json"
-]
-},
-{
-"id": "geneva",
-"name": "Geneva",
-"box": [
-46.089,
-5.938,
-46.345,
-6.302
-],
-"url": "cities/ch-geneva.json",
-"bus": [
-"#7E8BA3",
-"#97A6BF"
-],
-"urls": [
-"cities/ch-geneva.json",
-"cities/ch-lifts.json",
-"cities/ch-boats.json"
-]
-},
-{
-"id": "lausanne",
-"name": "Lausanne",
-"box": [
-46.483,
-6.499,
-46.675,
-6.738
-],
-"url": "cities/ch-lausanne.json",
-"bus": [
-"#7E8BA3",
-"#97A6BF"
-],
-"urls": [
-"cities/ch-lausanne.json",
-"cities/ch-lifts.json",
-"cities/ch-boats.json"
-]
-},
-{
-"id": "zurich",
-"name": "Zürich",
-"box": [
-47.202,
-7.822,
-47.492,
-8.959
-],
-"url": "cities/ch-zurich.json",
-"bus": [
-"#7E8BA3",
-"#97A6BF"
-],
-"urls": [
-"cities/ch-zurich.json",
-"cities/ch-lifts.json",
-"cities/ch-boats.json"
-]
-},
-{
-"id": "switzerland",
-"name": "Switzerland",
-"box": [
-45.8,
-5.9,
-47.85,
-10.55
-],
-"cc": "ch",
-"url": "cities/ch-lifts.json",
-"urls": [
-"cities/ch-lifts.json",
-"cities/ch-boats.json"
-],
 "bus": [
 "#7E8BA3",
 "#97A6BF"
@@ -2849,51 +2289,6 @@
 -1.642
 ],
 "url": "cities/fr-n-lignes-arrets-et-horaires-theori-692ae8.json",
-"bus": [
-"#7E8BA3",
-"#97A6BF"
-]
-},
-{
-"id": "n-fil-bleu-syndicat-des-mobilites-d39dc6",
-"name": "Tours Métropole Val de Loire",
-"box": [
-47.297,
-0.48,
-47.492,
-0.875
-],
-"url": "cities/fr-n-fil-bleu-syndicat-des-mobilites-d39dc6.json",
-"bus": [
-"#7E8BA3",
-"#97A6BF"
-]
-},
-{
-"id": "n-gtfs-netex-et-gtfs-rt-reseau-tao-c78b88",
-"name": "Orléans Métropole",
-"box": [
-47.793,
-1.775,
-47.987,
-2.089
-],
-"url": "cities/fr-n-gtfs-netex-et-gtfs-rt-reseau-tao-c78b88.json",
-"bus": [
-"#7E8BA3",
-"#97A6BF"
-]
-},
-{
-"id": "n-offre-de-transport-du-reseau-gra-5b472c",
-"name": "Grand Reims",
-"box": [
-49.157,
-3.662,
-49.405,
-4.316
-],
-"url": "cities/fr-n-offre-de-transport-du-reseau-gra-5b472c.json",
 "bus": [
 "#7E8BA3",
 "#97A6BF"
@@ -2954,36 +2349,6 @@
 0.384
 ],
 "url": "cities/fr-n-reseau-de-transport-en-commun-li-ff9f5d.json",
-"bus": [
-"#7E8BA3",
-"#97A6BF"
-]
-},
-{
-"id": "n-fr-200052264-t0014-0000-1-19aa15",
-"name": "Mulhouse Alsace Agglomération",
-"box": [
-47.665,
-7.071,
-47.889,
-7.574
-],
-"url": "cities/fr-n-fr-200052264-t0014-0000-1-19aa15.json",
-"bus": [
-"#7E8BA3",
-"#97A6BF"
-]
-},
-{
-"id": "n-offre-de-transport-solea-et-tram-d65762",
-"name": "Mulhouse Alsace Agglomération",
-"box": [
-47.665,
-7.071,
-47.889,
-7.574
-],
-"url": "cities/fr-n-offre-de-transport-solea-et-tram-d65762.json",
 "bus": [
 "#7E8BA3",
 "#97A6BF"
@@ -3065,6 +2430,36 @@
 ]
 },
 {
+"id": "bordeaux",
+"name": "Bordeaux",
+"box": [
+44.738,
+-0.812,
+45.034,
+-0.444
+],
+"url": "cities/fr-bordeaux.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "paris",
+"name": "Paris",
+"box": [
+48.1,
+1.4,
+49.25,
+3.6
+],
+"url": "cities/fr-paris.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
 "id": "lyon",
 "name": "Lyon",
 "box": [
@@ -3074,6 +2469,611 @@
 5.102
 ],
 "url": "cities/fr-lyon.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "nice",
+"name": "Nice",
+"box": [
+43.636,
+6.904,
+44.248,
+7.408
+],
+"url": "cities/fr-nice.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "nantes",
+"name": "Nantes",
+"box": [
+47.106,
+-1.782,
+47.341,
+-1.349
+],
+"url": "cities/fr-nantes.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "marseille",
+"name": "Marseille",
+"box": [
+43.209,
+5.28,
+43.427,
+5.54
+],
+"url": "cities/fr-marseille.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "lille",
+"name": "Lille",
+"box": [
+50.501,
+2.782,
+50.803,
+3.278
+],
+"url": "cities/fr-lille.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "strasbourg",
+"name": "Strasbourg",
+"box": [
+48.449,
+7.574,
+48.698,
+7.856
+],
+"url": "cities/fr-strasbourg.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "toulouse",
+"name": "Toulouse",
+"box": [
+43.4,
+1.155,
+43.747,
+1.65
+],
+"url": "cities/fr-toulouse.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "prague",
+"name": "Prague",
+"box": [
+49.3,
+13.3,
+50.8,
+15.65
+],
+"url": "cities/cz-prague.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "riga",
+"name": "Riga",
+"box": [
+56.843,
+23.884,
+57.081,
+24.37
+],
+"url": "cities/lv-riga.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "corse",
+"name": "Corse",
+"box": [
+41.908,
+8.709,
+42.722,
+9.479
+],
+"url": "cities/fr-corse.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "copenhagen",
+"name": "Copenhagen",
+"box": [
+55.45,
+12.05,
+55.98,
+12.7
+],
+"url": "cities/dk-copenhagen.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "aarhus",
+"name": "Aarhus",
+"box": [
+56.0,
+9.9,
+56.45,
+10.45
+],
+"url": "cities/dk-aarhus.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "n-fil-bleu-syndicat-des-mobilites-d39dc6",
+"name": "Tours Métropole Val de Loire",
+"box": [
+47.297,
+0.48,
+47.492,
+0.875
+],
+"url": "cities/fr-n-fil-bleu-syndicat-des-mobilites-d39dc6.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "n-fr-200052264-t0014-0000-1-19aa15",
+"name": "Mulhouse Alsace Agglomération",
+"box": [
+47.665,
+7.071,
+47.889,
+7.574
+],
+"url": "cities/fr-n-fr-200052264-t0014-0000-1-19aa15.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "n-gtfs-du-reseau-des-transports-bu-10fa4a",
+"name": "Le Mans Métropole",
+"box": [
+47.887,
+0.049,
+48.09,
+0.375
+],
+"url": "cities/fr-n-gtfs-du-reseau-des-transports-bu-10fa4a.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "n-gtfs-netex-et-gtfs-rt-reseau-tao-c78b88",
+"name": "Orléans Métropole",
+"box": [
+47.793,
+1.775,
+47.987,
+2.089
+],
+"url": "cities/fr-n-gtfs-netex-et-gtfs-rt-reseau-tao-c78b88.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "n-horaires-theoriques-du-reseau-ta-cb5a48",
+"name": "Grenoble-Alpes-Métropole",
+"box": [
+44.97,
+5.582,
+45.379,
+5.985
+],
+"url": "cities/fr-n-horaires-theoriques-du-reseau-ta-cb5a48.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "n-horaires-theoriques-et-temps-ree-3362f0",
+"name": "Brest Métropole",
+"box": [
+48.335,
+-4.648,
+48.476,
+-4.319
+],
+"url": "cities/fr-n-horaires-theoriques-et-temps-ree-3362f0.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "n-offre-de-transport-du-reseau-gra-5b472c",
+"name": "Grand Reims",
+"box": [
+49.157,
+3.662,
+49.405,
+4.316
+],
+"url": "cities/fr-n-offre-de-transport-du-reseau-gra-5b472c.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "n-offre-de-transport-solea-et-tram-d65762",
+"name": "Mulhouse Alsace Agglomération",
+"box": [
+47.665,
+7.071,
+47.889,
+7.574
+],
+"url": "cities/fr-n-offre-de-transport-solea-et-tram-d65762.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "n-simouv-horaires-theoriques-forma-f6e4f9",
+"name": "Valenciennes Métropole",
+"box": [
+50.234,
+3.235,
+50.528,
+3.7
+],
+"url": "cities/fr-n-simouv-horaires-theoriques-forma-f6e4f9.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "n-syndicat-mixte-des-transports-en-cd4f63",
+"name": "Clermont Auvergne Métropole",
+"box": [
+45.686,
+2.955,
+45.874,
+3.29
+],
+"url": "cities/fr-n-syndicat-mixte-des-transports-en-cd4f63.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "nl-amsterdam",
+"name": "Amsterdam",
+"box": [
+52.255,
+4.73,
+52.442,
+5.069
+],
+"url": "cities/nl-nl-amsterdam.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "nl-rotterdam",
+"name": "Rotterdam",
+"box": [
+51.802,
+4.101,
+52.084,
+4.688
+],
+"url": "cities/nl-nl-rotterdam.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "nl-denhaag",
+"name": "Den Haag",
+"box": [
+51.961,
+4.191,
+52.163,
+4.564
+],
+"url": "cities/nl-nl-denhaag.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "antwerp",
+"name": "Antwerp",
+"box": [
+51.13,
+4.25,
+51.32,
+4.55
+],
+"url": "cities/be-antwerp.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "dublin",
+"name": "Dublin",
+"box": [
+53.2,
+-6.5,
+53.5,
+-6.0
+],
+"url": "cities/ie-dublin.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "lisbon",
+"name": "Lisbon",
+"box": [
+38.617,
+-9.273,
+38.814,
+-8.976
+],
+"url": "cities/pt-lisbon-carris.json",
+"urls": [
+"cities/pt-lisbon-carris.json",
+"cities/pt-lisbon-mts.json",
+"cities/pt-lisbon-metro.json",
+"cities/pt-lisbon-ferries.json"
+],
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "zagreb",
+"name": "Zagreb",
+"box": [
+45.592,
+15.758,
+45.957,
+16.218
+],
+"url": "cities/hr-zagreb-zet.json",
+"urls": [
+"cities/hr-zagreb-zet.json",
+"cities/hr-zagreb-extra.json"
+],
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "budapest",
+"name": "Budapest",
+"box": [
+47.15,
+18.65,
+47.85,
+19.45
+],
+"url": "cities/hu-budapest-bkk.json",
+"urls": [
+"cities/hu-budapest-bkk.json",
+"cities/hu-budapest-funicular.json",
+"cities/hu-budapest-chairlift.json"
+],
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "brussels",
+"name": "Brussels",
+"box": [
+50.756,
+4.245,
+50.939,
+4.529
+],
+"url": "cities/be-brussels.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "lucerne",
+"name": "Lucerne",
+"box": [
+46.944,
+8.043,
+47.18,
+8.581
+],
+"url": "cities/ch-lucerne.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+],
+"urls": [
+"cities/ch-lucerne.json",
+"cities/ch-lifts.json",
+"cities/ch-boats.json"
+]
+},
+{
+"id": "bern",
+"name": "Bern",
+"box": [
+46.787,
+7.205,
+47.028,
+7.655
+],
+"url": "cities/ch-bern.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+],
+"urls": [
+"cities/ch-bern.json",
+"cities/ch-lifts.json",
+"cities/ch-boats.json"
+]
+},
+{
+"id": "geneva",
+"name": "Geneva",
+"box": [
+46.089,
+5.938,
+46.345,
+6.302
+],
+"url": "cities/ch-geneva.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+],
+"urls": [
+"cities/ch-geneva.json",
+"cities/ch-lifts.json",
+"cities/ch-boats.json"
+]
+},
+{
+"id": "zurich",
+"name": "Zürich",
+"box": [
+47.202,
+7.822,
+47.492,
+8.959
+],
+"url": "cities/ch-zurich.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+],
+"urls": [
+"cities/ch-zurich.json",
+"cities/ch-lifts.json",
+"cities/ch-boats.json"
+]
+},
+{
+"id": "lausanne",
+"name": "Lausanne",
+"box": [
+46.483,
+6.499,
+46.675,
+6.738
+],
+"url": "cities/ch-lausanne.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+],
+"urls": [
+"cities/ch-lausanne.json",
+"cities/ch-lifts.json",
+"cities/ch-boats.json"
+]
+},
+{
+"id": "basel",
+"name": "Basel",
+"box": [
+47.371,
+7.469,
+47.613,
+7.896
+],
+"url": "cities/ch-basel.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+],
+"urls": [
+"cities/ch-basel.json",
+"cities/ch-lifts.json",
+"cities/ch-boats.json"
+]
+},
+{
+"id": "switzerland",
+"name": "Switzerland",
+"box": [
+45.8,
+5.9,
+47.85,
+10.55
+],
+"cc": "ch",
+"url": "cities/ch-lifts.json",
+"urls": [
+"cities/ch-lifts.json",
+"cities/ch-boats.json"
+],
 "bus": [
 "#7E8BA3",
 "#97A6BF"

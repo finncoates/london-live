@@ -41,7 +41,7 @@ def feed_routes(zf):
             for s in csv.DictReader(io.TextIOWrapper(f, 'utf-8-sig')):
                 if s['trip_id'] in want: seq[s['trip_id']].append((int(s['stop_sequence']), s['stop_id']))
         need = {sid for v in seq.values() for _, sid in v}
-        stp = {s['stop_id']: (float(s['stop_lat']), float(s['stop_lon'])) for s in rd('stops.txt') if s['stop_id'] in need and s.get('stop_lat')}
+        stp = {s['stop_id']: (float(s['stop_lat']), float(s['stop_lon'])) for s in rd('stops.txt') if s['stop_id'] in need and s.get('stop_lat') and not (abs(float(s['stop_lat'])) < 1 and abs(float(s['stop_lon'])) < 1)}  # (not at 0°, 0°)
         done2 = set()
         for v in seq.values():
             v.sort(); key = tuple(sid for _, sid in v)
@@ -73,7 +73,7 @@ def match(pbf, out, zips):
             if gc > g.get(n, 1e18): continue
             if f > cap: return None
             steps += 1
-            if steps > 4000: return None
+            if steps > 30000: return None  # (Switzerland's roads are mapped densely: 4,000 steps failed most hops in Lucerne)
             for m, d in adj[n]:
                 ng = gc + d
                 if ng < g.get(m, 1e18): g[m] = ng; came[m] = n; heapq.heappush(pq, (ng + hx(m), ng, m))
@@ -85,6 +85,27 @@ def match(pbf, out, zips):
     def addpath(ns):
         for a, b in zip(ns, ns[1:]):
             if a != b: edges.add((a, b) if a < b else (b, a))
+    def astar_multi(a, S, T, cap):
+        if not S or not T: return None
+        cx, cy = sum(lat[t] for t in T)/len(T), sum(lon[t] for t in T)/len(T)
+        hx = lambda n: max(0.0, math.hypot((lat[n] - cx) * 111320, (lon[n] - cy) * 111320 * k) - 40)
+        g = {}; came = {}; pq = []
+        for n in S: c = math.hypot((lat[n] - a[0]) * 111320, (lon[n] - a[1]) * 111320 * k); g[n] = c; heapq.heappush(pq, (c + hx(n), c, n))
+        steps = 0; end = None
+        while pq:
+            f, gc, n = heapq.heappop(pq)
+            if gc > g.get(n, 1e18): continue
+            if n in T: end = n; break
+            if f > cap: return None
+            steps += 1
+            if steps > 30000: return None
+            for m, dd in adj[n]:
+                ng = gc + dd
+                if ng < g.get(m, 1e18): g[m] = ng; came[m] = n; heapq.heappush(pq, (ng + hx(m), ng, m))
+        if end is None: return None
+        out_ = [end]
+        while out_[-1] in came: out_.append(came[out_[-1]])
+        return out_[::-1]
     def link(i, j, d):  # road path between two snapped nodes
         if j in nbr(i): addpath([i, j]); return True
         key = (i, j) if i < j else (j, i); ns = cache.get(key, 0)
@@ -126,8 +147,7 @@ def match(pbf, out, zips):
                 key = (a, b); ns = cache.get(key, 0)
                 if ns == 0:
                     ns = None; best = None
-                    si = min(S, key=lambda n: (lat[n]-a[0])**2 + ((lon[n]-a[1])*k)**2); ti = min(T, key=lambda n: (lat[n]-b[0])**2 + ((lon[n]-b[1])*k)**2)
-                    ns = cache[key] = astar(si, ti, 2.5 * d + 400)
+                    ns = cache[key] = astar_multi(a, S, set(T), 2.5 * d + 400)  # from any road node by the stop to any by the next (the nearest alone is often the other carriageway of a one-way pair: most of Lucerne's hops failed)
                 if ns: addpath(ns); stats['stop hops'] += 1
                 else:
                     stats['stop hops failed'] += 1
