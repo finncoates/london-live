@@ -45,36 +45,6 @@
 ]
 },
 {
-"id": "n-angers-loire-metropole-reseau-ir-baea57",
-"name": "Angers Loire Métropole",
-"box": [
-47.345,
--0.772,
-47.614,
--0.289
-],
-"url": "cities/fr-n-angers-loire-metropole-reseau-ir-baea57.json",
-"bus": [
-"#7E8BA3",
-"#97A6BF"
-]
-},
-{
-"id": "n-fil-bleu-syndicat-des-mobilites-d39dc6",
-"name": "Tours Métropole Val de Loire",
-"box": [
-47.297,
-0.48,
-47.492,
-0.875
-],
-"url": "cities/fr-n-fil-bleu-syndicat-des-mobilites-d39dc6.json",
-"bus": [
-"#7E8BA3",
-"#97A6BF"
-]
-},
-{
 "id": "n-offre-de-transport-du-reseau-gra-5b472c",
 "name": "Grand Reims",
 "box": [
@@ -270,21 +240,6 @@
 ]
 },
 {
-"id": "n-reseau-rtca-3642e2",
-"name": "Carcassonne Agglo",
-"box": [
-43.057,
-2.135,
-43.426,
-2.704
-],
-"url": "cities/fr-n-reseau-rtca-3642e2.json",
-"bus": [
-"#7E8BA3",
-"#97A6BF"
-]
-},
-{
 "id": "n-fr-200052264-t0017-0000-1-fab834",
 "name": "Saint-Louis Agglomération",
 "box": [
@@ -354,21 +309,6 @@
 12.7
 ],
 "url": "cities/dk-copenhagen.json",
-"bus": [
-"#7E8BA3",
-"#97A6BF"
-]
-},
-{
-"id": "n-lignes-arrets-et-horaires-theori-692ae8",
-"name": "Les Sables d'Olonne Agglomération",
-"box": [
-46.451,
--1.841,
-46.626,
--1.642
-],
-"url": "cities/fr-n-lignes-arrets-et-horaires-theori-692ae8.json",
 "bus": [
 "#7E8BA3",
 "#97A6BF"
@@ -3059,6 +2999,66 @@
 "cities/ch-lifts.json",
 "cities/ch-boats.json"
 ],
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "n-reseau-rtca-3642e2",
+"name": "Carcassonne Agglo",
+"box": [
+43.057,
+2.135,
+43.426,
+2.704
+],
+"url": "cities/fr-n-reseau-rtca-3642e2.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "n-angers-loire-metropole-reseau-ir-baea57",
+"name": "Angers Loire Métropole",
+"box": [
+47.345,
+-0.772,
+47.614,
+-0.289
+],
+"url": "cities/fr-n-angers-loire-metropole-reseau-ir-baea57.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "n-lignes-arrets-et-horaires-theori-692ae8",
+"name": "Les Sables d'Olonne Agglomération",
+"box": [
+46.451,
+-1.841,
+46.626,
+-1.642
+],
+"url": "cities/fr-n-lignes-arrets-et-horaires-theori-692ae8.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "n-fil-bleu-syndicat-des-mobilites-d39dc6",
+"name": "Tours Métropole Val de Loire",
+"box": [
+47.297,
+0.48,
+47.492,
+0.875
+],
+"url": "cities/fr-n-fil-bleu-syndicat-des-mobilites-d39dc6.json",
 "bus": [
 "#7E8BA3",
 "#97A6BF"

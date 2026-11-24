@@ -77,14 +77,17 @@ Other cities checked and not possible without a key: Paris (RATP/IDFM: free PRIM
 | **Cyprus** | No railway | Every bus in Nicosia, Limassol (EMEL), Larnaca, Paphos and Ayia Napa/Famagusta districts, the intercity buses and the airport express | From the timetable | Transitous |
 | **Iceland** | No railway | Strætó (Reykjavík), Reykjanesbær, Akureyri and the national routes | From the timetable | Transitous |
 | **Hungary** | Budapest (BKK metro M1–M4, trams, HÉV, the Castle Hill funicular, the chairlift, boats), Debrecen, Miskolc and Szeged trams; Balaton ferries; MÁV's and GySEV's railway from OpenStreetMap, 1,418 stations | BKK, every Volán town network (about 60 towns), Pécs, Szombathely, Veszprém, Kaposvár and other towns' own buses, and every Volán intercity bus | From the timetable | Transitous |
+| **Switzerland** | Zürich (with the Forchbahn and Limmattalbahn), Basel, Bern and Geneva trams on their track in their official colours (from OpenStreetMap), Lausanne's metro m1/m2, every lake boat and every mountain cable car and funicular; the railway from OpenStreetMap, 2,128 stations | Every bus and trolleybus in the country (PostAuto and 180 other operators) from the national timetable, matched onto the roads | From the timetable | Transitous |
+| **Andorra** | No railway | Every national bus line | From the timetable | Transitous |
 
 Also: bikes and scooters for hire in 86 French towns (Vélib', Vélo'v, V³, Lime, Voi, Dott, Pony…); FlixBus and
 BlaBlaCar coaches in their own colours; tapping a timetable vehicle shows where it's really going.
-**Gaps**: Kecskemét's city buses (login) and Dombóvár's (server unreachable) in Hungary. Finland's intercity buses (Fintraffic refuses automated downloads), Austria's regional timetables (not openly
+**Gaps**: Zagreb's, Olomouc's, Plzeň's and Miskolc's trams have no line colours in the open data or OpenStreetMap (drawn in one tram colour).
+Kecskemét's city buses (login) and Dombóvár's (server unreachable) in Hungary. Finland's intercity buses (Fintraffic refuses automated downloads), Austria's regional timetables (not openly
 downloadable) and Slovakia's Košice, Žilina and Banská Bystrica city networks (no open timetable) are why those countries
 wait. Croatia's Pula and Osijek (trams) networks, Jadrolinija's ferries and its intercity buses publish only behind a
 login on the national access point (promet-info.hr), so they're missing. Portugal's regional buses outside Lisbon, Porto, Braga, Coimbra, the Algarve and Madeira publish no open timetable
-(Rede Expressos, Transdev, Rodonorte…), so only FlixBus is shown between cities there. Amsterdam's and Le Havre's trams have no official colours in the open data (drawn in one tram green);
+(Rede Expressos, Transdev, Rodonorte…), so only FlixBus is shown between cities there. Amsterdam's and Le Havre's tram colours now come from OpenStreetMap (some Amsterdam lines still have none);
 Paris has no open live positions (IDFM's need a free PRIM key); Lille and Strasbourg publish live data only as SIRI.
 
 ## Before a big public launch
