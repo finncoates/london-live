@@ -39,7 +39,9 @@ def _dp_open(p, eps):  # Douglas-Peucker in metres
         if d > best: best, bi = d, i
     if best <= eps: return [a, b]
     return dp(p[:bi+1], eps)[:-1] + dp(p[bi:], eps)
-# per route: the most-used shapes (main services), plus longer ones that add branches
+# per route: the most-used shapes (main services), plus every other one that adds at least 300 m of route not yet drawn
+# (a branch: tram A to Floirac Dravemont, RER C to Dourdan; judged by length, not share: a long shape with a short
+# branch is mostly overlap, and was dropped)
 by_route = collections.defaultdict(list)
 for sid, (rid, d) in shape_route.items(): by_route[rid].append(sid)
 lines = []
@@ -47,7 +49,7 @@ GLOBAL = os.environ.get('GLOBAL_DEDUP') == '1'; gkept = set()
 for rid, sids in sorted(by_route.items(), key=lambda kv: -sum(count[x] for x in kv[1])):
     kind, name, col = routes[rid]
     sids.sort(key=lambda s: -count[s]); keep = []
-    for s in sids[:12]:
+    for s in sids[:60]:
         p = [(la, lo) for _, la, lo in sorted(pts[s])]
         if BOX:  # keep the longest run inside the box
             runs, cur = [], []
@@ -57,10 +59,11 @@ for rid, sids in sorted(by_route.items(), key=lambda kv: -sum(count[x] for x in 
             if cur: runs.append(cur)
             p = max(runs, key=len) if runs else []
         if len(p) < 2: continue
-        # skip shapes that mostly overlap ones already kept (other direction, short workings)
+        # skip shapes that add little to the ones already kept (other direction, short workings)
         kept_pts = gkept if GLOBAL else {(round(la, 3), round(lo, 3)) for q in keep for la, lo in q}
-        new = sum((round(la, 3), round(lo, 3)) not in kept_pts for la, lo in p) / len(p)
-        if (keep or GLOBAL) and new < 0.25: continue
+        isnew = [(round(la, 3), round(lo, 3)) not in kept_pts for la, lo in p]
+        newlen = sum(length([p[i-1], p[i]]) for i in range(1, len(p)) if isnew[i] and isnew[i-1])
+        if (keep or GLOBAL) and newlen < 300: continue
         keep.append(p)
         if GLOBAL: gkept.update((round(la, 3), round(lo, 3)) for la, lo in p)
     for p in keep:

@@ -21,6 +21,7 @@ ap.add_argument('--nolines', action='store_true', help='buses only (no city line
 ap.add_argument('--roads', default='auto', help='bus routes matched onto OpenStreetMap roads: auto (when the shapes are missing or only join the stops), on, off')
 ap.add_argument('--colour', help='NAME=#hex,... for lines the timetable gives no colour (Luas Green, DART)')
 ap.add_argument('--kind', help='NAME=kind,... e.g. "ORLYVAL=metro"'); ap.add_argument('--rename', help='NAME=New name,...')
+ap.add_argument('--region', help='the Geofabrik extract to match roads on (id, e.g. netherlands), when the automatic choice is too small')
 a = ap.parse_args()
 work = a.work or os.path.join(HERE, '.build', a.id)  # kept (git-ignored): downloads and each city's own bus routes
 os.makedirs(work, exist_ok=True)
@@ -94,11 +95,12 @@ def shape_quality():
     bus = {r['route_id'] for r in rr('routes.txt') if r['route_type'] in ('3', '11', '200', '201', '202', '204', '209', '700', '701', '702', '704', '705', '711', '712', '713', '715', '800')}
     bs = {t.get('shape_id') for t in rr('trips.txt') if t['route_id'] in bus and t.get('shape_id')}
     if not bs: return None
-    gaps = []; last = {}
+    gaps = []; acc = collections.defaultdict(list)  # (each shape's points in their order: some feeds interleave shapes)
     for q in rr('shapes.txt'):
-        if q['shape_id'] not in bs: continue
-        p = (float(q['shape_pt_lat']), float(q['shape_pt_lon'])); o = last.get(q['shape_id']); last[q['shape_id']] = p
-        if o: gaps.append(math.hypot((p[0]-o[0])*111320, (p[1]-o[1])*111320*math.cos(math.radians(p[0]))))
+        if q['shape_id'] in bs: acc[q['shape_id']].append((int(q['shape_pt_sequence']), float(q['shape_pt_lat']), float(q['shape_pt_lon'])))
+    for ps in acc.values():
+        ps.sort()
+        for (_, a0, b0), (_, a1, b1) in zip(ps, ps[1:]): gaps.append(math.hypot((a1-a0)*111320, (b1-b0)*111320*math.cos(math.radians(a1))))
     if gaps: shape_quality.long = sum(g for g in gaps if g > 400)/(sum(gaps) or 1)  # share of the shapes' length in straight jumps (Rouen: partly stop-to-stop)
     gaps.sort(); return gaps[len(gaps)//2] if gaps else None
 shape_quality.long = 0
@@ -116,8 +118,10 @@ def region_pbf():  # the smallest Geofabrik extract that covers the whole city
             for (x1, y1), (x2, y2) in zip(ring, ring[1:]):
                 if (y1 > y) != (y2 > y) and x < (x2 - x1)*(y - y1)/(y2 - y1) + x1: c = not c
         return c
-    best = None; centre = None  # (centre: the smallest region holding the centre, the fallback when only a huge extract covers the area)
-    for f in json.load(open(ix, encoding='utf-8'))['features']:
+    if a.region: best = next(((0, f['properties']['urls']['pbf'], f['properties']['id']) for f in json.load(open(ix, encoding='utf-8'))['features'] if f['properties']['id'] == a.region), None)
+    else: best = None
+    centre = None  # (centre: the smallest region holding the centre, the fallback when only a huge extract covers the area)
+    for f in ([] if a.region else json.load(open(ix, encoding='utf-8'))['features']):
         g = f.get('geometry'); url = f['properties'].get('urls', {}).get('pbf')
         if not g or not url: continue
         polys = g['coordinates'] if g['type'] == 'MultiPolygon' else [g['coordinates']]

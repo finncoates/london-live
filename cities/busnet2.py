@@ -26,16 +26,14 @@ def feed_routes(zf):
             if len(g) < 4: g.append(t['trip_id'])
     polys = []; seenshape = set()
     if 'shapes.txt' in z.namelist() and shapes:
-        cur, pts = None, []
-        def done():
-            if cur in shapes and len(pts) > 1:
-                pts.sort(); p = tuple((round(a, 5), round(b, 5)) for _, a, b in pts)
-                if p not in seenshape: seenshape.add(p); polys.append(('shape', p))
+        acc = collections.defaultdict(list)  # (by shape: Lisbon's Carris lists its shapes' points interleaved, not one shape after another)
         with z.open('shapes.txt') as f:
             for s in csv.DictReader(io.TextIOWrapper(f, 'utf-8-sig')):
-                if s['shape_id'] != cur: done(); cur, pts = s['shape_id'], []
-                if s['shape_id'] in shapes: pts.append((int(s['shape_pt_sequence']), float(s['shape_pt_lat']), float(s['shape_pt_lon'])))
-            done()
+                if s['shape_id'] in shapes: acc[s['shape_id']].append((int(s['shape_pt_sequence']), float(s['shape_pt_lat']), float(s['shape_pt_lon'])))
+        for sid, pts in acc.items():
+            if len(pts) > 1:
+                pts.sort(); p = tuple((round(a, 5), round(b, 5)) for _, a, b in pts)
+                if p not in seenshape: seenshape.add(p); polys.append(('shape', p))
     want = {tid for g in pick.values() for tid in g}
     if want:
         seq = collections.defaultdict(list)

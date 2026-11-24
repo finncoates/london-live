@@ -67,14 +67,12 @@ if os.environ.get('MERGE') == '1':  # roads already in the tiles (other regions/
                 seen.add((round((q0[0]+q1[0])/2/CELL), round((q0[1]+q1[1])/2/CELL/1.6), int(ang/(math.pi/8)) % 8))
 cur, pts, n = None, [], 0
 if os.environ.get('SHAPES') == '0': shapes = set()
+acc = collections.defaultdict(list)  # (by shape: some feeds list their shapes' points interleaved, Lisbon's Carris)
 with z.open('shapes.txt') as f:
     for s in csv.DictReader(io.TextIOWrapper(f, 'utf-8-sig')):
-        sid = s['shape_id']
-        if sid != cur:
-            if cur in shapes and len(pts) > 1: pts.sort(); add([(a, b) for _, a, b in pts]); n += 1
-            cur, pts = sid, []
-        if sid in shapes: pts.append((int(s['shape_pt_sequence']), float(s['shape_pt_lat']), float(s['shape_pt_lon'])))
-    if cur in shapes and len(pts) > 1: pts.sort(); add([(a, b) for _, a, b in pts]); n += 1
+        if s['shape_id'] in shapes: acc[s['shape_id']].append((int(s['shape_pt_sequence']), float(s['shape_pt_lat']), float(s['shape_pt_lon'])))
+for pts in acc.values():
+    if len(pts) > 1: pts.sort(); add([(a, b) for _, a, b in pts]); n += 1
 if os.environ.get('NOSHAPE') == '1':  # operators that publish no route shapes: draw the route stop to stop
     LON = lambda a, b: 51.28 < a < 51.70 and -0.52 < b < 0.34  # London has TfL's own bus routes
     pick = collections.defaultdict(list)
