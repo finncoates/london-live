@@ -1658,5 +1658,95 @@
 "#7E8BA3",
 "#97A6BF"
 ]
+},
+{
+"id": "nicosia",
+"name": "Nicosia",
+"box": [
+34.897,
+32.793,
+35.207,
+33.568
+],
+"url": "cities/cy-nicosia.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "limassol",
+"name": "Limassol",
+"box": [
+34.627,
+32.668,
+34.971,
+33.33
+],
+"url": "cities/cy-limassol.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "larnaca",
+"name": "Larnaca",
+"box": [
+34.707,
+33.161,
+35.083,
+33.756
+],
+"url": "cities/cy-larnaca.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "paphos",
+"name": "Paphos",
+"box": [
+34.649,
+32.297,
+35.191,
+32.783
+],
+"url": "cities/cy-paphos.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "famagusta",
+"name": "Ayia Napa",
+"box": [
+34.897,
+33.571,
+35.105,
+34.1
+],
+"url": "cities/cy-famagusta.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "reykjavik",
+"name": "Reykjavík",
+"box": [
+63.95,
+-22.75,
+64.35,
+-21.4
+],
+"url": "cities/is-reykjavik.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
 }
 ]
