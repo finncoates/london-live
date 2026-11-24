@@ -1,35 +1,5 @@
 [
 {
-"id": "n-bacs-de-seine-departement-seine-233704",
-"name": "Seine-Maritime",
-"box": [
-49.331,
-0.501,
-49.501,
-1.053
-],
-"url": "cities/fr-n-bacs-de-seine-departement-seine-233704.json",
-"bus": [
-"#7E8BA3",
-"#97A6BF"
-]
-},
-{
-"id": "n-donnees-statiques-et-temps-reel-52d2b9",
-"name": "Rouen Normandie",
-"box": [
-49.249,
-0.767,
-49.55,
-1.274
-],
-"url": "cities/fr-n-donnees-statiques-et-temps-reel-52d2b9.json",
-"bus": [
-"#7E8BA3",
-"#97A6BF"
-]
-},
-{
 "id": "corse",
 "name": "Corse",
 "box": [
@@ -54,51 +24,6 @@
 -0.153
 ],
 "url": "cities/fr-n-caen-la-mer-reseau-twisto-gtfs-s-d2925c.json",
-"bus": [
-"#7E8BA3",
-"#97A6BF"
-]
-},
-{
-"id": "n-fr-200052264-t0014-0000-1-19aa15",
-"name": "Mulhouse Alsace Agglomération",
-"box": [
-47.665,
-7.071,
-47.889,
-7.574
-],
-"url": "cities/fr-n-fr-200052264-t0014-0000-1-19aa15.json",
-"bus": [
-"#7E8BA3",
-"#97A6BF"
-]
-},
-{
-"id": "n-offre-de-transport-solea-et-tram-d65762",
-"name": "Mulhouse Alsace Agglomération",
-"box": [
-47.665,
-7.071,
-47.889,
-7.574
-],
-"url": "cities/fr-n-offre-de-transport-solea-et-tram-d65762.json",
-"bus": [
-"#7E8BA3",
-"#97A6BF"
-]
-},
-{
-"id": "n-reseau-de-transport-en-commun-li-ff9f5d",
-"name": "Le Havre Seine Métropole",
-"box": [
-49.444,
-0.04,
-49.709,
-0.384
-],
-"url": "cities/fr-n-reseau-de-transport-en-commun-li-ff9f5d.json",
 "bus": [
 "#7E8BA3",
 "#97A6BF"
@@ -3059,6 +2984,81 @@
 5.179
 ],
 "url": "cities/fr-n-gtfs-diviamobilites-793bb1.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "n-bacs-de-seine-departement-seine-233704",
+"name": "Seine-Maritime",
+"box": [
+49.331,
+0.501,
+49.501,
+1.053
+],
+"url": "cities/fr-n-bacs-de-seine-departement-seine-233704.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "n-donnees-statiques-et-temps-reel-52d2b9",
+"name": "Rouen Normandie",
+"box": [
+49.249,
+0.767,
+49.55,
+1.274
+],
+"url": "cities/fr-n-donnees-statiques-et-temps-reel-52d2b9.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "n-reseau-de-transport-en-commun-li-ff9f5d",
+"name": "Le Havre Seine Métropole",
+"box": [
+49.444,
+0.04,
+49.709,
+0.384
+],
+"url": "cities/fr-n-reseau-de-transport-en-commun-li-ff9f5d.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "n-fr-200052264-t0014-0000-1-19aa15",
+"name": "Mulhouse Alsace Agglomération",
+"box": [
+47.665,
+7.071,
+47.889,
+7.574
+],
+"url": "cities/fr-n-fr-200052264-t0014-0000-1-19aa15.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "n-offre-de-transport-solea-et-tram-d65762",
+"name": "Mulhouse Alsace Agglomération",
+"box": [
+47.665,
+7.071,
+47.889,
+7.574
+],
+"url": "cities/fr-n-offre-de-transport-solea-et-tram-d65762.json",
 "bus": [
 "#7E8BA3",
 "#97A6BF"
