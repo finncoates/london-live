@@ -145,6 +145,7 @@ body.dark #banner{background:#3b2a10;color:#ffe2b0;border-color:#7a5a20}
 .li-h small,.li-d{color:var(--mute);font-size:12.5px}
 .li-live{font-size:13px}
 #err{color:var(--bad);font-size:12px;margin-top:6px}
+#vlist{font-size:13px;margin-top:6px}#vlist summary{cursor:pointer;color:var(--muted,#888)}#vlistOl{margin:4px 0 0;padding-left:20px;max-height:40vh;overflow:auto}#vlistOl li{margin:2px 0}
 #tip{position:fixed;z-index:1001;pointer-events:none;background:var(--panel);border:1px solid var(--edge);border-radius:10px;padding:8px 10px;font-size:13px;display:none;max-width:250px;box-shadow:0 4px 14px rgba(0,0,0,.2);display:none}
 #tip div{margin:1px 0}
 #simnote{display:none;font-size:12px;background:#e8f0fe;color:#174ea6;border-radius:8px;padding:6px 8px;margin-bottom:8px}
@@ -311,6 +312,7 @@ button.lnk{border:0;background:none;padding:0;color:var(--acc);font-weight:600;f
   <div id="sbox"></div>
   <div class="lgall" id="lgAll"><button type="button" data-all="1">Show all lines</button><button type="button" data-all="0">Hide all</button></div>
   <div id="legend"></div>
+  <details id="vlist"><summary>What's moving here, as a list</summary><p class="muted" id="vlistNote" style="font-size:12px;margin:4px 0"></p><ol id="vlistOl" aria-live="polite"></ol></details>
   <div id="err"></div>
 </div>
 <div id="tip"></div>
@@ -2378,7 +2380,7 @@ const opCol = op => { let h = 0; for(const ch of op || '') h = (h*31 + ch.charCo
 function drawGps(ctx, s, hl0, hw0, mpp){
   draw.ghit = []; STL.boxes = []; STL.nr = []; if(TRAINS_ON && document.body.classList.contains('away') && !document.body.classList.contains('abroad')){ drawNR(ctx); drawUKStops(ctx); } else if(TRAINS_ON && document.body.classList.contains('abroad') && map.getCenter() && railC([map.getCenter().lat(), map.getCenter().lng()])){ drawNR(ctx); if(!busOff()) drawUKStops(ctx); } /* France, the Netherlands: the whole railway, and bus stops close up */ /* France: SNCF's whole passenger network, as Britain's */ drawCoachNet(ctx); if(TRAINS_ON && document.body.classList.contains('away') && map.getCenter()){ const mc = [map.getCenter().lat(), map.getCenter().lng()]; drawBusNet(ctx); if(CITYL.cur && CITYL.cur.box(mc)) drawCityLines(ctx); flushNrNames(ctx); } else if(TRAINS_ON && document.body.classList.contains('edge')){ drawUKStops(ctx); drawBusNet(ctx); } /* just outside Greater London: its own stops and routes */ else if(TRAINS_ON && !MODES_OFF.has('bus') && PV.z >= 14) drawBusNet(ctx); /* London with buses on: the routes just outside Greater London too */ if(!GPS.list.size || !SHOW_ICONS || !TRAINS_ON) return;
   if(window.__TTV && __TTV.world && __TTV.ferries) drawTTLines(ctx); // abroad: the routes the timetable vehicles are on, as lines under them
-  const LBOX = []; const now = Date.now(), cosLat = Math.cos(map.getCenter().lat()*rad), label = PV.z >= 15.5;
+  const LBOX = []; const now = Date.now(), cosLat = Math.cos(map.getCenter().lat()*rad), label = PV.z >= 14.5; // (line numbers from 14.5: overlapping labels are left out, so busy streets stay readable)
   // bus routes abroad: where each bus has driven (thin, light, like London's bus routes), and the tapped bus's whole route
   if(!busOff() && !GPS_OFF.has('bus') && PV.z >= 13){ const W = lineW(), look = lineLook('bus', W); ctx.lineJoin = 'round'; ctx.lineCap = 'round';
     /* (no per-bus GPS trails: straight hops between GPS fixes cut across blocks; the bus route map shows the roads) */
@@ -2869,6 +2871,17 @@ function ttPlace(now){
   return out; }
 window.__ttPlace = ttPlace;
 // for tools/smoke.mjs: what's on the map now (lines drawn, city files loaded, timetable vehicles off their line)
+// the vehicles in view as plain text, nearest the middle first (a screen reader can't read the moving map)
+function vlistFill(){ const box = document.getElementById('vlist'); if(!box || !box.open || !map.getBounds()) return; const b = map.getBounds(), c = map.getCenter(), m = [c.lat(), c.lng()], now = Date.now();
+  const rows = []; for(const [, g] of GPS.list){ const p = g.to || [g.v.lat, g.v.lon]; if(!b.contains(LL(p))) continue; rows.push([dist(p, m), g.v]); }
+  if(!document.body.classList.contains('away')) for(const t of trains.values()){ const p = t.d; if(!p || !b.contains(LL(p))) continue; const L = LINES.find(x => x[0] === t.line);
+    rows.push([dist(p, m), {kind:t.rail ? 'National Rail' : L ? L[1] : 'London', line:'', dest:t.towards || t.dest || '', tfl:true}]); }
+  rows.sort((a, b2) => a[0] - b2[0]); const ol = document.getElementById('vlistOl');
+  document.getElementById('vlistNote').textContent = rows.length ? `${rows.length} in view; the nearest 40 to the middle of the map, updated every 10 seconds.` : 'Nothing moving in view.';
+  ol.innerHTML = rows.slice(0, 40).map(([d, v]) => { const k = v.tfl ? v.kind + ' train' : ({train:'Train', metro:'Metro', tram:'Tram', ferry:'Boat', bus:'Bus'})[vkind(v)];
+    const how = v.tfl ? 'live' : v.sched ? 'timetable position' : v.est ? 'live timings' : 'live GPS';
+    return `<li>${esc(k)}${v.line ? ' ' + esc(v.line) : ''}${v.dest ? ' to ' + esc(v.dest) : ''} · ${d < 1000 ? Math.round(d/10)*10 + ' m' : (d/1000).toFixed(1) + ' km'} from the middle · ${how}</li>`; }).join(''); }
+document.getElementById('vlist')?.addEventListener('toggle', vlistFill); setInterval(vlistFill, 10000);
 window.__GPSL = () => GPS.list;
 window.__smoke = () => ({city:CITYL.cur?.name || null, cityFiles:cityData().length, cityLines:cityData().reduce((n, d) => n + d.lines.length, 0),
   tfl:ACTIVE.filter(l => l.layer).length, gps:GPS.list.size, tt:TTV.ferries ? TTV.ferries.size : 0,
@@ -2987,10 +3000,19 @@ function drawCoachNet(ctx){
 // the tapped bus's route: from the timetable where we have it (Manchester), otherwise the road it has driven
 const BROUTE = {polys:null, key:'', col:'#DC241F'};
 async function showBusRoute(g){
-  const v = g.v, key = v.op + ':' + v.line; if(BROUTE.key === key) return; BROUTE.key = key; BROUTE.col = v.col || opCol(v.op); BROUTE.polys = null;
+  const v = g.v, key = v.op + ':' + v.line + (String(v.id).startsWith('tf:') ? ':' + v.trip : ''); if(BROUTE.key === key) return; BROUTE.key = key; BROUTE.col = v.col || opCol(v.op); BROUTE.polys = null;
   const c = map.getCenter(), mcr = c && Math.abs(c.lat() - 53.48) < 0.3 && Math.abs(c.lng() + 2.24) < 0.4;
-  if(mcr){ try{ const r = await fetch('cities/mcr-bus/' + String(v.line).replace(/[^A-Za-z0-9]+/g, '_') + '.json', {signal:AbortSignal.timeout(8000)}); if(r.ok && BROUTE.key === key) BROUTE.polys = await r.json(); }catch(e){} }
+  if(mcr){ try{ const r = await fetch('cities/mcr-bus/' + String(v.line).replace(/[^A-Za-z0-9]+/g, '_') + '.json', {signal:AbortSignal.timeout(8000)}); if(r.ok && BROUTE.key === key) BROUTE.polys = await r.json(); }catch(e){} return; }
+  // abroad (timetable vehicles): the whole trip's route from Transitous, so a tapped bus, tram or boat shows where it goes
+  if(v.trip && String(v.id).startsWith('tf:')){ try{ const j = await (await fetch('https://api.transitous.org/api/v5/trip?tripId=' + encodeURIComponent(v.trip), {signal:AbortSignal.timeout(10000)})).json();
+      const polys = (j.legs || []).map(L => L.legGeometry && decodePolyP(L.legGeometry.points, L.legGeometry.precision || 6)).filter(p => p && p.length > 1);
+      if(polys.length && BROUTE.key === key){ BROUTE.polys = polys; if(!TRIPI.get(v.trip) && j.legs?.[0]) TRIPI.set(v.trip, {dest:j.legs[0].headsign || j.legs[0].tripTo?.name || j.legs[0].to?.name || ''}); } }catch(e){} }
 }
+// an encoded polyline at any precision (Transitous' trip shapes: 6 or 7 decimals) → [[lat, lon], …]
+function decodePolyP(str, prec){ const f = 10 ** prec, out = []; let i = 0, la = 0, lo = 0;
+  while(i < str.length){ for(const k of [0, 1]){ let r = 0, sh = 0, b; do { b = str.charCodeAt(i++) - 63; r |= (b & 31) << sh; sh += 5; } while(b >= 32 && i < str.length); const d = r & 1 ? ~(r >> 1) : r >> 1; if(k) lo += d; else la += d; }
+    out.push([la/f, lo/f]); }
+  return out; }
 // coach destinations come with the stand: 'Gatwick Airport (South) Lower Forecourt Stops 1 - 5' → 'Gatwick Airport (South) Lower Forecourt'
 const coachDest = d => { const x = String(d).replace(/\s*\((?:opposite|near|outside|o\/s)\b[^)]*\)$/i, '').replace(/\s+(?:near|outside|opposite)\b.*$/i, '')
   .replace(/\s+(?:(?:arrival|departure)\s+)?(?:stops?|stands?|bays?)\b(?:\s+[\w-]+(?:\s*[-–]\s*\w+)?)?$/i, '').trim(); return x.length >= 8 ? x : d; };
@@ -2999,7 +3021,7 @@ function gpsTip(e, r, tip){
   let best = null, bd = rad0; for(const [g, gx, gy] of draw.ghit || []){ const d = Math.hypot(gx - x, gy - y); if(d < bd){ bd = d; best = g; } }
   if(!best) return false;
   const v = best.v, age = v.t ? Math.max(0, Math.round((Date.now() - v.t)/1000)) : null;
-  if(e.type === 'click' && vkind(v) === 'bus') showBusRoute(best); else if(e.type === 'click'){ BROUTE.polys = null; BROUTE.key = ''; }
+  if(e.type === 'click' && (vkind(v) === 'bus' || String(v.id).startsWith('tf:'))) showBusRoute(best); else if(e.type === 'click'){ BROUTE.polys = null; BROUTE.key = ''; }
   if((v.sched || (v.est && v.id?.startsWith("tf:"))) && v.trip && !TRIPI.get(v.trip)) tripInfo(v.trip).then(() => { const t = TRIPI.get(v.trip); if(t && t.dest){ v.dest = t.dest; v.from = null; if(tip.style.display === 'block') gpsTip(e, r, tip); } }); // where it's really going
   const kind = v.train ? (v.freight ? 'freight train' : 'train') : v.kind || (v.tram ? 'tram' : 'bus'), col = v.col || (v.tram ? '#7A1F3D' : opCol(v.op));
   const coach = coachOf(v);
