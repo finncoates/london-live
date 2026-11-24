@@ -15,7 +15,7 @@ for i in ids:
     j = log.get(i)
     if not j: print(i, 'not in the log'); continue
     x = cat[j['slug']]; g = [r for r in x['resources'] if r.get('format') == 'GTFS' and r.get('is_available')]
-    url = max(g, key=lambda r: r.get('updated') or '')['url']
+    url = max(g, key=lambda r: ('flex' not in ((r.get('title') or '') + (r.get('url') or '')).lower(), ((r.get('metadata') or {}).get('stats') or {}).get('routes_count') or 0, r.get('updated') or ''))['url']
     city = i in idx; name = idx[i]['name'] if city else i
     args = [sys.executable, '-I', os.path.join(HERE, 'fr_build.py'), i, name, url] + ([] if city else ['--nolines']) + extra
     p = subprocess.run(args, capture_output=True, text=True, encoding='utf-8', errors='replace')

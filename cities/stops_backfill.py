@@ -18,7 +18,7 @@ def url_of(i):
     if not j: return None
     x = cat.get(j['slug']) or {}
     g = [r for r in x.get('resources', []) if r.get('format') == 'GTFS' and r.get('is_available')]
-    return max(g, key=lambda r: r.get('updated') or '')['url'] if g else None
+    return max(g, key=lambda r: ('flex' not in ((r.get('title') or '') + (r.get('url') or '')).lower(), ((r.get('metadata') or {}).get('stats') or {}).get('routes_count') or 0, r.get('updated') or ''))['url'] if g else None
 def stops_of(zp, box):
     z = zipfile.ZipFile(zp); N = {n.split('/')[-1]: n for n in z.namelist()}; rd = lambda n: csv.DictReader(io.TextIOWrapper(z.open(N[n]), 'utf-8-sig'))
     r = {x['route_id'] for x in rd('routes.txt') if x['route_type'] in BUS}

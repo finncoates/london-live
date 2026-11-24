@@ -69,6 +69,7 @@ if a.box: S, W, N, E = map(float, a.box.split(','))
 else:
     la = sorted(float(byid[s]['stop_lat']) for s in need_stops if s in byid and byid[s]['stop_lat']); lo = sorted(float(byid[s]['stop_lon']) for s in need_stops if s in byid and byid[s]['stop_lon'])
     q = lambda v, f: v[min(len(v) - 1, max(0, int(len(v)*f)))]
+    if not la or not lo: sys.exit('no stops with a place in this timetable')
     S, N, W, E = q(la, 0.005) - 0.02, q(la, 0.995) + 0.02, q(lo, 0.005) - 0.03, q(lo, 0.995) + 0.03
 box = f'{S:.3f},{W:.3f},{N:.3f},{E:.3f}'
 

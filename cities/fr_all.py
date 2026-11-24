@@ -27,7 +27,7 @@ for x in json.load(open(cat, encoding='utf-8')):
     if SKIP.search(x['title']) or OVERSEAS.search(x['title'] + ' ' + area) or BUILT.search(x['slug']): continue
     g = [r for r in x['resources'] if r.get('format') == 'GTFS' and r.get('is_available')]
     if not g: continue
-    best = max(g, key=lambda r: r.get('updated') or ''); md = best.get('metadata') or {}
+    best = max(g, key=lambda r: ('flex' not in ((r.get('title') or '') + (r.get('url') or '')).lower(), ((r.get('metadata') or {}).get('stats') or {}).get('routes_count') or 0, r.get('updated') or '')); md = best.get('metadata') or {}
     if (md.get('end_date') or '9999') < time.strftime('%Y-%m-%d'): continue  # an expired timetable: nothing runs on it
     modes = set(md.get('modes') or [])
     # a city file for trams / metro / cable / funicular, and for local boats; not for sea crossings (Brittany Ferries to
