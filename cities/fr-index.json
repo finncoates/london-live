@@ -2925,6 +2925,106 @@
 ]
 },
 {
+"id": "basel",
+"name": "Basel",
+"box": [
+47.371,
+7.469,
+47.613,
+7.896
+],
+"url": "cities/ch-basel.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+],
+"urls": [
+"cities/ch-basel.json",
+"cities/ch-lifts.json",
+"cities/ch-boats.json"
+]
+},
+{
+"id": "bern",
+"name": "Bern",
+"box": [
+46.787,
+7.205,
+47.028,
+7.655
+],
+"url": "cities/ch-bern.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+],
+"urls": [
+"cities/ch-bern.json",
+"cities/ch-lifts.json",
+"cities/ch-boats.json"
+]
+},
+{
+"id": "lucerne",
+"name": "Lucerne",
+"box": [
+46.944,
+8.043,
+47.18,
+8.581
+],
+"url": "cities/ch-lucerne.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+],
+"urls": [
+"cities/ch-lucerne.json",
+"cities/ch-lifts.json",
+"cities/ch-boats.json"
+]
+},
+{
+"id": "geneva",
+"name": "Geneva",
+"box": [
+46.089,
+5.938,
+46.345,
+6.302
+],
+"url": "cities/ch-geneva.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+],
+"urls": [
+"cities/ch-geneva.json",
+"cities/ch-lifts.json",
+"cities/ch-boats.json"
+]
+},
+{
+"id": "lausanne",
+"name": "Lausanne",
+"box": [
+46.483,
+6.499,
+46.675,
+6.738
+],
+"url": "cities/ch-lausanne.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+],
+"urls": [
+"cities/ch-lausanne.json",
+"cities/ch-lifts.json",
+"cities/ch-boats.json"
+]
+},
+{
 "id": "zurich",
 "name": "Zürich",
 "box": [
@@ -2937,18 +3037,28 @@
 "bus": [
 "#7E8BA3",
 "#97A6BF"
+],
+"urls": [
+"cities/ch-zurich.json",
+"cities/ch-lifts.json",
+"cities/ch-boats.json"
 ]
 },
 {
-"id": "basel",
-"name": "Basel",
+"id": "switzerland",
+"name": "Switzerland",
 "box": [
-47.371,
-7.469,
-47.613,
-7.896
+45.8,
+5.9,
+47.85,
+10.55
 ],
-"url": "cities/ch-basel.json",
+"cc": "ch",
+"url": "cities/ch-lifts.json",
+"urls": [
+"cities/ch-lifts.json",
+"cities/ch-boats.json"
+],
 "bus": [
 "#7E8BA3",
 "#97A6BF"

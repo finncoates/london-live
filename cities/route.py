@@ -6,7 +6,7 @@ from scipy.spatial import cKDTree
 BUS_HW = {'motorway', 'motorway_link', 'trunk', 'trunk_link', 'primary', 'primary_link', 'secondary', 'secondary_link',
           'tertiary', 'tertiary_link', 'unclassified', 'residential', 'living_street', 'busway', 'bus_guideway', 'road', 'service'}
 
-RAIL = {'tram', 'light_rail'}
+RAIL = {'tram', 'light_rail', 'narrow_gauge'}  # (narrow gauge: interurban trams on their own track, Zürich's Forchbahn)
 class H(osmium.SimpleHandler):
     def __init__(self, box, kind='road'):
         super().__init__(); self.box = box; self.ways = []; self.kind = kind
