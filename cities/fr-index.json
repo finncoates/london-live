@@ -30,51 +30,6 @@
 ]
 },
 {
-"id": "n-reseau-de-transport-urbain-de-la-0875dc",
-"name": "Toulon-Provence-Méditerranée",
-"box": [
-43.018,
-5.777,
-43.193,
-6.22
-],
-"url": "cities/fr-n-reseau-de-transport-urbain-de-la-0875dc.json",
-"bus": [
-"#7E8BA3",
-"#97A6BF"
-]
-},
-{
-"id": "n-horaires-theoriques-du-reseau-ta-cb5a48",
-"name": "Grenoble-Alpes-Métropole",
-"box": [
-44.97,
-5.582,
-45.379,
-5.985
-],
-"url": "cities/fr-n-horaires-theoriques-du-reseau-ta-cb5a48.json",
-"bus": [
-"#7E8BA3",
-"#97A6BF"
-]
-},
-{
-"id": "n-simouv-horaires-theoriques-forma-f6e4f9",
-"name": "Valenciennes Métropole",
-"box": [
-50.234,
-3.235,
-50.528,
-3.7
-],
-"url": "cities/fr-n-simouv-horaires-theoriques-forma-f6e4f9.json",
-"bus": [
-"#7E8BA3",
-"#97A6BF"
-]
-},
-{
 "id": "corse",
 "name": "Corse",
 "box": [
@@ -240,51 +195,6 @@
 ]
 },
 {
-"id": "n-fichiers-gtfs-eurometropole-de-m-f4768c",
-"name": "Metz Métropole",
-"box": [
-48.97,
-5.987,
-49.221,
-6.338
-],
-"url": "cities/fr-n-fichiers-gtfs-eurometropole-de-m-f4768c.json",
-"bus": [
-"#7E8BA3",
-"#97A6BF"
-]
-},
-{
-"id": "n-horaires-theoriques-et-temps-ree-3362f0",
-"name": "Brest Métropole",
-"box": [
-48.335,
--4.648,
-48.476,
--4.319
-],
-"url": "cities/fr-n-horaires-theoriques-et-temps-ree-3362f0.json",
-"bus": [
-"#7E8BA3",
-"#97A6BF"
-]
-},
-{
-"id": "n-horaires-theoriques-du-reseau-iz-e347fb",
-"name": "Lorient Agglomération",
-"box": [
-47.618,
--3.551,
-48.01,
--3.061
-],
-"url": "cities/fr-n-horaires-theoriques-du-reseau-iz-e347fb.json",
-"bus": [
-"#7E8BA3",
-"#97A6BF"
-]
-},
-{
 "id": "n-gtfs-et-siri-du-reseau-ginko-bes-8fbfe4",
 "name": "Grand Besançon Métropole",
 "box": [
@@ -300,21 +210,6 @@
 ]
 },
 {
-"id": "n-reseau-orizo-grand-avignon-e75221",
-"name": "Grand Avignon (COGA)",
-"box": [
-43.869,
-4.645,
-44.07,
-5.045
-],
-"url": "cities/fr-n-reseau-orizo-grand-avignon-e75221.json",
-"bus": [
-"#7E8BA3",
-"#97A6BF"
-]
-},
-{
 "id": "n-arrets-horaires-et-parcours-theo-ff9006",
 "name": "La Rochelle",
 "box": [
@@ -324,36 +219,6 @@
 -0.912
 ],
 "url": "cities/fr-n-arrets-horaires-et-parcours-theo-ff9006.json",
-"bus": [
-"#7E8BA3",
-"#97A6BF"
-]
-},
-{
-"id": "n-telepherique-du-mont-faron-d9d77b",
-"name": "Toulon",
-"box": [
-43.117,
-5.9,
-43.169,
-5.964
-],
-"url": "cities/fr-n-telepherique-du-mont-faron-d9d77b.json",
-"bus": [
-"#7E8BA3",
-"#97A6BF"
-]
-},
-{
-"id": "n-horaires-theoriques-du-telepheri-3f9dea",
-"name": "Grenoble",
-"box": [
-45.173,
-5.695,
-45.219,
-5.756
-],
-"url": "cities/fr-n-horaires-theoriques-du-telepheri-3f9dea.json",
 "bus": [
 "#7E8BA3",
 "#97A6BF"
@@ -435,51 +300,6 @@
 ]
 },
 {
-"id": "n-horaires-theoriques-et-temps-ree-92d6f3",
-"name": "Grand Calais Terres et Mers",
-"box": [
-50.844,
-1.687,
-51.0,
-1.999
-],
-"url": "cities/fr-n-horaires-theoriques-et-temps-ree-92d6f3.json",
-"bus": [
-"#7E8BA3",
-"#97A6BF"
-]
-},
-{
-"id": "luxembourg",
-"name": "Luxembourg",
-"box": [
-49.54,
-6.018,
-49.697,
-6.249
-],
-"url": "cities/lu-luxembourg.json",
-"bus": [
-"#7E8BA3",
-"#97A6BF"
-]
-},
-{
-"id": "n-start-horaires-du-reseau-de-lagg-f21157",
-"name": "Thonon Agglomération",
-"box": [
-46.17,
-6.217,
-46.417,
-6.562
-],
-"url": "cities/fr-n-start-horaires-du-reseau-de-lagg-f21157.json",
-"bus": [
-"#7E8BA3",
-"#97A6BF"
-]
-},
-{
 "id": "n-fr-200052264-t0017-0000-1-fab834",
 "name": "Saint-Louis Agglomération",
 "box": [
@@ -534,21 +354,6 @@
 10.5
 ],
 "url": "cities/dk-odense.json",
-"bus": [
-"#7E8BA3",
-"#97A6BF"
-]
-},
-{
-"id": "n-uba-horaires-navettes-maritimes-0129ab",
-"name": "Andernos-les-Bains",
-"box": [
-44.622,
--1.267,
-44.759,
--1.072
-],
-"url": "cities/fr-n-uba-horaires-navettes-maritimes-0129ab.json",
 "bus": [
 "#7E8BA3",
 "#97A6BF"
@@ -1395,46 +1200,6 @@
 ]
 },
 {
-"id": "lisbon",
-"name": "Lisbon",
-"box": [
-38.617,
--9.273,
-38.814,
--8.976
-],
-"url": "cities/pt-lisbon-carris.json",
-"urls": [
-"cities/pt-lisbon-carris.json",
-"cities/pt-lisbon-mts.json",
-"cities/pt-lisbon-metro.json",
-"cities/pt-lisbon-ferries.json"
-],
-"bus": [
-"#7E8BA3",
-"#97A6BF"
-]
-},
-{
-"id": "zagreb",
-"name": "Zagreb",
-"box": [
-45.592,
-15.758,
-45.957,
-16.218
-],
-"url": "cities/hr-zagreb-zet.json",
-"urls": [
-"cities/hr-zagreb-zet.json",
-"cities/hr-zagreb-extra.json"
-],
-"bus": [
-"#7E8BA3",
-"#97A6BF"
-]
-},
-{
 "id": "montpellier",
 "name": "Montpellier",
 "box": [
@@ -1744,6 +1509,1401 @@
 -21.4
 ],
 "url": "cities/is-reykjavik.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "luxembourg",
+"name": "Luxembourg",
+"box": [
+49.54,
+6.018,
+49.697,
+6.249
+],
+"url": "cities/lu-luxembourg.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "debrecen",
+"name": "Debrecen",
+"box": [
+47.444,
+21.454,
+47.622,
+21.829
+],
+"url": "cities/hu-debrecen.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "miskolc",
+"name": "Miskolc",
+"box": [
+48.033,
+20.529,
+48.162,
+20.895
+],
+"url": "cities/hu-miskolc.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "szeged",
+"name": "Szeged",
+"box": [
+46.183,
+20.002,
+46.309,
+20.235
+],
+"url": "cities/hu-szeged.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "pecs",
+"name": "Pécs",
+"box": [
+45.998,
+18.107,
+46.169,
+18.373
+],
+"url": "cities/hu-pecs.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "szombathely",
+"name": "Szombathely",
+"box": [
+47.177,
+16.539,
+47.281,
+16.706
+],
+"url": "cities/hu-szombathely.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "budaors",
+"name": "Budaörs",
+"box": [
+47.415,
+18.889,
+47.488,
+19.011
+],
+"url": "cities/hu-budaors.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "tatabanya",
+"name": "Tatabánya",
+"box": [
+47.507,
+18.296,
+47.624,
+18.488
+],
+"url": "cities/hu-tatabanya.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "veszprem",
+"name": "Veszprém",
+"box": [
+47.037,
+17.822,
+47.17,
+17.986
+],
+"url": "cities/hu-veszprem.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "paks",
+"name": "Paks",
+"box": [
+46.571,
+18.779,
+46.693,
+18.91
+],
+"url": "cities/hu-paks.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "kiskunhalas",
+"name": "Kiskunhalas",
+"box": [
+46.398,
+19.402,
+46.474,
+19.529
+],
+"url": "cities/hu-kiskunhalas.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "oroshaza",
+"name": "Orosháza",
+"box": [
+46.537,
+20.566,
+46.611,
+20.702
+],
+"url": "cities/hu-oroshaza.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "varpalota",
+"name": "Várpalota",
+"box": [
+47.17,
+18.094,
+47.231,
+18.24
+],
+"url": "cities/hu-varpalota.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "urom",
+"name": "Üröm",
+"box": [
+47.564,
+18.983,
+47.634,
+19.074
+],
+"url": "cities/hu-urom.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "balaton-ferries",
+"name": "Balaton ferries",
+"box": [
+46.86,
+17.862,
+46.909,
+17.93
+],
+"url": "cities/hu-balaton-ferries.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "dunakeszi-ferry",
+"name": "Dunakeszi ferry",
+"box": [
+47.638,
+19.083,
+47.68,
+19.149
+],
+"url": "cities/hu-dunakeszi-ferry.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "pasztor-ferry",
+"name": "Pásztor ferry",
+"box": [
+47.65,
+19.049,
+47.691,
+19.112
+],
+"url": "cities/hu-pasztor-ferry.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "ajka",
+"name": "Ajka",
+"box": [
+47.064,
+17.495,
+47.158,
+17.618
+],
+"url": "cities/hu-ajka.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "baja",
+"name": "Baja",
+"box": [
+46.138,
+18.903,
+46.232,
+19.073
+],
+"url": "cities/hu-baja.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "n-horaires-theoriques-du-reseau-ta-cb5a48",
+"name": "Grenoble-Alpes-Métropole",
+"box": [
+44.97,
+5.582,
+45.379,
+5.985
+],
+"url": "cities/fr-n-horaires-theoriques-du-reseau-ta-cb5a48.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "balassagyarmat",
+"name": "Balassagyarmat",
+"box": [
+48.035,
+19.243,
+48.104,
+19.34
+],
+"url": "cities/hu-balassagyarmat.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "n-horaires-theoriques-du-telepheri-3f9dea",
+"name": "Grenoble",
+"box": [
+45.173,
+5.695,
+45.219,
+5.756
+],
+"url": "cities/fr-n-horaires-theoriques-du-telepheri-3f9dea.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "balatonfured",
+"name": "Balatonfüred",
+"box": [
+46.928,
+17.83,
+46.993,
+17.94
+],
+"url": "cities/hu-balatonfured.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "balatonfuzfo",
+"name": "Balatonfűzfő",
+"box": [
+47.031,
+17.994,
+47.095,
+18.085
+],
+"url": "cities/hu-balatonfuzfo.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "balmazujvaros",
+"name": "Balmazújváros",
+"box": [
+47.582,
+21.29,
+47.645,
+21.392
+],
+"url": "cities/hu-balmazujvaros.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "bataszek",
+"name": "Bátaszék",
+"box": [
+46.167,
+18.658,
+46.232,
+18.756
+],
+"url": "cities/hu-bataszek.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "batonyterenye",
+"name": "Bátonyterenye",
+"box": [
+47.927,
+19.785,
+48.04,
+19.878
+],
+"url": "cities/hu-batonyterenye.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "bekescsaba",
+"name": "Békéscsaba",
+"box": [
+46.631,
+21.019,
+46.736,
+21.215
+],
+"url": "cities/hu-bekescsaba.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "bonyhad",
+"name": "Bonyhád",
+"box": [
+46.25,
+18.461,
+46.332,
+18.565
+],
+"url": "cities/hu-bonyhad.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "csongrad",
+"name": "Csongrád",
+"box": [
+46.685,
+20.087,
+46.743,
+20.199
+],
+"url": "cities/hu-csongrad.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "csurgo",
+"name": "Csurgó",
+"box": [
+46.22,
+17.065,
+46.293,
+17.14
+],
+"url": "cities/hu-csurgo.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "dunaujvaros",
+"name": "Dunaújváros",
+"box": [
+46.908,
+18.862,
+47.018,
+18.982
+],
+"url": "cities/hu-dunaujvaros.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "eger",
+"name": "Eger",
+"box": [
+47.849,
+20.327,
+47.983,
+20.434
+],
+"url": "cities/hu-eger.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "ercsi",
+"name": "Ercsi",
+"box": [
+47.157,
+18.826,
+47.278,
+18.938
+],
+"url": "cities/hu-ercsi.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "erd",
+"name": "Érd",
+"box": [
+47.338,
+18.835,
+47.435,
+18.968
+],
+"url": "cities/hu-erd.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "esztergom",
+"name": "Esztergom",
+"box": [
+47.711,
+18.685,
+47.825,
+18.788
+],
+"url": "cities/hu-esztergom.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "fonyod",
+"name": "Fonyód",
+"box": [
+46.709,
+17.498,
+46.77,
+17.59
+],
+"url": "cities/hu-fonyod.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "godollo",
+"name": "Gödöllő",
+"box": [
+47.539,
+19.297,
+47.645,
+19.426
+],
+"url": "cities/hu-godollo.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "gyongyos",
+"name": "Gyöngyös",
+"box": [
+47.746,
+19.882,
+47.82,
+19.969
+],
+"url": "cities/hu-gyongyos.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "n-start-horaires-du-reseau-de-lagg-f21157",
+"name": "Thonon Agglomération",
+"box": [
+46.17,
+6.217,
+46.417,
+6.562
+],
+"url": "cities/fr-n-start-horaires-du-reseau-de-lagg-f21157.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "gyor",
+"name": "Győr",
+"box": [
+47.597,
+17.551,
+47.749,
+17.782
+],
+"url": "cities/hu-gyor.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "gyula",
+"name": "Gyula",
+"box": [
+46.616,
+21.23,
+46.677,
+21.445
+],
+"url": "cities/hu-gyula.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "hajduszoboszlo",
+"name": "Hajdúszoboszló",
+"box": [
+47.408,
+21.34,
+47.481,
+21.447
+],
+"url": "cities/hu-hajduszoboszlo.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "n-horaires-theoriques-et-temps-ree-3362f0",
+"name": "Brest Métropole",
+"box": [
+48.335,
+-4.648,
+48.476,
+-4.319
+],
+"url": "cities/fr-n-horaires-theoriques-et-temps-ree-3362f0.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "n-horaires-theoriques-du-reseau-iz-e347fb",
+"name": "Lorient Agglomération",
+"box": [
+47.618,
+-3.551,
+48.01,
+-3.061
+],
+"url": "cities/fr-n-horaires-theoriques-du-reseau-iz-e347fb.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "jaszbereny",
+"name": "Jászberény",
+"box": [
+47.468,
+19.843,
+47.535,
+19.958
+],
+"url": "cities/hu-jaszbereny.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "karcag",
+"name": "Karcag",
+"box": [
+47.26,
+20.858,
+47.352,
+20.965
+],
+"url": "cities/hu-karcag.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "kazincbarcika",
+"name": "Kazincbarcika",
+"box": [
+48.204,
+20.553,
+48.284,
+20.658
+],
+"url": "cities/hu-kazincbarcika.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "keszthely",
+"name": "Keszthely",
+"box": [
+46.729,
+17.197,
+46.807,
+17.307
+],
+"url": "cities/hu-keszthely.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "komarom",
+"name": "Komárom",
+"box": [
+47.708,
+17.99,
+47.77,
+18.228
+],
+"url": "cities/hu-komarom.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "komlo",
+"name": "Komló",
+"box": [
+46.155,
+18.188,
+46.248,
+18.328
+],
+"url": "cities/hu-komlo.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "kormend",
+"name": "Körmend",
+"box": [
+46.982,
+16.514,
+47.045,
+16.636
+],
+"url": "cities/hu-kormend.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "lenti",
+"name": "Lenti",
+"box": [
+46.564,
+16.491,
+46.701,
+16.611
+],
+"url": "cities/hu-lenti.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "mako",
+"name": "Makó",
+"box": [
+46.199,
+20.446,
+46.263,
+20.541
+],
+"url": "cities/hu-mako.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "mezokovesd",
+"name": "Mezőkövesd",
+"box": [
+47.773,
+20.494,
+47.833,
+20.621
+],
+"url": "cities/hu-mezokovesd.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "mezotur",
+"name": "Mezőtúr",
+"box": [
+46.975,
+20.568,
+47.023,
+20.659
+],
+"url": "cities/hu-mezotur.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "mohacs",
+"name": "Mohács",
+"box": [
+45.969,
+18.63,
+46.059,
+18.735
+],
+"url": "cities/hu-mohacs.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "morahalom",
+"name": "Mórahalom",
+"box": [
+46.19,
+19.841,
+46.244,
+19.92
+],
+"url": "cities/hu-morahalom.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "mosonmagyarovar",
+"name": "Mosonmagyaróvár",
+"box": [
+47.83,
+17.226,
+47.916,
+17.33
+],
+"url": "cities/hu-mosonmagyarovar.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "n-reseau-de-transport-urbain-de-la-0875dc",
+"name": "Toulon-Provence-Méditerranée",
+"box": [
+43.018,
+5.777,
+43.193,
+6.22
+],
+"url": "cities/fr-n-reseau-de-transport-urbain-de-la-0875dc.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "n-reseau-orizo-grand-avignon-e75221",
+"name": "Grand Avignon (COGA)",
+"box": [
+43.869,
+4.645,
+44.07,
+5.045
+],
+"url": "cities/fr-n-reseau-orizo-grand-avignon-e75221.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "n-telepherique-du-mont-faron-d9d77b",
+"name": "Toulon",
+"box": [
+43.117,
+5.9,
+43.169,
+5.964
+],
+"url": "cities/fr-n-telepherique-du-mont-faron-d9d77b.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "nagyatad",
+"name": "Nagyatád",
+"box": [
+46.201,
+17.327,
+46.255,
+17.407
+],
+"url": "cities/hu-nagyatad.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "nagykanizsa",
+"name": "Nagykanizsa",
+"box": [
+46.373,
+16.899,
+46.526,
+17.102
+],
+"url": "cities/hu-nagykanizsa.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "nyiregyhaza",
+"name": "Nyíregyháza",
+"box": [
+47.836,
+21.567,
+48.048,
+21.834
+],
+"url": "cities/hu-nyiregyhaza.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "oroszlany",
+"name": "Oroszlány",
+"box": [
+47.449,
+18.258,
+47.517,
+18.356
+],
+"url": "cities/hu-oroszlany.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "ozd",
+"name": "Ózd",
+"box": [
+48.154,
+20.187,
+48.296,
+20.394
+],
+"url": "cities/hu-ozd.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "szentes",
+"name": "Szentes",
+"box": [
+46.63,
+20.217,
+46.694,
+20.302
+],
+"url": "cities/hu-szentes.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "szigetvar",
+"name": "Szigetvár",
+"box": [
+46.024,
+17.746,
+46.101,
+17.89
+],
+"url": "cities/hu-szigetvar.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "szolnok",
+"name": "Szolnok",
+"box": [
+47.099,
+20.099,
+47.219,
+20.272
+],
+"url": "cities/hu-szolnok.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "tata",
+"name": "Tata",
+"box": [
+47.598,
+18.264,
+47.69,
+18.416
+],
+"url": "cities/hu-tata.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "tiszafured",
+"name": "Tiszafüred",
+"box": [
+47.584,
+20.688,
+47.647,
+20.787
+],
+"url": "cities/hu-tiszafured.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "tiszaujvaros",
+"name": "Tiszaújváros",
+"box": [
+47.886,
+21.002,
+47.953,
+21.11
+],
+"url": "cities/hu-tiszaujvaros.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "ujszasz",
+"name": "Újszász",
+"box": [
+47.257,
+20.026,
+47.322,
+20.106
+],
+"url": "cities/hu-ujszasz.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "vac",
+"name": "Vác",
+"box": [
+47.75,
+19.075,
+47.85,
+19.183
+],
+"url": "cities/hu-vac.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "zalaegerszeg",
+"name": "Zalaegerszeg",
+"box": [
+46.765,
+16.754,
+46.907,
+16.91
+],
+"url": "cities/hu-zalaegerszeg.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "lisbon",
+"name": "Lisbon",
+"box": [
+38.617,
+-9.273,
+38.814,
+-8.976
+],
+"url": "cities/pt-lisbon-carris.json",
+"urls": [
+"cities/pt-lisbon-carris.json",
+"cities/pt-lisbon-mts.json",
+"cities/pt-lisbon-metro.json",
+"cities/pt-lisbon-ferries.json"
+],
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "zagreb",
+"name": "Zagreb",
+"box": [
+45.592,
+15.758,
+45.957,
+16.218
+],
+"url": "cities/hr-zagreb-zet.json",
+"urls": [
+"cities/hr-zagreb-zet.json",
+"cities/hr-zagreb-extra.json"
+],
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "budapest",
+"name": "Budapest",
+"box": [
+47.15,
+18.65,
+47.85,
+19.45
+],
+"url": "cities/hu-budapest-bkk.json",
+"urls": [
+"cities/hu-budapest-bkk.json",
+"cities/hu-budapest-funicular.json",
+"cities/hu-budapest-chairlift.json"
+],
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "n-uba-horaires-navettes-maritimes-0129ab",
+"name": "Andernos-les-Bains",
+"box": [
+44.622,
+-1.267,
+44.759,
+-1.072
+],
+"url": "cities/fr-n-uba-horaires-navettes-maritimes-0129ab.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "kaposvar",
+"name": "Kaposvár",
+"box": [
+46.286,
+17.729,
+46.45,
+17.887
+],
+"url": "cities/hu-kaposvar.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "hodmezovasarhely",
+"name": "Hódmezővásárhely",
+"box": [
+46.371,
+20.25,
+46.456,
+20.398
+],
+"url": "cities/hu-hodmezovasarhely.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "papa",
+"name": "Pápa",
+"box": [
+47.256,
+17.401,
+47.365,
+17.556
+],
+"url": "cities/hu-papa.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "salgotarjan",
+"name": "Salgótarján",
+"box": [
+48.024,
+19.73,
+48.188,
+19.895
+],
+"url": "cities/hu-salgotarjan.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "n-simouv-horaires-theoriques-forma-f6e4f9",
+"name": "Valenciennes Métropole",
+"box": [
+50.234,
+3.235,
+50.528,
+3.7
+],
+"url": "cities/fr-n-simouv-horaires-theoriques-forma-f6e4f9.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "siklos",
+"name": "Siklós",
+"box": [
+45.836,
+18.24,
+45.896,
+18.327
+],
+"url": "cities/hu-siklos.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "n-horaires-theoriques-et-temps-ree-92d6f3",
+"name": "Grand Calais Terres et Mers",
+"box": [
+50.844,
+1.687,
+51.0,
+1.999
+],
+"url": "cities/fr-n-horaires-theoriques-et-temps-ree-92d6f3.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "siofok",
+"name": "Siófok",
+"box": [
+46.831,
+17.964,
+46.96,
+18.16
+],
+"url": "cities/hu-siofok.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "sopron",
+"name": "Sopron",
+"box": [
+47.63,
+16.459,
+47.746,
+16.696
+],
+"url": "cities/hu-sopron.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "szekesfehervar",
+"name": "Székesfehérvár",
+"box": [
+47.117,
+18.327,
+47.26,
+18.549
+],
+"url": "cities/hu-szekesfehervar.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "szekszard",
+"name": "Szekszárd",
+"box": [
+46.289,
+18.632,
+46.4,
+18.758
+],
+"url": "cities/hu-szekszard.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "n-fichiers-gtfs-eurometropole-de-m-f4768c",
+"name": "Metz Métropole",
+"box": [
+48.97,
+5.987,
+49.221,
+6.338
+],
+"url": "cities/fr-n-fichiers-gtfs-eurometropole-de-m-f4768c.json",
 "bus": [
 "#7E8BA3",
 "#97A6BF"

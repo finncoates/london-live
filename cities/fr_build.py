@@ -130,7 +130,9 @@ def region_pbf():  # the smallest Geofabrik extract that covers the whole city
     fn = os.path.join(od, best[2].replace('/', '_') + '.osm.pbf')
     if not os.path.exists(fn):
         req = urllib.request.Request(best[1], headers={'user-agent':'LondonLive/1.0 (+https://github.com/finncoates/london-live)'})
-        with urllib.request.urlopen(req, timeout=1800) as r, open(fn + '.part', 'wb') as f: shutil.copyfileobj(r, f)
+        with urllib.request.urlopen(req, timeout=1800) as r, open(fn + '.part', 'wb') as f:
+            want = int(r.headers.get('content-length') or 0); shutil.copyfileobj(r, f)
+        if want and os.path.getsize(fn + '.part') != want: os.remove(fn + '.part'); sys.exit(f'{best[2]} extract download cut short')  # (a connection closed early: Hungary's)
         os.replace(fn + '.part', fn)
     return fn
 jf = os.path.join(HERE, f'{a.country}-{a.id}.json')

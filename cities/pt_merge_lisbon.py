@@ -5,7 +5,7 @@ import sys as _s; _s.stdout.reconfigure(encoding='utf-8', errors='replace')
 import os, json
 HERE = os.path.dirname(os.path.abspath(__file__)); f = os.path.join(HERE, 'fr-index.json')
 idx = json.load(open(f, encoding='utf-8'))
-for city, prefix in (('Lisbon', 'lisbon-'), ('Zagreb', 'zagreb-')):
+for city, prefix in (('Lisbon', 'lisbon-'), ('Zagreb', 'zagreb-'), ('Budapest', 'budapest-')):
     parts = [c for c in idx if c['id'].startswith(prefix) or c['id'] == prefix.rstrip('-')]  # (the city merged before: an operator built again joins it)
     if not parts: continue
     b = [min(c['box'][0] for c in parts), min(c['box'][1] for c in parts), max(c['box'][2] for c in parts), max(c['box'][3] for c in parts)]

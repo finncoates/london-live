@@ -76,10 +76,11 @@ Other cities checked and not possible without a key: Paris (RATP/IDFM: free PRIM
 | **Czechia** | Prague (Metro A–C, trams, the Petřín funicular, ferries), Brno, Ostrava, Plzeň, Olomouc, Liberec and Most trams (routed on OpenStreetMap track where the timetable has no shapes); the railway from OpenStreetMap, 2,731 stations | PID, IDS JMK, PMDP, DPMO, IDZK, and every other town's buses and trolleybuses and every regional and long-distance bus from the national timetable (JDF) | From the timetable | Transitous |
 | **Cyprus** | No railway | Every bus in Nicosia, Limassol (EMEL), Larnaca, Paphos and Ayia Napa/Famagusta districts, the intercity buses and the airport express | From the timetable | Transitous |
 | **Iceland** | No railway | Strætó (Reykjavík), Reykjanesbær, Akureyri and the national routes | From the timetable | Transitous |
+| **Hungary** | Budapest (BKK metro M1–M4, trams, HÉV, the Castle Hill funicular, the chairlift, boats), Debrecen, Miskolc and Szeged trams; Balaton ferries; MÁV's and GySEV's railway from OpenStreetMap, 1,418 stations | BKK, every Volán town network (about 60 towns), Pécs, Szombathely, Veszprém, Kaposvár and other towns' own buses, and every Volán intercity bus | From the timetable | Transitous |
 
 Also: bikes and scooters for hire in 86 French towns (Vélib', Vélo'v, V³, Lime, Voi, Dott, Pony…); FlixBus and
 BlaBlaCar coaches in their own colours; tapping a timetable vehicle shows where it's really going.
-**Gaps**: Finland's intercity buses (Fintraffic refuses automated downloads), Austria's regional timetables (not openly
+**Gaps**: Kecskemét's city buses (login) and Dombóvár's (server unreachable) in Hungary. Finland's intercity buses (Fintraffic refuses automated downloads), Austria's regional timetables (not openly
 downloadable) and Slovakia's Košice, Žilina and Banská Bystrica city networks (no open timetable) are why those countries
 wait. Croatia's Pula and Osijek (trams) networks, Jadrolinija's ferries and its intercity buses publish only behind a
 login on the national access point (promet-info.hr), so they're missing. Portugal's regional buses outside Lisbon, Porto, Braga, Coimbra, the Algarve and Madeira publish no open timetable

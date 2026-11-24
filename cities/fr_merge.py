@@ -6,6 +6,16 @@
 #   python -I cities/fr_merge.py [network ...]      (no names: every network)
 import sys as _s; _s.stdout.reconfigure(encoding='utf-8', errors='replace'); _s.stderr.reconfigure(encoding='utf-8', errors='replace')  # Windows console: never crash on a name
 import os, sys, json, math, subprocess
+
+def save(path, obj, **kw):  # written whole then swapped in, retried: Windows refuses a file another process (the web server, a scan) has open
+    import time
+    for k in range(20):
+        try:
+            with open(path + '.tmp', 'w', encoding='utf-8') as f: json.dump(obj, f, separators=(',', ':'), **kw)
+            os.replace(path + '.tmp', path); return
+        except OSError:
+            if k == 19: raise
+            time.sleep(0.5)
 # one writer at a time: two builds merging into the same shared tiles at once corrupt them (Windows: 'Invalid argument')
 import time as _t, atexit as _ax
 _LOCK = os.path.join(os.path.dirname(os.path.abspath(__file__)), '.build', 'merge.lock'); _t0 = _t.time()
@@ -51,5 +61,5 @@ for fn in sorted(tiles):
                     run = [q]
                 else: run.append(q)
             if len(run) > 1: draw(run)
-    json.dump(out, open(os.path.join(HERE, 'busnet', fn), 'w'), separators=(',', ':'))
+    save(os.path.join(HERE, 'busnet', fn), out)
 print(len(tiles), 'tiles rebuilt for', len(want), 'networks')
