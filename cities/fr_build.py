@@ -91,7 +91,7 @@ report = {'id':a.id, 'name':a.name, 'routes':len(routes), 'types':dict(types), '
 def shape_quality():
     zz = zipfile.ZipFile(sub); rr = lambda n: csv.DictReader(io.TextIOWrapper(zz.open(n), 'utf-8-sig'))
     if 'shapes.txt' not in zz.namelist(): return None
-    bus = {r['route_id'] for r in rr('routes.txt') if r['route_type'] in ('3', '11', '200', '201', '202', '204', '209', '700', '701', '702', '704', '705', '711', '712', '715', '800')}
+    bus = {r['route_id'] for r in rr('routes.txt') if r['route_type'] in ('3', '11', '200', '201', '202', '204', '209', '700', '701', '702', '704', '705', '711', '712', '713', '715', '800')}
     bs = {t.get('shape_id') for t in rr('trips.txt') if t['route_id'] in bus and t.get('shape_id')}
     if not bs: return None
     gaps = []; last = {}
@@ -104,7 +104,7 @@ def shape_quality():
 shape_quality.long = 0
 def shapeless_share():  # bus trips with no shape at all (Strasbourg: most of them): those routes would be missing
     zz = zipfile.ZipFile(sub); rr = lambda n: csv.DictReader(io.TextIOWrapper(zz.open(n), 'utf-8-sig'))
-    bus = {r['route_id'] for r in rr('routes.txt') if r['route_type'] in ('3', '11', '200', '201', '202', '204', '209', '700', '701', '702', '704', '705', '711', '712', '715', '800')}
+    bus = {r['route_id'] for r in rr('routes.txt') if r['route_type'] in ('3', '11', '200', '201', '202', '204', '209', '700', '701', '702', '704', '705', '711', '712', '713', '715', '800')}
     t = [bool(x.get('shape_id')) for x in rr('trips.txt') if x['route_id'] in bus]
     return (len(t) - sum(t))/len(t) if t else 0
 def region_pbf():  # the smallest Geofabrik extract that covers the whole city
@@ -182,7 +182,7 @@ report['lines'] = sorted({(l['name'], l['kind'], l['col']) for l in d['lines']})
 
 # 4. buses: built into a folder of their own, then merged into the shared tiles. Routes follow the timetable's shapes, or,
 # when it has none or they only join the stops with straight lines (Nantes), are matched onto OpenStreetMap's roads.
-BUS_TYPES = ('3', '11', '200', '201', '202', '204', '209', '700', '701', '702', '704', '705', '711', '712', '715', '800')
+BUS_TYPES = ('3', '11', '200', '201', '202', '204', '209', '700', '701', '702', '704', '705', '711', '712', '713', '715', '800')
 if not a.nobus and not any(r['route_type'] in BUS_TYPES for r in routes): report['bus'] = 'no bus routes'
 elif not a.nobus:
     bdir = os.path.join(work, 'busnet'); shutil.rmtree(bdir, ignore_errors=True)

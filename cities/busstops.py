@@ -13,7 +13,7 @@ def day_of(wd):  # the next date with this weekday (0 = Monday)
 for zf in sys.argv[2:]:
     z = zipfile.ZipFile(zf); rd = lambda n: csv.DictReader(io.TextIOWrapper(z.open(n), 'utf-8-sig'))
     ag = {a['agency_id']: a['agency_name'] for a in rd('agency.txt')}
-    routes = {r['route_id']: (r['route_short_name'] or r.get('route_long_name', ''), ag.get(r['agency_id'], ''), r.get('route_color') or '') for r in rd('routes.txt') if r['route_type'] in ('3', '11', '200', '201', '202', '204', '209', '700', '701', '702', '704', '705', '711', '712', '715', '800')}
+    routes = {r['route_id']: (r['route_short_name'] or r.get('route_long_name', ''), ag.get(r['agency_id'], ''), r.get('route_color') or '') for r in rd('routes.txt') if r['route_type'] in ('3', '11', '200', '201', '202', '204', '209', '700', '701', '702', '704', '705', '711', '712', '713', '715', '800')}
     cal = {c['service_id']: c for c in rd('calendar.txt')} if 'calendar.txt' in z.namelist() else {}
     exc = collections.defaultdict(dict)
     if 'calendar_dates.txt' in z.namelist():

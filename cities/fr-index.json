@@ -405,21 +405,6 @@
 ]
 },
 {
-"id": "lyon",
-"name": "Lyon",
-"box": [
-45.546,
-4.265,
-46.278,
-5.102
-],
-"url": "cities/fr-lyon.json",
-"bus": [
-"#7E8BA3",
-"#97A6BF"
-]
-},
-{
 "id": "bordeaux",
 "name": "Bordeaux",
 "box": [
@@ -3074,6 +3059,21 @@
 -0.912
 ],
 "url": "cities/fr-n-arrets-horaires-et-parcours-theo-ff9006.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "lyon",
+"name": "Lyon",
+"box": [
+45.546,
+4.265,
+46.278,
+5.102
+],
+"url": "cities/fr-lyon.json",
 "bus": [
 "#7E8BA3",
 "#97A6BF"

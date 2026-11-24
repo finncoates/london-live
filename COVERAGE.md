@@ -80,6 +80,8 @@ Other cities checked and not possible without a key: Paris (RATP/IDFM: free PRIM
 | **Switzerland** | Zürich (with the Forchbahn and Limmattalbahn), Basel, Bern and Geneva trams on their track in their official colours (from OpenStreetMap), Lausanne's metro m1/m2, every lake boat and every mountain cable car and funicular; the railway from OpenStreetMap, 2,128 stations | Every bus and trolleybus in the country (PostAuto and 180 other operators) from the national timetable, matched onto the roads | From the timetable | Transitous |
 | **Andorra** | No railway | Every national bus line | From the timetable | Transitous |
 
+France's departmental and regional intercity buses (Fluo Grand-Est, Auvergne-Rhône-Alpes's départements, BreizhGo, liO
+Occitanie…) and their school-and-public routes are on the bus map; every circular route keeps its loop.
 Also: bikes and scooters for hire in 86 French towns (Vélib', Vélo'v, V³, Lime, Voi, Dott, Pony…); FlixBus and
 BlaBlaCar coaches in their own colours; tapping a timetable vehicle shows where it's really going.
 **Gaps**: Zagreb's, Olomouc's, Plzeň's and Miskolc's trams have no line colours in the open data or OpenStreetMap (drawn in one tram colour).
