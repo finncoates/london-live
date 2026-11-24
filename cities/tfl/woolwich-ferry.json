@@ -1,0 +1,1 @@
+{"polys":[[[51.49517,0.06208],[51.49776,0.06078]]],"routes":[{"dir":"outbound","ids":["930GWWS","930GWWC"]},{"dir":"inbound","ids":["930GWWC","930GWWS"]}],"stops":{"930GWWS":{"raw":"Woolwich Ferry South Pier","p":[51.49517,0.06208]},"930GWWC":{"raw":"Woolwich Ferry North Pier","p":[51.49776,0.06078]}}}

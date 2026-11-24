@@ -901,6 +901,8 @@ const HIDE_HOP = new Set(['elizabeth:910GLIVST>910GSTFD']);
 async function loadLine(l){
   const TRACKS = l.mode === 'bus' || l.rail ? null : await TRACKS_P;
   let d = l.mode === 'bus' ? null : store.get('seq2:'+l.id); // bus routes are big: not kept in local storage
+  if(!d && l.mode !== 'bus'){ // baked into the site (tools/tfl_bake.py): no TfL calls just to draw the lines
+    try{ const r = await fetch('cities/tfl/' + l.id + '.json'); if(r.ok){ const b = await r.json(); for(const s of Object.values(b.stops)){ s.n = cleanName(s.raw); delete s.raw; } d = b; store.set('seq2:'+l.id, d, 7*864e5); } }catch(e){} }
   if(!d){
     const [o, i] = await Promise.all([
       get(`/Line/${l.id}/Route/Sequence/outbound`),

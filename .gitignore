@@ -2,3 +2,4 @@ __pycache__/
 rail/.wrangler/
 cities/.build/
 tools/node_modules/
+tools/shot.mjs
