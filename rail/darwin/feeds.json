@@ -1652,6 +1652,86 @@
    "url": "https://proxy.transport.data.gouv.fr/resource/star-rennes-integration-gtfs-rt-vehicle-position",
    "gtfs": "https://www.data.gouv.fr/api/1/datasets/r/0644f537-575e-4cce-9570-06165d6f3b27",
    "cc": "fr"
+  },
+  {
+   "id": "se-sl",
+   "name": "SL (Stockholm)",
+   "box": [
+    58.6,
+    17.2,
+    60.3,
+    19.4
+   ],
+   "tt": "_se-",
+   "ttModes": "BUS|TRAM|SUBWAY|FERRY",
+   "every": 30,
+   "cc": "se",
+   "needs": [
+    "TRAFIKLAB_RT_KEY",
+    "TRAFIKLAB_STATIC_KEY"
+   ],
+   "url": "https://opendata.samtrafiken.se/gtfs-rt/sl/VehiclePositions.pb?key=$TRAFIKLAB_RT_KEY",
+   "gtfs": "https://opendata.samtrafiken.se/gtfs/sl/sl.zip?key=$TRAFIKLAB_STATIC_KEY"
+  },
+  {
+   "id": "se-ul",
+   "name": "UL (Uppsala)",
+   "box": [
+    59.5,
+    16.6,
+    60.7,
+    18.8
+   ],
+   "tt": "_se-",
+   "ttModes": "BUS|TRAM|SUBWAY|FERRY",
+   "every": 30,
+   "cc": "se",
+   "needs": [
+    "TRAFIKLAB_RT_KEY",
+    "TRAFIKLAB_STATIC_KEY"
+   ],
+   "url": "https://opendata.samtrafiken.se/gtfs-rt/ul/VehiclePositions.pb?key=$TRAFIKLAB_RT_KEY",
+   "gtfs": "https://opendata.samtrafiken.se/gtfs/ul/ul.zip?key=$TRAFIKLAB_STATIC_KEY"
+  },
+  {
+   "id": "se-skane",
+   "name": "Skånetrafiken",
+   "box": [
+    55.3,
+    12.4,
+    56.55,
+    14.6
+   ],
+   "tt": "_se-",
+   "ttModes": "BUS|TRAM|SUBWAY|FERRY",
+   "every": 30,
+   "cc": "se",
+   "needs": [
+    "TRAFIKLAB_RT_KEY",
+    "TRAFIKLAB_STATIC_KEY"
+   ],
+   "url": "https://opendata.samtrafiken.se/gtfs-rt/skane/VehiclePositions.pb?key=$TRAFIKLAB_RT_KEY",
+   "gtfs": "https://opendata.samtrafiken.se/gtfs/skane/skane.zip?key=$TRAFIKLAB_STATIC_KEY"
+  },
+  {
+   "id": "se-otraf",
+   "name": "Östgötatrafiken",
+   "box": [
+    57.7,
+    14.4,
+    58.95,
+    16.95
+   ],
+   "tt": "_se-",
+   "ttModes": "BUS|TRAM|SUBWAY|FERRY",
+   "every": 30,
+   "cc": "se",
+   "needs": [
+    "TRAFIKLAB_RT_KEY",
+    "TRAFIKLAB_STATIC_KEY"
+   ],
+   "url": "https://opendata.samtrafiken.se/gtfs-rt/otraf/VehiclePositions.pb?key=$TRAFIKLAB_RT_KEY",
+   "gtfs": "https://opendata.samtrafiken.se/gtfs/otraf/otraf.zip?key=$TRAFIKLAB_STATIC_KEY"
   }
  ]
 }

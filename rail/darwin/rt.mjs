@@ -59,7 +59,7 @@ export class Feed {
   async loadRoutes(){ if(!this.cfg.gtfs) return; // one feed at a time: a small server can't read many timetables at once
     const turn = LOADQ.then(() => this._loadRoutes()); LOADQ = turn.catch(() => {}); return turn; }
   async _loadRoutes(){
-    try{ const f = await zipFiles(this.cfg.gtfs, ['routes.txt', 'agency.txt', ...(this.cfg.trips === true ? ['trips.txt'] : [])], this.cfg.gtfsHeaders ? this.headers() : {});
+    try{ const f = await zipFiles(this.sub(this.cfg.gtfs), ['routes.txt', 'agency.txt', ...(this.cfg.trips === true ? ['trips.txt'] : [])], this.cfg.gtfsHeaders ? this.headers() : {});
       const ag = new Map((f['agency.txt'] ? csv(f['agency.txt']) : []).map(a => [a.agency_id, a.agency_name]));
       this.routes = new Map(csv(f['routes.txt'] || '').map(r => [r.route_id, {name:r.route_short_name || r.route_long_name || '', kind:kindOf(r.route_type),
         col:/^[0-9a-f]{6}$/i.test(r.route_color || '') ? '#' + r.route_color : null, op:ag.get(r.agency_id) || (ag.size === 1 ? [...ag.values()][0] : '') || ''}]));

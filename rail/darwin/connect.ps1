@@ -74,7 +74,9 @@ if(-not $NoPrompt){
       @('DARWIN_GROUP', 'Darwin "Consumer group" (Enter if the page shows none)', $false),
       @('AISSTREAM_KEY', 'AISStream key (live ferries; aisstream.io)', $true),
       @('NTA_KEY', 'NTA key (Ireland live buses; developer.nationaltransport.ie)', $true),
-      @('ODPT_KEY', 'ODPT key (Tokyo live trains; developer.odpt.org)', $true))){
+      @('ODPT_KEY', 'ODPT key (Tokyo live trains; developer.odpt.org)', $true),
+      @('TRAFIKLAB_RT_KEY', 'Trafiklab "GTFS Regional Realtime" key (Sweden live buses; trafiklab.se)', $true),
+      @('TRAFIKLAB_STATIC_KEY', 'Trafiklab "GTFS Regional Static data" key (same project)', $true))){
     $v = if($k[2]){ Read-Secret "  $($k[1])" } else { Read-Host "  $($k[1])" }
     if($v){ $lines += "$($k[0])=$v" } }
   if($lines.Count){ Invoke-Remote 'bash ~/london-live/rail/darwin/setenv.sh' ($lines -join "`n") }
