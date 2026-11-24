@@ -15,21 +15,6 @@
 ]
 },
 {
-"id": "n-arrets-horaires-et-parcours-theo-ff9006",
-"name": "La Rochelle",
-"box": [
-46.025,
--1.247,
-46.266,
--0.912
-],
-"url": "cities/fr-n-arrets-horaires-et-parcours-theo-ff9006.json",
-"bus": [
-"#7E8BA3",
-"#97A6BF"
-]
-},
-{
 "id": "antwerp",
 "name": "Antwerp",
 "box": [
@@ -3074,6 +3059,21 @@
 6.102
 ],
 "url": "cities/fr-n-telecabine-eau-dolle-express-all-117fed.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "n-arrets-horaires-et-parcours-theo-ff9006",
+"name": "La Rochelle",
+"box": [
+46.025,
+-1.247,
+46.266,
+-0.912
+],
+"url": "cities/fr-n-arrets-horaires-et-parcours-theo-ff9006.json",
 "bus": [
 "#7E8BA3",
 "#97A6BF"
