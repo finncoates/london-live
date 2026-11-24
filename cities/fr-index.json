@@ -585,21 +585,6 @@
 ]
 },
 {
-"id": "sibenik",
-"name": "Šibenik",
-"box": [
-43.606,
-15.793,
-43.828,
-16.152
-],
-"url": "cities/hr-sibenik.json",
-"bus": [
-"#7E8BA3",
-"#97A6BF"
-]
-},
-{
 "id": "sisak",
 "name": "Sisak",
 "box": [
@@ -714,21 +699,6 @@
 14.921
 ],
 "url": "cities/hr-rab-ferries.json",
-"bus": [
-"#7E8BA3",
-"#97A6BF"
-]
-},
-{
-"id": "montpellier",
-"name": "Montpellier",
-"box": [
-43.507,
-3.675,
-43.749,
-4.067
-],
-"url": "cities/fr-montpellier.json",
 "bus": [
 "#7E8BA3",
 "#97A6BF"
@@ -1200,51 +1170,6 @@
 ]
 },
 {
-"id": "ajka",
-"name": "Ajka",
-"box": [
-47.064,
-17.495,
-47.158,
-17.618
-],
-"url": "cities/hu-ajka.json",
-"bus": [
-"#7E8BA3",
-"#97A6BF"
-]
-},
-{
-"id": "baja",
-"name": "Baja",
-"box": [
-46.138,
-18.903,
-46.232,
-19.073
-],
-"url": "cities/hu-baja.json",
-"bus": [
-"#7E8BA3",
-"#97A6BF"
-]
-},
-{
-"id": "balassagyarmat",
-"name": "Balassagyarmat",
-"box": [
-48.035,
-19.243,
-48.104,
-19.34
-],
-"url": "cities/hu-balassagyarmat.json",
-"bus": [
-"#7E8BA3",
-"#97A6BF"
-]
-},
-{
 "id": "n-horaires-theoriques-du-telepheri-3f9dea",
 "name": "Grenoble",
 "box": [
@@ -1254,261 +1179,6 @@
 5.756
 ],
 "url": "cities/fr-n-horaires-theoriques-du-telepheri-3f9dea.json",
-"bus": [
-"#7E8BA3",
-"#97A6BF"
-]
-},
-{
-"id": "balatonfured",
-"name": "Balatonfüred",
-"box": [
-46.928,
-17.83,
-46.993,
-17.94
-],
-"url": "cities/hu-balatonfured.json",
-"bus": [
-"#7E8BA3",
-"#97A6BF"
-]
-},
-{
-"id": "balatonfuzfo",
-"name": "Balatonfűzfő",
-"box": [
-47.031,
-17.994,
-47.095,
-18.085
-],
-"url": "cities/hu-balatonfuzfo.json",
-"bus": [
-"#7E8BA3",
-"#97A6BF"
-]
-},
-{
-"id": "balmazujvaros",
-"name": "Balmazújváros",
-"box": [
-47.582,
-21.29,
-47.645,
-21.392
-],
-"url": "cities/hu-balmazujvaros.json",
-"bus": [
-"#7E8BA3",
-"#97A6BF"
-]
-},
-{
-"id": "bataszek",
-"name": "Bátaszék",
-"box": [
-46.167,
-18.658,
-46.232,
-18.756
-],
-"url": "cities/hu-bataszek.json",
-"bus": [
-"#7E8BA3",
-"#97A6BF"
-]
-},
-{
-"id": "batonyterenye",
-"name": "Bátonyterenye",
-"box": [
-47.927,
-19.785,
-48.04,
-19.878
-],
-"url": "cities/hu-batonyterenye.json",
-"bus": [
-"#7E8BA3",
-"#97A6BF"
-]
-},
-{
-"id": "bekescsaba",
-"name": "Békéscsaba",
-"box": [
-46.631,
-21.019,
-46.736,
-21.215
-],
-"url": "cities/hu-bekescsaba.json",
-"bus": [
-"#7E8BA3",
-"#97A6BF"
-]
-},
-{
-"id": "bonyhad",
-"name": "Bonyhád",
-"box": [
-46.25,
-18.461,
-46.332,
-18.565
-],
-"url": "cities/hu-bonyhad.json",
-"bus": [
-"#7E8BA3",
-"#97A6BF"
-]
-},
-{
-"id": "csongrad",
-"name": "Csongrád",
-"box": [
-46.685,
-20.087,
-46.743,
-20.199
-],
-"url": "cities/hu-csongrad.json",
-"bus": [
-"#7E8BA3",
-"#97A6BF"
-]
-},
-{
-"id": "csurgo",
-"name": "Csurgó",
-"box": [
-46.22,
-17.065,
-46.293,
-17.14
-],
-"url": "cities/hu-csurgo.json",
-"bus": [
-"#7E8BA3",
-"#97A6BF"
-]
-},
-{
-"id": "dunaujvaros",
-"name": "Dunaújváros",
-"box": [
-46.908,
-18.862,
-47.018,
-18.982
-],
-"url": "cities/hu-dunaujvaros.json",
-"bus": [
-"#7E8BA3",
-"#97A6BF"
-]
-},
-{
-"id": "eger",
-"name": "Eger",
-"box": [
-47.849,
-20.327,
-47.983,
-20.434
-],
-"url": "cities/hu-eger.json",
-"bus": [
-"#7E8BA3",
-"#97A6BF"
-]
-},
-{
-"id": "ercsi",
-"name": "Ercsi",
-"box": [
-47.157,
-18.826,
-47.278,
-18.938
-],
-"url": "cities/hu-ercsi.json",
-"bus": [
-"#7E8BA3",
-"#97A6BF"
-]
-},
-{
-"id": "erd",
-"name": "Érd",
-"box": [
-47.338,
-18.835,
-47.435,
-18.968
-],
-"url": "cities/hu-erd.json",
-"bus": [
-"#7E8BA3",
-"#97A6BF"
-]
-},
-{
-"id": "esztergom",
-"name": "Esztergom",
-"box": [
-47.711,
-18.685,
-47.825,
-18.788
-],
-"url": "cities/hu-esztergom.json",
-"bus": [
-"#7E8BA3",
-"#97A6BF"
-]
-},
-{
-"id": "fonyod",
-"name": "Fonyód",
-"box": [
-46.709,
-17.498,
-46.77,
-17.59
-],
-"url": "cities/hu-fonyod.json",
-"bus": [
-"#7E8BA3",
-"#97A6BF"
-]
-},
-{
-"id": "godollo",
-"name": "Gödöllő",
-"box": [
-47.539,
-19.297,
-47.645,
-19.426
-],
-"url": "cities/hu-godollo.json",
-"bus": [
-"#7E8BA3",
-"#97A6BF"
-]
-},
-{
-"id": "gyongyos",
-"name": "Gyöngyös",
-"box": [
-47.746,
-19.882,
-47.82,
-19.969
-],
-"url": "cities/hu-gyongyos.json",
 "bus": [
 "#7E8BA3",
 "#97A6BF"
@@ -1530,51 +1200,6 @@
 ]
 },
 {
-"id": "gyor",
-"name": "Győr",
-"box": [
-47.597,
-17.551,
-47.749,
-17.782
-],
-"url": "cities/hu-gyor.json",
-"bus": [
-"#7E8BA3",
-"#97A6BF"
-]
-},
-{
-"id": "gyula",
-"name": "Gyula",
-"box": [
-46.616,
-21.23,
-46.677,
-21.445
-],
-"url": "cities/hu-gyula.json",
-"bus": [
-"#7E8BA3",
-"#97A6BF"
-]
-},
-{
-"id": "hajduszoboszlo",
-"name": "Hajdúszoboszló",
-"box": [
-47.408,
-21.34,
-47.481,
-21.447
-],
-"url": "cities/hu-hajduszoboszlo.json",
-"bus": [
-"#7E8BA3",
-"#97A6BF"
-]
-},
-{
 "id": "n-horaires-theoriques-du-reseau-iz-e347fb",
 "name": "Lorient Agglomération",
 "box": [
@@ -1584,36 +1209,6 @@
 -3.061
 ],
 "url": "cities/fr-n-horaires-theoriques-du-reseau-iz-e347fb.json",
-"bus": [
-"#7E8BA3",
-"#97A6BF"
-]
-},
-{
-"id": "jaszbereny",
-"name": "Jászberény",
-"box": [
-47.468,
-19.843,
-47.535,
-19.958
-],
-"url": "cities/hu-jaszbereny.json",
-"bus": [
-"#7E8BA3",
-"#97A6BF"
-]
-},
-{
-"id": "karcag",
-"name": "Karcag",
-"box": [
-47.26,
-20.858,
-47.352,
-20.965
-],
-"url": "cities/hu-karcag.json",
 "bus": [
 "#7E8BA3",
 "#97A6BF"
@@ -2280,21 +1875,6 @@
 ]
 },
 {
-"id": "n-lignes-arrets-et-horaires-theori-692ae8",
-"name": "Les Sables d'Olonne Agglomération",
-"box": [
-46.451,
--1.841,
-46.626,
--1.642
-],
-"url": "cities/fr-n-lignes-arrets-et-horaires-theori-692ae8.json",
-"bus": [
-"#7E8BA3",
-"#97A6BF"
-]
-},
-{
 "id": "n-gtfs-diviamobilites-793bb1",
 "name": "Dijon Métropole",
 "box": [
@@ -2334,36 +1914,6 @@
 1.274
 ],
 "url": "cities/fr-n-donnees-statiques-et-temps-reel-52d2b9.json",
-"bus": [
-"#7E8BA3",
-"#97A6BF"
-]
-},
-{
-"id": "n-reseau-de-transport-en-commun-li-ff9f5d",
-"name": "Le Havre Seine Métropole",
-"box": [
-49.444,
-0.04,
-49.709,
-0.384
-],
-"url": "cities/fr-n-reseau-de-transport-en-commun-li-ff9f5d.json",
-"bus": [
-"#7E8BA3",
-"#97A6BF"
-]
-},
-{
-"id": "n-fr-200052264-t0017-0000-1-fab834",
-"name": "Saint-Louis Agglomération",
-"box": [
-47.478,
-7.209,
-47.71,
-7.657
-],
-"url": "cities/fr-n-fr-200052264-t0017-0000-1-fab834.json",
 "bus": [
 "#7E8BA3",
 "#97A6BF"
@@ -2514,21 +2064,6 @@
 5.54
 ],
 "url": "cities/fr-marseille.json",
-"bus": [
-"#7E8BA3",
-"#97A6BF"
-]
-},
-{
-"id": "lille",
-"name": "Lille",
-"box": [
-50.501,
-2.782,
-50.803,
-3.278
-],
-"url": "cities/fr-lille.json",
 "bus": [
 "#7E8BA3",
 "#97A6BF"
@@ -3074,6 +2609,471 @@
 "cities/ch-lifts.json",
 "cities/ch-boats.json"
 ],
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "n-lignes-arrets-et-horaires-theori-692ae8",
+"name": "Les Sables d'Olonne Agglomération",
+"box": [
+46.451,
+-1.841,
+46.626,
+-1.642
+],
+"url": "cities/fr-n-lignes-arrets-et-horaires-theori-692ae8.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "n-fr-200052264-t0017-0000-1-fab834",
+"name": "Saint-Louis Agglomération",
+"box": [
+47.478,
+7.209,
+47.71,
+7.657
+],
+"url": "cities/fr-n-fr-200052264-t0017-0000-1-fab834.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "n-reseau-de-transport-en-commun-li-ff9f5d",
+"name": "Le Havre Seine Métropole",
+"box": [
+49.444,
+0.04,
+49.709,
+0.384
+],
+"url": "cities/fr-n-reseau-de-transport-en-commun-li-ff9f5d.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "lille",
+"name": "Lille",
+"box": [
+50.501,
+2.782,
+50.803,
+3.278
+],
+"url": "cities/fr-lille.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "montpellier",
+"name": "Montpellier",
+"box": [
+43.507,
+3.675,
+43.749,
+4.067
+],
+"url": "cities/fr-montpellier.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "sibenik",
+"name": "Šibenik",
+"box": [
+43.606,
+15.793,
+43.828,
+16.152
+],
+"url": "cities/hr-sibenik.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "ajka",
+"name": "Ajka",
+"box": [
+47.064,
+17.495,
+47.158,
+17.618
+],
+"url": "cities/hu-ajka.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "baja",
+"name": "Baja",
+"box": [
+46.138,
+18.903,
+46.232,
+19.073
+],
+"url": "cities/hu-baja.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "balassagyarmat",
+"name": "Balassagyarmat",
+"box": [
+48.035,
+19.243,
+48.104,
+19.34
+],
+"url": "cities/hu-balassagyarmat.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "balatonfured",
+"name": "Balatonfüred",
+"box": [
+46.928,
+17.83,
+46.993,
+17.94
+],
+"url": "cities/hu-balatonfured.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "balatonfuzfo",
+"name": "Balatonfűzfő",
+"box": [
+47.031,
+17.994,
+47.095,
+18.085
+],
+"url": "cities/hu-balatonfuzfo.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "balmazujvaros",
+"name": "Balmazújváros",
+"box": [
+47.582,
+21.29,
+47.645,
+21.392
+],
+"url": "cities/hu-balmazujvaros.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "bataszek",
+"name": "Bátaszék",
+"box": [
+46.167,
+18.658,
+46.232,
+18.756
+],
+"url": "cities/hu-bataszek.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "batonyterenye",
+"name": "Bátonyterenye",
+"box": [
+47.927,
+19.785,
+48.04,
+19.878
+],
+"url": "cities/hu-batonyterenye.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "bekescsaba",
+"name": "Békéscsaba",
+"box": [
+46.631,
+21.019,
+46.736,
+21.215
+],
+"url": "cities/hu-bekescsaba.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "bonyhad",
+"name": "Bonyhád",
+"box": [
+46.25,
+18.461,
+46.332,
+18.565
+],
+"url": "cities/hu-bonyhad.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "csongrad",
+"name": "Csongrád",
+"box": [
+46.685,
+20.087,
+46.743,
+20.199
+],
+"url": "cities/hu-csongrad.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "csurgo",
+"name": "Csurgó",
+"box": [
+46.22,
+17.065,
+46.293,
+17.14
+],
+"url": "cities/hu-csurgo.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "dunaujvaros",
+"name": "Dunaújváros",
+"box": [
+46.908,
+18.862,
+47.018,
+18.982
+],
+"url": "cities/hu-dunaujvaros.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "eger",
+"name": "Eger",
+"box": [
+47.849,
+20.327,
+47.983,
+20.434
+],
+"url": "cities/hu-eger.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "ercsi",
+"name": "Ercsi",
+"box": [
+47.157,
+18.826,
+47.278,
+18.938
+],
+"url": "cities/hu-ercsi.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "erd",
+"name": "Érd",
+"box": [
+47.338,
+18.835,
+47.435,
+18.968
+],
+"url": "cities/hu-erd.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "esztergom",
+"name": "Esztergom",
+"box": [
+47.711,
+18.685,
+47.825,
+18.788
+],
+"url": "cities/hu-esztergom.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "fonyod",
+"name": "Fonyód",
+"box": [
+46.709,
+17.498,
+46.77,
+17.59
+],
+"url": "cities/hu-fonyod.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "godollo",
+"name": "Gödöllő",
+"box": [
+47.539,
+19.297,
+47.645,
+19.426
+],
+"url": "cities/hu-godollo.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "gyongyos",
+"name": "Gyöngyös",
+"box": [
+47.746,
+19.882,
+47.82,
+19.969
+],
+"url": "cities/hu-gyongyos.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "gyor",
+"name": "Győr",
+"box": [
+47.597,
+17.551,
+47.749,
+17.782
+],
+"url": "cities/hu-gyor.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "gyula",
+"name": "Gyula",
+"box": [
+46.616,
+21.23,
+46.677,
+21.445
+],
+"url": "cities/hu-gyula.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "hajduszoboszlo",
+"name": "Hajdúszoboszló",
+"box": [
+47.408,
+21.34,
+47.481,
+21.447
+],
+"url": "cities/hu-hajduszoboszlo.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "jaszbereny",
+"name": "Jászberény",
+"box": [
+47.468,
+19.843,
+47.535,
+19.958
+],
+"url": "cities/hu-jaszbereny.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "karcag",
+"name": "Karcag",
+"box": [
+47.26,
+20.858,
+47.352,
+20.965
+],
+"url": "cities/hu-karcag.json",
 "bus": [
 "#7E8BA3",
 "#97A6BF"

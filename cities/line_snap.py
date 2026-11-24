@@ -14,8 +14,8 @@ for f in files:
     for l in d['lines']:
         if l['kind'] not in KIND or len(l['pts']) < 4: continue
         hops = [m(a, b) for a, b in zip(l['pts'], l['pts'][1:])]; med = sorted(hops)[len(hops)//2]
-        for i, h in enumerate(hops):
-            if h > max(1200, 10*med): todo.append((l, i))
+        for i, h in enumerate(hops):  # (a line drawn station to station, median hop over 250 m: every hop; Lisbon's Metro)
+            if h > max(1200, 10*med) or (med > 250 and h > 250): todo.append((l, i))
     if not todo: print(os.path.basename(f), 'no straight hops'); continue
     la = [q[0] for l, _ in todo for q in l['pts']]; lo = [q[1] for l, _ in todo for q in l['pts']]
     box = (min(la) - 0.02, min(lo) - 0.03, max(la) + 0.02, max(lo) + 0.03); routers = {}
