@@ -4066,6 +4066,8 @@ if(DEBUG) window.LLT = {nrTrackPath, esChain, refreshTT, TTV, follow:(t, z) => f
 })();
 })();
 
+// works offline and opens faster next time (sw.js: page network-first, city data and map tiles saved, live data never)
+if('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js').catch(() => {});
 </script>
 </body>
 </html>
