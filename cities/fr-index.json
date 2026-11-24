@@ -823,5 +823,20 @@
 "#7E8BA3",
 "#97A6BF"
 ]
+},
+{
+"id": "ferries",
+"name": "Estonian islands",
+"box": [
+57.8,
+21.7,
+59.2,
+23.8
+],
+"url": "cities/ee-ferries.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
 }
 ]
