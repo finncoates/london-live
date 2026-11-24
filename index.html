@@ -2780,6 +2780,22 @@ function cityPath(kind, name, A, B){
       if(L > Math.max(2*D, D + 1200)) continue; // the other way round a loop, or a different branch
       const sc = a.d + b.d + L*0.01; if(!best || sc < best.sc) best = {sc, path}; } }
   const r = best ? best.path : null; TTV.pathC.set(key, r); if(TTV.pathC.size > 20000) TTV.pathC.clear(); return r; }
+// the nearest point of the drawn track to p: the same-named line in the city's file (within 300 m), else for a train
+// the rail network's tiles (cities/nr, within 2.5 km). Null when nothing's near (it stays where the timetable puts it).
+function ttSnap(kind, name, p){
+  const seg = (q, a, b) => { const c = Math.cos(a[0]*rad), dx = (b[1]-a[1])*c, dy = b[0]-a[0], L2 = dx*dx + dy*dy, t = L2 ? Math.max(0, Math.min(1, ((q[1]-a[1])*c*dx + (q[0]-a[0])*dy)/L2)) : 0; return [a[0] + dy*t, a[1] + (b[1]-a[1])*t]; };
+  let best = null; const look = (pts, lim) => { for(let i = 1; i < pts.length; i++){ const a = pts[i-1], b = pts[i];
+      if(Math.min(a[0], b[0]) - p[0] > 0.03 || p[0] - Math.max(a[0], b[0]) > 0.03 || Math.min(a[1], b[1]) - p[1] > 0.04 || p[1] - Math.max(a[1], b[1]) > 0.04) continue;
+      const x = seg(p, a, b), d = dist(x, p); if(d < lim && (!best || d < best.d)) best = {d, p:x, a, b}; } };
+  if(name){ TTV.lineIx ||= new Map(); const key = (CITYL.cur?.urls?.[0] || '') + ':' + cityData().length + '|' + kind + '|' + name; let L = TTV.lineIx.get(key);
+    if(!L){ L = []; for(const d of cityData()) for(const l of d.lines) if(l.name === name && (l.kind === kind || (kind !== 'train' && /^(tram|metro)$/.test(l.kind)))) for(const pts of (Array.isArray(l.pts?.[0]?.[0]) ? l.pts : [l.pts])) if(pts && pts.length > 1) L.push(pts);
+      if(cityData().length) TTV.lineIx.set(key, L); }
+    for(const pts of L) look(pts, 300); if(best) return best; }
+  if(kind !== 'train' || !railC(p) || typeof NRNET === 'undefined') return null;
+  for(const dl of [-1, 0, 1]) for(const dn of [-1, 0, 1]){ const t = (Math.floor(p[0]*2) + dl) + '_' + (Math.floor(p[1]*2) + dn);
+    if(!NRNET.tiles.has(t)){ NRNET.tiles.set(t, null); fetch('cities/nr/' + t + '.json').then(r => r.ok ? r.json() : []).then(j => { NRNET.tiles.set(t, j); NRNET.n++; }).catch(() => NRNET.tiles.set(t, [])); continue; }
+    for(const pts of NRNET.tiles.get(t) || []) look(pts, 2500); }
+  return best; }
 const TT_VMAX = m => /HIGHSPEED/.test(m) ? 70 : /RAIL|COACH/.test(m) ? 35 : /SUBWAY|METRO/.test(m) ? 16 : /TRAM/.test(m) ? 11 : /FERRY/.test(m) ? 9 : 9; // m/s
 function ttPlace(now){
   const byTrip = new Map(); for(const e of TTV.ferries.values()){ const t = e.s[8]; (byTrip.get(t) || byTrip.set(t, []).get(t)).push(e); }
@@ -2800,7 +2816,7 @@ function ttPlace(now){
       for(const e of m){ const A = e.s[3].slice(2), B = e.s[4].slice(2); if(dist(e.pts[0], A) > 150 || dist(e.pts.at(-1), B) > 150) continue;
         const kind = /TRAM/.test(e.s[0]) ? 'tram' : /SUBWAY|METRO/.test(e.s[0]) ? 'metro' : /RAIL|LONG_DISTANCE/.test(e.s[0]) ? 'train' : 'other';
         const cp = cityPath(kind, e.s[2], A, B); if(cp){ e.pts = cp; continue; }
-        let L = 0; for(let i = 1; i < e.pts.length; i++) L += dist(e.pts[i-1], e.pts[i]); const D = dist(A, B); if(L > Math.max(1.8*D, D + 1500)) e.pts = [A, B]; }
+        let L = 0; for(let i = 1; i < e.pts.length; i++) L += dist(e.pts[i-1], e.pts[i]); const D = dist(A, B); if(kind !== 'other' && L > Math.max(1.8*D, D + 1500)) e.pts = [A, B]; } // (rail only: a boat's crossing or a bus's loop is meant to be longer than the hop — Bordeaux's river shuttles were cut across the bank)
       es.length = 0; es.push(...m); }
     es.sort((a, b) => a.s[5] - b.s[5] || a.s[6] - b.s[6]);
     // the chain of consecutive stretches around now (a stretch that doesn't start where the last one ended begins a new chain)
@@ -2824,7 +2840,12 @@ function ttPlace(now){
     let base = 0, e = ch[0]; for(const x of ch){ e = x; if(L <= base + x.pts.cum.at(-1) || x === ch.at(-1)) break; base += x.pts.cum.at(-1); }
     const pts = e.pts, l = Math.max(0, Math.min(pts.cum.at(-1), L - base)); let i = 1; while(i < pts.length - 1 && pts.cum[i] < l) i++;
     const u = Math.max(0, Math.min(1, (l - pts.cum[i-1])/((pts.cum[i] - pts.cum[i-1]) || 1))), A = pts[i-1], B = pts[i];
-    out.set(trip, {s:e.s, p:[A[0] + (B[0]-A[0])*u, A[1] + (B[1]-A[1])*u], A, B}); }
+    let P = [A[0] + (B[0]-A[0])*u, A[1] + (B[1]-A[1])*u], sA = A, sB = B;
+    // last of all, onto the track you see: a tram, metro or train on its own drawn line (a timetable piece clipped at a
+    // tile edge isn't matched to the line above: Bordeaux's tram B sat in the Quinconces), a train with no city line on
+    // the drawn rail network (a TGV from Massy is one 480 km straight stretch)
+    { const k = kind0(e.s[0]), q = k !== 'bus' && k !== 'ferry' ? ttSnap(k, e.s[2], P) : null; if(q){ P = q.p; sA = q.a; sB = q.b; } }
+    out.set(trip, {s:e.s, p:P, A:sA, B:sB}); }
   TTV.lastP = new Map([...out].map(([t, v]) => [t, v.p]));
   return out; }
 window.__ttPlace = ttPlace;
