@@ -3078,5 +3078,335 @@
 "#7E8BA3",
 "#97A6BF"
 ]
+},
+{
+"id": "warsaw",
+"name": "Warszawa",
+"box": [
+51.929,
+20.636,
+52.482,
+21.375
+],
+"url": "cities/pl-warsaw.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "krakow",
+"name": "Kraków",
+"box": [
+49.992,
+19.868,
+50.122,
+20.135
+],
+"url": "cities/pl-krakow.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "gdansk",
+"name": "Gdańsk",
+"box": [
+54.227,
+18.335,
+54.49,
+18.961
+],
+"url": "cities/pl-gdansk.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "gdynia",
+"name": "Gdynia",
+"box": [
+54.33,
+18.211,
+54.65,
+18.606
+],
+"url": "cities/pl-gdynia.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "poznan",
+"name": "Poznań",
+"box": [
+52.163,
+16.514,
+52.655,
+17.243
+],
+"url": "cities/pl-poznan.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "wroclaw",
+"name": "Wrocław",
+"box": [
+50.978,
+16.699,
+51.259,
+17.313
+],
+"url": "cities/pl-wroclaw.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "lodz",
+"name": "Łódź",
+"box": [
+51.632,
+19.211,
+51.901,
+19.739
+],
+"url": "cities/pl-lodz.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "gzm",
+"name": "Katowice",
+"box": [
+50.013,
+18.464,
+50.552,
+19.431
+],
+"url": "cities/pl-gzm.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "szczecin",
+"name": "Szczecin",
+"box": [
+53.295,
+14.319,
+53.603,
+14.797
+],
+"url": "cities/pl-szczecin.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "bydgoszcz",
+"name": "Bydgoszcz",
+"box": [
+52.966,
+17.8,
+53.326,
+18.299
+],
+"url": "cities/pl-bydgoszcz.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "torun",
+"name": "Toruń",
+"box": [
+52.911,
+18.313,
+53.114,
+18.947
+],
+"url": "cities/pl-torun.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "lublin",
+"name": "Lublin",
+"box": [
+51.077,
+22.341,
+51.402,
+22.793
+],
+"url": "cities/pl-lublin.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "bialystok",
+"name": "Białystok",
+"box": [
+52.983,
+22.956,
+53.24,
+23.325
+],
+"url": "cities/pl-bialystok.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "rzeszow",
+"name": "Rzeszów",
+"box": [
+49.907,
+21.796,
+50.142,
+22.256
+],
+"url": "cities/pl-rzeszow.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "czestochowa",
+"name": "Częstochowa",
+"box": [
+50.716,
+18.933,
+50.893,
+19.316
+],
+"url": "cities/pl-czestochowa.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "olsztyn",
+"name": "Olsztyn",
+"box": [
+53.705,
+20.27,
+53.9,
+20.724
+],
+"url": "cities/pl-olsztyn.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "elblag",
+"name": "Elbląg",
+"box": [
+54.109,
+19.319,
+54.266,
+19.612
+],
+"url": "cities/pl-elblag.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "gorzow",
+"name": "Gorzów Wielkopolski",
+"box": [
+52.667,
+15.023,
+52.788,
+15.349
+],
+"url": "cities/pl-gorzow.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "kielce",
+"name": "Kielce",
+"box": [
+50.679,
+20.358,
+51.008,
+20.907
+],
+"url": "cities/pl-kielce.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "radom",
+"name": "Radom",
+"box": [
+51.298,
+21.009,
+51.482,
+21.349
+],
+"url": "cities/pl-radom.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "opole",
+"name": "Opole",
+"box": [
+50.568,
+17.739,
+50.782,
+18.032
+],
+"url": "cities/pl-opole.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "zielonagora",
+"name": "Zielona Góra",
+"box": [
+51.828,
+15.414,
+52.019,
+15.682
+],
+"url": "cities/pl-zielonagora.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
 }
 ]
