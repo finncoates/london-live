@@ -1,7 +1,9 @@
-# Every 30 minutes: the live site, the relay and one timetable tile answer. A failed run emails the repository owner.
+# Every 30 minutes: the live site, the relay, one timetable tile and the rail server behind the relay answer.
+# A failed run emails the repository owner.
 name: uptime
 on:
-  schedule: [{cron: '*/30 * * * *'}]
+  schedule:
+    - cron: '*/30 * * * *'
   workflow_dispatch:
 jobs:
   check:
@@ -9,8 +11,14 @@ jobs:
     timeout-minutes: 5
     steps:
       - name: Site
-        run: curl -fsS -m 30 -o /dev/null https://finncoates.github.io/london-live/
+        run: |
+          curl -fsS -m 30 -o /dev/null https://finncoates.github.io/london-live/
       - name: Relay health
-        run: curl -fsS -m 30 https://london-rail.londonlivemap.workers.dev/health | grep -q '"ok":true'
+        run: |
+          curl -fsS -m 30 https://london-rail.londonlivemap.workers.dev/health | grep -q '"ok":true'
       - name: Timetable tile (Paris)
-        run: curl -fsS -m 40 -H 'Origin: https://finncoates.github.io' 'https://london-rail.londonlivemap.workers.dev/tt?la=48.75&lo=2.25&s=0.125&modes=rail,tram&z=14' | grep -q '"vehicles"'
+        run: |
+          curl -fsS -m 40 -H 'Origin: https://finncoates.github.io' 'https://london-rail.londonlivemap.workers.dev/tt?la=48.75&lo=2.25&s=0.125&modes=rail,tram&z=14' | grep -q '"vehicles"'
+      - name: Rail server (National Rail, ships, GPS feeds)
+        run: |
+          curl -fsS -m 40 -H 'Origin: https://finncoates.github.io' https://london-rail.londonlivemap.workers.dev/srv/health > /dev/null
