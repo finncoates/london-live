@@ -64,12 +64,19 @@ for l in lines:  # cut where a line crosses into the next 0.5° tile, sharing th
         if tk(pt) != tk(run[0]): T[tk(run[0])].append(run); run = [pt]
     if len(run) > 1: T[tk(run[0])].append(run)
 nrd = os.path.join(HERE, 'nr')
+def _save(fn, data):  # written whole then swapped in, retried: Windows refuses a file another process has open (France's rail stopped at 13 of 21 regions on 'Invalid argument')
+    for k in range(30):
+        try:
+            with open(fn + '.tmp', 'w') as o: json.dump(data, o, separators=(',', ':'))
+            os.replace(fn + '.tmp', fn); return
+        except OSError: __import__('time').sleep(1)
+    raise OSError('could not write ' + fn)
 git = lambda f: subprocess.run(['git', '-C', HERE, 'show', f'{BASE}:cities/nr/{f}'], capture_output=True, text=True)
 INBASE = set(subprocess.run(['git', '-C', HERE, 'ls-tree', '--name-only', f'{BASE}:cities/nr/'], capture_output=True, text=True).stdout.split())
 for t, ps in T.items():
     b = git(t + '.json') if t + '.json' in INBASE else None; old = json.loads(b.stdout) if b and b.returncode == 0 else []
-    json.dump(old + [[[a, c] for a, c in p] for p in ps], open(os.path.join(nrd, t + '.json'), 'w'), separators=(',', ':'))
+    _save(os.path.join(nrd, t + '.json'), old + [[[a, c] for a, c in p] for p in ps])
 base = json.loads(git('all.json').stdout)
 ov = [[[round(a, 4), round(c, 4)] for a, c in dp(l, 80)] for l in lines]
-json.dump(base + [p for p in ov if len(p) > 1], open(os.path.join(nrd, 'all.json'), 'w'), separators=(',', ':'))
+_save(os.path.join(nrd, 'all.json'), base + [p for p in ov if len(p) > 1])
 print(len(lines), 'lines from', ', '.join(f[:-5] for f in sorted(os.listdir(R)) if f.endswith('.json')), '->', len(T), 'tiles')

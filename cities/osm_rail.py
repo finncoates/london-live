@@ -36,4 +36,4 @@ for p in sorted(hh.ways, key=len, reverse=True):  # keep a way only where no kep
 os.makedirs(os.path.join(HERE, '.build', 'rail'), exist_ok=True)
 json.dump([[[a, b] for a, b in p] for p in keep], open(os.path.join(HERE, '.build', 'rail', cc + '.json'), 'w'), separators=(',', ':'))
 print(cc, len(hh.ways), 'ways ->', len(keep), 'kept runs')
-subprocess.run([sys.executable, '-I', os.path.join(HERE, 'rail_tiles.py')], check=True)
+if not os.environ.get('NO_TILES'): subprocess.run([sys.executable, '-I', os.path.join(HERE, 'rail_tiles.py')], check=True)  # (a batch of countries or regions builds the tiles once at the end)

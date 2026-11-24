@@ -53,7 +53,8 @@ for reg in want:
     except OSError: fetch(GF + reg + '-latest.osm.pbf', pbf)
     rings = poly(reg); la = [q[0] for r in rings for q in r]; lo = [q[1] for r in rings for q in r]
     box = f'{min(la)},{min(lo)},{max(la)},{max(lo)}'
-    subprocess.run([sys.executable, '-I', os.path.join(HERE, 'osm_rail.py'), f'fr-{reg}', pbf, box], check=True)
+    try: subprocess.run([sys.executable, '-I', os.path.join(HERE, 'osm_rail.py'), f'fr-{reg}', pbf, box], check=True, env=dict(os.environ, NO_TILES='1'))
+    except subprocess.CalledProcessError: print(reg, 'FAILED: its SNCF lines stay', flush=True); os.path.exists(out) and os.remove(out); os.path.exists(pbf) and os.remove(pbf); continue
     if got: os.remove(pbf)
     # the OSM lines kept only where they're in the region (a way spilling over the border is drawn by its neighbour)
     L = json.load(open(out)); L2 = []
