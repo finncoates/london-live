@@ -1,35 +1,5 @@
 [
 {
-"id": "toulouse",
-"name": "Toulouse",
-"box": [
-43.4,
-1.155,
-43.747,
-1.65
-],
-"url": "cities/fr-toulouse.json",
-"bus": [
-"#7E8BA3",
-"#97A6BF"
-]
-},
-{
-"id": "nl-amsterdam",
-"name": "Amsterdam",
-"box": [
-52.255,
-4.73,
-52.442,
-5.069
-],
-"url": "cities/nl-nl-amsterdam.json",
-"bus": [
-"#7E8BA3",
-"#97A6BF"
-]
-},
-{
 "id": "n-bacs-de-seine-departement-seine-233704",
 "name": "Seine-Maritime",
 "box": [
@@ -39,36 +9,6 @@
 1.053
 ],
 "url": "cities/fr-n-bacs-de-seine-departement-seine-233704.json",
-"bus": [
-"#7E8BA3",
-"#97A6BF"
-]
-},
-{
-"id": "nl-rotterdam",
-"name": "Rotterdam",
-"box": [
-51.802,
-4.101,
-52.084,
-4.688
-],
-"url": "cities/nl-nl-rotterdam.json",
-"bus": [
-"#7E8BA3",
-"#97A6BF"
-]
-},
-{
-"id": "nl-denhaag",
-"name": "Den Haag",
-"box": [
-51.961,
-4.191,
-52.163,
-4.564
-],
-"url": "cities/nl-nl-denhaag.json",
 "bus": [
 "#7E8BA3",
 "#97A6BF"
@@ -99,21 +39,6 @@
 6.22
 ],
 "url": "cities/fr-n-reseau-de-transport-urbain-de-la-0875dc.json",
-"bus": [
-"#7E8BA3",
-"#97A6BF"
-]
-},
-{
-"id": "nl-utrecht",
-"name": "Utrecht",
-"box": [
-51.877,
-4.686,
-52.325,
-5.68
-],
-"url": "cities/nl-nl-utrecht.json",
 "bus": [
 "#7E8BA3",
 "#97A6BF"
@@ -414,21 +339,6 @@
 5.964
 ],
 "url": "cities/fr-n-telepherique-du-mont-faron-d9d77b.json",
-"bus": [
-"#7E8BA3",
-"#97A6BF"
-]
-},
-{
-"id": "brussels",
-"name": "Brussels",
-"box": [
-50.756,
-4.245,
-50.939,
-4.529
-],
-"url": "cities/be-brussels.json",
 "bus": [
 "#7E8BA3",
 "#97A6BF"
@@ -1534,6 +1444,216 @@
 4.067
 ],
 "url": "cities/fr-montpellier.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "nl-amsterdam",
+"name": "Amsterdam",
+"box": [
+52.255,
+4.73,
+52.442,
+5.069
+],
+"url": "cities/nl-nl-amsterdam.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "plzen",
+"name": "Plzeň",
+"box": [
+49.637,
+13.17,
+49.837,
+13.527
+],
+"url": "cities/cz-plzen.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "olomouc",
+"name": "Olomouc",
+"box": [
+49.537,
+17.149,
+49.663,
+17.394
+],
+"url": "cities/cz-olomouc.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "nl-rotterdam",
+"name": "Rotterdam",
+"box": [
+51.802,
+4.101,
+52.084,
+4.688
+],
+"url": "cities/nl-nl-rotterdam.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "most",
+"name": "Most",
+"box": [
+50.402,
+13.497,
+50.646,
+13.734
+],
+"url": "cities/cz-most.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "usti",
+"name": "Ústí nad Labem",
+"box": [
+50.569,
+13.89,
+50.726,
+14.153
+],
+"url": "cities/cz-usti.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "nl-denhaag",
+"name": "Den Haag",
+"box": [
+51.961,
+4.191,
+52.163,
+4.564
+],
+"url": "cities/nl-nl-denhaag.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "nl-utrecht",
+"name": "Utrecht",
+"box": [
+51.877,
+4.686,
+52.325,
+5.68
+],
+"url": "cities/nl-nl-utrecht.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "prague",
+"name": "Prague",
+"box": [
+49.3,
+13.3,
+50.8,
+15.65
+],
+"url": "cities/cz-prague.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "ostrava",
+"name": "Ostrava",
+"box": [
+49.712,
+18.05,
+49.944,
+18.421
+],
+"url": "cities/cz-ostrava.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "liberec",
+"name": "Liberec",
+"box": [
+50.694,
+14.902,
+50.83,
+15.456
+],
+"url": "cities/cz-liberec.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "toulouse",
+"name": "Toulouse",
+"box": [
+43.4,
+1.155,
+43.747,
+1.65
+],
+"url": "cities/fr-toulouse.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "brussels",
+"name": "Brussels",
+"box": [
+50.756,
+4.245,
+50.939,
+4.529
+],
+"url": "cities/be-brussels.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "brno",
+"name": "Brno",
+"box": [
+48.6,
+15.5,
+49.7,
+17.7
+],
+"url": "cities/cz-brno.json",
 "bus": [
 "#7E8BA3",
 "#97A6BF"

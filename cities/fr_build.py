@@ -91,7 +91,7 @@ report = {'id':a.id, 'name':a.name, 'routes':len(routes), 'types':dict(types), '
 def shape_quality():
     zz = zipfile.ZipFile(sub); rr = lambda n: csv.DictReader(io.TextIOWrapper(zz.open(n), 'utf-8-sig'))
     if 'shapes.txt' not in zz.namelist(): return None
-    bus = {r['route_id'] for r in rr('routes.txt') if r['route_type'] in ('3', '11', '700', '702', '704', '715')}
+    bus = {r['route_id'] for r in rr('routes.txt') if r['route_type'] in ('3', '11', '700', '701', '702', '704', '705', '711', '712', '715', '800')}
     bs = {t.get('shape_id') for t in rr('trips.txt') if t['route_id'] in bus and t.get('shape_id')}
     if not bs: return None
     gaps = []; last = {}
@@ -104,7 +104,7 @@ def shape_quality():
 shape_quality.long = 0
 def shapeless_share():  # bus trips with no shape at all (Strasbourg: most of them): those routes would be missing
     zz = zipfile.ZipFile(sub); rr = lambda n: csv.DictReader(io.TextIOWrapper(zz.open(n), 'utf-8-sig'))
-    bus = {r['route_id'] for r in rr('routes.txt') if r['route_type'] in ('3', '11', '700', '702', '704', '715')}
+    bus = {r['route_id'] for r in rr('routes.txt') if r['route_type'] in ('3', '11', '700', '701', '702', '704', '705', '711', '712', '715', '800')}
     t = [bool(x.get('shape_id')) for x in rr('trips.txt') if x['route_id'] in bus]
     return (len(t) - sum(t))/len(t) if t else 0
 def region_pbf():  # the smallest Geofabrik extract that covers the whole city
@@ -122,7 +122,8 @@ def region_pbf():  # the smallest Geofabrik extract that covers the whole city
         if not g or not url: continue
         polys = g['coordinates'] if g['type'] == 'MultiPolygon' else [g['coordinates']]
         if not f['properties'].get('parent'): continue  # a whole continent (Europe: 30 GB) is never the answer
-        if any(inside(((S + N)/2, (W + E)/2), pl) for pl in polys):  # the city's centre (Lille's area reaches into Belgium)
+        mid = ((S + N)/2, (W + E)/2); inset = [((mid[0] + y)/2, (mid[1] + x)/2) for y in (S, N) for x in (W, E)]
+        if any(inside(mid, pl) for pl in polys) and sum(any(inside(q, pl) for pl in polys) for q in inset) >= 3:  # the city's centre (Lille's area reaches into Belgium) and most of its area (a national network: the country, not the region in its middle)
             xs = [c[0] for pl in polys for c in pl[0]]; ys = [c[1] for pl in polys for c in pl[0]]; area = (max(xs)-min(xs))*(max(ys)-min(ys))
             if not best or area < best[0]: best = (area, url, f['properties']['id'])
     if not best: return None
@@ -177,7 +178,7 @@ report['lines'] = sorted({(l['name'], l['kind'], l['col']) for l in d['lines']})
 
 # 4. buses: built into a folder of their own, then merged into the shared tiles. Routes follow the timetable's shapes, or,
 # when it has none or they only join the stops with straight lines (Nantes), are matched onto OpenStreetMap's roads.
-BUS_TYPES = ('3', '11', '700', '702', '704', '715')
+BUS_TYPES = ('3', '11', '700', '701', '702', '704', '705', '711', '712', '715', '800')
 if not a.nobus and not any(r['route_type'] in BUS_TYPES for r in routes): report['bus'] = 'no bus routes'
 elif not a.nobus:
     bdir = os.path.join(work, 'busnet'); shutil.rmtree(bdir, ignore_errors=True)

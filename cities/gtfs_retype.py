@@ -1,6 +1,7 @@
 # Give some routes of a GTFS another route type (and colour), for timetables that file trams as buses — Lisbon's Carris
 # lists its trams (12E, 28E…) and its funiculars and lift (51E–55E) as route_type 3, with no colours.
 #   python -I cities/gtfs_retype.py in.zip out.zip 'short-name regex=type[:#colour]' ...
+#   ('@202=701': every route of type 202, Czechia's national coaches, becomes a regional bus on the bus map)
 import sys as _s; _s.stdout.reconfigure(encoding='utf-8', errors='replace')
 import sys, re, zipfile, csv, io, collections
 src, dst, rules = sys.argv[1], sys.argv[2], [r.rsplit('=', 1) for r in sys.argv[3:]]
@@ -20,7 +21,7 @@ with zipfile.ZipFile(dst, 'w', zipfile.ZIP_DEFLATED) as zo:
         if 'route_color' not in cols: cols.append('route_color')
         for r in rows:
             for rx, to in rules:
-                if re.search(rx, r.get('route_short_name') or ''):
+                if (r['route_type'] == rx[1:]) if rx.startswith('@') else re.search(rx, r.get('route_short_name') or ''):
                     t, _, c = to.partition(':'); r['route_type'] = t; n[t] += 1
                     if c: r['route_color'] = c.lstrip('#')
                     break

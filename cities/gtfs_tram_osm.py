@@ -8,7 +8,7 @@ import sys, os, re, zipfile, csv, io, json, math, collections
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__))); from route import Router
 zf, pbf, out, MAP, op, box = sys.argv[1:7]; box = [float(x) for x in box.split(',')]; MAP = json.loads(MAP)
 z = zipfile.ZipFile(zf); rd = lambda n: csv.DictReader(io.TextIOWrapper(z.open(n), 'utf-8-sig'))
-routes = {r['route_id']: r['route_short_name'] for r in rd('routes.txt') if r['route_type'] in ('0', '1', '4') and r.get('route_short_name') in MAP}
+routes = {r['route_id']: r['route_short_name'] for r in rd('routes.txt') if (r['route_type'] in ('0', '1', '4') or 900 <= int(r['route_type']) < 1000) and r.get('route_short_name') in MAP}  # (900s: Czechia's trams)
 trips = {t['trip_id']: routes[t['route_id']] for t in rd('trips.txt') if t['route_id'] in routes}
 seq = collections.defaultdict(list)
 for s in rd('stop_times.txt'):
