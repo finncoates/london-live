@@ -7,7 +7,7 @@ import {fileURLToPath} from 'url';
 import path from 'path';
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..'), PORT = 8799;
 const EDGE = ['C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe', 'C:/Program Files/Microsoft/Edge/Application/msedge.exe', 'C:/Program Files/Google/Chrome/Application/chrome.exe'];
-const exe = (await import('fs')).default; const browserPath = EDGE.find(p => exe.existsSync(p));
+const exe = (await import('fs')).default; const browserPath = process.env.BROWSER || EDGE.find(p => exe.existsSync(p));
 // timetable trams/metros/boats over 300 m from their drawn line (none expected; the relay may be down or the hour quiet:
 // no vehicles is not a failure). Waits while the timetable hasn't arrived yet.
 const offTrack = s => s.offLine == null || !s.offLine.n ? 'WAIT timetable' : s.offLine.of > Math.max(1, s.offLine.n*0.02) ? `${s.offLine.of} of ${s.offLine.n} timetable vehicles off their line` : null;
@@ -21,9 +21,9 @@ const PLACES = [
 ];
 // noise that isn't the page's fault: the relay only answers the live site, favicons, missing optional tiles
 const IGNORE = /CORS|Access-Control|favicon|status of 404|404 |net::ERR|Failed to fetch|429|rate limit/i;
-const srv = spawn('python', ['-m', 'http.server', String(PORT), '--bind', '127.0.0.1'], {cwd: ROOT, stdio: 'ignore'});
+const srv = spawn(process.platform === 'win32' ? 'python' : 'python3', ['-m', 'http.server', String(PORT), '--bind', '127.0.0.1'], {cwd: ROOT, stdio: 'ignore'});
 await new Promise(r => setTimeout(r, 1200));
-const browser = await puppeteer.launch({executablePath: browserPath, headless: 'new', args: ['--no-first-run', '--window-size=1200,800']});
+const browser = await puppeteer.launch({executablePath: browserPath, headless: 'new', args: ['--no-first-run', '--window-size=1200,800', ...(process.platform === 'win32' ? [] : ['--no-sandbox'])]});
 let bad = 0;
 try {
   for(const [name, view, check] of PLACES){

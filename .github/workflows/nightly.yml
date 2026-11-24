@@ -1,0 +1,18 @@
+# Every night: the map opened headless in five cities (tools/smoke.mjs), and the line checks' totals in the log.
+name: nightly
+on:
+  schedule: [{cron: '30 3 * * *'}]
+  workflow_dispatch:
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: 20}
+      - run: cd tools && npm ci --silent
+      - run: node tools/smoke.mjs
+        env: {BROWSER: /usr/bin/google-chrome}
+      - name: Line checks (report only)
+        run: python3 cities/check_lines.py 2>&1 | tail -n 15 || true
