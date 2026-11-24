@@ -2060,7 +2060,7 @@ function snapGps(v){
   const sets = cityData(); if(!sets.length) return null;
   const kind = vkind(v); if(kind === 'bus' || kind === 'ferry') return null;
   const ok = l => l.kind === kind || (kind === 'train' && l.kind === 'train'), kx = Math.cos(v.lat*rad)*111320, ky = 111320;
-  let best = null, bd = 60;
+  let best = null, bd = 200; // (within 60 m: the nearest line; further, up to 150 m (200 m onto its own line): a tram on a connecting track, as Bordeaux's B through the Quinconces, drawn on the line rather than in the square)
   const ci = Math.floor(v.lat*200), cj = Math.floor(v.lon*100);
   for(const d of sets){ const seen = new Set();
   for(let di = -1; di <= 1; di++) for(let dj = -1; dj <= 1; dj++){ const g = d.grid.get((ci+di) + ',' + (cj+dj)); if(!g) continue;
@@ -2068,7 +2068,8 @@ function snapGps(v){
       const a = l.pts[i-1], b = l.pts[i], ax = (a[1]-v.lon)*kx, ay = (a[0]-v.lat)*ky, bx = (b[1]-v.lon)*kx, by = (b[0]-v.lat)*ky;
       const dx = bx-ax, dy = by-ay, L2 = dx*dx + dy*dy || 1e-9, t = Math.max(0, Math.min(1, -(ax*dx + ay*dy)/L2)), px = ax + dx*t, py = ay + dy*t, dd = Math.hypot(px, py);
       const same = l.name && v.line && lineKey(l.name) === lineKey(v.line); // prefer the vehicle's own line ('Yellow' is the 'Yellow Line')
-      if(dd - (same ? 25 : 0) < bd){ bd = dd - (same ? 25 : 0); best = {lat:v.lat + py/ky, lon:v.lon + px/kx, l, i, li, d, col:same ? l.col : null}; } } } }
+      if(dd - (same ? 25 : 0) < bd){ bd = dd - (same ? 25 : 0); best = {lat:v.lat + py/ky, lon:v.lon + px/kx, l, i, li, d, col:same ? l.col : null, dd, same}; } } } }
+  if(best && !(best.dd <= 60 || best.dd <= (best.same ? 200 : 150))) best = null;
   if(best){ // direction over ~60 m each side (ignores the little kinks inside stations)
     const P = best.l.pts; let i0 = best.i - 1, i1 = best.i;
     while(i0 > 0 && dist(P[i0], [best.lat, best.lon]) < 60) i0--;
@@ -2402,7 +2403,10 @@ function drawGps(ctx, s, hl0, hw0, mpp){
     if(PV.z < 10){ const f = Math.max(0.5, (PV.z - 5)/5); hl *= f; hw *= Math.max(0.65, f); } // whole-country views: smaller, so the map stays readable
     const cs = Math.cos(ang), sn = Math.sin(ang), ux = cs*hl, uy = sn*hl, vx = -sn*hw, vy = cs*hw;
     ctx.beginPath(); ctx.moveTo(c.x+ux+vx, c.y+uy+vy); ctx.lineTo(c.x+ux-vx, c.y+uy-vy); ctx.lineTo(c.x-ux-vx, c.y-uy-vy); ctx.lineTo(c.x-ux+vx, c.y-uy+vy); ctx.closePath();
-    ctx.fillStyle = coach ? '#fff' : g.v.col || (tram ? '#7A1F3D' : opCol(g.v.op)); ctx.strokeStyle = coach ? coach[1] : dark ? 'rgba(0,0,0,.9)' : 'rgba(255,255,255,.95)'; ctx.lineWidth = 2; ctx.stroke(); ctx.fill();
+    ctx.fillStyle = coach ? '#fff' : g.v.col || (tram ? '#7A1F3D' : opCol(g.v.op)); ctx.strokeStyle = coach ? coach[1] : dark ? 'rgba(0,0,0,.9)' : 'rgba(255,255,255,.95)'; ctx.lineWidth = 2; ctx.stroke();
+    if(g.v.sched && !coach){ // placed from the timetable, not seen live: paler inside, outlined in its colour (live ones are solid)
+      const col = ctx.fillStyle, a = ctx.globalAlpha; ctx.fillStyle = MAP_BG(); ctx.fill(); ctx.globalAlpha = a*0.5; ctx.fillStyle = col; ctx.fill(); ctx.globalAlpha = a; ctx.strokeStyle = col; ctx.lineWidth = 1.5; ctx.stroke(); ctx.fillStyle = col; }
+    else ctx.fill();
     if(coach){ const ux2 = cs*hl*0.85, uy2 = sn*hl*0.85, vx2 = -sn*hw*0.45, vy2 = cs*hw*0.45; ctx.beginPath(); // coach: white with a band in the brand colour
       ctx.moveTo(c.x+ux2+vx2, c.y+uy2+vy2); ctx.lineTo(c.x+ux2-vx2, c.y+uy2-vy2); ctx.lineTo(c.x-ux2-vx2, c.y-uy2-vy2); ctx.lineTo(c.x-ux2+vx2, c.y-uy2+vy2); ctx.closePath(); ctx.fillStyle = coach[1]; ctx.fill(); }
     if(PARALLEL.has(mode)){ const ux2 = cs*(hl-hw*1.2), uy2 = sn*(hl-hw*1.2), vx2 = -sn*hw/3, vy2 = cs*hw/3; ctx.beginPath(); // centre stripe, like London's double-line trains
@@ -2865,6 +2869,7 @@ function ttPlace(now){
   return out; }
 window.__ttPlace = ttPlace;
 // for tools/smoke.mjs: what's on the map now (lines drawn, city files loaded, timetable vehicles off their line)
+window.__GPSL = () => GPS.list;
 window.__smoke = () => ({city:CITYL.cur?.name || null, cityFiles:cityData().length, cityLines:cityData().reduce((n, d) => n + d.lines.length, 0),
   tfl:ACTIVE.filter(l => l.layer).length, gps:GPS.list.size, tt:TTV.ferries ? TTV.ferries.size : 0,
   // timetable trams, metros and boats of a line the city draws that are still over 300 m from it after snapping
