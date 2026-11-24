@@ -8,11 +8,14 @@ import path from 'path';
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..'), PORT = 8799;
 const EDGE = ['C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe', 'C:/Program Files/Microsoft/Edge/Application/msedge.exe', 'C:/Program Files/Google/Chrome/Application/chrome.exe'];
 const exe = (await import('fs')).default; const browserPath = EDGE.find(p => exe.existsSync(p));
+// timetable trams/metros/boats over 300 m from their drawn line (none expected; the relay may be down or the hour quiet:
+// no vehicles is not a failure). Waits while the timetable hasn't arrived yet.
+const offTrack = s => s.offLine == null || !s.offLine.n ? 'WAIT timetable' : s.offLine.of > Math.max(1, s.offLine.n*0.02) ? `${s.offLine.of} of ${s.offLine.n} timetable vehicles off their line` : null;
 // [name, view, check(state, title) -> problem or null]
 const PLACES = [
   ['London', '51.505,-0.09,13', (s, t) => !/London/.test(t) ? 'title ' + t : s.tfl < 10 ? `only ${s.tfl} TfL lines drawn` : null],
-  ['Paris', '48.857,2.35,13', (s, t) => !/Paris/.test(t) ? 'title ' + t : s.cityLines < 50 ? `only ${s.cityLines} lines` : null],
-  ['Bordeaux', '44.84,-0.57,14', (s, t) => !/Bordeaux/.test(t) ? 'title ' + t : s.cityLines < 5 ? `only ${s.cityLines} lines` : null],
+  ['Paris', '48.857,2.35,14', (s, t) => !/Paris/.test(t) ? 'title ' + t : s.cityLines < 50 ? `only ${s.cityLines} lines` : offTrack(s)],
+  ['Bordeaux', '44.84,-0.57,14', (s, t) => !/Bordeaux/.test(t) ? 'title ' + t : s.cityLines < 5 ? `only ${s.cityLines} lines` : offTrack(s)],
   ['Zürich', '47.377,8.54,14', (s, t) => /Z.R/.test(t) || !/Z.rich/.test(t) ? 'title ' + t : s.cityLines < 10 ? `only ${s.cityLines} lines` : null],
   ['Lisbon', '38.72,-9.14,14', (s, t) => !/Lisbo/.test(t) ? 'title ' + t : s.cityLines < 5 ? `only ${s.cityLines} lines` : null],
 ];
@@ -33,8 +36,9 @@ try {
       await new Promise(r => setTimeout(r, 1000));
       s = await page.evaluate(() => window.__smoke ? window.__smoke() : null).catch(() => null); title = await page.title();
       why = s ? check(s, title) : 'no state (page script did not run)'; if(!why || errs.some(e => e.startsWith('script'))) break; }
+    if(why === 'WAIT timetable') why = null; // (the relay didn't answer in time: not the page's fault)
     const problem = errs.find(e => e.startsWith('script')) || why || errs[0];
-    console.log(`${problem ? 'FAIL' : 'ok  '} ${name.padEnd(9)} ${((Date.now() - t0)/1000).toFixed(0).padStart(3)} s  ${s ? `lines ${s.cityLines} · TfL ${s.tfl} · files ${s.cityFiles}` : ''}${problem ? '  ← ' + problem : ''}`);
+    console.log(`${problem ? 'FAIL' : 'ok  '} ${name.padEnd(9)} ${((Date.now() - t0)/1000).toFixed(0).padStart(3)} s  ${s ? `lines ${s.cityLines} · TfL ${s.tfl} · files ${s.cityFiles}${s.offLine ? ` · timetable on line ${s.offLine.n - s.offLine.of}/${s.offLine.n}` : ''}` : ''}${problem ? '  ← ' + problem : ''}`);
     if(problem) bad++; await page.close(); }
 } finally { await browser.close(); srv.kill(); }
 if(bad){ console.log(`\n${bad} place(s) failed: not pushing. (Skip once with: git push --no-verify)`); process.exit(1); }

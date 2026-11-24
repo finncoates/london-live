@@ -406,6 +406,9 @@ async function ttTile(url, cors){
   let all = TT_MEM.get(key);
   if(!all){ let w = TT_WAIT.get(key);
     if(!w){ w = (async () => {
+        // Cloudflare's cache too (shared by every worker instance in the data centre, not only this one's memory)
+        const ck = new Request('https://tt-cache.invalid/' + key), cache = typeof caches !== 'undefined' ? caches.default : null;
+        const ch = cache ? await cache.match(ck).catch(() => null) : null; if(ch){ const v = await ch.json(); TT_MEM.set(key, v); return v; }
         const q = `zoom=${zm}&min=${la},${lo}&max=${la + sz},${lo + sz}&startTime=${new Date(bucket).toISOString()}&endTime=${new Date(bucket + 240000).toISOString()}`;
         const get = () => fetch('https://api.transitous.org/api/v5/map/trips?' + q, {headers:{'user-agent':'LondonLive/1.0 (+https://github.com/finncoates/london-live)'}, signal:AbortSignal.timeout(20000)}).catch(e => ({ok:false, status:e.message}));
         let r = await get(); if(!r.ok){ await new Promise(ok => setTimeout(ok, 700)); r = await get(); } // Transitous turns away the odd burst: once more
@@ -417,6 +420,7 @@ async function ttTile(url, cors){
           return [s.mode, s.routeColor || null, s.trips?.[0]?.displayName || '', stop(s.from), stop(s.to), c[1], c[2], s.realTime ? 1 : 0, s.trips?.[0]?.tripId || '', polyThin(c[0], tol)]; });
         TT_MEM.set(key, v); for(const k of TT_MEM.keys()) if(+k.split(':')[2] < bucket - 240000) TT_MEM.delete(k);
         TT_LAST.set(lastKey, {at:bucket, v}); if(TT_LAST.size > 400) TT_LAST.delete(TT_LAST.keys().next().value);
+        if(cache) await cache.put(ck, new Response(JSON.stringify(v), {headers:{'content-type':'application/json', 'cache-control':'public, max-age=240'}})).catch(() => {});
         return v; })().finally(() => TT_WAIT.delete(key));
       TT_WAIT.set(key, w); }
     all = await w; }
@@ -458,7 +462,7 @@ const stripTags = s => String(s || '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, 
 function corsHeaders(request, env){
   const allowed = (env.ALLOWED_ORIGINS || DEFAULT_ORIGINS).split(',').map(s => s.trim());
   const origin = request.headers.get('origin') || '';
-  const ok = allowed.includes('*') || allowed.includes(origin) || /^http:\/\/localhost(:\d+)?$/.test(origin);
+  const ok = allowed.includes('*') || allowed.includes(origin) || /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin);
   return {'access-control-allow-origin':ok ? origin || allowed[0] : allowed[0], 'access-control-allow-methods':'GET, OPTIONS', 'vary':'origin'};
 }
 function json(data, status, cors, maxAge){

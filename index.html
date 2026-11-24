@@ -2866,7 +2866,10 @@ function ttPlace(now){
 window.__ttPlace = ttPlace;
 // for tools/smoke.mjs: what's on the map now (lines drawn, city files loaded, timetable vehicles off their line)
 window.__smoke = () => ({city:CITYL.cur?.name || null, cityFiles:cityData().length, cityLines:cityData().reduce((n, d) => n + d.lines.length, 0),
-  tfl:ACTIVE.filter(l => l.layer).length, gps:GPS.list.size, tt:TTV.ferries ? TTV.ferries.size : 0});
+  tfl:ACTIVE.filter(l => l.layer).length, gps:GPS.list.size, tt:TTV.ferries ? TTV.ferries.size : 0,
+  // timetable trams, metros and boats of a line the city draws that are still over 300 m from it after snapping
+  offLine:(() => { if(!TTV.ferries) return null; const names = new Set(cityData().flatMap(d => d.lines.map(l => l.name))); let n = 0, of = 0;
+    for(const [, v] of ttPlace(Date.now())){ const k = kind0(v.s[0]); if(!/^(tram|metro|ferry)$/.test(k) || !names.has(v.s[2])) continue; n++; if(!ttSnap(k, v.s[2], v.p)) of++; } return {n, of}; })()});
 function ttTick(){ if(!TTV.ferries || !TRAINS_ON || inTfLArea([map.getCenter().lat(), map.getCenter().lng()])) return; const now = Date.now(), seen = new Set();
   const liveKinds = new Set(); for(const [k, g] of GPS.list) if(k.startsWith('la:')) liveKinds.add(g.v.kind || 'bus'); // what the city's live feed actually has (Amsterdam's has no metro, Rotterdam's does)
   // live vehicles here, by kind and line: a timetable vehicle with a live twin nearby (same kind and line, within ~1.2 km,
