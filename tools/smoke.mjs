@@ -26,7 +26,7 @@ await new Promise(r => setTimeout(r, 1200));
 const browser = await puppeteer.launch({executablePath: browserPath, headless: 'new', args: ['--no-first-run', '--window-size=1200,800', ...(process.platform === 'win32' ? [] : ['--no-sandbox'])]});
 let bad = 0;
 try {
-  for(const [name, view, check] of PLACES){
+  for(const [name, view, check] of PLACES) for(let attempt = 1; attempt <= 2; attempt++){ // a failure is tried once more before it counts (a slow tile, a busy relay)
     const page = await browser.newPage(); await page.setViewport({width: 1200, height: 800}); const errs = [];
     page.on('pageerror', e => errs.push('script: ' + e.message));
     page.on('console', m => { if(m.type() === 'error' && !IGNORE.test(m.text())) errs.push('console: ' + m.text().slice(0, 160)); });
@@ -39,7 +39,7 @@ try {
     if(why === 'WAIT timetable') why = null; // (the relay didn't answer in time: not the page's fault)
     const problem = errs.find(e => e.startsWith('script')) || why || errs[0];
     console.log(`${problem ? 'FAIL' : 'ok  '} ${name.padEnd(9)} ${((Date.now() - t0)/1000).toFixed(0).padStart(3)} s  ${s ? `lines ${s.cityLines} · TfL ${s.tfl} · files ${s.cityFiles}${s.offLine ? ` · timetable on line ${s.offLine.n - s.offLine.of}/${s.offLine.n}` : ''}` : ''}${problem ? '  ← ' + problem : ''}`);
-    if(problem) bad++; await page.close(); }
+    await page.close(); if(!problem) break; if(attempt === 2) bad++; else console.log('     (trying again)'); }
 } finally { await browser.close(); srv.kill(); }
 if(bad){ console.log(`\n${bad} place(s) failed: not pushing. (Skip once with: git push --no-verify)`); process.exit(1); }
 console.log('smoke test passed');
