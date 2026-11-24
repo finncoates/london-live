@@ -2760,17 +2760,81 @@ const cityLineCol = (kind, name) => { const c = CITYL.cur; if(!c || !name) retur
   if(!v) for(const [k, col] of c.lineCols) if(k.startsWith(kind + '|') && k.endsWith(' ' + name)){ v = col; break; } // a line renamed in the city file ('Green' → 'Luas Green')
   return v ? inkA(v) : null; };
 const kind0 = m => /FERRY/.test(m) ? 'ferry' : /BUS|COACH/.test(m) ? 'bus' : /TRAM/.test(m) ? 'tram' : /SUBWAY|METRO/.test(m) ? 'metro' : 'train';
+// where each timetable journey is now. Its stretches (stop to stop) are chained into one path and the vehicle moves
+// along it between the times that differ: timetables given to the minute (Paris) have runs of stops at the same minute,
+// and a zero-length stretch made the vehicle leap a whole station at once. Where only zero-time stretches are left at an
+// end, they're spread at a plausible cruising speed.
+// the city's own drawn line between two stations (Paris's RER A from La Défense to Nanterre has a 15 km timetable path
+// for a 1.2 km hop): a timetable train, metro or tram follows the line you see, station to station
+function cityPath(kind, name, A, B){
+  if(!name || !/^(train|metro|tram)$/.test(kind)) return null; const key = kind + '|' + name + '|' + A + '|' + B; TTV.pathC ||= new Map();
+  if(TTV.pathC.has(key)) return TTV.pathC.get(key); let best = null;
+  const near = (pts, q) => { let bi = -1, bt = 0, bd = Infinity; for(let i = 1; i < pts.length; i++){ const a = pts[i-1], b = pts[i], c = Math.cos(a[0]*rad), dx = (b[1]-a[1])*c, dy = b[0]-a[0], L2 = dx*dx + dy*dy;
+      const t = L2 ? Math.max(0, Math.min(1, ((q[1]-a[1])*c*dx + (q[0]-a[0])*dy)/L2)) : 0, p = [a[0] + dy*t, a[1] + (b[1]-a[1])*t], dd = dist(p, q); if(dd < bd){ bd = dd; bi = i; bt = t; } } return {i:bi, t:bt, d:bd}; };
+  for(const d of cityData()) for(const l of d.lines){ if(l.name !== name || !(l.kind === kind || (kind === 'tram' && l.kind === 'metro') || (kind === 'metro' && l.kind === 'tram'))) continue;
+    const P = l.pts && Array.isArray(l.pts[0]) && Array.isArray(l.pts[0][0]) ? l.pts : [l.pts]; // (a line in one or several pieces)
+    for(const pts of P){ if(!pts || pts.length < 2) continue; const a = near(pts, A), b = near(pts, B); if(a.d > 250 || b.d > 250) continue;
+      const at = x => [pts[x.i-1][0] + (pts[x.i][0]-pts[x.i-1][0])*x.t, pts[x.i-1][1] + (pts[x.i][1]-pts[x.i-1][1])*x.t];
+      let path; if(a.i < b.i || (a.i === b.i && a.t <= b.t)) path = [at(a), ...pts.slice(a.i, b.i), at(b)]; else path = [at(a), ...pts.slice(b.i, a.i).reverse(), at(b)];
+      let L = 0; for(let i = 1; i < path.length; i++) L += dist(path[i-1], path[i]); const D = dist(A, B);
+      if(L > Math.max(2*D, D + 1200)) continue; // the other way round a loop, or a different branch
+      const sc = a.d + b.d + L*0.01; if(!best || sc < best.sc) best = {sc, path}; } }
+  const r = best ? best.path : null; TTV.pathC.set(key, r); if(TTV.pathC.size > 20000) TTV.pathC.clear(); return r; }
+const TT_VMAX = m => /HIGHSPEED/.test(m) ? 70 : /RAIL|COACH/.test(m) ? 35 : /SUBWAY|METRO/.test(m) ? 16 : /TRAM/.test(m) ? 11 : /FERRY/.test(m) ? 9 : 9; // m/s
+function ttPlace(now){
+  const byTrip = new Map(); for(const e of TTV.ferries.values()){ const t = e.s[8]; (byTrip.get(t) || byTrip.set(t, []).get(t)).push(e); }
+  const out = new Map();
+  for(const [trip, es] of byTrip){
+    // a stretch crossing tiles comes as overlapping pieces (the relay clips each to its tile, its times rescaled by
+    // distance): joined back into one, the overlap trimmed by time (chained end to end, Paris's metros sped back and forth)
+    { const g = new Map(); for(const e of es){ const k = e.s[3][0] + '>' + e.s[4][0]; (g.get(k) || g.set(k, []).get(k)).push(e); }
+      const m = []; for(const ps of g.values()){ ps.sort((a, b) => a.s[5] - b.s[5]); let cur = null;
+        for(const e of ps){
+          if(cur && e.s[5] <= cur.s[6] + 1000 && Math.min(...e.pts.map(q => dist(q, cur.pts.at(-1)))) < 2000){ if(e.s[6] > cur.s[6]){ const c = [0]; for(let i = 1; i < e.pts.length; i++) c.push(c[i-1] + dist(e.pts[i-1], e.pts[i]));
+              const cut = c.at(-1)*Math.max(0, Math.min(1, (cur.s[6] - e.s[5])/((e.s[6] - e.s[5]) || 1))); let i = 1; while(i < e.pts.length && c[i] <= cut) i++;
+              const s2 = cur.s.slice(); s2[6] = e.s[6]; cur = {s:s2, pts:cur.pts.concat(e.pts.slice(i))}; } }
+          else { if(cur) m.push(cur); cur = {s:e.s, pts:e.pts}; } }
+        if(cur) m.push(cur); }
+      // a whole stretch (its path reaching both stops): the city's own line where there is one; a path far longer
+      // than the hop (a timetable shape that wanders through sidings) becomes the straight hop
+      for(const e of m){ const A = e.s[3].slice(2), B = e.s[4].slice(2); if(dist(e.pts[0], A) > 150 || dist(e.pts.at(-1), B) > 150) continue;
+        const kind = /TRAM/.test(e.s[0]) ? 'tram' : /SUBWAY|METRO/.test(e.s[0]) ? 'metro' : /RAIL|LONG_DISTANCE/.test(e.s[0]) ? 'train' : 'other';
+        const cp = cityPath(kind, e.s[2], A, B); if(cp){ e.pts = cp; continue; }
+        let L = 0; for(let i = 1; i < e.pts.length; i++) L += dist(e.pts[i-1], e.pts[i]); const D = dist(A, B); if(L > Math.max(1.8*D, D + 1500)) e.pts = [A, B]; }
+      es.length = 0; es.push(...m); }
+    es.sort((a, b) => a.s[5] - b.s[5] || a.s[6] - b.s[6]);
+    // the chain of consecutive stretches around now (a stretch that doesn't start where the last one ended begins a new chain)
+    let chains = [], cur = null;
+    for(const e of es){ if(!e.pts.cum){ e.pts.cum = [0]; for(let i = 1; i < e.pts.length; i++) e.pts.cum.push(e.pts.cum[i-1] + dist(e.pts[i-1], e.pts[i])); }
+      const last = cur && cur.at(-1);
+      if(last && last.s[6] <= e.s[5] + 60000 && dist(last.pts.at(-1), e.pts[0]) < 400) cur.push(e); else chains.push(cur = [e]); }
+    const off = c => now < c[0].s[5] ? c[0].s[5] - now : now > c.at(-1).s[6] ? now - c.at(-1).s[6] : 0; // the chain it's on now, else the nearest
+    const cand = chains.filter(c => off(c) <= 60000); if(!cand.length) continue;
+    const was = TTV.lastP?.get(trip), near = c => Math.min(...c.map(e => Math.min(dist(was, e.pts[0]), dist(was, e.pts.at(-1)))));
+    const ch = was && cand.length > 1 ? cand.reduce((b, c) => near(c) < near(b) ? c : b) : cand.reduce((b, c) => off(c) < off(b) ? c : b); // (one journey id in two places at once: stay with the one it was on)
+    // anchors (time, distance along the chain) at every stop; equal times collapse to their middle distance
+    const raw = []; let D = 0; for(const e of ch){ raw.push([e.s[5], D]); D += e.pts.cum.at(-1); raw.push([e.s[6], D]); }
+    const an = []; for(let i = 0; i < raw.length; ){ let j = i; while(j + 1 < raw.length && raw[j+1][0] <= raw[i][0]) j++; an.push([raw[i][0], (raw[i][1] + raw[j][1])/2, raw[i][1], raw[j][1]]); i = j + 1; }
+    const v = TT_VMAX(ch[0].s[0]); // the ends: a zero-time run there is travelled at cruising speed
+    if(an[0][3] > an[0][2]){ const a = an[0]; an.unshift([a[0] - (a[3] - a[2])/2/v*1000, a[2]]); }
+    { const a = an.at(-1); if(a[3] > a[2]) an.push([a[0] + (a[3] - a[2])/2/v*1000, a[3]]); }
+    let L; if(now <= an[0][0]) L = an[0][1]; else if(now >= an.at(-1)[0]) L = an.at(-1)[1];
+    else { let k = 1; while(k < an.length - 1 && an[k][0] < now) k++; const [t0, d0] = an[k-1], [t1, d1] = an[k]; L = d0 + (d1 - d0)*Math.max(0, Math.min(1, (now - t0)/((t1 - t0) || 1))); }
+    // the stretch L falls in, and the point on it
+    let base = 0, e = ch[0]; for(const x of ch){ e = x; if(L <= base + x.pts.cum.at(-1) || x === ch.at(-1)) break; base += x.pts.cum.at(-1); }
+    const pts = e.pts, l = Math.max(0, Math.min(pts.cum.at(-1), L - base)); let i = 1; while(i < pts.length - 1 && pts.cum[i] < l) i++;
+    const u = Math.max(0, Math.min(1, (l - pts.cum[i-1])/((pts.cum[i] - pts.cum[i-1]) || 1))), A = pts[i-1], B = pts[i];
+    out.set(trip, {s:e.s, p:[A[0] + (B[0]-A[0])*u, A[1] + (B[1]-A[1])*u], A, B}); }
+  TTV.lastP = new Map([...out].map(([t, v]) => [t, v.p]));
+  return out; }
+window.__ttPlace = ttPlace;
 function ttTick(){ if(!TTV.ferries || !TRAINS_ON || inTfLArea([map.getCenter().lat(), map.getCenter().lng()])) return; const now = Date.now(), seen = new Set();
   const liveKinds = new Set(); for(const [k, g] of GPS.list) if(k.startsWith('la:')) liveKinds.add(g.v.kind || 'bus'); // what the city's live feed actually has (Amsterdam's has no metro, Rotterdam's does)
   // live vehicles here, by kind and line: a timetable vehicle with a live twin nearby (same kind and line, within ~1.2 km,
   // allowing for delays) isn't shown, whichever feed the two come from (Bordeaux's trams: TBM live, the region's timetable)
   const liveAt = new Map(); for(const [k, g] of GPS.list) if((k.startsWith('la:') || k.startsWith('es:')) && g.v.line){ const key = vkind(g.v) + '|' + String(g.v.line).toLowerCase(); (liveAt.get(key) || liveAt.set(key, []).get(key)).push(g.to || [g.v.lat, g.v.lon]); }
-  const best = new Map(); for(const e of TTV.ferries.values()){ const d = e.s[5], a = e.s[6], off = now < d ? d - now : now > a ? now - a : 0; if(off > 60000) continue; // one stretch per journey: the one it's on now
-    const t = e.s[8], b = best.get(t); if(!b || off < b.off) best.set(t, {e, off}); }
-  for(const [trip, {e:{s, pts}}] of best){ const [, col, name, from, to, dep, arr] = s;
-    if(!pts.cum){ pts.cum = [0]; for(let i = 1; i < pts.length; i++) pts.cum.push(pts.cum[i-1] + dist(pts[i-1], pts[i])); }
-    const f = Math.max(0, Math.min(1, (now - dep)/((arr - dep) || 1))), L = pts.cum[pts.cum.length-1]*f; let i = 1; while(i < pts.length - 1 && pts.cum[i] < L) i++;
-    const u = Math.max(0, Math.min(1, (L - pts.cum[i-1])/((pts.cum[i] - pts.cum[i-1]) || 1))), A = pts[i-1], B = pts[i], p = [A[0] + (B[0]-A[0])*u, A[1] + (B[1]-A[1])*u];
+  const best = ttPlace(now);
+  for(const [trip, {s, p, A, B}] of best){ const [, col, name, from, to, dep, arr] = s;
     if(TTV.esLive && Date.now() - TTV.esLive < 120000 && /RENFE-?Cercan|Rodalies|Cercan/i.test(trip)) continue;
     if(SRV.shipsAt && Date.now() - SRV.shipsAt < 120000 && /FERRY/.test(s[0])) continue; // ships live by AIS instead (their routes still drawn)
     if(TTV.cityLive && Date.now() - TTV.cityLive.at < 120000 && liveKinds.has(/FERRY/.test(s[0]) ? 'ferry' : /BUS|COACH/.test(s[0]) ? 'bus' : /TRAM/.test(s[0]) ? 'tram' : /SUBWAY|METRO/.test(s[0]) ? 'metro' : 'train') && LIVE_ABROAD.some(x => Date.now() - (TTV.live?.get(x[0])?.at || 0) < 120000 && x[4].test(trip) && (x[5] || /BUS/).test(s[0]))) continue; // that city's buses (and trams) are live // shown live by Renfe instead (its line is still drawn)
