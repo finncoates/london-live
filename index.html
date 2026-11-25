@@ -2038,23 +2038,31 @@ const FR_POLY = [[[51.12, 2.54], [50.75, 3.22], [50.12, 4.22], [49.96, 4.86], [4
   [[43.05, 9.45], [42.0, 9.58], [41.33, 9.25], [41.6, 8.72], [42.3, 8.52], [42.68, 8.95]]];
 const inFrance = p => FR_POLY.some(poly => { let c = false; for(let i = 0, j = poly.length - 1; i < poly.length; j = i++){ const [y1, x1] = poly[i], [y2, x2] = poly[j]; if((y1 > p[0]) !== (y2 > p[0]) && p[1] < (x2 - x1)*(p[0] - y1)/(y2 - y1) + x1) c = !c; } return c; });
 const cityData = () => CITYL.cur ? CITYL.cur.urls.map(u => CITYL.data.get(u)).filter(d => d && d.grid) : [];
-const CELL = (la, lo) => Math.floor(la*200) + ',' + Math.floor(lo*100); // ~550 m × 600 m
+// ~110 m × 70–175 m cells, numeric keys: lines put on the track have 4x the points, and the old 550 m cells held thousands
+// of segments each, so looking up the nearest line for every vehicle stalled the map (Paris at 16 frames a second)
+const CELL = (la, lo) => Math.floor(la*1000)*400000 + Math.floor(lo*500), CELLK = (i, j) => i*400000 + j;
 async function loadCityLines(p){
   const c = CITYL.list.find(x => x.box(p)), was = CITYL.cur; CITYL.cur = c || null; if(!c) return;
   if(c !== was && c.bus) setTimeout(() => { TTV.busy || refreshTT(); }, 50); // just arrived in a city with a bus map: fetch its buses now, not at the next minute
   await Promise.all(c.urls.filter(u => !CITYL.data.has(u)).map(async url => { CITYL.data.set(url, null);
     try{ const d = await (await fetch(url, {signal:AbortSignal.timeout(15000)})).json(), grid = new Map();
-      d.lines.forEach((l, li) => { for(let i = 1; i < l.pts.length; i++){ const a = l.pts[i-1], b = l.pts[i], n = Math.max(1, Math.ceil(dist(a, b)/300));
+      d.lines.forEach((l, li) => { for(let i = 1; i < l.pts.length; i++){ const a = l.pts[i-1], b = l.pts[i], n = Math.max(1, Math.ceil(dist(a, b)/80));
         for(let k = 0; k <= n; k++){ const q = CELL(a[0] + (b[0]-a[0])*k/n, a[1] + (b[1]-a[1])*k/n); let g = grid.get(q); if(!g) grid.set(q, g = new Set()); g.add(li*100000 + i); } } });
       d.grid = grid; d.url = url; d.dupRail = /helsinki\.json/.test(url); d.tramMain = /\/[a-z]{2}-[^/]*\.json$/.test(url) && !d.lines.some(l => l.kind === 'metro'); CITYL.data.set(url, d); }
     catch(e){ CITYL.data.delete(url); console.warn('city lines', e.message); } }));
 }
 const lineKey = n => String(n).toLowerCase().replace(/\s+line$/, '').trim();
 // where lines share track they are drawn side by side: the screen offset (px) of a vehicle's own line there, so it sits on its lane
+const LANE_C = new Map();
 function laneShift(v, p){
   const kind = vkind(v); if(kind === 'bus' || kind === 'ferry') return null;
-  const sn = snapGps({lat:p[0], lon:p[1], kind, tram:v.tram, metro:v.metro, train:v.train, line:v.line}); if(!sn || !sn.d) return null;
-  const e = cityShare(sn.d)[sn.li]?.[sn.i - 1]; if(!e || e[0] <= 1) return null;
+  // the snap is worked out again only when the vehicle has moved ~20 m (it ran every frame for every vehicle: with the
+  // lines put on the track, 4x the points, Paris dropped to 16 frames a second and vehicles seemed to freeze)
+  // (keyed by what the answer depends on, not the vehicle: timetable vehicles are new objects every 2 s)
+  const key = kind + '|' + (v.line || '') + '|' + Math.round(p[0]*5e3) + ',' + Math.round(p[1]*5e3) + ',' + cityData().length; let c = LANE_C.get(key);
+  if(!c){ const sn = snapGps({lat:p[0], lon:p[1], kind, tram:v.tram, metro:v.metro, train:v.train, line:v.line});
+    c = {sn, e:sn && sn.d ? cityShare(sn.d)[sn.li]?.[sn.i - 1] : null}; if(LANE_C.size > 50000) LANE_C.clear(); LANE_C.set(key, c); }
+  const sn = c.sn, e = c.e; if(!sn || !sn.d || !e || e[0] <= 1) return null;
   const o = (e[1] - (e[0] - 1)/2)*lineW()/e[0], A = scr(sn.l.pts[sn.i - 1]), B = scr(sn.l.pts[sn.i]), dx = B.x - A.x, dy = B.y - A.y, L = Math.hypot(dx, dy) || 1, canon = (dx > 0 || (dx === 0 && dy > 0)) ? 1 : -1;
   return {x:-dy/L*o*canon, y:dx/L*o*canon}; }
 // nearest point on a line of the same kind (within 60 m), with the line's direction there
@@ -2063,10 +2071,10 @@ function snapGps(v){
   const kind = vkind(v); if(kind === 'bus' || kind === 'ferry') return null;
   const ok = l => l.kind === kind || (kind === 'train' && l.kind === 'train'), kx = Math.cos(v.lat*rad)*111320, ky = 111320;
   let best = null, bd = 200; // (within 60 m: the nearest line; further, up to 150 m (200 m onto its own line): a tram on a connecting track, as Bordeaux's B through the Quinconces, drawn on the line rather than in the square)
-  const ci = Math.floor(v.lat*200), cj = Math.floor(v.lon*100);
-  for(const d of sets){ const seen = new Set();
-  for(let di = -1; di <= 1; di++) for(let dj = -1; dj <= 1; dj++){ const g = d.grid.get((ci+di) + ',' + (cj+dj)); if(!g) continue;
-    for(const code of g){ if(seen.has(code)) continue; seen.add(code); const li = Math.floor(code/100000), i = code % 100000, l = d.lines[li]; if(!ok(l)) continue;
+  const ci = Math.floor(v.lat*1000), cj = Math.floor(v.lon*500);
+  for(const d of sets){ // (a segment listed in two cells is just looked at twice: cheaper than a Set of thousands per call)
+  for(let di = -2; di <= 2; di++) for(let dj = -2; dj <= 2; dj++){ const g = d.grid.get(CELLK(ci+di, cj+dj)); if(!g) continue;
+    for(const code of g){ const li = Math.floor(code/100000), i = code % 100000, l = d.lines[li]; if(!ok(l)) continue;
       const a = l.pts[i-1], b = l.pts[i], ax = (a[1]-v.lon)*kx, ay = (a[0]-v.lat)*ky, bx = (b[1]-v.lon)*kx, by = (b[0]-v.lat)*ky;
       const dx = bx-ax, dy = by-ay, L2 = dx*dx + dy*dy || 1e-9, t = Math.max(0, Math.min(1, -(ax*dx + ay*dy)/L2)), px = ax + dx*t, py = ay + dy*t, dd = Math.hypot(px, py);
       const same = l.name && v.line && lineKey(l.name) === lineKey(v.line); // prefer the vehicle's own line ('Yellow' is the 'Yellow Line')
@@ -2768,13 +2776,14 @@ async function refreshTT(){
   TTV.busy = false; }
 window.__TTV = TTV;
 // abroad: each timetable vehicle's route drawn as a line (one look per kind of transport, as everywhere): trains a double line, trams thinner, buses light, ferries dashed
+const TT_ON = new WeakMap(); // a timetable path that runs along a drawn line (worked out once per path, not every frame)
 function drawTTLines(ctx){
   const W = lineW(), s0 = mapSize(), groups = new Map();
   // where the city's whole network is drawn (cities/*.json), its lines aren't drawn again from the timetable
   const cd = cityData(), drawn = cd.length ? (CITYL.cur.names ||= new Set(cd.flatMap(d => d.lines.map(l => l.kind + '|' + l.name)))) : null;
   for(const {s, pts} of TTV.ferries.values()){ const m = s[0], kind = /FERRY/.test(m) ? 'ferry' : /BUS|COACH/.test(m) ? 'bus' : /TRAM/.test(m) ? 'tram' : /SUBWAY|METRO/.test(m) ? 'metro' : 'train';
     if(drawn && (drawn.has(kind + '|' + s[2]) || (kind === 'tram' && drawn.has('metro|' + s[2])) || (s[2] && [...drawn].some(k => k.startsWith(kind + '|') && k.endsWith(' ' + s[2]))))) continue;
-    if((kind === 'metro' || kind === 'tram') && drawn && pts.length > 1 && cityPath(kind, s[2] || '?', pts[0], pts.at(-1))) continue; // runs along a drawn line under another name (Porto's 'B' on 'Bx')
+    if((kind === 'metro' || kind === 'tram') && drawn && pts.length > 1){ let on = TT_ON.get(pts); if(on === undefined) TT_ON.set(pts, on = !!cityPath(kind, s[2] || '?', pts[0], pts.at(-1))); if(on) continue; } // runs along a drawn line under another name (Porto's 'B' on 'Bx')
     if(kind === 'bus' && CITYL.cur?.bus) continue; // the city's bus map already draws every bus road, in one colour (as London)
     if(kind === 'train' && (railC(s[3].slice(2)) || railC(s[4].slice(2)))) continue; // France's whole rail network is drawn (cities/nr): trains run on it (either end: an international train from Germany was drawn straight across Amsterdam)
     if(GPS_OFF.has(kind) || (kind === 'bus' && busOff())) continue; const col = s[1] && /^[0-9a-f]{6}$/i.test(s[1]) ? inkA('#' + s[1].toLowerCase()) : {ferry:'#00A0E2', train:'#5D6670', tram:'#7A1F3D', metro:'#0E4C92', bus:'#DC241F'}[kind];
@@ -2820,17 +2829,32 @@ function cityPath(kind, name, A, B){
   const r = best ? best.path : null; TTV.pathC.set(key, r); if(TTV.pathC.size > 20000) TTV.pathC.clear(); return r; }
 // the nearest point of the drawn track to p: the same-named line in the city's file (within 300 m), else for a train
 // the rail network's tiles (cities/nr, within 2.5 km). Null when nothing's near (it stays where the timetable puts it).
-function ttSnap(kind, name, p){
+function ttSnap(kind, name, p){ // (remembered per ~10 m: it runs for every timetable vehicle every 2 s)
+  TTV.snapC ||= new Map(); const ck = kind + '|' + name + '|' + Math.round(p[0]*1e4) + ',' + Math.round(p[1]*1e4) + '|' + cityData().length + (kind === 'train' && typeof NRNET !== 'undefined' ? '|' + NRNET.n : '');
+  if(TTV.snapC.has(ck)) return TTV.snapC.get(ck); if(TTV.snapC.size > 30000) TTV.snapC.clear();
+  const r = ttSnap0(kind, name, p); TTV.snapC.set(ck, r); return r; }
+function ttSnap0(kind, name, p){
   const seg = (q, a, b) => { const c = Math.cos(a[0]*rad), dx = (b[1]-a[1])*c, dy = b[0]-a[0], L2 = dx*dx + dy*dy, t = L2 ? Math.max(0, Math.min(1, ((q[1]-a[1])*c*dx + (q[0]-a[0])*dy)/L2)) : 0; return [a[0] + dy*t, a[1] + (b[1]-a[1])*t]; };
   let best = null; const look = (pts, lim) => { for(let i = 1; i < pts.length; i++){ const a = pts[i-1], b = pts[i];
       if(Math.min(a[0], b[0]) - p[0] > 0.03 || p[0] - Math.max(a[0], b[0]) > 0.03 || Math.min(a[1], b[1]) - p[1] > 0.04 || p[1] - Math.max(a[1], b[1]) > 0.04) continue;
       const x = seg(p, a, b), d = dist(x, p); if(d < lim && (!best || d < best.d)) best = {d, p:x, a, b}; } };
   if(name){ TTV.lineIx ||= new Map(); const key = (CITYL.cur?.urls?.[0] || '') + ':' + cityData().length + '|' + kind + '|' + name; let L = TTV.lineIx.get(key);
-    if(!L){ L = []; for(const d of cityData()) for(const l of d.lines) if(l.name === name && (l.kind === kind || (/^(tram|metro)$/.test(kind) && /^(tram|metro)$/.test(l.kind)))) for(const pts of (Array.isArray(l.pts?.[0]?.[0]) ? l.pts : [l.pts])) if(pts && pts.length > 1) L.push(pts);
+    if(!L){ L = []; for(const d of cityData()) for(const l of d.lines) if(l.name === name && (l.kind === kind || (/^(tram|metro)$/.test(kind) && /^(tram|metro)$/.test(l.kind)))) { const multi = Array.isArray(l.pts?.[0]?.[0]); for(const pts of (multi ? l.pts : [l.pts])) if(pts && pts.length > 1){ L.push(pts); if(multi) (L.multi ||= []).push(pts); } }
       if(cityData().length) TTV.lineIx.set(key, L); }
-    for(const pts of L) look(pts, 300); if(best) return best;
-    // no line of that name drawn: the nearest drawn line of that kind, if it's right there (Porto's 'B' trains on line 'Bx')
-    if(kind !== 'train' && !L.length){ for(const d of cityData()) for(const l of d.lines) if(/^(tram|metro)$/.test(l.kind) && (l.kind === kind || kind !== 'bus')) for(const pts of (Array.isArray(l.pts?.[0]?.[0]) ? l.pts : [l.pts])) if(pts && pts.length > 1) look(pts, 80); if(best) return best; } }
+    // only the segments near p, from each city file's grid (scanning whole lines, 4x the points once they were put on
+    // the track, made the 2-second timetable update stall the map): the same-named line within 300 m; failing a line of
+    // that name at all, the nearest tram/metro line within 80 m (Porto's 'B' trains on line 'Bx')
+    let any = null; const ci = Math.floor(p[0]*1000), cj = Math.floor(p[1]*500), tm = /^(tram|metro)$/.test(kind);
+    for(const d of cityData()) for(let di = -3; di <= 3; di++) for(let dj = -3; dj <= 3; dj++){ const g = d.grid.get(CELLK(ci+di, cj+dj)); if(!g) continue;
+      for(const code of g){ const l = d.lines[Math.floor(code/100000)], i = code % 100000; if(L.length ? l.name !== name : !tm) continue; if(!(l.kind === kind || (tm && /^(tram|metro)$/.test(l.kind)))) continue;
+        const a = l.pts[i-1], b = l.pts[i]; if(!a || typeof a[0] !== 'number') continue;
+        if(Math.min(a[0], b[0]) - p[0] > 0.003 || p[0] - Math.max(a[0], b[0]) > 0.003 || Math.min(a[1], b[1]) - p[1] > 0.0045 || p[1] - Math.max(a[1], b[1]) > 0.0045) continue;
+        const x = seg(p, a, b), dd = dist(x, p);
+        if(l.name === name){ if(dd < 300 && (!best || dd < best.d)) best = {d:dd, p:x, a, b}; }
+        else if(tm && !L.length && dd < 80 && (!any || dd < any.d)) any = {d:dd, p:x, a, b}; } }
+    if(best) return best; if(any) return any;
+    // (lines in several pieces aren't in the grid: looked at whole, as before)
+    for(const pts of L.multi || []) look(pts, 300); if(best) return best; }
   if(kind !== 'train' || !railC(p) || typeof NRNET === 'undefined') return null;
   for(const dl of [-1, 0, 1]) for(const dn of [-1, 0, 1]){ const t = (Math.floor(p[0]*2) + dl) + '_' + (Math.floor(p[1]*2) + dn);
     if(!NRNET.tiles.has(t)){ NRNET.tiles.set(t, null); fetch('cities/nr/' + t + '.json').then(r => r.ok ? r.json() : []).then(j => { NRNET.tiles.set(t, j); NRNET.n++; }).catch(() => NRNET.tiles.set(t, [])); continue; }
