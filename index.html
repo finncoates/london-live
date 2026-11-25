@@ -1516,7 +1516,8 @@ function drawPlatNums(ctx, s){
       ctx.fillStyle = dark ? '#E8EAED' : '#3C4043'; ctx.fillText(pl, x, y); } }
   ctx.restore(); }
 // a station's platform as a path (cached): {pts, cum, len}
-function platPath(crs, pl){ const P = RAIL.plats && RAIL.plats[crs], q = P && P[pl]; if(!q) return null;
+function platPath(crs, pl){ const P = RAIL.plats && RAIL.plats[crs]; if(!P) return null;
+  const n = String(pl).match(/^\d+/)?.[0], q = P[pl] || (n && n !== pl ? P[n] : null) || (n && P[Object.keys(P).find(k => k.match(/^\d+/)?.[0] === n)]); if(!q) return null; // "1" where 1A/1B are mapped (New Street), "5A" where only 5 is
   const c = RAIL.platC || (RAIL.platC = new Map()), k = crs + '|' + pl; if(c.has(k)) return c.get(k);
   const cum = [0]; for(let i = 1; i < q.length; i++) cum.push(cum[i-1] + dist(q[i-1], q[i])); const r = {pts:q, cum, len:cum.at(-1), plat:true}; c.set(k, r); return r; }
 // a train's platform at a station: its track, where it stops (the middle; at a terminus a train's length from the
