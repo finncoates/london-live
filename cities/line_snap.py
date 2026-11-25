@@ -24,7 +24,7 @@ for f in files:
     box = (min(la) - 0.02, min(lo) - 0.03, max(la) + 0.02, max(lo) + 0.03); routers = {}
     fixed = 0
     for l, pc, i in sorted(todo, key=lambda x: -x[2]):  # from the end, so earlier indexes stay valid
-        k = KIND[l['kind']]; r = routers.get(k) or routers.setdefault(k, Router(pbf, box, k, snap_m=80))
+        k = KIND[l['kind']]; r = routers.get(k) or routers.setdefault(k, Router(pbf, box, k, snap_m=int(os.environ.get('SNAP_M', 80))))  # (SNAP_M: deep metro stations far from the tunnel's line, Lisbon)
         a, b = pc[i], pc[i+1]; p = r.path(tuple(a), tuple(b))
         if not p or len(p) < 3: continue
         L = sum(m(p[j-1], p[j]) for j in range(1, len(p)))

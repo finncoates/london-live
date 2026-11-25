@@ -31,7 +31,9 @@ class H(osmium.SimpleHandler):
 
 class Router:
     def __init__(self, pbf, box, kind='road', snap_m=60):
-        self.snap_m = snap_m; h = H(box, kind); h.apply_file(pbf, locations=True, idx=os.environ.get('OSM_IDX', 'flex_mem'))
+        self.snap_m = snap_m; h = H(box, kind)
+        for f in pbf.split(','):  # several extracts, comma-separated: a network across a border (Basel's tram 10 through Leymen); shared node ids join them
+            h.apply_file(f, locations=True, idx=os.environ.get('OSM_IDX', 'flex_mem'))
         idx = {}; lat = array.array('d'); lon = array.array('d'); adj = []
         def nid(ref, a, b):
             i = idx.get(ref)
