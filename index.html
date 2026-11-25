@@ -258,6 +258,8 @@ body.dark #upd{background:#10284d;color:#cfe0ff;border-color:#2f5a99}
 #plRes ol li.walk{border-left-style:dotted}
 #plRes ol small{display:block;color:var(--mute)}
 #plRes ol [data-follow]{font-size:12px;padding:3px 8px;margin-top:3px;display:inline-block;border:1px solid var(--edge);border-radius:6px}
+#station li[data-dep]{cursor:pointer}
+#station li.alert b::after{content:' 🔔'}
 #favs{margin:0 0 10px}
 #favs[hidden]{display:none}
 #favs h3{font-size:11.5px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--mute);margin:0 0 6px}
@@ -2079,7 +2081,7 @@ async function srvSetup(){
     for(const [id, f] of Object.entries(h.feeds || {})){ if(!f.box || f.error && !f.vehicles) continue;
       if(SRV.feeds[id]){ const x = SRV.feeds[id].entry; x[1] = f.box; x[4] = new RegExp(f.tt || '^$', 'i'); x[5] = new RegExp(f.ttModes || 'BUS'); continue; } // known: just keep its settings current
       SRV.feeds[id] = f; SRV.added = true; LIVE_ABROAD.push(f.entry = [f.name.replace(/ \(.*\)$/, ''), f.box, () => { const b = fetchBounds(), sw = b.getSouthWest(), ne = b.getNorthEast(); return `${RAIL.relay}/srv/rt?feed=${id}&bbox=${[sw.lat(), sw.lng(), ne.lat(), ne.lng()].map(x => x.toFixed(2)).join(',')}`; },
-        j => (j.vehicles || []).map(v => ({id:'la:' + id + ':' + v.id, line:v.line || '', op:v.op || f.name, dest:'', lat:v.lat, lon:v.lon, brg:v.bearing ? v.bearing : null, t:v.at || null, kind:v.kind, tram:v.kind === 'tram', metro:v.kind === 'metro', train:v.kind === 'train', col:v.kind === 'bus' && CITYL.cur?.bus ? CITYL.cur.bus[0] : v.col ? inkA(v.col.toLowerCase()) : cityLineCol(v.kind, v.line)})), // buses in the city's one bus colour, as the timetable's; others their line's
+        j => (j.vehicles || []).map(v => ({id:'la:' + id + ':' + v.id, line:v.line || '', op:v.op || f.name, dest:'', lat:v.lat, lon:v.lon, brg:v.bearing ? v.bearing : null, t:v.at || null, occ:v.occ ?? null, kind:v.kind, tram:v.kind === 'tram', metro:v.kind === 'metro', train:v.kind === 'train', col:v.kind === 'bus' && CITYL.cur?.bus ? CITYL.cur.bus[0] : v.col ? inkA(v.col.toLowerCase()) : cityLineCol(v.kind, v.line)})), // buses in the city's one bus colour, as the timetable's; others their line's
         new RegExp(f.tt || '^$', 'i'), new RegExp(f.ttModes || 'BUS'), f.cc || null]); } }
   catch(e){ console.warn('server', e); health('server', false); }
   try{ const bx = Object.values(SRV.feeds).map(f => f.box).filter(Boolean); if(bx.length) localStorage.setItem('srvBoxes', JSON.stringify(bx)); }catch(e){}
@@ -2360,7 +2362,7 @@ async function openCityStation(hit){
   map.panTo({lat:st[2], lng:st[3]});
   focusMarker = new google.maps.Marker({position:{lat:st[2], lng:st[3]}, map, zIndex:50, clickable:false, // ringed, as in London
     icon:{path:google.maps.SymbolPath.CIRCLE, scale:14, fillColor:'#fff', fillOpacity:.25, strokeColor:(c => dark && c === '#5D6670' ? '#C9CED4' : ink(c))((st[4][0] || [])[1] || '#5D6670'), strokeWeight:4}});
-  const row = (col, to, sub, mins) => `<li><span class="sw" style="background:${col}"></span><span class="to">${esc(to)}<small>${esc(sub)}</small></span><b>${mins < 1 ? 'due' : mins + ' min'}</b></li>`;
+  const row = (col, to, sub, mins) => `<li data-dep="${esc(String(sub).split(' · ')[0] + '|' + to)}" data-at="${Date.now() + Math.max(0, mins)*60000}"><span class="sw" style="background:${col}"></span><span class="to">${esc(to)}<small>${esc(sub)}</small></span><b>${mins < 1 ? 'due' : mins + ' min'}</b></li>`;
   const load = async () => {
     let rows = null, note = '', alerts = [];
     try{
@@ -2588,9 +2590,25 @@ const COACHES = {BBCB:['BlaBlaCar Bus', '#0076D1'], NATX:['National Express', '#
 const coachOf = v => COACHES[v.op] || (/megabus/i.test(v.op + ' ' + (v.line || '')) ? COACHES.MEGA : null);
 const OP_COL = ['#E4002B', '#0057B8', '#00843D', '#F4A300', '#6D2077', '#00A3AD', '#D0006F', '#5B6770'];
 const opCol = op => { let h = 0; for(const ch of op || '') h = (h*31 + ch.charCodeAt(0)) >>> 0; return OP_COL[h % OP_COL.length]; };
-function drawGps(ctx, s, hl0, hw0, mpp){
-  draw.ghit = []; STL.boxes = []; STL.nr = []; if(TRAINS_ON && document.body.classList.contains('away') && !document.body.classList.contains('abroad')){ drawNR(ctx); drawUKStops(ctx); } else if(TRAINS_ON && document.body.classList.contains('abroad') && map.getCenter() && railC([map.getCenter().lat(), map.getCenter().lng()])){ drawNR(ctx); if(!busOff()) drawUKStops(ctx); } /* France, the Netherlands: the whole railway, and bus stops close up */ /* France: SNCF's whole passenger network, as Britain's */ drawCoachNet(ctx); if(TRAINS_ON && document.body.classList.contains('away') && map.getCenter()){ const mc = [map.getCenter().lat(), map.getCenter().lng()]; drawBusNet(ctx); if(CITYL.cur && CITYL.cur.box(mc)) drawCityLines(ctx); flushNrNames(ctx); } else if(TRAINS_ON && document.body.classList.contains('edge')){ drawUKStops(ctx); drawBusNet(ctx); } /* just outside Greater London: its own stops and routes */ else if(TRAINS_ON && !MODES_OFF.has('bus') && PV.z >= 14) drawBusNet(ctx); /* London with buses on: the routes just outside Greater London too */ if(!GPS.list.size || !SHOW_ICONS || !TRAINS_ON) return;
+const SC = {cv:null, sig:'', boxes:null};
+function drawStatic(ctx){
+  if(TRAINS_ON && document.body.classList.contains('away') && !document.body.classList.contains('abroad')){ drawNR(ctx); drawUKStops(ctx); } else if(TRAINS_ON && document.body.classList.contains('abroad') && map.getCenter() && railC([map.getCenter().lat(), map.getCenter().lng()])){ drawNR(ctx); if(!busOff()) drawUKStops(ctx); } /* France, the Netherlands: the whole railway, and bus stops close up */ /* France: SNCF's whole passenger network, as Britain's */ drawCoachNet(ctx); if(TRAINS_ON && document.body.classList.contains('away') && map.getCenter()){ const mc = [map.getCenter().lat(), map.getCenter().lng()]; drawBusNet(ctx); if(CITYL.cur && CITYL.cur.box(mc)) drawCityLines(ctx); flushNrNames(ctx); } else if(TRAINS_ON && document.body.classList.contains('edge')){ drawUKStops(ctx); drawBusNet(ctx); } /* just outside Greater London: its own stops and routes */ else if(TRAINS_ON && !MODES_OFF.has('bus') && PV.z >= 14) drawBusNet(ctx); /* London with buses on: the routes just outside Greater London too */ if(!GPS.list.size || !SHOW_ICONS || !TRAINS_ON) return;
   if(window.__TTV && __TTV.world && __TTV.ferries) drawTTLines(ctx); // abroad: the routes the timetable vehicles are on, as lines under them
+}
+function staticSig(){ const c = map.getCenter(), b = document.body.classList, cnt = M => { let n = 0; for(const v of M.values()) if(v) n++; return n; };
+  return [PV.z.toFixed(4), PV.ox.toFixed(1), PV.oy.toFixed(1), c ? c.lat().toFixed(6) : '', dark, typeof MAP_STYLE !== 'undefined' ? MAP_STYLE : '', TRAINS_ON, b.contains('away'), b.contains('abroad'), b.contains('edge'),
+    [...LINES_OFF].join(), [...GPS_OFF].join(), [...MODES_OFF].join(), cityData().length, CITYL.cur ? CITYL.cur.name : '', NRNET.n, NRNET.tiles.size, TTV.at || 0, TTV.ferries ? TTV.ferries.size : 0,
+    BUSNET.tiles ? BUSNET.tiles.size + ':' + cnt(BUSNET.tiles) : '', UKST.tiles.size + ':' + cnt(UKST.tiles), COACHNET.on, LF.city || '', LF.id || '', SHOW_ST, lineW(), window.DIM_TRAINS ? 1 : 0].join('|'); }
+function drawGps(ctx, s, hl0, hw0, mpp){
+  draw.ghit = [];
+  // the still layers (rail network, bus and coach routes, city lines, stops, timetable lines) drawn once into a layer
+  // of their own and copied each frame while nothing about them changes: they were stroked anew 60 times a second
+  const sig = staticSig(); let fresh = false;
+  if(!SC.cv || SC.cv.width !== ctx.canvas.width || SC.cv.height !== ctx.canvas.height){ SC.cv = SC.cv || document.createElement('canvas'); SC.cv.width = ctx.canvas.width; SC.cv.height = ctx.canvas.height; SC.sig = ''; }
+  if(sig !== SC.sig){ const c2 = SC.cv.getContext('2d'); c2.setTransform(1, 0, 0, 1, 0, 0); c2.clearRect(0, 0, SC.cv.width, SC.cv.height); c2.setTransform(ctx.getTransform());
+    STL.boxes = []; STL.nr = []; drawStatic(c2); SC.boxes = STL.boxes.slice(); SC.sig = sig; fresh = true; }
+  else STL.boxes = SC.boxes ? SC.boxes.slice() : [];
+  ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.globalAlpha = 1; ctx.drawImage(SC.cv, 0, 0); ctx.restore();
   if(typeof PL !== 'undefined' && PL.draw && PL.sel >= 0 && !$('plan').hidden){ const W = lineW(); ctx.save(); ctx.lineJoin = 'round'; ctx.lineCap = 'round'; // the journey chosen in Directions
     for(const d of PL.draw){ const P = d.pts.map(q => scr(q)); const line = () => { ctx.beginPath(); P.forEach((c, i) => i ? ctx.lineTo(c.x, c.y) : ctx.moveTo(c.x, c.y)); ctx.stroke(); };
       if(d.k === 'walk'){ ctx.setLineDash([2, 6]); ctx.strokeStyle = dark ? '#cfd4da' : '#5f6670'; ctx.lineWidth = Math.max(3, W*0.6); line(); ctx.setLineDash([]); }
@@ -3173,6 +3191,7 @@ window.__nrGap = (A, B) => { nrTiles(A, B); const comp = st => { const seen = ne
   const pa = [...ca].map(k => NRG.pos.get(k)); let best = null; for(const k of cb){ const p = NRG.pos.get(k); for(const q of pa){ if(Math.abs(p[0]-q[0]) > 0.05 || Math.abs(p[1]-q[1]) > 0.08) continue; const d = dist(p, q); if(!best || d < best.d) best = {d:Math.round(d), a:q, b:p}; } }
   return {sizeA:ca.size, sizeB:cb.size, gap:best}; };
 window.__catalog = () => CATALOG.flatMap(ct => ct.countries.flatMap(co => co.cities.map(ci => ({name:ci.name, country:co.name, live:ci.live, at:ci.at}))));
+window.__alerts = () => ALERTS;
 window.__testStop = i => { const L = ukStopsHere(); if(L[i]) openUKStop(L[i]); return L.length; }; // (tests: open the i-th bus stop in view)
 window.__smoke = () => ({city:CITYL.cur?.name || null, cityFiles:cityData().length, cityLines:cityData().reduce((n, d) => n + d.lines.length, 0),
   tfl:ACTIVE.filter(l => l.layer).length, gps:GPS.list.size, tt:TTV.ferries ? TTV.ferries.size : 0,
@@ -3340,9 +3359,11 @@ function renderGFollow(){
   const up = (GF.stops || []).filter(x => x.t >= now - 20000), di = dest ? up.findIndex(x => x.name && (x.name === dest || dest.startsWith(x.name) || x.name.startsWith(dest))) : -1;
   const next = (di >= 0 ? up.slice(0, di + 1) : up).slice(0, 6), late = next[0] && next[0].s ? Math.round((next[0].t - next[0].s)/60000) : null;
   const how = String(v.id).startsWith('tf:') ? (GF.live || v.est ? 'live timings' : 'timetable') : 'live GPS';
+  // how full it is, where the operator says (GTFS-RT occupancy from the server's feeds)
+  const occ = v.occ == null ? '' : v.occ >= 100 ? (v.occ - 100 < 40 ? 'Plenty of seats' : v.occ - 100 < 75 ? 'Some seats' : v.occ - 100 < 95 ? 'Standing room' : 'Full') : ['Empty', 'Plenty of seats', 'Few seats', 'Standing room', 'Crowded', 'Full', 'Not taking passengers'][v.occ] || '';
   el.style.setProperty('--c', col);
   el.innerHTML = `<span class="sw" style="background:${col}"></span><div class="ft"><b>${esc({tram:'Tram', metro:'Metro', train:'Train', ferry:'Boat', bus:'Bus'}[kind] || 'Vehicle')} ${esc(v.line || '')}</b>${dest ? ' to ' + esc(dest) : ''}
-    <small>${esc(opName(v.op || ''))}${opName(v.op || '') ? ' · ' : ''}${how}${late != null && late >= 1 ? ` · <span class="late">${late} min late</span>` : late != null && late <= -1 ? ` · ${-late} min early` : ''}</small>
+    <small>${esc(opName(v.op || ''))}${opName(v.op || '') ? ' · ' : ''}${how}${occ ? ' · 👥 ' + occ : ''}${late != null && late >= 1 ? ` · <span class="late">${late} min late</span>` : late != null && late <= -1 ? ` · ${-late} min early` : ''}</small>
     ${next.length ? `<ol>${next.map(x => `<li><span>${esc(x.name)}</span><time>${hhmm(x.t)}${x.s && x.t - x.s >= 60000 ? ` <span class="late">+${Math.round((x.t - x.s)/60000)}</span>` : ''}</time></li>`).join('')}</ol>` : GF.trip && GF.stops === null && String(v.id).startsWith('tf:') ? '<small>Loading its stops…</small>' : ''}${altHtml(GF.alerts)}</div>
     <div class="gfb"><button type="button" id="gfOn" aria-pressed="${GF.on}">${GF.on ? 'Following' : 'Follow'}</button><button type="button" id="gfShare" aria-label="Share a link to this vehicle">Share</button><button type="button" id="gfX" aria-label="Close">✕</button></div>`;
   el.hidden = false; }
@@ -3608,25 +3629,25 @@ function applyRegion(){
   document.body.classList.toggle('away', away); document.body.classList.toggle('abroad', abroad); document.body.classList.toggle('edge', edge);
   if(wasAbroad && !abroad) setTimeout(() => refresh().catch(() => {}), 0); // back from abroad: London's trains at once (TfL wasn't asked while away)
   if(wasAway !== away || wasAbroad !== abroad || wasEdge !== edge || wasNI !== ni){ renderModeChips(); if(typeof refreshGps === 'function') refreshGps(); }
-  $('ttl').textContent = !away ? 'London live trains' : inHelsinki([c.lat(), c.lng()]) && map.getZoom() >= 10 ? 'Helsinki live map' : inOslo([c.lat(), c.lng()]) && map.getZoom() >= 10 ? 'Oslo live map' : inBergen([c.lat(), c.lng()]) && map.getZoom() >= 10 ? 'Bergen live map' : inTrondheim([c.lat(), c.lng()]) && map.getZoom() >= 10 ? 'Trondheim live map' : {finland:'Finland live trains', norway:'Norway live map', boston:'Boston live map', berlin:'Berlin live map', city:(relayCity([c.lat(), c.lng()]) || [, , ''])[2] + ' live map', edinburgh:'Edinburgh live map', uk:'UK live map', world:'Live map', london:'London live trains'}[r];
+  $('ttl').textContent = !away ? 'London live trains' : inHelsinki([c.lat(), c.lng()]) && map.getZoom() >= 10 ? 'Helsinki live' : inOslo([c.lat(), c.lng()]) && map.getZoom() >= 10 ? 'Oslo live' : inBergen([c.lat(), c.lng()]) && map.getZoom() >= 10 ? 'Bergen live' : inTrondheim([c.lat(), c.lng()]) && map.getZoom() >= 10 ? 'Trondheim live' : {finland:'Finland live trains', norway:'Norway live', boston:'Boston live', berlin:'Berlin live', city:(relayCity([c.lat(), c.lng()]) || [, , ''])[2] + ' live', edinburgh:'Edinburgh live', uk:'UK live', world:'Live map', london:'London live trains'}[r];
   if(r === 'norway' && map.getZoom() >= 11 && !/^(Oslo|Bergen|Trondheim) /.test($('ttl').textContent)){ const p = [c.lat(), c.lng()]; let best = null, bd = 15000; // the Norwegian town in view
-    for(const t of NO_TOWNS){ const d = dist(p, [t[1], t[2]]); if(d < bd){ bd = d; best = t[0]; } } if(best) $('ttl').textContent = best + ' live map'; }
+    for(const t of NO_TOWNS){ const d = dist(p, [t[1], t[2]]); if(d < bd){ bd = d; best = t[0]; } } if(best) $('ttl').textContent = best + ' live'; }
   if(r === 'uk' && map.getZoom() >= 11){ const p = [c.lat(), c.lng()]; let best = null, bd = 15000; // the town in view, when it's one Explore knows
     for(const ct of CATALOG) for(const co of ct.countries) for(const ci of co.cities){ if(ci.at[2] <= 7 || ci.name === 'London') continue; const d = dist(p, ci.at); if(d < bd){ bd = d; best = ci; } }
-    if(best) $('ttl').textContent = best.name + ' live map';
+    if(best) $('ttl').textContent = best.name + ' live';
     else if(map.getZoom() < 13){} // zoomed out: a region, not one town
     else if(!RAIL.stations) railStations().catch(() => {});
     else { let st = null, sd = 2500; for(const x of RAIL.stations){ if(Math.abs(x[2] - p[0]) > 0.03) continue; const d = dist(p, [x[2], x[3]]); if(d < sd){ sd = d; st = x; } } // else the town of the nearest railway station
-      if(st) $('ttl').textContent = st[1].replace(/\s*\(.*\)$/, '').replace(/\s+(Central|General|Parkway|Interchange|International|Priory|Paragon|Exchange|Junction|High Street|Town|City|Low Level|High Level|(North|South|East|West)( Street)?)$/i, '') + ' live map'; } }
+      if(st) $('ttl').textContent = st[1].replace(/\s*\(.*\)$/, '').replace(/\s+(Central|General|Parkway|Interchange|International|Priory|Paragon|Exchange|Junction|High Street|Town|City|Low Level|High Level|(North|South|East|West)( Street)?)$/i, '') + ' live'; } }
   { const p = [c.lat(), c.lng()], rc = away && railC(p); // France, the Netherlands, Belgium: the city in view, else the nearest station's town, else the country
     if(rc){ const named = CITYL.cur && CITYL.cur.id && CITYL.cur.box(p) ? (/^n-/.test(CITYL.cur.id) ? townName(CITYL.cur.name) : CITYL.cur.name) : null;
-      if(map.getZoom() < 9) $('ttl').textContent = rc.name + ' live map';
-      else if(named) $('ttl').textContent = named + ' live map';
+      if(map.getZoom() < 9) $('ttl').textContent = rc.name + ' live';
+      else if(named) $('ttl').textContent = named + ' live';
       else if(map.getZoom() >= 11 && rc.list){ let st = null, sd = 5000; for(const x of rc.list){ if(Math.abs(x[2] - p[0]) > 0.05) continue; const d = dist(p, [x[2], x[3]]); if(d < sd){ sd = d; st = x; } }
-        $('ttl').textContent = !st ? rc.name + ' live map' : st[1].replace(/\s*\/.*$/, '').replace(/[- ](Ville|Centre|Centraal|Central|Centrum|Gare|Hbf|Station|Nord|Sud|Est|Ouest|Midi|Noord|Zuid|Oost|West|Saint-Jean|Part-Dieu|Perrache|Flandres|Europe|Matabiau|Saint-Charles|Viotte|Guillemins|Rive[ -]Droite|Rive[ -]Gauche|B[ée]n[ée]dictins|Saint-Roch|Vauban|Porte[ -]Neuve|Saint-Laud|St-Laud|Ch[âa]teaucreux|Sud de France|Saint-Sauveur|Mont-Bernanchon|Monts-Jura|Thiers|Saint-Gervais|Jean-Jaur[eè]s|Saint-Germain|Central|Carnot|Centraal|Zentrum|Rive|Gare|Hôpital|Port|Ville|Montparnasse|Saint-Lazare|Austerlitz|Bercy)\b.*$/i, '').replace(/^Bruxelles$/, 'Brussels') + ' live map'; }
-      else { $('ttl').textContent = rc.name + ' live map'; if(map.getZoom() >= 11 && !rc.list && !rc.loading){ rc.loading = true; fetch(rc.url).then(r => r.json()).then(j => { rc.list = j; applyRegion(); }).catch(() => { rc.loading = false; }); } } } } // (the station list loads, then the title follows)
+        $('ttl').textContent = !st ? rc.name + ' live' : st[1].replace(/\s*\/.*$/, '').replace(/[- ](Ville|Centre|Centraal|Central|Centrum|Gare|Hbf|Station|Nord|Sud|Est|Ouest|Midi|Noord|Zuid|Oost|West|Saint-Jean|Part-Dieu|Perrache|Flandres|Europe|Matabiau|Saint-Charles|Viotte|Guillemins|Rive[ -]Droite|Rive[ -]Gauche|B[ée]n[ée]dictins|Saint-Roch|Vauban|Porte[ -]Neuve|Saint-Laud|St-Laud|Ch[âa]teaucreux|Sud de France|Saint-Sauveur|Mont-Bernanchon|Monts-Jura|Thiers|Saint-Gervais|Jean-Jaur[eè]s|Saint-Germain|Central|Carnot|Centraal|Zentrum|Rive|Gare|Hôpital|Port|Ville|Montparnasse|Saint-Lazare|Austerlitz|Bercy)\b.*$/i, '').replace(/^Bruxelles$/, 'Brussels') + ' live'; }
+      else { $('ttl').textContent = rc.name + ' live'; if(map.getZoom() >= 11 && !rc.list && !rc.loading){ rc.loading = true; fetch(rc.url).then(r => r.json()).then(j => { rc.list = j; applyRegion(); }).catch(() => { rc.loading = false; }); } } } } // (the station list loads, then the title follows)
   // anywhere else with a city file (Poland's cities, which have no national rail map yet): the city's name, not 'Live map'
-  if(away && $('ttl').textContent === 'Live map' && map.getZoom() >= 10){ const p = [c.lat(), c.lng()]; if(CITYL.cur && CITYL.cur.box(p) && CITYL.cur.name) $('ttl').textContent = CITYL.cur.name + ' live map'; }
+  if(away && $('ttl').textContent === 'Live map' && map.getZoom() >= 10){ const p = [c.lat(), c.lng()]; if(CITYL.cur && CITYL.cur.box(p) && CITYL.cur.name) $('ttl').textContent = CITYL.cur.name + ' live'; }
   document.title = !away ? 'London Live Trains' : $('ttl').textContent.replace(/(^|[\s\-'’])(\p{Ll})/gu, (m, a, c) => a + c.toUpperCase()); // the browser tab says where too (words start after a space or hyphen: \b split 'Zürich' into 'ZüRich')
   { const t = $('ttl'), fit = m => { t.style.fontSize = ''; for(let f = 17; f >= m && t.scrollWidth > t.clientWidth + 1; f--) t.style.fontSize = f + 'px'; return t.scrollWidth <= t.clientWidth + 1; };
     if(!fit(14) && / map$/.test(t.textContent)){ t.textContent = t.textContent.replace(/ map$/, ''); fit(13); } } // long names shrink a little rather than being cut off
@@ -4483,6 +4504,22 @@ new MutationObserver(() => { const x = document.getElementById('stClose'); if(!x
 $('station').addEventListener('click', e => { if(!e.target.closest('#stStar') || !CARD) return; const L = favs(), k = FAVK(CARD), i = L.findIndex(f => FAVK(f) === k);
   if(i >= 0) L.splice(i, 1); else L.unshift(JSON.parse(JSON.stringify(CARD))); setFavs(L); const b = $('stStar'), on = i < 0; b.textContent = on ? '★' : '☆'; b.setAttribute('aria-pressed', String(on)); b.setAttribute('aria-label', on ? 'Remove from your stops' : 'Save to your stops'); });
 renderFavs();
+// ---- alerts: tap a departure on a stop card for a notification 2 minutes before it leaves (while the map is open;
+// the time follows the live departures whenever that stop's card is open)
+const ALERTS = []; // {key, stop, label, at}
+$('station').addEventListener('click', e => { const li = e.target.closest('li[data-dep]'); if(!li || e.target.closest('a,button')) return;
+  const key = (CARD ? CARD.name : '') + '|' + li.dataset.dep, i = ALERTS.findIndex(a => a.key === key);
+  if(i >= 0){ ALERTS.splice(i, 1); li.classList.remove('alert'); toast('Alert removed'); return; }
+  const [line, to] = li.dataset.dep.split('|'), at = +li.dataset.at; if(at - Date.now() < 150000){ toast('That one is leaving now'); return; }
+  ALERTS.push({key, stop:CARD ? CARD.name : '', label:(line ? line + ' to ' : 'To ') + to, at}); li.classList.add('alert');
+  if('Notification' in window && Notification.permission === 'default') Notification.requestPermission().catch(() => {});
+  toast(`🔔 You'll be alerted 2 minutes before the ${line ? line + ' to ' : ''}${to} leaves (keep this page open)`); });
+new MutationObserver(() => { const stop = CARD ? CARD.name : ''; for(const li of document.querySelectorAll('#station li[data-dep]')){ const a = ALERTS.find(x => x.key === stop + '|' + li.dataset.dep && Math.abs(x.at - +li.dataset.at) < 600000);
+    if(a){ a.at = +li.dataset.at; li.classList.add('alert'); } } }).observe($('station'), {childList:true, subtree:true}); // (a live time change moves the alert with it)
+setInterval(() => { const now = Date.now(); for(let i = ALERTS.length - 1; i >= 0; i--){ const a = ALERTS[i]; if(a.at - now > 120000) continue; ALERTS.splice(i, 1);
+    const msg = `${a.label} leaves ${a.stop ? a.stop + ' ' : ''}in about 2 minutes`;
+    try{ if('Notification' in window && Notification.permission === 'granted') new Notification('Time to go', {body:msg, tag:a.key, icon:'journey/icon-192.png'}); }catch(e){}
+    toast('🔔 ' + msg); try{ navigator.vibrate?.(200); }catch(e){} } }, 10000);
 // ---- journey planner (Transitous, through the relay): from your location or any stop/place, to any stop/place;
 // up to 5 ways, each drawn on the map when chosen (rides in their line's colour, walks dotted), its legs listed, and
 // a ride whose vehicle is on the map can be followed

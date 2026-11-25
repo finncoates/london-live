@@ -109,7 +109,7 @@ export class Feed {
         const ts = +v.timestamp*1000 || now; if(now - ts > 600000) continue; // silent for 10 minutes: gone
         const rid = v.trip?.routeId || this.trips.get(v.trip?.tripId), rt = this.routes.get(rid) || {}, p = v.position;
         out.push({id:String(v.vehicle?.id || e.id), lat:+p.latitude.toFixed(5), lon:+p.longitude.toFixed(5), bearing:p.bearing != null && isFinite(p.bearing) ? Math.round(p.bearing) : null,
-          line:rt.name || v.vehicle?.label || '', kind:rt.kind || this.cfg.kind || 'bus', col:rt.col || null, op:rt.op || this.cfg.name, trip:v.trip?.tripId || null, route:rid || null, at:ts}); }
+          line:rt.name || v.vehicle?.label || '', kind:rt.kind || this.cfg.kind || 'bus', col:rt.col || null, op:rt.op || this.cfg.name, trip:v.trip?.tripId || null, route:rid || null, at:ts, occ:v.occupancyStatus != null && v.occupancyStatus !== 7 ? +v.occupancyStatus : v.occupancyPercentage != null && v.occupancyPercentage >= 0 ? 100 + Math.min(100, +v.occupancyPercentage) : null}); /* (occupancy: GTFS-RT's 0 empty … 6 not accepting passengers; 100+ a percentage) */ }
       this.vehicles = out; this.at = now; this.error = null; this.polls++;
       if(!this.cfg.box && out.length >= 3){ // no area given: where its vehicles have been (trimmed of the odd stray, ~2 km around)
         const la = out.map(v => v.lat).sort((a, b) => a - b), lo = out.map(v => v.lon).sort((a, b) => a - b), q = (v, f) => v[Math.min(v.length - 1, Math.floor(v.length*f))];

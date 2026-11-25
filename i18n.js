@@ -79,6 +79,7 @@
   // patterns with numbers or names in them: [English regex, [fr…pt] with $1…]
   const P = [
     [/^(.+) live map$/, ['$1 en direct', '$1 live', '$1 live', '$1 en directo', '$1 in tempo reale', '$1 na żywo', '$1 em tempo real']],
+    [/^(.+) live$/, ['$1 en direct', '$1 live', '$1 live', '$1 en directo', '$1 in tempo reale', '$1 na żywo', '$1 em tempo real']],
     [/^(\d+) min late$/, ['$1 min de retard', '+$1 Min.', '$1 min vertraagd', '$1 min de retraso', '$1 min di ritardo', 'opóźnienie $1 min', '$1 min de atraso']],
     [/^(\d+) min early$/, ['$1 min d’avance', '$1 Min. zu früh', '$1 min te vroeg', '$1 min antes', '$1 min in anticipo', '$1 min przed czasem', '$1 min adiantado']],
     [/^and (\d+) more notices? from the operators$/, ['et $1 autres avis des exploitants', 'und $1 weitere Hinweise der Betreiber', 'en nog $1 meldingen van de vervoerders', 'y $1 avisos más de los operadores', 'e altri $1 avvisi degli operatori', 'i jeszcze $1 komunikaty przewoźników', 'e mais $1 avisos dos operadores']],
