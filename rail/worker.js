@@ -411,7 +411,7 @@ async function planes(url, cors){
 
 // ---------- timetable vehicles from Transitous (every train/tram/bus running now, from open timetables) ----------
 // GET /tt?la=52.5&lo=-1.5&modes=rail|tram|all → the vehicles on the move in that 0.5° tile in the next ~3 minutes:
-// [mode, colour, name, from:[name, code, lat, lon], to:[…], dep ms, arr ms, realTime, tripId]. One call to Transitous
+// [mode, colour, name, from:[name, code, lat, lon, platform?], to:[…], dep ms, arr ms, realTime, tripId]. One call to Transitous
 // per tile every 2 minutes, shared by every visitor (cached here).
 const TT_MEM = new Map(), TT_WAIT = new Map();
 // Polylines (precision 5): a country-sized tile only needs a rough shape, so points closer than tol° are dropped
@@ -463,7 +463,7 @@ async function ttTile(url, cors){
         if(!r.ok){ if(last && bucket - last.at <= 600000) return last.v; // keep showing the last good answer (up to 10 min)
           const lc = cache ? await cache.match(lk).catch(() => null) : null; if(lc) return await lc.json(); // (or another instance's, from the shared cache: a fresh instance has none of its own)
           throw fail('Transitous: HTTP ' + r.status, 502); }
-        const stop = s => [s.name, s.stopCode || null, +s.lat.toFixed(5), +s.lon.toFixed(5)];
+        const stop = s => { const r = [s.name, s.stopCode || null, +s.lat.toFixed(5), +s.lon.toFixed(5)], tk = s.track || s.scheduledTrack; if(tk) r.push(String(tk).trim()); return r; }; /* its platform, where the timetable has one */
         const box = [la, lo, la + sz, lo + sz], tol = sz >= 4 ? 0.02 : sz >= 2 ? 0.01 : sz >= 1 ? 0.005 : 0.0002;
         const v = (await r.json()).map(s => { const c = polyClip(s.polyline || '', Date.parse(s.departure), Date.parse(s.arrival), box, Math.max(0.03, sz*0.4));
           return [s.mode, s.routeColor || null, s.trips?.[0]?.displayName || '', stop(s.from), stop(s.to), c[1], c[2], s.realTime ? 1 : 0, s.trips?.[0]?.tripId || '', polyThin(c[0], tol)]; });

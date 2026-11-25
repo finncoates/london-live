@@ -2,6 +2,9 @@
 # a train the live data says is at "platform 7" is drawn on platform 7's track. Works anywhere OSM maps platforms.
 #   python -I cities/osm_platforms.py area.osm.pbf stations.json out.json
 #   stations.json: [[id, name, lat, lon], ...]   ->   out.json: {id: {"7": [[lat, lon], ...], ...}, ...}
+#   python -I cities/osm_platforms.py country.osm.pbf osm rail/plat/
+#   stations from OSM itself (railway=station/halt, trains); out: one file per 1° square, <lat>_<lon>.json:
+#   {osm id: {"n": name, "p": [lat, lon], "pl": {"7": [[lat, lon], ...]}}}, merged with what's there (borders)
 # Where a platform's track comes from, best first:
 #   1. the track itself is numbered (railway:track_ref=7), cut to where the station's platforms are
 #   2. a platform edge (railway=platform_edge, ref=7): the track beside it
@@ -11,16 +14,21 @@ import sys as _s; _s.stdout.reconfigure(encoding='utf-8', errors='replace')
 import sys, os, json, math, re, osmium
 pbf, stf, outf = sys.argv[1], sys.argv[2], sys.argv[3]
 R = 6371000.0
-ST = json.load(open(stf, encoding='utf-8'))
-# only stations in the extract's area (the pbf's header box)
-fh = osmium.io.Reader(pbf, osmium.osm.osm_entity_bits.NOTHING); hb = fh.header().box(); fh.close()
-if hb.valid(): ST = [s for s in ST if hb.bottom_left.lat < s[2] < hb.top_right.lat and hb.bottom_left.lon < s[3] < hb.top_right.lon]
-print(len(ST), 'stations in the area')
+FL = math.floor
 G = 0.01 # ~1 km grid of stations, to keep only what is near one
 grid = {}
-for s in ST: grid.setdefault((int(s[2]/G), int(s[3]/G)), []).append(s)
+OSM_ST = stf == 'osm'
+if OSM_ST: ST = [] # found as the file is read (its nodes come before its ways)
+else:
+    ST = json.load(open(stf, encoding='utf-8'))
+    # only stations in the extract's area (the pbf's header box)
+    fh = osmium.io.Reader(pbf, osmium.osm.osm_entity_bits.NOTHING); hb = fh.header().box(); fh.close()
+    if hb.valid(): ST = [s for s in ST if hb.bottom_left.lat < s[2] < hb.top_right.lat and hb.bottom_left.lon < s[3] < hb.top_right.lon]
+    print(len(ST), 'stations in the area')
+    for s in ST: grid.setdefault((FL(s[2]/G), FL(s[3]/G)), []).append(s)
+SKIP = {'subway', 'light_rail', 'monorail', 'funicular', 'tram', 'miniature'}
 def near_station(lat, lon):
-    i, j = int(lat/G), int(lon/G)
+    i, j = FL(lat/G), FL(lon/G)
     return any(grid.get((i + a, j + b)) for a in (-1, 0, 1) for b in (-1, 0, 1))
 def refs(v):
     if not v: return []
@@ -42,19 +50,25 @@ class H(osmium.SimpleHandler):
             if t.get('train') == 'no' or t.get('subway') == 'yes' or t.get('tram') == 'yes' or t.get('light_rail') == 'yes' or t.get('bus') == 'yes' or t.get('highway') == 'bus_stop': return
             if rw != 'platform' and t.get('train') != 'yes': return
             h.plats.append({'pts':pts, 'refs':refs(t.get('ref') or t.get('local_ref'))})
+    def node(h, n):
+        if not OSM_ST: return
+        t = n.tags
+        if t.get('railway') not in ('station', 'halt') or not t.get('name') or t.get('station') in SKIP or t.get('subway') == 'yes' or t.get('usage') in ('tourism', 'heritage'): return
+        if t.get('light_rail') == 'yes' and t.get('train') != 'yes': return
+        s = ['n' + str(n.id), t.get('name'), round(n.location.lat, 6), round(n.location.lon, 6)]; ST.append(s); grid.setdefault((FL(s[2]/G), FL(s[3]/G)), []).append(s)
     def relation(h, r): pass
 h = H(); h.apply_file(pbf, locations=True, idx=os.environ.get('OSM_IDX', 'flex_mem'))
 for x in h.tracks + h.plats + h.edges: x['bb'] = (min(p[0] for p in x['pts']), max(p[0] for p in x['pts']), min(p[1] for p in x['pts']), max(p[1] for p in x['pts']))
 IDX = {} # what lies in each ~1 km cell (by its box), so a station looks only at what is near it
 for kind, L in (('t', h.tracks), ('p', h.plats), ('e', h.edges)):
     for x in L:
-        for i in range(int(x['bb'][0]/G), int(x['bb'][1]/G) + 1):
-            for j in range(int(x['bb'][2]/G), int(x['bb'][3]/G) + 1): IDX.setdefault((kind, i, j), []).append(x)
+        for i in range(FL(x['bb'][0]/G), FL(x['bb'][1]/G) + 1):
+            for j in range(FL(x['bb'][2]/G), FL(x['bb'][3]/G) + 1): IDX.setdefault((kind, i, j), []).append(x)
 def cand(kind, s):
     seen, out = set(), []
     for a in (-1, 0, 1):
         for b in (-2, -1, 0, 1, 2):
-            for x in IDX.get((kind, int(s[2]/G) + a, int(s[3]/G) + b), []):
+            for x in IDX.get((kind, FL(s[2]/G) + a, FL(s[3]/G) + b), []):
                 if id(x) not in seen: seen.add(id(x)); out.append(x)
     return out
 close = lambda x, s, dla: x['bb'][0] - dla < s[2] < x['bb'][1] + dla and x['bb'][2] - dla*1.7 < s[3] < x['bb'][3] + dla*1.7
@@ -113,7 +127,7 @@ for s in ST:
     # a platform belongs to the station it is nearest to (stations a few hundred metres apart keep their own)
     def mine(P):
         (cx, cy), _, _ = axis(P); la, lo = back((cx, cy)); d0 = math.hypot(cx, cy)
-        for o in grid.get((int(la/G), int(lo/G)), []) + [x for a in (-1, 0, 1) for b in (-1, 0, 1) for x in grid.get((int(la/G)+a, int(lo/G)+b), [])]:
+        for o in grid.get((FL(la/G), FL(lo/G)), []) + [x for a in (-1, 0, 1) for b in (-1, 0, 1) for x in grid.get((FL(la/G)+a, FL(lo/G)+b), [])]:
             if o is s: continue
             t2, _ = local(o); q = t2(back((0, 0)));
             if math.hypot(cx + q[0], cy + q[1]) < d0 - 1: return False
@@ -153,7 +167,15 @@ for s in ST:
     if res:
         out[s[0]] = {r: [list(back(q)) for q in rdp(P)] for r, P in res.items() if math.hypot(P[-1][0]-P[0][0], P[-1][1]-P[0][1]) > 30}
         if not out[s[0]]: del out[s[0]]
-json.dump(out, open(outf, 'w', encoding='utf-8'), separators=(',', ':'))
+if OSM_ST: print(len(ST), 'stations')
+if outf.endswith('/') or os.path.isdir(outf):
+    os.makedirs(outf, exist_ok=True); pos = {s[0]: s for s in ST}; tiles = {}
+    for k, v in out.items(): s = pos[k]; tiles.setdefault('%d_%d' % (FL(s[2]), FL(s[3])), {})[k] = {'n':s[1], 'p':[s[2], s[3]], 'pl':v}
+    for t, v in tiles.items():
+        f = os.path.join(outf, t + '.json'); old = json.load(open(f, encoding='utf-8')) if os.path.exists(f) else {}
+        old.update(v); json.dump(old, open(f, 'w', encoding='utf-8'), ensure_ascii=False, separators=(',', ':'))
+    print(len(tiles), 'tiles written')
+else: json.dump(out, open(outf, 'w', encoding='utf-8'), separators=(',', ':'))
 print(len(out), 'stations with platforms;', sum(len(v) for v in out.values()), 'platforms')
 for k in ('WAT', 'LBG', 'KGX', 'EUS', 'VIC', 'LST', 'PAD', 'CHX', 'CST', 'MYB', 'STP', 'FST', 'CLJ'):
     print(' ', k, sorted(out.get(k, {}), key=lambda r: (len(r), r)))

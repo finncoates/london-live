@@ -1389,13 +1389,17 @@ async function refresh(){
 // zoomed right in on a station: its platform numbers, at the end of each platform's track nearest the station's
 // entrance (from OpenStreetMap; the trains standing there are on the same tracks)
 function drawPlatNums(ctx, s){
-  if(PV.z < 16.5 || !RAIL.plats || STOPS_OFF.has('train') || !SHOW_ST) return;
+  if(PV.z < 16.5 || STOPS_OFF.has('train') || !SHOW_ST) return;
+  const SS = []; for(const crs in RAIL.plats || {}){ const st = RAIL.byCrs[crs]; if(st) SS.push({p:st.p, pl:RAIL.plats[crs]}); } // London (and Britain)
+  { const b = map.getBounds(); if(b && typeof platSquare === 'function'){ const sw = b.getSouthWest(), ne = b.getNorthEast(); // abroad: the squares in view
+      for(let la = Math.floor(sw.lat()); la <= Math.floor(ne.lat()); la++) for(let lo = Math.floor(sw.lng()); lo <= Math.floor(ne.lng()); lo++){ const L = platSquare(la + 0.5, lo + 0.5); if(L) SS.push(...L); } } }
   ctx.save(); ctx.font = '700 10px system-ui, sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.lineJoin = 'round';
   const dark = document.documentElement.classList.contains('dark') || matchMedia('(prefers-color-scheme: dark)').matches;
-  for(const crs in RAIL.plats){ const st = RAIL.byCrs[crs]; if(!st) continue; const c = scr(st.p); if(c.x < -500 || c.y < -500 || c.x > s.x + 500 || c.y > s.y + 500) continue;
-    for(const pl in RAIL.plats[crs]){ const q = RAIL.plats[crs][pl], A = q[0], B = q.at(-1), e = dist(A, st.p) < dist(B, st.p), E = e ? A : B, F = e ? q[1] : q.at(-2);
+  const PNB = []; for(const st of SS){ const c = scr(st.p); if(c.x < -500 || c.y < -500 || c.x > s.x + 500 || c.y > s.y + 500) continue;
+    for(const pl in st.pl){ const q = st.pl[pl], A = q[0], B = q.at(-1), e = dist(A, st.p) < dist(B, st.p), E = e ? A : B, F = e ? q[1] : q.at(-2);
       const a = scr(E), b = scr(F), L = Math.hypot(a.x - b.x, a.y - b.y) || 1, x = a.x + (a.x - b.x)/L*9, y = a.y + (a.y - b.y)/L*9;
       if(x < -20 || y < -20 || x > s.x + 20 || y > s.y + 20) continue;
+      const w = ctx.measureText(pl).width/2 + 2; if(PNB.some(b => Math.abs(b[0] - x) < b[2] + w && Math.abs(b[1] - y) < 10)) continue; PNB.push([x, y, w]); // (close platforms: no number drawn over another)
       ctx.lineWidth = 3; ctx.strokeStyle = dark ? 'rgba(20,22,26,.9)' : 'rgba(255,255,255,.9)'; ctx.strokeText(pl, x, y);
       ctx.fillStyle = dark ? '#E8EAED' : '#3C4043'; ctx.fillText(pl, x, y); } }
   ctx.restore(); }
@@ -2673,7 +2677,7 @@ function fanOut(now, s0, hw0, mpp){
   if(now - FANS.at > 250 || Math.abs(PV.z - FANS.z) > 0.05){ FANS.at = now; FANS.z = PV.z;
     for(const g of FANS.set) g.fanT = null;
     const items = [], cell = new Map(), CK = (k, x, y) => k*1e8 + (x + 5000)*1e4 + (y + 5000), KI = {train:1, metro:2, tram:3, bus:4, coach:5, ferry:6};
-    for(const g of GPS.list.values()){ if(gOff(g.v)) continue; const p = gpsPos(g, now), c = scr(p); if(c.x < -60 || c.y < -60 || c.x > s0.x + 60 || c.y > s0.y + 60) continue;
+    for(const g of GPS.list.values()){ if(gOff(g.v) || g.v.plat) continue; const p = gpsPos(g, now), c = scr(p); if(c.x < -60 || c.y < -60 || c.x > s0.x + 60 || c.y > s0.y + 60) continue;
       const kind = coachOf(g.v) ? 'coach' : vkind(g.v), [len, wid] = REAL_SIZE[KIND_MODE[kind === 'coach' ? 'bus' : kind] || 'bus'] || REAL_SIZE.tube;
       const hw = Math.max(hw0, wid/2/mpp), hl = Math.max(hw0*2.5, len/2/mpp), a = g.ang ?? 0, ki = KI[kind] || 7, cx = Math.floor(c.x/40), cy = Math.floor(c.y/40);
       const it = {g, c, kind, ki, cx, cy, hw, hl, a, cs:Math.cos(a), sn:Math.sin(a)}; it.r = it;
@@ -2797,7 +2801,8 @@ function drawGps(ctx, s, hl0, hw0, mpp){
     if(PV.z < 10){ const f = Math.max(0.5, (PV.z - 5)/5); hl *= f; hw *= Math.max(0.65, f); } // whole-country views: smaller, so the map stays readable
     const cs = Math.cos(ang), sn = Math.sin(ang), ux = cs*hl, uy = sn*hl, vx = -sn*hw, vy = cs*hw;
     // trams, metros and trains on a drawn line: bent along it (as in London), not a straight box across the bends
-    let body = null; if((kind === 'tram' || kind === 'metro' || kind === 'train') && !coach && PV.z >= 13 && hl*mpp > 8){ const sc = lineAt(g.v, p);
+    let body = null; if(g.v.plat && PV.z >= 13 && hl*mpp > 8){ const B = bodyAlong(g.v.plat.pts, g.v.plat.i, p, hl*mpp); if(B && B.length > 2) body = B.map(q => { const w = scr(q); return [w.x, w.y]; }); } // at its platform
+    else if((kind === 'tram' || kind === 'metro' || kind === 'train') && !coach && PV.z >= 13 && hl*mpp > 8){ const sc = lineAt(g.v, p);
       if(sc && sc.sn && sc.sn.l){ const B = bodyAlong(sc.sn.l.pts, sc.sn.i, p, hl*mpp); if(B && B.length > 2){ const sh = c.x - scr(p).x, sv = c.y - scr(p).y; body = B.map(q => { const w = scr(q); return [w.x + sh, w.y + sv]; }); } } }
     if(body){ const col = g.v.col || (tram ? '#7A1F3D' : opCol(g.v.op)), line = w => { ctx.lineWidth = w; ctx.beginPath(); body.forEach((q, k) => k ? ctx.lineTo(q[0], q[1]) : ctx.moveTo(q[0], q[1])); ctx.stroke(); };
       ctx.lineJoin = 'round'; ctx.lineCap = 'butt'; ctx.strokeStyle = dark ? 'rgba(0,0,0,.9)' : 'rgba(255,255,255,.95)'; line(2*hw + 4);
@@ -3272,6 +3277,23 @@ function ttRail(A, B){ const D = dist(A, B); if(D < 2000 || D > 150000 || typeof
   if(TTV.railBudget <= 0 || !nrTiles(A, B)) return null; TTV.railBudget--;
   let pts = null; try{ pts = nrAstar(nrCands(A, 600).map(c => c[0]), nrCands(B, 600).map(c => c[0]), D*1.8 + 4000); }catch(e){}
   const r = pts && pts.length > 2 ? pts : null; TTV.rail.set(key, r); if(TTV.rail.size > 3000) TTV.rail.clear(); return r; }
+// ---------- platforms abroad: a train standing at a station (its platform from the timetable, Transitous's "track")
+// on that platform's track, from OpenStreetMap (cities/osm_platforms.py → rail/plat/<lat>_<lon>.json) ----------
+const PLATEU = {sq:new Map(), path:new Map()};
+function platSquare(la, lo){ const k = Math.floor(la) + '_' + Math.floor(lo); let v = PLATEU.sq.get(k);
+  if(v === undefined){ PLATEU.sq.set(k, null); fetch('rail/plat/' + k + '.json').then(r => r.ok ? r.json() : {}).then(j => PLATEU.sq.set(k, Object.values(j || {}))).catch(() => PLATEU.sq.set(k, [])); return null; }
+  return v; }
+// "7", "7a", "Gleis 7", "Voie 7": the same platform
+const platKey = t => String(t).toUpperCase().replace(/^(GLEIS|GL\.?|VOIE|V\.?|TRACK|SPOOR|BINARIO|BIN\.?|VÍA|VIA|PLATFORM|PERRON|QUAI)\s*/, '').trim();
+function platAbroad(stop){ // stop: [name, code, lat, lon, platform] → {pts, cum, len} or null
+  const tk = stop && stop[4]; if(!tk) return null; const L = platSquare(stop[2], stop[3]); if(!L) return null;
+  const key = stop[2] + ',' + stop[3] + '|' + tk; if(PLATEU.path.has(key)) return PLATEU.path.get(key);
+  // the nearest station (within 450 m) that has that platform (a big station can be mapped as two: Paris-Nord's main
+  // hall and its underground RER part)
+  const want = platKey(tk), n = want.match(/^\d+/)?.[0], has = st => { const keys = Object.keys(st.pl); return st.pl[want] || st.pl[keys.find(k => platKey(k) === want)] || (n && want !== n ? st.pl[n] : null) || null; };
+  let q = null, bd = 450; for(const st of L){ const d = dist(st.p, [stop[2], stop[3]]); if(d < bd){ const h = has(st); if(h){ bd = d; q = h; } } }
+  let r = null; if(q && q.length > 1){ const cum = [0]; for(let i = 1; i < q.length; i++) cum.push(cum[i-1] + dist(q[i-1], q[i])); if(cum.at(-1) >= 30) r = {pts:q, cum, len:cum.at(-1)}; }
+  PLATEU.path.set(key, r); if(PLATEU.path.size > 4000) PLATEU.path.clear(); return r; }
 function ttPlace(now){ TTV.railBudget = 1;
   const byTrip = new Map(); for(const e of TTV.ferries.values()){ const t = e.s[8]; (byTrip.get(t) || byTrip.set(t, []).get(t)).push(e); }
   const out = new Map();
@@ -3329,7 +3351,13 @@ function ttPlace(now){ TTV.railBudget = 1;
           if(bq && bq.d <= q.d + 150 && bq.d < 2500) q = bq; }
         TTV.railPref.set(trip, q.pts); if(TTV.railPref.size > 5000) TTV.railPref.clear(); }
       if(q){ P = q.p; sA = q.a; sB = q.b; } }
-    out.set(trip, {s:e.s, p:P, A:sA, B:sB}); }
+    // a train standing at a station (before it leaves, between arriving and leaving, at the end): on its platform
+    let plat = null;
+    if(kind0(e.s[0]) === 'train'){ let st = null; if(now <= ch[0].s[5]) st = ch[0].s[3]; else if(now >= ch.at(-1).s[6]) st = ch.at(-1).s[4];
+      else for(let j = 1; j < ch.length; j++) if(ch[j-1].s[6] <= now && now <= ch[j].s[5]){ st = ch[j].s[3][4] ? ch[j].s[3] : ch[j-1].s[4]; break; }
+      const pp = st && dist(st.slice(2, 4), P) < 600 && platAbroad(st);
+      if(pp){ const a = along(pp, 0.5), i = pp.pts.indexOf(a.b); P = a.p; sA = a.a; sB = a.b; plat = {pts:pp.pts, i:Math.max(1, i), ref:st[4]}; } }
+    out.set(trip, {s:e.s, p:P, A:sA, B:sB, plat}); }
   TTV.lastP = new Map([...out].map(([t, v]) => [t, v.p]));
   return out; }
 window.__ttPlace = ttPlace;
@@ -3352,6 +3380,7 @@ window.__frames = () => MOVING.frames || 0;
 window.__testRide = () => { for(const t of trains.values()) if(t.d && !t.rail && t.line){ setLive(true); follow(t, 15); setRide(true); return t.key; } return null; };
 // tools: give the trains calling at a station platforms (as Darwin would), then read where they stand
 window.__platGive = crs => { const P = Object.keys(RAIL.plats?.[crs] || {}); let k = 0; for(const t of trains.values()) if(t.rail && t.ahead && t.ahead.some(a => a[0] === crs)) t.plats = {...t.plats, [crs]:P[k++ % P.length]}; return {plats:P.length, given:k}; };
+window.__platAbroad = () => [...GPS.list.values()].filter(g => g.v.plat).map(g => g.v.id.slice(0, 40) + ' @' + g.v.plat.ref);
 window.__platOn = () => [...trains.values()].filter(t => t.onPlat).map(t => t.onPlat);
 window.__rideState = () => ({key:FW.t && FW.t.key, ride:FW.ride, d:FW.t && FW.t.d, c:(c => c && [c.lat(), c.lng()])(map.getCenter())});
 window.__rekey = () => { const t = FW.t; if(!t) return null; const k = t.key + ':new'; trains.delete(t.key); trains.set(k, Object.assign({}, t, {key:k})); return k; };
@@ -3391,7 +3420,7 @@ function ttTick(){ if(!TTV.ferries || !TRAINS_ON || inTfLArea([map.getCenter().l
   // allowing for delays) isn't shown, whichever feed the two come from (Bordeaux's trams: TBM live, the region's timetable)
   const liveAt = new Map(); for(const [k, g] of GPS.list) if((k.startsWith('la:') || k.startsWith('es:') || k.startsWith('no:')) && g.v.line){ const key = vkind(g.v) + '|' + String(g.v.line).toLowerCase(); (liveAt.get(key) || liveAt.set(key, []).get(key)).push(g.to || [g.v.lat, g.v.lon]); }
   const best = ttPlace(now + 2000); // where each will be when this glide ends: moved at a steady speed (linear), it is where the timetable says, all the time, not surging and slowing every 2 s
-  for(const [trip, {s, p, A, B}] of best){ const [, col, name, from, to, dep, arr] = s;
+  for(const [trip, {s, p, A, B, plat}] of best){ const [, col, name, from, to, dep, arr] = s;
     if(TTV.esLive && Date.now() - TTV.esLive < 120000 && /RENFE-?Cercan|Rodalies|Cercan/i.test(trip)) continue;
     if(SRV.shipsAt && Date.now() - SRV.shipsAt < 120000 && /FERRY/.test(s[0]) && [...GPS.list].some(([k, g]) => k.startsWith('ais:') && dist(g.to || [g.v.lat, g.v.lon], p) < 600)) continue; // a ship live by AIS right there instead (only then: Bordeaux's river shuttles have no AIS, and all ferries vanished whenever any ship was tracked)
     if(TTV.cityLive && Date.now() - TTV.cityLive.at < 120000 && liveKinds.has(/FERRY/.test(s[0]) ? 'ferry' : /BUS|COACH/.test(s[0]) ? 'bus' : /TRAM/.test(s[0]) ? 'tram' : /SUBWAY|METRO/.test(s[0]) ? 'metro' : 'train') && LIVE_ABROAD.some(x => Date.now() - (TTV.live?.get(x[0])?.at || 0) < 120000 && x[4].test(trip) && (x[5] || /BUS/).test(s[0]))) continue; // that city's buses (and trams) are live // shown live by Renfe instead (its line is still drawn)
@@ -3404,6 +3433,7 @@ function ttTick(){ if(!TTV.ferries || !TRAINS_ON || inTfLArea([map.getCenter().l
       segAng:Math.atan2(-(B[0]-A[0]), (B[1]-A[1])*Math.cos(A[0]*rad))};
     { const cf = /flixbus/i.test(trip) ? 'FLIX' : /blablacar/i.test(trip) ? 'BBCB' : null; // long-distance coaches: their own look, as in Britain
       if(cf && kind === 'bus'){ v.op = cf; v.coach = true; v.line = String(name || '').replace(/^(FlixBus|BlaBlaCar Bus)\s*/i, ''); v.col = COACHES[cf][1]; } }
+    v.plat = plat || null;
     if(!g){ g = {from:p, to:p, t0:now, dur:2000, lin:true}; GPS.list.set(id, g); }
     else { g.from = gpsPos(g, now); g.to = p; g.t0 = now; g.lin = true; g.path = null;
       const jd = dist(g.from, p), vmax = TT_VMAX(m)*1.4; // never faster on screen than such a vehicle goes: a correction is a steady catch-up, never a leap
