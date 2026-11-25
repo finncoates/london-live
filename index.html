@@ -2668,7 +2668,7 @@ const esChain = p => { const near = (q, pt) => dist(q, pt) < 3000, W = ES_WAY; l
   c = c.concat(W.brussels.slice(1)); if(near(p, W.brussels.at(-1))) return c;
   const i = W.north.findIndex(q => near(p, q)); return i > 0 ? c.concat(W.north.slice(1, i + 1)) : null; };
 const ES_POLYS = [ES_WAY.tunnel, ES_WAY.lille, ES_WAY.paris, ES_WAY.mlv, ES_WAY.brussels, ES_WAY.north];
-nrPolysets.es = ES_POLYS; // drawn with the National Rail network
+nrPolysets.es = [ES_WAY.tunnel]; // drawn with the National Rail network: only the tunnel now (France, Belgium and the Netherlands draw their real track; these few-point lines cut straight across Amsterdam)
 function nrTrackPath(l, a, b){
   const A = l.stops[a]?.p, B = l.stops[b]?.p; if(!A || !B) return null;
   const key = a + '>' + b; if(NRG.paths.has(key)) return l.pathCache[key] = NRG.paths.get(key);
