@@ -1481,6 +1481,7 @@ function frame(ts, sync){
   if(h){ ctx.strokeStyle=dark?'#fff':'#000'; ctx.lineWidth=1.5; ctx.beginPath(); ctx.arc(h[1],h[2],h[8]+4,0,7); ctx.stroke(); }
   draw.hit = drawn;
   if(draw.ride) draw.ride(); // ride along: keep the map on the train every frame
+  if(GF.on) gfCenter(); // and a followed vehicle abroad
   draw.ms = (draw.ms||0)*0.9 + (performance.now()-t0)*0.1;
   if(draw.ms < 8) draw.slow = 0; // (only a run of slow frames counts: hiccups over hours on a TV screen used to add up)
   if(!LOW && Q.get('quality') !== 'high' && ts > 20000 && draw.ms > 14 && (draw.slow = (draw.slow||0) + 1) > FPS*4){ LOW = draw.autoLow = true; draw.fps0 = FPS; FPS = Math.min(FPS, 15); draw.fast = 0; console.info('low-power mode on'); }
@@ -3021,6 +3022,10 @@ document.getElementById('vlist')?.addEventListener('toggle', vlistFill); setInte
 window.__GPSL = () => GPS.list; window.__gpsPos = (g, t) => gpsPos(g, t);
 window.__testVeh = kind => { for(const g of GPS.list.values()) if((!kind || vkind(g.v) === kind) && String(g.v.id).startsWith('tf:') && g.v.trip){ openGFollow(g); GF.on = true; renderGFollow(); return g.v.id; } return null; };
 window.__frames = () => MOVING.frames || 0;
+window.__testRide = () => { for(const t of trains.values()) if(t.d && !t.rail && t.line){ setLive(true); follow(t, 15); setRide(true); return t.key; } return null; };
+window.__rideState = () => ({key:FW.t && FW.t.key, ride:FW.ride, d:FW.t && FW.t.d, c:(c => c && [c.lat(), c.lng()])(map.getCenter())});
+window.__rekey = () => { const t = FW.t; if(!t) return null; const k = t.key + ':new'; trains.delete(t.key); trains.set(k, Object.assign({}, t, {key:k})); return k; };
+window.__gf = () => ({id:GF.id, on:GF.on, p:(g => g && gpsPos(g, Date.now()))(gfVehicle()), c:(c => c && [c.lat(), c.lng()])(map.getCenter())});
 window.__testStop = i => { const L = ukStopsHere(); if(L[i]) openUKStop(L[i]); return L.length; }; // (tests: open the i-th bus stop in view)
 window.__smoke = () => ({city:CITYL.cur?.name || null, cityFiles:cityData().length, cityLines:cityData().reduce((n, d) => n + d.lines.length, 0),
   tfl:ACTIVE.filter(l => l.layer).length, gps:GPS.list.size, tt:TTV.ferries ? TTV.ferries.size : 0,
@@ -3159,8 +3164,15 @@ const coachDest = d => { const x = String(d).replace(/\s*\((?:opposite|near|outs
 // with live times where the network shares them), and Follow: the map keeps it in the middle until you move the map
 const GF = {id:null, on:false, stops:null, trip:null, dest:''};
 const hhmm = t => new Date(t).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
-function gfVehicle(){ if(!GF.id) return null; for(const g of GPS.list.values()) if(g.v.id === GF.id) return g; return null; }
-function openGFollow(g){ const v = g.v; if(GF.id === v.id) return; GF.id = v.id; GF.on = false; GF.stops = null; GF.alerts = null; GF.dest = ''; GF.trip = v.trip || null; GF.lost = 0;
+function gfVehicle(){ if(!GF.id) return null; for(const g of GPS.list.values()) if(g.v.id === GF.id) return g;
+  // gone from the data (a timetable stretch ended, a live id changed): the same line's vehicle where it was takes over
+  if(GF.lastP){ let best = null, bd = 400; for(const g of GPS.list.values()){ if(g.v.line !== GF.line || vkind(g.v) !== GF.kind) continue; const d = dist(gpsPos(g, Date.now()), GF.lastP); if(d < bd){ bd = d; best = g; } }
+    if(best){ GF.id = best.v.id; if(best.v.trip && best.v.trip !== GF.trip){ GF.trip = best.v.trip; loadGFStops(GF.trip); } return best; } }
+  return null; }
+// following: the map kept on the vehicle every frame (smooth, as Ride along), and where it is remembered for a takeover
+function gfCenter(){ if(!GF.id) return; const g = gfVehicle(); if(!g) return; const p = gpsPos(g, Date.now()); if(!p || !isFinite(p[0])) return;
+  GF.lastP = p; GF.line = g.v.line; GF.kind = vkind(g.v); if(!GF.on) return; const c = map.getCenter(); if(c && dist([c.lat(), c.lng()], p) > 1.5) map.setCenter(LL(p)); }
+function openGFollow(g){ const v = g.v; if(GF.id === v.id) return; GF.id = v.id; GF.lastP = gpsPos(g, Date.now()); GF.line = v.line; GF.kind = vkind(v); // (known at once: a timetable tram hidden for its live twin is taken over by it) GF.on = false; GF.stops = null; GF.alerts = null; GF.dest = ''; GF.trip = v.trip || null; GF.lost = 0;
   renderGFollow(); if(GF.trip && String(v.id).startsWith('tf:')) loadGFStops(GF.trip); }
 async function loadGFStops(trip){
   try{ const j = await (await fetch('https://api.transitous.org/api/v5/trip?tripId=' + encodeURIComponent(trip), {signal:AbortSignal.timeout(10000)})).json(); if(GF.trip !== trip) return;
@@ -3180,7 +3192,7 @@ function renderGFollow(){
     ${next.length ? `<ol>${next.map(x => `<li><span>${esc(x.name)}</span><time>${hhmm(x.t)}${x.s && x.t - x.s >= 60000 ? ` <span class="late">+${Math.round((x.t - x.s)/60000)}</span>` : ''}</time></li>`).join('')}</ol>` : GF.trip && GF.stops === null && String(v.id).startsWith('tf:') ? '<small>Loading its stops…</small>' : ''}${altHtml(GF.alerts)}</div>
     <div class="gfb"><button type="button" id="gfOn" aria-pressed="${GF.on}">${GF.on ? 'Following' : 'Follow'}</button><button type="button" id="gfShare" aria-label="Share a link to this vehicle">Share</button><button type="button" id="gfX" aria-label="Close">✕</button></div>`;
   el.hidden = false; }
-setInterval(() => { if(!GF.id) return; const g = gfVehicle(); if(GF.on && g){ const p = gpsPos(g, Date.now()); if(p && isFinite(p[0])) map.panTo(LL(p)); } }, 1000);
+setInterval(gfCenter, 1000); // (also when frames are few: a hidden tab, low-power mode)
 setInterval(() => { if(GF.id) renderGFollow(); }, 10000);
 $('gfollow').addEventListener('click', e => { if(e.target.closest('#gfX')) closeGFollow();
   else if(e.target.closest('#gfShare')){ const g = gfVehicle(); if(g){ const p = gpsPos(g, Date.now()); doShare(shareLink({follow:GF.id, view:[p[0].toFixed(5), p[1].toFixed(5), 15].join(',')}), `${g.v.line || ''} ${GF.dest ? 'to ' + GF.dest : ''}`.trim() || 'Live vehicle'); } }
@@ -3966,8 +3978,14 @@ function trainSpeed(t){
 const fmtDist = m => m < 1000 ? Math.max(10, Math.round(m/10)*10) + ' m' : (m/1000).toFixed(m < 10000 ? 1 : 0) + ' km';
 const fmtDue = ms => { const s = Math.max(0, Math.round((ms - now())/1000)); return s < 30 ? 'due' : Math.round(s/60) + ' min'; };
 const lstName = (l, id) => l.stops[id] ? cleanName(l.stops[id].n).replace(/ \((?:[^)]*line|H&C)[^)]*\)$/i, '') : '';
+// the followed train gone from the data (its id changed, or 'Check front of train' became a destination, so it came
+// back as a new train): the same line's train where it was, or (riding) the one nearest your phone, takes over
+function refollow(t){ if(!t || !t.d) return null; let best = null, bd = FW.ride && me ? 500 : 800;
+  for(const u of trains.values()){ if(u === t || u.line !== t.line || !u.d) continue; const d = dist(u.d, FW.ride && me ? me : t.d) + (u.towards === t.towards ? 0 : 250); if(d < bd){ bd = d; best = u; } }
+  return best; }
 function renderFollow(){
-  const el = $('follow'), t = FW.t;
+  const el = $('follow'); let t = FW.t;
+  if(t && !trains.has(t.key)){ const u = refollow(t); if(u){ FW.t = t = u; HL.clear(); HL.add(u.key); el.dataset.k = ''; } }
   if(!t || !trains.has(t.key)){ el.hidden = true; el.dataset.k = ''; if(FW.ride) setRide(false); return; }
   if(!LIVE.on){ // the original one-line bar
     if(FW.ride) setRide(false); const x = trainText(t); el.hidden = false; el.classList.remove('tc'); el.dataset.k = ''; el.style.removeProperty('--c');
@@ -4015,7 +4033,8 @@ function setRide(on){
   if(FW.ride){ FW.zoom0 = map.getZoom(); map.setZoom(Math.max(map.getZoom(), 16)); if(FW.t.d) map.setCenter(LL(FW.t.d)); }
   else if(FW.zoom0){ if(map.getZoom() >= 16) map.setZoom(Math.max(14, Math.min(FW.zoom0, 15))); FW.zoom0 = 0; }
   if($('follow').dataset.k) { $('follow').dataset.k = ''; renderFollow(); } }
-draw.ride = () => { if(!FW.ride || !FW.t || !FW.t.d) return; const c = map.getCenter(); if(c && dist([c.lat(), c.lng()], FW.t.d) > 1.5) map.setCenter(LL(FW.t.d)); };
+draw.ride = () => { if(FW.ride && FW.t && !trains.has(FW.t.key)) renderFollow(); if(!FW.ride || !FW.t || !FW.t.d) return; // (taken over at once, not after the map has sat on a stale spot)
+  const c = map.getCenter(); if(c && dist([c.lat(), c.lng()], FW.t.d) > 1.5) map.setCenter(LL(FW.t.d)); };
 // your position, for "From you" (asks once; keeps it up to date)
 let meWatch = null;
 function locateMe(){
