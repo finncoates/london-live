@@ -274,6 +274,10 @@ body.dark #upd{background:#10284d;color:#cfe0ff;border-color:#2f5a99}
 #stShare+#stStar{margin-left:0}
 #stDir{font-size:17px;line-height:1;padding:4px 8px;margin-left:auto;background:none;border:0;color:var(--mute);cursor:pointer;min-width:36px;min-height:36px}
 #stDir+#stShare{margin-left:0}
+#news{background:var(--soft);border-radius:12px;padding:9px 11px;margin:0 0 10px;font-size:12.5px;line-height:1.4;border-left:4px solid #1a73e8}
+#news[hidden]{display:none}
+#news ul{margin:5px 0 7px;padding-left:18px;display:grid;gap:3px}
+#news button{font-size:12.5px;padding:5px 12px}
 #howto{background:var(--soft);border-radius:12px;padding:9px 11px;margin:0 0 10px;font-size:12.5px;line-height:1.4}
 #howto[hidden]{display:none}
 #howto ul{margin:5px 0 7px;padding:0;list-style:none;display:grid;gap:4px}
@@ -377,6 +381,10 @@ button.lnk{border:0;background:none;padding:0;color:var(--acc);font-weight:600;f
     <ul id="plSug" role="listbox" hidden></ul>
     <div id="plRes" aria-live="polite"></div>
   </div>
+  <div id="news" role="status" hidden><b>New on the map</b>
+    <ul><li><b>Directions</b> (↱): plan a journey anywhere in Europe, drawn on the map</li><li>Tap a departure for an <b>alert</b> 2 minutes before it leaves</li>
+    <li>The menu: switch each kind's vehicles, lines, stops and numbers on their own</li><li>Munich, Hamburg, Vienna, Rome, Milan, Barcelona and Madrid drawn on the track</li></ul>
+    <div class="hb"><button type="button" id="newsOk">OK</button></div></div>
   <div id="howto" hidden><b>How to read the map</b>
     <ul><li><i class="hv live"></i>Solid: where the vehicle really is (live GPS)</li><li><i class="hv sched"></i>Pale with a coloured edge: placed from the timetable (with live delays where the network shares them)</li>
     <li>Tap a vehicle for its next stops, or <b>Follow</b> it · tap a stop for its departures · <b>⌖</b> for what's near you</li></ul>
@@ -4653,9 +4661,13 @@ if(Q.get('follow')) (async () => { const id = Q.get('follow');
 // when it makes one, as a button there
 if(LANG !== 'en'){ const li = $('howto').querySelectorAll('li'); if(li[2]) li[2].innerHTML = T('HOWTO3'); } // (the line with bold words: whole, translated)
 try{ if(!localStorage.getItem('howtoSeen') && !document.body.classList.contains('kiosk')) $('howto').hidden = false; }catch(e){}
-$('howOk').onclick = () => { $('howto').hidden = true; try{ localStorage.setItem('howtoSeen', '1'); }catch(e){} };
+$('howOk').onclick = () => { $('howto').hidden = true; try{ localStorage.setItem('howtoSeen', '1'); localStorage.setItem('newsSeen', NEWS_ID); }catch(e){} };
+// what's new, once, for people who have been here before (a first visit gets the how-to card instead)
+const NEWS_ID = '2026-11-25';
+try{ if(localStorage.getItem('howtoSeen') && localStorage.getItem('newsSeen') !== NEWS_ID && !document.body.classList.contains('kiosk')) $('news').hidden = false; }catch(e){}
+$('newsOk').onclick = () => { $('news').hidden = true; try{ localStorage.setItem('newsSeen', NEWS_ID); }catch(e){} };
 let installEv = null;
-addEventListener('beforeinstallprompt', e => { e.preventDefault(); installEv = e; $('bInstall').hidden = false; if($('howto').hidden && !matchMedia('(display-mode: standalone)').matches){ try{ if(!localStorage.getItem('installNo')) $('howto').hidden = false; }catch(x){} } });
+addEventListener('beforeinstallprompt', e => { e.preventDefault(); installEv = e; $('bInstall').hidden = false; if($('howto').hidden && !matchMedia('(display-mode: standalone)').matches){ try{ if(!localStorage.getItem('installNo') && !localStorage.getItem('howtoSeen')) $('howto').hidden = false; }catch(x){} } /* (not reopened for people who closed it: they have the news card, or nothing) */ });
 $('bInstall').onclick = async () => { if(!installEv) return; installEv.prompt(); const r = await installEv.userChoice.catch(() => null); installEv = null; $('bInstall').hidden = true; if(r && r.outcome !== 'accepted') try{ localStorage.setItem('installNo', '1'); }catch(e){} };
 // ---- reliability: the map keeps going whatever one part does
 // script errors are kept (the last 30, for the smoke test and for debugging), not left to stop anything
