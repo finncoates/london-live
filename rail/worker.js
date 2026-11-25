@@ -351,16 +351,27 @@ async function tfl(url, env, cors){
 // ---------- Transitous (free, open journey planning across Europe and beyond; https://transitous.org) ----------
 // Asked through here so every request names the app, as Transitous asks, and the same question in the same
 // minute is answered once. Before a big launch: tell Transitous (they ask to be told above ~720 plans a day).
-const TR_MEM = new Map();
+const TR_MEM = new Map(), TR_WAIT = new Map();
+// how long an answer is shared: departures change by the minute, a trip's stops barely, a search or a stop's place never
+const TR_TTL = {stoptimes:20, trip:60, plan:60, 'map/stops':300, geocode:86400, 'reverse-geocode':86400};
 async function transitous(url, cors){
-  const path = url.pathname.slice('/transitous'.length);
-  if(!/^\/api\/v\d+\/(plan|geocode|reverse-geocode|stoptimes|trip|map\/stops)$/.test(path)) return json({error:'not a Transitous path this relay passes on'}, 400, cors);
-  const key = path + url.search, now = Date.now(), hit = TR_MEM.get(key);
-  if(hit && now - hit.t < 60000) return new Response(hit.body, {status:200, headers:{'content-type':'application/json', 'cache-control':'public, max-age=60', ...cors}});
-  const up = await fetch('https://api.transitous.org' + key, {headers:{'user-agent':'LondonLive/1.0 (+https://github.com/finncoates/london-live)'}, signal:AbortSignal.timeout(25000)});
-  const body = await up.text();
-  if(up.ok){ TR_MEM.set(key, {t:now, body}); if(TR_MEM.size > 500) TR_MEM.delete(TR_MEM.keys().next().value); }
-  return new Response(body, {status:up.status, headers:{'content-type':up.headers.get('content-type') || 'application/json', 'cache-control':up.ok ? 'public, max-age=60' : 'no-store', ...cors}}); }
+  const path = url.pathname.slice('/transitous'.length), m = path.match(/^\/api\/v\d+\/(plan|geocode|reverse-geocode|stoptimes|trip|map\/stops)$/);
+  if(!m) return json({error:'not a Transitous path this relay passes on'}, 400, cors);
+  const ttl = TR_TTL[m[1]] || 60, key = path + url.search, now = Date.now(), hit = TR_MEM.get(key);
+  const out = (body, status, how) => new Response(body, {status, headers:{'content-type':'application/json', 'cache-control':status === 200 ? 'public, max-age=' + Math.min(ttl, 300) : 'no-store', 'x-ll-cache':how, ...cors}});
+  if(hit && now - hit.t < ttl*1000) return out(hit.body, 200, 'memory');
+  // the data centre's shared cache (every worker instance there, not only this one's memory), then one call upstream
+  // however many visitors ask the same thing at the same moment
+  const ck = new Request('https://tr-cache.invalid' + key), cache = typeof caches !== 'undefined' ? caches.default : null;
+  const ch = cache ? await cache.match(ck).catch(() => null) : null;
+  if(ch){ const body = await ch.text(); TR_MEM.set(key, {t:now, body}); return out(body, 200, 'shared'); }
+  let w = TR_WAIT.get(key);
+  if(!w){ w = (async () => { const up = await fetch('https://api.transitous.org' + key, {headers:{'user-agent':'LondonLive/1.0 (+https://github.com/finncoates/london-live)'}, signal:AbortSignal.timeout(25000)});
+      const body = await up.text();
+      if(up.ok){ TR_MEM.set(key, {t:Date.now(), body}); if(TR_MEM.size > 800) TR_MEM.delete(TR_MEM.keys().next().value);
+        if(cache) await cache.put(ck, new Response(body, {headers:{'content-type':'application/json', 'cache-control':'public, max-age=' + ttl}})).catch(() => {}); }
+      return {body, status:up.status}; })().finally(() => TR_WAIT.delete(key)); TR_WAIT.set(key, w); }
+  const r = await w; return out(r.body, r.status, 'upstream'); }
 
 // ---------- timetable vehicles from Transitous (every train/tram/bus running now, from open timetables) ----------
 // GET /tt?la=52.5&lo=-1.5&modes=rail|tram|all → the vehicles on the move in that 0.5° tile in the next ~3 minutes:
@@ -441,11 +452,16 @@ async function srv(url, env, cors){
   if(b.length === 4 && b.every(isFinite)) q.set('bbox', b.map((x, i) => (i < 2 ? Math.floor(x*20) : Math.ceil(x*20))/20).join(','));
   if(p === '/rt'){ const f = url.searchParams.get('feed') || ''; if(!/^[a-z0-9-]{1,30}$/.test(f)) return json({error:'feed=id required'}, 400, cors); q.set('feed', f); }
   const key = p + '?' + q, ttl = p === '/health' ? 60000 : 10000, hit = SRV_MEM.get(key);
-  if(hit && Date.now() - hit.t < ttl) return new Response(hit.body, {status:hit.status, headers:{'content-type':'application/json', 'cache-control':'public, max-age=' + ttl/1000, ...cors}});
+  if(hit && Date.now() - hit.t < ttl) return new Response(hit.body, {status:hit.status, headers:{'content-type':'application/json', 'cache-control':'public, max-age=' + ttl/1000, 'x-ll-cache':'memory', ...cors}});
+  // the data centre's shared cache: however many visitors watch a place, the small server is asked once per 10 s per area
+  const sck = new Request('https://srv-cache.invalid' + key), scache = typeof caches !== 'undefined' ? caches.default : null;
+  const sch = scache ? await scache.match(sck).catch(() => null) : null;
+  if(sch){ const body = await sch.text(); SRV_MEM.set(key, {t:Date.now(), body, status:200}); return new Response(body, {status:200, headers:{'content-type':'application/json', 'cache-control':'public, max-age=' + ttl/1000, 'x-ll-cache':'shared', ...cors}}); }
   // the small server can be slow for a moment: 20 s, and its last good answer (up to 5 min old) if it doesn't come
   const r = await fetch(env.DARWIN_URL.replace(/\/+$/, '') + key, {headers:{'x-relay-token':env.RELAY_TOKEN || ''}, signal:AbortSignal.timeout(20000)}).catch(e => ({ok:false, status:504, text:async () => JSON.stringify({error:e.message})}));
   if(!r.ok && hit && Date.now() - hit.t < 300000) return new Response(hit.body, {status:hit.status, headers:{'content-type':'application/json', 'cache-control':'public, max-age=5', ...cors}});
-  const body = await r.text(); if(r.ok){ SRV_MEM.set(key, {t:Date.now(), body, status:r.status}); if(SRV_MEM.size > 500) SRV_MEM.delete(SRV_MEM.keys().next().value); }
+  const body = await r.text(); if(r.ok){ SRV_MEM.set(key, {t:Date.now(), body, status:r.status}); if(SRV_MEM.size > 500) SRV_MEM.delete(SRV_MEM.keys().next().value);
+    if(scache) await scache.put(sck, new Response(body, {headers:{'content-type':'application/json', 'cache-control':'public, max-age=' + ttl/1000}})).catch(() => {}); }
   return new Response(body, {status:r.status, headers:{'content-type':'application/json', 'cache-control':'public, max-age=' + (r.ok ? ttl/1000 : 5), ...cors}}); }
 
 // ---------- Darwin (every train's real running), from the London Live Darwin server (rail/darwin) ----------

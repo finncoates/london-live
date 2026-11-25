@@ -462,7 +462,7 @@ async function get(path){
 const HEALTH = {};
 function health(src, ok){ const h = HEALTH[src] ||= {ok:0, fail:0, n:0, first:0}; if(ok){ h.ok = Date.now(); h.n = 0; h.first = 0; } else { h.fail = Date.now(); if(!h.n++) h.first = h.fail; } if(typeof renderOutage === 'function') renderOutage(); }
 // down: failing for over a minute, three times or more, with no answer since (one burst of failed tiles on opening is not an outage)
-const down = src => { const h = HEALTH[src]; return !!h && h.n >= 3 && h.fail > h.ok && h.fail - h.first >= 60000; };
+const down = src => { const h = HEALTH[src]; return !!h && h.n >= 3 && h.fail > h.ok && h.fail - h.first >= 45000; }; // (45 s: with backoff, failures are counted less often)
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 const cleanName = n => n.replace(/ (Underground|DLR|Rail) Station$/,'').replace(/ Station$/,'');
 const normName = n => cleanName(n||'').replace(/\s*\(London\)/,'').toLowerCase().trim();
@@ -1601,9 +1601,21 @@ async function railStations(){
   return list;
 }
 const nearestCrs = (p, max = 350) => { let best = null, bd = max; for(const [crs, , lat, lon] of RAIL.stations || []){ const d = dist([lat, lon], p); if(d < bd){ bd = d; best = crs; } } return best; };
+// Transitous (departures, trips, search) through the relay: every request names the app, and the same question from
+// many visitors is answered once from Cloudflare's cache (a volunteer-run service: thousands of browsers calling it
+// directly would get the site rate-limited). Straight to Transitous when there's no relay.
+const TRS = () => RAIL.relay && RAIL.relay !== 'demo' ? RAIL.relay + '/transitous' : 'https://api.transitous.org';
+// a source that keeps failing (5xx, 429, no answer) is left alone for a while, longer each time and at a random
+// moment: when it comes back, thousands of open maps don't all ask it again in the same second. An answer clears it.
+const BACKOFF = new Map();
+async function bfetch(url, opts){ let k = url; try{ const u = new URL(url); k = u.host + '/' + u.pathname.split('/')[1]; }catch(e){}
+  const b = BACKOFF.get(k), now = Date.now(); if(b && now < b.until){ const e = new Error('backing off ' + Math.round((b.until - now)/1000) + ' s'); e.backoff = true; throw e; }
+  const bad = () => { const n = (b?.n || 0) + 1; BACKOFF.set(k, {n, until:Date.now() + Math.min(180000, 3000*2**Math.min(n - 1, 6))*(0.5 + Math.random())}); };
+  let r; try{ r = await fetch(url, opts); }catch(e){ bad(); throw e; }
+  if(r.status >= 500 || r.status === 429) bad(); else BACKOFF.delete(k); return r; }
 async function railGet(path){
   if(RAIL.relay === 'demo') return railDemo(path);
-  const r = await fetch(RAIL.relay + path, {signal:AbortSignal.timeout(25000)}); if(!r.ok) throw new Error((await r.json().catch(() => ({}))).error || 'HTTP ' + r.status);
+  const r = await bfetch(RAIL.relay + path, {signal:AbortSignal.timeout(25000)}); if(!r.ok) throw new Error((await r.json().catch(() => ({}))).error || 'HTTP ' + r.status);
   return r.json();
 }
 // one "line" per operator, created on first sight
@@ -2315,11 +2327,11 @@ async function openCityStation(hit){
         else note = 'Live National Rail departures switch on once the rail data key is added to the relay. The station and its lines are shown now.';
       } else if(/helsinki\.json/.test(url)) note = 'Live departures for HSL metro and trams need a free HSL key; the vehicles on the map are live.';
       else { // anywhere else (France's cities and SNCF stations…): the stops here and their departures from Transitous, live where the network shares it
-        const g = await (await fetch(`https://api.transitous.org/api/v1/reverse-geocode?place=${st[2]},${st[3]}&type=STOP`, {signal:AbortSignal.timeout(10000)})).json();
+        const g = await (await fetch(`${TRS()}/api/v1/reverse-geocode?place=${st[2]},${st[3]}&type=STOP`, {signal:AbortSignal.timeout(10000)})).json();
         const w0 = stName(st[1]).toLowerCase().split(/[\s'-]+/).find(x => x.length > 2) || '', here0 = [st[2], st[3]];
         const near = (Array.isArray(g) ? g : []).filter(x => x.type === 'STOP' && dist([x.lat, x.lon], here0) < 350)
           .sort((a, b) => b.name.toLowerCase().includes(w0) - a.name.toLowerCase().includes(w0) || dist([a.lat, a.lon], here0) - dist([b.lat, b.lon], here0)).slice(0, 3);
-        const js = await Promise.all(near.map(x => fetch('https://api.transitous.org/api/v5/stoptimes?n=30&stopId=' + encodeURIComponent(x.id), {signal:AbortSignal.timeout(10000)}).then(r => r.json()).catch(() => ({}))));
+        const js = await Promise.all(near.map(x => fetch(TRS() + '/api/v5/stoptimes?n=30&stopId=' + encodeURIComponent(x.id), {signal:AbortSignal.timeout(10000)}).then(r => r.json()).catch(() => ({}))));
         const seen = new Set(); rows = [];
         for(const j of js) for(const x of j.stopTimes || []){ const pl = x.place || {}, when = Date.parse(pl.departure || pl.arrival); if(!when || pl.cancelled || x.cancelled) continue;
           const key = (x.routeShortName || '') + '|' + (x.headsign || '').toLowerCase() + '|' + Math.round(when/60000); if(seen.has(key)) continue; seen.add(key); // one row per departure (a network can be in two timetables)
@@ -2410,7 +2422,7 @@ async function refreshGps(){
   }
   if(regionOf(p) === 'world'){ gpsOnly('tf:', 'es:', 'la:');
     for(const [nm, bx, url0, parse, , , cc] of LIVE_ABROAD) if(p[0] > bx[0] && p[0] < bx[2] && p[1] > bx[1] && p[1] < bx[3] && z >= 11 && TRAINS_ON && (!cc || inCountry(cc, p))){ // (a feed's rectangle can overlap a border: the Netherlands' covers Ghent) // a city with its own live feed (buses hidden by the Buses switch as usual)
-      try{ const url = typeof url0 === 'function' ? url0() : url0, j = await (await fetch(url, {signal:AbortSignal.timeout(15000)})).json(), vs = parse(j); gpsMerge({vehicles:vs}, 'la:');
+      try{ const url = typeof url0 === 'function' ? url0() : url0, j = await (await bfetch(url, {signal:AbortSignal.timeout(15000)})).json(), vs = parse(j); gpsMerge({vehicles:vs}, 'la:');
         const kinds = [...new Set(vs.map(v => v.kind === 'tram' ? 'trams' : v.kind === 'metro' ? 'metros' : v.kind === 'ferry' ? 'boats' : v.kind === 'train' ? 'trains' : 'buses'))];
         // every live feed here counts (a city's buses and the region's coaches can both be live): each one's timetable twins are hidden
         const near = vs.filter(v => v.lat != null && dist(p, [v.lat, v.lon]) < 20000).length; // (a feed counts only with vehicles near the view: a region's learned rectangle can reach the next city, Haut-Rhin's coaches in Dijon)
@@ -2793,7 +2805,7 @@ const TTV = {tiles:new Map(), busy:false, at:0, n:0};
 // a timetable vehicle's whole trip, fetched when it's tapped (Transitous): where it's going (headsign) rather than its next stop
 const TRIPI = new Map();
 async function tripInfo(trip){ if(!trip || TRIPI.has(trip)) return; TRIPI.set(trip, null);
-  try{ const j = await (await fetch('https://api.transitous.org/api/v5/trip?tripId=' + encodeURIComponent(trip), {signal:AbortSignal.timeout(10000)})).json(), L = j.legs?.[0];
+  try{ const j = await (await fetch(TRS() + '/api/v5/trip?tripId=' + encodeURIComponent(trip), {signal:AbortSignal.timeout(10000)})).json(), L = j.legs?.[0];
     if(L) TRIPI.set(trip, {dest:L.headsign || L.tripTo?.name || L.to?.name || ''}); if(TRIPI.size > 300) TRIPI.delete(TRIPI.keys().next().value); }catch(e){ TRIPI.delete(trip); } }
 const TT_OP = {Eurostar:'ES', 'NI Railways':'NI', LNER:'GR', EMR:'EM', 'East Midlands Railway':'EM', Avanti:'VT', 'Avanti West Coast':'VT', CrossCountry:'XC', XC:'XC', Northern:'NT', TransPennine:'TP', 'TransPennine Express':'TP', TPE:'TP', ScotRail:'SR', Southern:'SN', Thameslink:'TL', SWR:'SW', 'South Western Railway':'SW', Southeastern:'SE', GWR:'GW', 'Great Western Railway':'GW', c2c:'CC', 'Greater Anglia':'LE', 'Great Northern':'GN', Chiltern:'CH', 'Chiltern Railways':'CH', 'Grand Central':'GC', 'Hull Trains':'HT', TfW:'AW', 'Transport for Wales':'AW', WMR:'LM', 'West Midlands Railway':'LM', LNR:'LM', 'London Northwestern Railway':'LM', Merseyrail:'ME', Lumo:'LD', 'Caledonian Sleeper':'CS', 'Heathrow Express':'HX', 'Gatwick Express':'GX', 'Island Line':'IL', 'Night Riviera':'GW'};
 const TT_NAME = {ES:'Eurostar', GR:'LNER', EM:'East Midlands Railway', VT:'Avanti West Coast', XC:'CrossCountry', NT:'Northern', TP:'TransPennine Express', SR:'ScotRail', SN:'Southern', TL:'Thameslink', SW:'South Western Railway', SE:'Southeastern', GW:'Great Western Railway', CC:'c2c', LE:'Greater Anglia', GN:'Great Northern', CH:'Chiltern Railways', GC:'Grand Central', HT:'Hull Trains', AW:'Transport for Wales', LM:'West Midlands Railway', ME:'Merseyrail', LD:'Lumo', CS:'Caledonian Sleeper', HX:'Heathrow Express', GX:'Gatwick Express', IL:'Island Line', NI:'NI Railways'};
@@ -3148,7 +3160,7 @@ async function showBusRoute(g){
   const c = map.getCenter(), mcr = c && Math.abs(c.lat() - 53.48) < 0.3 && Math.abs(c.lng() + 2.24) < 0.4;
   if(mcr){ try{ const r = await fetch('cities/mcr-bus/' + String(v.line).replace(/[^A-Za-z0-9]+/g, '_') + '.json', {signal:AbortSignal.timeout(8000)}); if(r.ok && BROUTE.key === key) BROUTE.polys = await r.json(); }catch(e){} return; }
   // abroad (timetable vehicles): the whole trip's route from Transitous, so a tapped bus, tram or boat shows where it goes
-  if(v.trip && String(v.id).startsWith('tf:')){ try{ const j = await (await fetch('https://api.transitous.org/api/v5/trip?tripId=' + encodeURIComponent(v.trip), {signal:AbortSignal.timeout(10000)})).json();
+  if(v.trip && String(v.id).startsWith('tf:')){ try{ const j = await (await fetch(TRS() + '/api/v5/trip?tripId=' + encodeURIComponent(v.trip), {signal:AbortSignal.timeout(10000)})).json();
       const polys = (j.legs || []).map(L => L.legGeometry && decodePolyP(L.legGeometry.points, L.legGeometry.precision || 6)).filter(p => p && p.length > 1);
       if(polys.length && BROUTE.key === key){ BROUTE.polys = polys; if(!TRIPI.get(v.trip) && j.legs?.[0]) TRIPI.set(v.trip, {dest:j.legs[0].headsign || j.legs[0].tripTo?.name || j.legs[0].to?.name || ''}); } }catch(e){} }
 }
@@ -3175,7 +3187,7 @@ function gfCenter(){ if(!GF.id) return; const g = gfVehicle(); if(!g) return; co
 function openGFollow(g){ const v = g.v; if(GF.id === v.id) return; GF.id = v.id; GF.lastP = gpsPos(g, Date.now()); GF.line = v.line; GF.kind = vkind(v); // (known at once: a timetable tram hidden for its live twin is taken over by it) GF.on = false; GF.stops = null; GF.alerts = null; GF.dest = ''; GF.trip = v.trip || null; GF.lost = 0;
   renderGFollow(); if(GF.trip && String(v.id).startsWith('tf:')) loadGFStops(GF.trip); }
 async function loadGFStops(trip){
-  try{ const j = await (await fetch('https://api.transitous.org/api/v5/trip?tripId=' + encodeURIComponent(trip), {signal:AbortSignal.timeout(10000)})).json(); if(GF.trip !== trip) return;
+  try{ const j = await (await fetch(TRS() + '/api/v5/trip?tripId=' + encodeURIComponent(trip), {signal:AbortSignal.timeout(10000)})).json(); if(GF.trip !== trip) return;
     const L = j.legs?.[0]; if(!L) return; GF.dest = L.headsign || L.to?.name || '';
     GF.stops = [L.from, ...(L.intermediateStops || []), L.to].filter(Boolean).map(o => ({name:o.name, t:Date.parse(o.arrival || o.departure), s:Date.parse(o.scheduledArrival || o.scheduledDeparture), p:[o.lat, o.lon]})).filter(x => x.t);
     GF.live = !!L.realTime; GF.alerts = altList([[L.routeShortName || '', [...(L.alerts || []), ...[L.from, ...(L.intermediateStops || []), L.to].flatMap(o => o?.alerts || [])]]]); renderGFollow(); }catch(e){} }
@@ -3812,7 +3824,7 @@ $('q').addEventListener('input', () => { const away = document.body.classList.co
 const GEO = {t:0, q:'', items:[]};
 function geoSearch(text){ clearTimeout(GEO.t); const q = text.trim(); if(q.length < 3){ GEO.items = []; GEO.q = ''; return; }
   GEO.t = setTimeout(async () => { const c = map.getCenter();
-    try{ const j = await (await fetch(`https://api.transitous.org/api/v1/geocode?text=${encodeURIComponent(q)}${c ? `&place=${c.lat().toFixed(3)},${c.lng().toFixed(3)}` : ''}`, {signal:AbortSignal.timeout(8000)})).json();
+    try{ const j = await (await fetch(`${TRS()}/api/v1/geocode?text=${encodeURIComponent(q)}${c ? `&place=${c.lat().toFixed(1)},${c.lng().toFixed(1)}` : ''}`, {signal:AbortSignal.timeout(8000)})).json();
       if($('q').value.trim() !== q) return; GEO.q = q;
       GEO.items = (Array.isArray(j) ? j : []).filter(x => x && x.name && isFinite(x.lat) && isFinite(x.lon)).slice(0, 8).map(x => ({geoHit:true, type:x.type, name:x.name, id:x.id, lat:x.lat, lon:x.lon, modes:x.modes || [],
         area:[...new Set((x.areas || []).map(a => a.name).filter(n => n && n !== x.name))].slice(-2).reverse().join(', ')}));
