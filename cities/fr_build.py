@@ -24,6 +24,16 @@ ap.add_argument('--kind', help='NAME=kind,... e.g. "ORLYVAL=metro"'); ap.add_arg
 ap.add_argument('--busonly', action='store_true', help='rebuild the buses only: the city line file and map entry are left as they are')
 ap.add_argument('--region', help='the Geofabrik extract to match roads on (id, e.g. netherlands), when the automatic choice is too small')
 a = ap.parse_args()
+# every build is written down (cities/.build/manifest.json: its arguments and where its timetable came from), so the
+# weekly refresh (cities/refresh.py) can rebuild a city when its timetable changes
+def record():
+    try:
+        mf = os.path.join(HERE, '.build', 'manifest.json'); m = json.load(open(mf, encoding='utf-8')) if os.path.exists(mf) else {}
+        key = (a.country + '-' + a.id) if a.country != 'fr' or not a.id.startswith('fr-') else a.id
+        m[key] = {'args':sys.argv[1:], 'url':a.src if re.match(r'https?://', a.src) else None, 'built':__import__('time').strftime('%Y-%m-%dT%H:%M:%SZ', __import__('time').gmtime())}
+        with open(mf + '.tmp', 'w', encoding='utf-8') as f: json.dump(m, f, ensure_ascii=False, indent=1)
+        os.replace(mf + '.tmp', mf)
+    except Exception as e: print('manifest:', e, file=sys.stderr)
 work = a.work or os.path.join(HERE, '.build', a.id)  # kept (git-ignored): downloads and each city's own bus routes
 os.makedirs(work, exist_ok=True)
 feed = os.path.join(work, 'feed.zip')
@@ -228,8 +238,8 @@ if not a.nobus:
 # bigger than a city (a department's boats, a stray far-off stop) gets none either: it would cover other places.
 if not a.nolines and (N - S > 1.0 or E - W > 1.4) and not a.box: report['no_entry'] = f'area too big ({N-S:.1f}° x {E-W:.1f}°)'
 if a.nolines or a.busonly or report.get('no_entry'):
-    print(json.dumps(report, ensure_ascii=False)); sys.exit(0)
+    record(); print(json.dumps(report, ensure_ascii=False)); sys.exit(0)
 ix = os.path.join(HERE, 'fr-index.json'); idx = json.load(open(ix, encoding='utf-8')) if os.path.exists(ix) else []
 idx = [c for c in idx if c['id'] != a.id] + [{'id':a.id, 'name':a.name, 'box':[round(S, 3), round(W, 3), round(N, 3), round(E, 3)], 'url':f'cities/{a.country}-{a.id}.json', 'bus':a.bus.split(',')}]
 json.dump(idx, open(ix, 'w', encoding='utf-8'), ensure_ascii=False, indent=0)
-print(json.dumps(report, ensure_ascii=False))
+record(); print(json.dumps(report, ensure_ascii=False))
