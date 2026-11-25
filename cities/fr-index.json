@@ -3408,5 +3408,155 @@
 "#7E8BA3",
 "#97A6BF"
 ]
+},
+{
+"id": "munich",
+"name": "München",
+"box": [
+48.054,
+11.318,
+48.269,
+11.741
+],
+"url": "cities/de-munich.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "hamburg",
+"name": "Hamburg",
+"box": [
+53.35,
+9.6,
+53.8,
+10.35
+],
+"url": "cities/de-hamburg.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "vienna",
+"name": "Wien",
+"box": [
+48.044,
+16.195,
+48.314,
+16.565
+],
+"url": "cities/at-vienna.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "rome",
+"name": "Roma",
+"box": [
+41.65,
+12.2,
+42.1,
+12.8
+],
+"url": "cities/it-rome.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "milan",
+"name": "Milano",
+"box": [
+45.35,
+9.0,
+45.6,
+9.35
+],
+"url": "cities/it-milan.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "barcelona",
+"name": "Barcelona",
+"box": [
+41.284,
+2.027,
+41.515,
+2.259
+],
+"url": "cities/es-barcelona.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "barcelona-tram",
+"name": "Barcelona",
+"box": [
+41.337,
+2.023,
+41.412,
+2.173
+],
+"url": "cities/es-barcelona-tram.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "barcelona-trambesos",
+"name": "Barcelona",
+"box": [
+41.368,
+2.137,
+41.46,
+2.263
+],
+"url": "cities/es-barcelona-trambesos.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "madrid-ml",
+"name": "Madrid",
+"box": [
+40.202,
+-3.934,
+40.528,
+-3.621
+],
+"url": "cities/es-madrid-ml.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "madrid-cercanias",
+"name": "Madrid",
+"box": [
+40.2,
+-4.0,
+40.7,
+-3.4
+],
+"url": "cities/es-madrid-cercanias.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
 }
 ]
