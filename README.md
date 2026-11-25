@@ -102,4 +102,7 @@ screen and the browser family; nothing about the person) so problems are seen ev
 
 ## Licence
 
-No licence has been chosen for the code yet. The data shown belongs to its sources, under their own licences (above).
+© 2026 Finn Coates. All rights reserved. The code is public to read, but it isn't licensed for reuse: please ask
+before copying, changing or running your own version of it.
+
+The data shown belongs to its sources, under their own licences (above).
