@@ -376,6 +376,7 @@ button.lnk{border:0;background:none;padding:0;color:var(--acc);font-weight:600;f
 <script>
 (async () => {
 const Q = new URLSearchParams(location.search);
+window.T ||= s => s; window.LANG ||= 'en'; const T = window.T, LANG = window.LANG; // (i18n.js not loaded, blocked or offline: English, never a broken page)
 const API = 'https://api.tfl.gov.uk';
 const KEY = Q.get('app_key') ? 'app_key=' + encodeURIComponent(Q.get('app_key')) : '';
 const REFRESH = Math.max(15, +(Q.get('refresh') || 30)) * 1000;
