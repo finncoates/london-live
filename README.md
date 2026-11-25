@@ -102,7 +102,7 @@ screen and the browser family; nothing about the person) so problems are seen ev
 
 ## Licence
 
-© 2026 Finn Coates. All rights reserved. The code is public to read, but it isn't licensed for reuse: please ask
+© 2026 finncoates (github.com/finncoates). All rights reserved. The code is public to read, but it isn't licensed for reuse: please ask
 before copying, changing or running your own version of it.
 
 The data shown belongs to its sources, under their own licences (above).
