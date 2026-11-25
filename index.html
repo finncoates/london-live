@@ -323,7 +323,7 @@ button.lnk{border:0;background:none;padding:0;color:var(--acc);font-weight:600;f
     <div class="hb"><button type="button" id="howOk">Got it</button><button type="button" id="bInstall" hidden>Install as an app</button></div></div>
   <div id="explore" class="explore" hidden></div>
   <div class="search">
-    <div class="field"><label for="q">Find</label><input id="q" placeholder="Search a station or line (e.g. 172)" autocomplete="off" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="sres" enterkeyhint="search"></div>
+    <div class="field"><label for="q">Find</label><input id="q" placeholder="Search a station, line or place (e.g. 172)" autocomplete="off" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="sres" enterkeyhint="search"></div>
     <ul id="sres" role="listbox" hidden></ul>
   </div>
   <div id="station" hidden></div>
@@ -364,7 +364,7 @@ const Q = new URLSearchParams(location.search);
 const API = 'https://api.tfl.gov.uk';
 const KEY = Q.get('app_key') ? 'app_key=' + encodeURIComponent(Q.get('app_key')) : '';
 const REFRESH = Math.max(15, +(Q.get('refresh') || 30)) * 1000;
-let FPS = Math.min(60, Math.max(5, +(Q.get('fps') || 30)));
+let FPS = Math.min(120, Math.max(5, +(Q.get('fps') || 60))); // (60: vehicles glide rather than step; the low-power mode still drops to 15 where frames are slow)
 // Low-power mode (slow devices such as a TV stick): fewer frames, no outlines. Automatic unless ?quality=high;
 // ?quality=low forces it.
 let LOW = Q.get('quality') === 'low'; if(LOW) FPS = Math.min(FPS, 15);
@@ -910,6 +910,11 @@ function applyTheme(){ document.body.classList.toggle('dark', dark); map.setOpti
 applyTheme();
 // Screen positions (fractional pixels, so movement is smooth) via an empty overlay's projection
 const ov = new google.maps.OverlayView(); ov.onAdd = ov.draw = ov.onRemove = () => {}; ov.setMap(map);
+// the area to fetch live vehicles for: the view plus a quarter of it on each side (at least ~1 km), so vehicles about to
+// come into view are already there when you pan, instead of popping in at the next refresh
+function fetchBounds(){ const b = map.getBounds(); if(!b) return b; const sw = b.getSouthWest(), ne = b.getNorthEast(), dy = Math.max(0.009, (ne.lat() - sw.lat())*0.25), dx = Math.max(0.014, (ne.lng() - sw.lng())*0.25);
+  const S = new google.maps.LatLng(Math.max(-85, sw.lat() - dy), Math.max(-180, sw.lng() - dx)), N = new google.maps.LatLng(Math.min(85, ne.lat() + dy), Math.min(180, ne.lng() + dx));
+  return {getSouthWest:() => S, getNorthEast:() => N, contains:q => b.contains(q)}; }
 const mapSize = () => { const d = map.getDiv(); return {x:d.clientWidth, y:d.clientHeight}; };
 const toScreen = p => ov.getProjection().fromLatLngToContainerPixel(new google.maps.LatLng(p[0], p[1]));
 
@@ -1343,9 +1348,12 @@ function lineLook(kind, W){ // {w, alpha, dash, stripe}
 const REAL_SIZE = {river:[40, 9], cable:[4, 3], tube:[113, 2.65], elizabeth:[205, 2.8], overground:[100, 2.8], dlr:[87, 2.65], tram:[32, 2.65], bus:[11, 2.55], rail:[200, 2.8]};
 let SHOW_ICONS = (() => { try{ return localStorage.getItem('trainIcons') !== '0'; }catch(e){ return true; } })();
 const TAU = 2; // seconds: corrections after a refresh glide rather than jump
-function draw(ts){
-  requestAnimationFrame(draw);
-  if(ts - lastDraw < 1000/FPS - 2) return;
+// While the map moves, the overlay is drawn from the map's own render (same frame, same camera): drawn on its own
+// animation frame it could lag a frame behind, so vehicles and lines wobbled while dragging. Otherwise its own loop.
+const MOVING = {on:false, last:0};
+function draw(ts){ requestAnimationFrame(draw); if(MOVING.on && performance.now() - MOVING.last < 300) return; MOVING.on = false; frame(ts); } // (no render for 300 ms: back to its own loop, never left frozen)
+function frame(ts, sync){
+  if(!sync && ts - lastDraw < 1000/FPS - 2) return; MOVING.frames = (MOVING.frames || 0) + 1;
   const dt = Math.min(1, (ts - lastDraw)/1000); lastDraw = ts;
   const t0 = performance.now();
   const k = 1 - Math.exp(-dt/TAU), ka = 1 - Math.exp(-dt/0.4);
@@ -1464,6 +1472,9 @@ function draw(ts){
   else if(draw.ms <= 14) draw.slow = 0;
 }
 requestAnimationFrame(draw);
+(function hookMove(){ const ml = typeof map !== 'undefined' && map && map.ml; if(!ml){ setTimeout(hookMove, 200); return; }
+  ml.on('movestart', () => { MOVING.on = true; MOVING.last = performance.now(); }); ml.on('moveend', () => { MOVING.on = false; });
+  ml.on('render', () => { if(!MOVING.on) return; const t = MOVING.last = performance.now(); if(t - lastDraw < 6) return; /* (several renders in one frame: drawn once) */ try{ frame(t, true); }catch(e){ console.warn(e); } }); })();
 
 // hover / tap info
 // Transport symbols in the line's own colour: a roundel (ring + bar) for TfL modes,
@@ -1900,7 +1911,7 @@ async function hslConnect(){
 }
 // subscribe to the 0.1° map tiles on screen (each tile is a few dozen vehicles)
 async function hslWatch(){
-  const b = map.getBounds(); if(!b) return; const sw = b.getSouthWest(), ne = b.getNorthEast(), tiles = [];
+  const b = fetchBounds(); if(!b) return; const sw = b.getSouthWest(), ne = b.getNorthEast(), tiles = [];
   for(let la = Math.floor(sw.lat()*10); la <= Math.floor(ne.lat()*10); la++) for(let lo = Math.floor(sw.lng()*10); lo <= Math.floor(ne.lng()*10); lo++)
     tiles.push(`/hfp/v2/journey/ongoing/vp/+/+/+/+/+/+/+/+/+/${Math.floor(la/10)};${Math.floor(lo/10)}/${la % 10}${lo % 10}/#`);
   if(tiles.length > 16) return hslStop(); // too far out: too many vehicles
@@ -1914,7 +1925,7 @@ function hslStop(){ if(HSL.client){ HSL.client.end(true); HSL.client = null; } H
 const inNorway = p => p[0] > 57.9 && p[0] < 71.3 && p[1] > 4.4 && p[1] < 31.3 && !(p[0] < 68.8 && p[1] > 12.4 + Math.max(0, p[0] - 63.6)*1.2) && !inFinland(p); // west of the Swedish border
 const NO_COL = {RAIL:'#00A28F', BUS:'#E60000', COACH:'#B3001B', TRAM:'#0B91EF', METRO:'#EC700C', WATER:'#682C88', FERRY:'#682C88'};
 async function norwayVehicles(){
-  const b = map.getBounds(), sw = b.getSouthWest(), ne = b.getNorthEast(), c = map.getCenter();
+  const b = fetchBounds(), sw = b.getSouthWest(), ne = b.getNorthEast(), c = map.getCenter();
   const w = Math.min(0.8, ne.lng() - sw.lng())/2, h = Math.min(0.4, ne.lat() - sw.lat())/2, f = x => x.toFixed(3);
   const q = `{ vehicles(boundingBox:{minLat:${f(c.lat()-h)},minLon:${f(c.lng()-w)},maxLat:${f(c.lat()+h)},maxLon:${f(c.lng()+w)}}) { vehicleId mode line { publicCode lineName } location { latitude longitude } bearing destinationName lastUpdated delay operator { name } } }`;
   const r = await fetch('https://api.entur.io/realtime/v2/vehicles/graphql', {signal:AbortSignal.timeout(10000), method:'POST', headers:{'Content-Type':'application/json', 'ET-Client-Name':'finncoates-londonlive'}, body:JSON.stringify({query:q})});
@@ -1977,7 +1988,7 @@ async function srvSetup(){
   try{ const h = await (await fetch(RAIL.relay + '/srv/health', {signal:AbortSignal.timeout(10000)})).json(); if(h.error || !h.feeds) throw new Error(h.error || 'no feeds'); health('server', true); SRV.at = Date.now(); SRV.ferries = !!(h.ferries && h.ferries.on && h.ferries.ships);
     for(const [id, f] of Object.entries(h.feeds || {})){ if(!f.box || f.error && !f.vehicles) continue;
       if(SRV.feeds[id]){ const x = SRV.feeds[id].entry; x[1] = f.box; x[4] = new RegExp(f.tt || '^$', 'i'); x[5] = new RegExp(f.ttModes || 'BUS'); continue; } // known: just keep its settings current
-      SRV.feeds[id] = f; SRV.added = true; LIVE_ABROAD.push(f.entry = [f.name.replace(/ \(.*\)$/, ''), f.box, () => { const b = map.getBounds(), sw = b.getSouthWest(), ne = b.getNorthEast(); return `${RAIL.relay}/srv/rt?feed=${id}&bbox=${[sw.lat(), sw.lng(), ne.lat(), ne.lng()].map(x => x.toFixed(2)).join(',')}`; },
+      SRV.feeds[id] = f; SRV.added = true; LIVE_ABROAD.push(f.entry = [f.name.replace(/ \(.*\)$/, ''), f.box, () => { const b = fetchBounds(), sw = b.getSouthWest(), ne = b.getNorthEast(); return `${RAIL.relay}/srv/rt?feed=${id}&bbox=${[sw.lat(), sw.lng(), ne.lat(), ne.lng()].map(x => x.toFixed(2)).join(',')}`; },
         j => (j.vehicles || []).map(v => ({id:'la:' + id + ':' + v.id, line:v.line || '', op:v.op || f.name, dest:'', lat:v.lat, lon:v.lon, brg:v.bearing ? v.bearing : null, t:v.at || null, kind:v.kind, tram:v.kind === 'tram', metro:v.kind === 'metro', train:v.kind === 'train', col:v.kind === 'bus' && CITYL.cur?.bus ? CITYL.cur.bus[0] : v.col ? inkA(v.col.toLowerCase()) : cityLineCol(v.kind, v.line)})), // buses in the city's one bus colour, as the timetable's; others their line's
         new RegExp(f.tt || '^$', 'i'), new RegExp(f.ttModes || 'BUS'), f.cc || null]); } }
   catch(e){ console.warn('server', e); health('server', false); }
@@ -1986,7 +1997,7 @@ async function srvSetup(){
 // live ferries (AIS, from the server): every passenger ship and fast ferry in view, where it really is
 async function refreshShips(){
   if(!SRV.ferries || !TRAINS_ON || GPS_OFF.has('ferry') || map.getZoom() < 7) return;
-  const b = map.getBounds(); if(!b) return; const sw = b.getSouthWest(), ne = b.getNorthEast();
+  const b = fetchBounds(); if(!b) return; const sw = b.getSouthWest(), ne = b.getNorthEast();
   try{ const j = await (await fetch(`${RAIL.relay}/srv/ferries?bbox=${[sw.lat(), sw.lng(), ne.lat(), ne.lng()].map(x => x.toFixed(2)).join(',')}`, {signal:AbortSignal.timeout(10000)})).json();
     const vs = (j.ships || []).filter(sh => !inTfLArea([sh.lat, sh.lon]) && !(sh.sog != null && sh.sog < 1)).map(sh => ({ // moving ships only: moored cruise and canal tour boats (Amsterdam) are passenger ships tooid:'ais:' + sh.mmsi, line:sh.name || 'Ferry', op:'Live position (AIS)', dest:sh.dest || '', lat:sh.lat, lon:sh.lon,
       brg:sh.hdg != null ? sh.hdg : sh.sog > 1 && sh.cog != null ? sh.cog : null, speed:sh.sog != null ? Math.round(sh.sog*1.852) : null, t:sh.at, kind:'ferry', col:'#00A0E2'}));
@@ -2012,7 +2023,7 @@ const inOslo = p => p[0] > 59.75 && p[0] < 60.10 && p[1] > 10.45 && p[1] < 11.05
 const inBerlin = p => p[0] > 52.2 && p[0] < 52.8 && p[1] > 12.9 && p[1] < 13.9;
 const VBB_COL = {suburban:'#008D4F', subway:'#115D91', tram:'#CC0A22', bus:'#A5027D', regional:'#E30613', express:'#7F7F7F', ferry:'#0080BA'};
 async function berlinVehicles(){
-  const b = map.getBounds(), sw = b.getSouthWest(), ne = b.getNorthEast(), c = map.getCenter(), f = x => x.toFixed(4);
+  const b = fetchBounds(), sw = b.getSouthWest(), ne = b.getNorthEast(), c = map.getCenter(), f = x => x.toFixed(4);
   const w = Math.min(0.5, ne.lng() - sw.lng())/2, h = Math.min(0.3, ne.lat() - sw.lat())/2;
   const r = await fetch(`https://v6.vbb.transport.rest/radar?north=${f(c.lat()+h)}&west=${f(c.lng()-w)}&south=${f(c.lat()-h)}&east=${f(c.lng()+w)}&results=400&duration=30&frames=1&polylines=false`, {signal:AbortSignal.timeout(10000)});
   if(!r.ok) throw new Error('Berlin live data: HTTP ' + r.status); const j = await r.json(), bus = !busOff();
@@ -2223,9 +2234,10 @@ const tcase = t => !t || t !== t.toUpperCase() || !/\p{Lu}{3}/u.test(t) ? t : t.
 function altList(pairs){ const m = new Map();
   for(const [ln, as] of pairs) for(const a of as || []){ const head = (a.headerText || a.descriptionText || '').trim(); if(!head) continue; const k = head.toLowerCase();
     const e = m.get(k) || m.set(k, {head, desc:(a.descriptionText || '').trim(), url:a.url || '', lines:new Set()}).get(k); if(ln) e.lines.add(ln); }
-  return [...m.values()].slice(0, 6); }
+  return [...m.values()]; }
 function altHtml(list){ if(!list || !list.length) return '';
-  return `<div class="alerts">${list.map(a => `<details><summary>⚠ ${a.lines.size ? `<b>${esc([...a.lines].slice(0, 4).join(', '))}</b> · ` : ''}${esc(a.head.length > 110 ? a.head.slice(0, 108) + '…' : a.head)}</summary>${a.desc && a.desc !== a.head ? `<p>${esc(a.desc.slice(0, 600))}</p>` : ''}${/^https?:/.test(a.url) ? `<a href="${esc(a.url)}" target="_blank" rel="noopener">More</a>` : ''}</details>`).join('')}</div>`; }
+  const more = list.length - 4; list = list.slice(0, 4);
+  return `<div class="alerts">${list.map(a => `<details><summary>⚠ ${a.lines.size ? `<b>${esc([...a.lines].slice(0, 4).join(', '))}</b> · ` : ''}${esc(a.head.length > 110 ? a.head.slice(0, 108) + '…' : a.head)}</summary>${a.desc && a.desc !== a.head ? `<p>${esc(a.desc.slice(0, 600))}</p>` : ''}${/^https?:/.test(a.url) ? `<a href="${esc(a.url)}" target="_blank" rel="noopener">More</a>` : ''}</details>`).join('')}${more > 0 ? `<small class="muted">and ${more} more notice${more > 1 ? 's' : ''} from the operators</small>` : ''}</div>`; }
 async function openCityStation(hit){
   const {st, url} = hit, box = $('station'); unfocusLine(); clearFocus(); FOCUS_ST = null; $('tip').style.display = 'none';
   const kindName = {metro:'metro', train:'train', tram:'tram', ferry:'ferry'};
@@ -2297,7 +2309,7 @@ async function openCityStation(hit){
           const sch = Date.parse(pl.scheduledDeparture || pl.scheduledArrival || ''), late = sch ? Math.round((when - sch)/60000) : 0, ln = x.routeShortName || x.displayName || '', l = st[4].find(q => q[0] === ln), k = kind0(x.mode || '');
           rows.push({when, cat:{tram:'Trams', metro:'Metro', train:'Trains', bus:'Buses', ferry:'Boats'}[k] || 'Other',
             html:row(l && l[1] || (k === 'bus' && CITYL.cur?.bus ? CITYL.cur.bus[0] : x.routeColor ? inkA('#' + x.routeColor.toLowerCase()) : '#5D6670'), tcase(x.headsign || x.tripTo?.name || ''), (ln ? ln + ' · ' : '') + (x.realTime ? (late >= 2 ? late + ' min late' : 'live') : 'timetable'), Math.max(0, Math.round((when - now)/60000)))}); }
-        alerts = altList(js.flatMap(j => (j.stopTimes || []).map(x => [x.routeShortName || x.displayName || '', [...(x.place?.alerts || []), ...(x.alerts || [])]])));
+        alerts = altList(js.flatMap(j => (j.stopTimes || []).flatMap(x => [['', x.place?.alerts], [x.routeShortName || x.displayName || '', x.alerts]]))); // (a notice on the stop itself isn't about the lines that happen to call there)
         if(!rows.length) note = near.length ? 'No departures from here in the next while.' : 'No stop found here in the timetables.'; }
     }catch(e){ note = 'Departures could not be loaded right now.'; }
     if(box.hidden) return;
@@ -2402,7 +2414,7 @@ async function refreshGps(){
       catch(e){ GPS.direct = false; throw new Error('Edinburgh\'s live bus data isn\'t answering right now.'); }
     }
     else if(!RAIL.relay) throw new Error('Live buses here are coming soon: they switch on once the data keys are set up.');
-    else { const b = map.getBounds(), sw = b.getSouthWest(), ne = b.getNorthEast();
+    else { const b = fetchBounds(), sw = b.getSouthWest(), ne = b.getNorthEast();
       const w = Math.max(0.01, Math.min(0.5, ne.lng() - sw.lng())/2), h = Math.max(0.007, Math.min(0.34, ne.lat() - sw.lat())/2), /* very close up: still at least ~1 km around */ bb = `${(p[1]-w).toFixed(3)},${(p[0]-h).toFixed(3)},${(p[1]+w).toFixed(3)},${(p[0]+h).toFixed(3)}`;
       // every UK operator that shares positions (bustimes.org: incl. Cardiff Bus, Lothian, Translink); the government feed if that's unavailable
       try{ res = await railGet('/vehicles?src=bustimes&bbox=' + bb); if(!res.vehicles || !res.vehicles.length) throw new Error('empty'); }
@@ -2439,7 +2451,7 @@ function gpsMerge(res, prefix){
     for(const [k, g] of GPS.list) if(now - g.seen > 90000 && (!prefix || k.startsWith(prefix))) GPS.list.delete(k);
 }
 // glide from the last position to the new one over the update interval
-const gpsPos = (g, now) => { const k = Math.min(1, (now - g.t0)/(g.dur || 15000)), e = k*(2 - k);
+const gpsPos = (g, now) => { const k = Math.min(1, (now - g.t0)/(g.dur || 15000)), e = g.lin ? k : k*(2 - k); // (timetable vehicles: a steady speed; live GPS fixes: eased in)
   const P = g.path; if(P && P.cum){ const L = e*P.cum.at(-1); let i = 1; while(i < P.length - 1 && P.cum[i] < L) i++; const u = Math.max(0, Math.min(1, (L - P.cum[i-1])/((P.cum[i] - P.cum[i-1]) || 1))); g.pAng = k < 1 ? Math.atan2(-(P[i][0] - P[i-1][0]), (P[i][1] - P[i-1][1])*Math.cos(P[i][0]*rad)) : null; return [P[i-1][0] + (P[i][0] - P[i-1][0])*u, P[i-1][1] + (P[i][1] - P[i-1][1])*u]; }
   g.pAng = null; return [g.from[0] + (g.to[0] - g.from[0])*e, g.from[1] + (g.to[1] - g.from[1])*e]; };
 // the stretch of a drawn line between two points on (or near) it, for gliding along it; null when it would be a detour
@@ -2781,7 +2793,7 @@ async function refreshTT(){
   const c0 = map.getCenter(), world = c0 && regionOf([c0.lat(), c0.lng()]) === 'world'; // beyond the places with their own feeds (France, Ireland…): everything from the timetable
   if(TTV.busy || !RAIL.relay || RAIL.relay === 'demo' || !TRAINS_ON || map.getZoom() < (world ? 5 : 8)) return;
   if(!world && (!railOn() || MODES_OFF.has('rail') || !RAIL.stations)) return;
-  const b = map.getBounds(); if(!b) return; const sw = b.getSouthWest(), ne = b.getNorthEast(), zq = Math.round(map.getZoom());
+  const b = fetchBounds(); if(!b) return; const sw = b.getSouthWest(), ne = b.getNorthEast(), zq = Math.round(map.getZoom());
   const tiles = []; for(let la = Math.floor(sw.lat()*2)/2; la <= ne.lat(); la += 0.5) for(let lo = Math.floor(sw.lng()*2)/2; lo <= ne.lng(); lo += 0.5) if(world || (la > 49.5 && la < 61 && lo > -8.5 && lo < 2)) tiles.push([la, lo]);
   if(!tiles.length) return;
   if(world){ // trains, trams, metros, ferries (and buses close up), moving along their routes
@@ -2990,6 +3002,7 @@ function vlistFill(){ const box = document.getElementById('vlist'); if(!box || !
 document.getElementById('vlist')?.addEventListener('toggle', vlistFill); setInterval(vlistFill, 10000);
 window.__GPSL = () => GPS.list; window.__gpsPos = (g, t) => gpsPos(g, t);
 window.__testVeh = kind => { for(const g of GPS.list.values()) if((!kind || vkind(g.v) === kind) && String(g.v.id).startsWith('tf:') && g.v.trip){ openGFollow(g); GF.on = true; renderGFollow(); return g.v.id; } return null; };
+window.__frames = () => MOVING.frames || 0;
 window.__testStop = i => { const L = ukStopsHere(); if(L[i]) openUKStop(L[i]); return L.length; }; // (tests: open the i-th bus stop in view)
 window.__smoke = () => ({city:CITYL.cur?.name || null, cityFiles:cityData().length, cityLines:cityData().reduce((n, d) => n + d.lines.length, 0),
   tfl:ACTIVE.filter(l => l.layer).length, gps:GPS.list.size, tt:TTV.ferries ? TTV.ferries.size : 0,
@@ -3001,7 +3014,7 @@ function ttTick(){ if(!TTV.ferries || !TRAINS_ON || inTfLArea([map.getCenter().l
   // live vehicles here, by kind and line: a timetable vehicle with a live twin nearby (same kind and line, within ~1.2 km,
   // allowing for delays) isn't shown, whichever feed the two come from (Bordeaux's trams: TBM live, the region's timetable)
   const liveAt = new Map(); for(const [k, g] of GPS.list) if((k.startsWith('la:') || k.startsWith('es:')) && g.v.line){ const key = vkind(g.v) + '|' + String(g.v.line).toLowerCase(); (liveAt.get(key) || liveAt.set(key, []).get(key)).push(g.to || [g.v.lat, g.v.lon]); }
-  const best = ttPlace(now);
+  const best = ttPlace(now + 2000); // where each will be when this glide ends: moved at a steady speed (linear), it is where the timetable says, all the time, not surging and slowing every 2 s
   for(const [trip, {s, p, A, B}] of best){ const [, col, name, from, to, dep, arr] = s;
     if(TTV.esLive && Date.now() - TTV.esLive < 120000 && /RENFE-?Cercan|Rodalies|Cercan/i.test(trip)) continue;
     if(SRV.shipsAt && Date.now() - SRV.shipsAt < 120000 && /FERRY/.test(s[0]) && [...GPS.list].some(([k, g]) => k.startsWith('ais:') && dist(g.to || [g.v.lat, g.v.lon], p) < 600)) continue; // a ship live by AIS right there instead (only then: Bordeaux's river shuttles have no AIS, and all ferries vanished whenever any ship was tracked)
@@ -3015,7 +3028,7 @@ function ttTick(){ if(!TTV.ferries || !TRAINS_ON || inTfLArea([map.getCenter().l
       segAng:Math.atan2(-(B[0]-A[0]), (B[1]-A[1])*Math.cos(A[0]*rad))};
     { const cf = /flixbus/i.test(trip) ? 'FLIX' : /blablacar/i.test(trip) ? 'BBCB' : null; // long-distance coaches: their own look, as in Britain
       if(cf && kind === 'bus'){ v.op = cf; v.coach = true; v.line = String(name || '').replace(/^(FlixBus|BlaBlaCar Bus)\s*/i, ''); v.col = COACHES[cf][1]; } }
-    if(!g){ g = {from:p, to:p, t0:now, dur:2000}; GPS.list.set(id, g); } else { g.from = gpsPos(g, now); g.to = p; g.t0 = now; g.dur = 2000; g.path = null; }
+    if(!g){ g = {from:p, to:p, t0:now, dur:2000, lin:true}; GPS.list.set(id, g); } else { g.from = gpsPos(g, now); g.to = p; g.t0 = now; g.dur = 2000; g.lin = true; g.path = null; }
     g.v = v; g.seen = now; }
   for(const k of [...GPS.list.keys()]) if(k.startsWith('tf:') && !seen.has(k)) GPS.list.delete(k); }
 setInterval(ttTick, 2000);
@@ -3427,7 +3440,7 @@ function applyRegion(){
   { const t = $('ttl'), fit = m => { t.style.fontSize = ''; for(let f = 17; f >= m && t.scrollWidth > t.clientWidth + 1; f--) t.style.fontSize = f + 'px'; return t.scrollWidth <= t.clientWidth + 1; };
     if(!fit(14) && / map$/.test(t.textContent)){ t.textContent = t.textContent.replace(/ map$/, ''); fit(13); } } // long names shrink a little rather than being cut off
   $('bFit').title = away ? 'Near me (tap again: the area around you)' : 'Near me (tap again: all of London)';
-  $('q').placeholder = !away ? 'Search a station or line (e.g. 172)' : abroad ? 'Search a station or line' : 'Search a station or route (e.g. X1)';
+  $('q').placeholder = !away ? 'Search a station, line or place (e.g. 172)' : abroad ? 'Search a stop, line or place' : 'Search a stop, route or place (e.g. X1)';
   if(typeof onTrainsUpdate === 'function') onTrainsUpdate(ACTIVE.reduce((s, l) => s + (shown(l) ? l.count : 0), 0));
 }
 map.addListener('idle', applyRegion);
@@ -3697,7 +3710,12 @@ function searchCityStations(text){
   const kept = []; for(const x of out){ if(kept.some(k => stName(k.st[1]).toLowerCase() === stName(x.st[1]).toLowerCase() && dist([k.st[2], k.st[3]], [x.st[2], x.st[3]]) < 400)) continue; kept.push(x); } // one entry per station (two timetables can both list it)
   return kept.slice(0, 6);
 }
-function pickResult(x){ if(!x) return; if(x.placeHit){ $('q').value = ''; SR.items = []; renderResults(); $('q').blur(); clearFocus(); unfocusLine(); map.panTo({lat:x.ci.at[0], lng:x.ci.at[1]}); map.setZoom(x.ci.at[2]); return; } if(x.lineHit) focusLine(x); else if(x.cityHit){ $('q').value = stName(x.st[1]); SR.items = []; renderResults(); $('q').blur(); map.setZoom(Math.max(map.getZoom(), 15)); openCityStation({st:x.st, url:x.d.url}); } else goStation(x); }
+function pickResult(x){ if(!x) return;
+  if(x.geoHit){ $('q').value = x.name; SR.items = []; renderResults(); $('q').blur(); clearFocus(); unfocusLine(); map.panTo({lat:x.lat, lng:x.lon});
+    if(x.type === 'STOP'){ map.setZoom(16); const k = x.modes.some(m => /RAIL|SUBWAY|METRO/.test(m)) ? 'train' : x.modes.some(m => /TRAM/.test(m)) ? 'tram' : 'bus';
+      setTimeout(() => openCityStation({st:[x.id, x.name, x.lat, x.lon, [[{train:'Trains', tram:'Trams', bus:'Buses'}[k], '#5D6670', k]]], url:'stop'}), 700); } // its departures (Transitous, by place)
+    else map.setZoom(x.type === 'ADDRESS' ? 17 : 14); return; }
+  if(x.placeHit){ $('q').value = ''; SR.items = []; renderResults(); $('q').blur(); clearFocus(); unfocusLine(); map.panTo({lat:x.ci.at[0], lng:x.ci.at[1]}); map.setZoom(x.ci.at[2]); return; } if(x.lineHit) focusLine(x); else if(x.cityHit){ $('q').value = stName(x.st[1]); SR.items = []; renderResults(); $('q').blur(); map.setZoom(Math.max(map.getZoom(), 15)); openCityStation({st:x.st, url:x.d.url}); } else goStation(x); }
 async function focusLine(x){
   unfocusLine(); const gen = (focusLine.gen = (focusLine.gen || 0) + 1); $('q').value = x.mode === 'bus' ? (x.coach ? (x.op || 'Coach') + ' ' : 'Bus ') + x.name : x.name; SR.items = []; renderResults(); $('q').blur(); clearFocus();
   const box = $('station'); box.hidden = false;
@@ -3735,7 +3753,7 @@ function unfocusLine(){
 $('station').addEventListener('click', e => { if(e.target.closest('#lfClose')){ clearFocus(); unfocusLine(); $('q').value = ''; } });
 function renderResults(){
   const ul = $('sres');
-  ul.innerHTML = SR.items.map((s, i) => s.placeHit ? `<li role="option" data-i="${i}" class="${i===SR.sel?'on':''}"><span class="dots"><i style="background:#1a73e8"></i></span><span><b>${esc(s.ci.name)}</b><small>Go to ${esc(s.ci.name)}'s live map${s.country ? ' · ' + esc(s.country) : ''}</small></span></li>` : s.lineHit ? lineResult(s, i) : s.cityHit ? `<li role="option" data-i="${i}" class="${i===SR.sel?'on':''}"><span class="dots">${s.st[4].slice(0, 6).map(l => `<i style="background:${l[1] || '#888'}"></i>`).join('')}</span><span><b>${esc(stName(s.st[1]))}</b><small>${esc(s.st[4].map(l => l[0]).slice(0, 8).join(', '))}</small></span></li>` : `<li role="option" data-i="${i}" class="${i===SR.sel?'on':''}" aria-selected="${i===SR.sel}">
+  ul.innerHTML = SR.items.map((s, i) => s.geoHit ? `<li role="option" data-i="${i}" class="${i===SR.sel?'on':''}"><span class="dots"><i style="background:${s.type === 'STOP' ? '#5D6670' : '#1a73e8'}"></i></span><span><b>${esc(s.name)}</b><small>${esc([s.type === 'STOP' ? 'Stop' : s.type === 'ADDRESS' ? 'Address' : 'Place', s.area].filter(Boolean).join(' · '))}</small></span></li>` : s.placeHit ? `<li role="option" data-i="${i}" class="${i===SR.sel?'on':''}"><span class="dots"><i style="background:#1a73e8"></i></span><span><b>${esc(s.ci.name)}</b><small>Go to ${esc(s.ci.name)}'s live map${s.country ? ' · ' + esc(s.country) : ''}</small></span></li>` : s.lineHit ? lineResult(s, i) : s.cityHit ? `<li role="option" data-i="${i}" class="${i===SR.sel?'on':''}"><span class="dots">${s.st[4].slice(0, 6).map(l => `<i style="background:${l[1] || '#888'}"></i>`).join('')}</span><span><b>${esc(stName(s.st[1]))}</b><small>${esc(s.st[4].map(l => l[0]).slice(0, 8).join(', '))}</small></span></li>` : `<li role="option" data-i="${i}" class="${i===SR.sel?'on':''}" aria-selected="${i===SR.sel}">
     <span class="dots">${[...s.lines].slice(0, 6).map(id => `<i style="background:${ink(BY[id].colour)}"></i>`).join('')}</span>
     <span><b>${esc(s.name)}</b><small>${[...s.lines].map(id => esc(BY[id].name)).join(', ')}</small></span></li>`).join('')
     || ($('q').value.trim() ? `<li class="none">${document.body.classList.contains('away') && /^[a-z]{0,3}\d{1,3}[a-z]{0,2}$/i.test($('q').value.trim()) ? `No bus or coach on route ${esc($('q').value.trim().toUpperCase())} is out in this area right now` : 'No station or line found'}</li>` : '');
@@ -3754,7 +3772,21 @@ function searchPlaces(text){ const q = text.trim().toLowerCase(); if(q.length < 
   CATALOG.forEach((ct, i) => ct.countries.forEach((co, j) => co.cities.forEach((ci, k) => { const n = ci.name.toLowerCase(); if((n === q || (q.length >= 4 && n.startsWith(q))) && !(here && here[0] === i && here[1] === j && here[2] === k && map.getZoom() >= 11)) out.push({placeHit:true, ci, country:co.name, exact:n === q}); })));
   return out.sort((a, b) => b.exact - a.exact).slice(0, 2); }
 $('q').addEventListener('input', () => { const away = document.body.classList.contains('away'), L = searchLines($('q').value), S = away ? searchCityStations($('q').value) : searchStations($('q').value);
-  SR.items = [...searchPlaces($('q').value), ...L, ...S, ...(away || L.length + S.length >= 6 ? [] : searchNrElsewhere($('q').value, S))].slice(0, 8); SR.sel = SR.items.length ? 0 : -1; renderResults(); });
+  SR.items = [...searchPlaces($('q').value), ...L, ...S, ...(away || L.length + S.length >= 6 ? [] : searchNrElsewhere($('q').value, S))].slice(0, 8); SR.sel = SR.items.length ? 0 : -1;
+  if(GEO.q === $('q').value.trim()) mergeGeo(); else renderResults(); geoSearch($('q').value); });
+// any stop, street or place in Europe (Transitous' search, nearest first): after what's on this map, so typing
+// 'Gare de Lyon' or 'Dam' works from anywhere
+const GEO = {t:0, q:'', items:[]};
+function geoSearch(text){ clearTimeout(GEO.t); const q = text.trim(); if(q.length < 3){ GEO.items = []; GEO.q = ''; return; }
+  GEO.t = setTimeout(async () => { const c = map.getCenter();
+    try{ const j = await (await fetch(`https://api.transitous.org/api/v1/geocode?text=${encodeURIComponent(q)}${c ? `&place=${c.lat().toFixed(3)},${c.lng().toFixed(3)}` : ''}`, {signal:AbortSignal.timeout(8000)})).json();
+      if($('q').value.trim() !== q) return; GEO.q = q;
+      GEO.items = (Array.isArray(j) ? j : []).filter(x => x && x.name && isFinite(x.lat) && isFinite(x.lon)).slice(0, 8).map(x => ({geoHit:true, type:x.type, name:x.name, id:x.id, lat:x.lat, lon:x.lon, modes:x.modes || [],
+        area:[...new Set((x.areas || []).map(a => a.name).filter(n => n && n !== x.name))].slice(-2).reverse().join(', ')}));
+      mergeGeo(); }catch(e){} }, 350); }
+function mergeGeo(){ const local = SR.items.filter(x => !x.geoHit), names = new Set(local.map(x => String(x.name || x.st?.[1] || x.ci?.name || '').toLowerCase()));
+  const seen = new Set(), geo = GEO.items.filter(g => { const k = g.name.toLowerCase() + '|' + g.area; if(names.has(g.name.toLowerCase()) || seen.has(k)) return false; seen.add(k); return true; });
+  SR.items = [...local, ...geo.slice(0, Math.max(3, 8 - local.length))]; if(SR.sel < 0 && SR.items.length) SR.sel = 0; renderResults(); }
 $('q').addEventListener('keydown', e => {
   const n = SR.items.length;
   if(e.key === 'ArrowDown' && n){ e.preventDefault(); SR.sel = (SR.sel + 1) % n; renderResults(); }
