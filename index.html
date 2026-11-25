@@ -2869,7 +2869,14 @@ async function refreshTT(){
     try{ const now = Date.now(), modes = 'rail,tram,ferry' + ((zq >= 14 || (zq >= 13 && CITYL.cur?.bus)) && !busOff() ? ',bus' : ''); // buses from zoom 13 where the city's bus map is drawn (as Berlin)
       // each tile is added as soon as it arrives (no waiting for the slowest); every stretch of each journey is kept
       // (keyed by trip and time: a bus passing three stops in the window has three), and older ones go once all are in
-      const fresh = new Set(), failed = new Set(), add = (r, tk) => { for(const s of r?.vehicles || []) if(s[9] && s[6] > now){ const k = s[8] + '|' + s[5]; fresh.add(k); if(TTV.ferries?.has(k)) continue; const pts = decodePoly(s[9]); if(pts.length > 1) (TTV.ferries ||= new Map()).set(k, {s, pts, tk}); } };
+      const fresh = new Set(), failed = new Set(), add = (r, tk) => { const at = r?.at || 0; TTV.byFT ||= new Map();
+        for(const s of r?.vehicles || []) if(s[9] && s[6] > now){ const k = s[8] + '|' + s[5];
+          // one stretch of one journey twice, at different times (one tile's answer is newer than its neighbour's, with a
+          // delay in it): the newer kept, else the train flipped between the two, RER and Transilien ~100 m at a time
+          const ft = s[8] + '|' + s[3][0] + '|' + s[4][0], o = TTV.byFT.get(ft);
+          if(o && o.k !== k && TTV.ferries?.has(o.k)){ if(o.at > at) continue; TTV.ferries.delete(o.k); fresh.delete(o.k); }
+          TTV.byFT.set(ft, {k, at}); fresh.add(k); if(TTV.ferries?.has(k)) continue; const pts = decodePoly(s[9]); if(pts.length > 1) (TTV.ferries ||= new Map()).set(k, {s, pts, tk}); }
+        if(TTV.byFT.size > 60000) TTV.byFT.clear(); };
       if(!TTV.world) TTV.ferries = new Map();
       const res = await Promise.all(tiles.map(([la, lo]) => ttGet(`/tt?la=${la}&lo=${lo}&s=${tiles.sz}&modes=${modes}&z=${zq < 7 ? 6 : zq < 9 ? 8 : Math.min(14, zq + 1)}`).then(r => { add(r, la + ',' + lo); TTV.world = true; clearTimeout(TTV.dt); TTV.dt = setTimeout(ttTick, 50); return r; }).catch(() => { failed.add(la + ',' + lo); return null; }))); // vehicles appear as each tile lands
       // older stretches go, except one a journey is on right now that the new answer left out (it starts from the next
@@ -2980,7 +2987,7 @@ function ttSnap0(kind, name, p){
   const seg = (q, a, b) => { const c = Math.cos(a[0]*rad), dx = (b[1]-a[1])*c, dy = b[0]-a[0], L2 = dx*dx + dy*dy, t = L2 ? Math.max(0, Math.min(1, ((q[1]-a[1])*c*dx + (q[0]-a[0])*dy)/L2)) : 0; return [a[0] + dy*t, a[1] + (b[1]-a[1])*t]; };
   let best = null; const look = (pts, lim) => { for(let i = 1; i < pts.length; i++){ const a = pts[i-1], b = pts[i];
       if(Math.min(a[0], b[0]) - p[0] > 0.03 || p[0] - Math.max(a[0], b[0]) > 0.03 || Math.min(a[1], b[1]) - p[1] > 0.04 || p[1] - Math.max(a[1], b[1]) > 0.04) continue;
-      const x = seg(p, a, b), d = dist(x, p); if(d < lim && (!best || d < best.d)) best = {d, p:x, a, b}; } };
+      const x = seg(p, a, b), d = dist(x, p); if(d < lim && (!best || d < best.d)) best = {d, p:x, a, b, pts}; } };
   if(name){ TTV.lineIx ||= new Map(); const key = (CITYL.cur?.urls?.[0] || '') + ':' + cityData().length + '|' + kind + '|' + name; let L = TTV.lineIx.get(key);
     if(!L){ L = []; for(const d of cityData()) for(const l of d.lines) if(l.name === name && (l.kind === kind || (/^(tram|metro)$/.test(kind) && /^(tram|metro)$/.test(l.kind)))) { const multi = Array.isArray(l.pts?.[0]?.[0]); for(const pts of (multi ? l.pts : [l.pts])) if(pts && pts.length > 1){ L.push(pts); if(multi) (L.multi ||= []).push(pts); } }
       if(cityData().length) TTV.lineIx.set(key, L); }
@@ -3004,7 +3011,15 @@ function ttSnap0(kind, name, p){
     for(const pts of NRNET.tiles.get(t) || []) look(pts, 2500); }
   return best; }
 const TT_VMAX = m => /HIGHSPEED/.test(m) ? 70 : /RAIL|COACH/.test(m) ? 35 : /SUBWAY|METRO/.test(m) ? 16 : /TRAM/.test(m) ? 11 : /FERRY/.test(m) ? 9 : 9; // m/s
-function ttPlace(now){
+// a timetable train with no shape (TER Évreux–Paris is one straight hour-long line): routed once along the rail
+// network's track between its two stops and remembered. Snapped point by point to the nearest track instead, it hopped
+// between parallel lines as the straight line drifted off the railway. One new route per update (they take a moment).
+function ttRail(A, B){ const D = dist(A, B); if(D < 2000 || D > 150000 || typeof railC !== 'function' || !railC(A) || !railC(B)) return null;
+  const key = A[0].toFixed(3) + ',' + A[1].toFixed(3) + '>' + B[0].toFixed(3) + ',' + B[1].toFixed(3); TTV.rail ||= new Map(); if(TTV.rail.has(key)) return TTV.rail.get(key);
+  if(TTV.railBudget <= 0 || !nrTiles(A, B)) return null; TTV.railBudget--;
+  let pts = null; try{ pts = nrAstar(nrCands(A, 600).map(c => c[0]), nrCands(B, 600).map(c => c[0]), D*1.8 + 4000); }catch(e){}
+  const r = pts && pts.length > 2 ? pts : null; TTV.rail.set(key, r); if(TTV.rail.size > 3000) TTV.rail.clear(); return r; }
+function ttPlace(now){ TTV.railBudget = 1;
   const byTrip = new Map(); for(const e of TTV.ferries.values()){ const t = e.s[8]; (byTrip.get(t) || byTrip.set(t, []).get(t)).push(e); }
   const out = new Map();
   for(const [trip, es] of byTrip){
@@ -3023,6 +3038,7 @@ function ttPlace(now){
       for(const e of m){ const A = e.s[3].slice(2), B = e.s[4].slice(2); if(dist(e.pts[0], A) > 150 || dist(e.pts.at(-1), B) > 150) continue;
         const kind = /TRAM/.test(e.s[0]) ? 'tram' : /SUBWAY|METRO/.test(e.s[0]) ? 'metro' : /RAIL|LONG_DISTANCE/.test(e.s[0]) ? 'train' : 'other';
         const cp = cityPath(kind, e.s[2], A, B); if(cp){ e.pts = cp; continue; }
+        if(kind === 'train' && e.pts.length <= 3){ const rp = ttRail(A, B); if(rp){ e.pts = rp; continue; } } // a train whose timetable has no shape: along the real track
         let L = 0; for(let i = 1; i < e.pts.length; i++) L += dist(e.pts[i-1], e.pts[i]); const D = dist(A, B); if(kind !== 'other' && L > Math.max(1.8*D, D + 1500)) e.pts = [A, B]; } // (rail only: a boat's crossing or a bus's loop is meant to be longer than the hop — Bordeaux's river shuttles were cut across the bank)
       es.length = 0; es.push(...m); }
     es.sort((a, b) => a.s[5] - b.s[5] || a.s[6] - b.s[6]);
@@ -3051,7 +3067,15 @@ function ttPlace(now){
     // last of all, onto the track you see: a tram, metro or train on its own drawn line (a timetable piece clipped at a
     // tile edge isn't matched to the line above: Bordeaux's tram B sat in the Quinconces), a train with no city line on
     // the drawn rail network (a TGV from Massy is one 480 km straight stretch)
-    { const k = kind0(e.s[0]), q = k !== 'bus' ? ttSnap(k, e.s[2], P) : null; /* (boats too: Bordeaux's 951 is a straight 2 km hop in the timetable, its drawn route curves 150 m out) */ if(q){ P = q.p; sA = q.a; sB = q.b; } }
+    { const k = kind0(e.s[0]); let q = k !== 'bus' ? ttSnap(k, e.s[2], P) : null; /* (boats too: Bordeaux's 951 is a straight 2 km hop in the timetable, its drawn route curves 150 m out) */
+      // a train on the rail network stays on the piece of track it was on unless another is 150 m nearer: snapped afresh
+      // each time, a straight timetable line drifting past parallel tracks made it hop between them
+      if(k === 'train' && q && q.pts){ TTV.railPref ||= new Map(); const pref = TTV.railPref.get(trip);
+        if(pref && pref !== q.pts){ let bq = null; for(let j = 1; j < pref.length; j++){ const a = pref[j-1], b = pref[j]; if(Math.min(a[0], b[0]) - P[0] > 0.03 || P[0] - Math.max(a[0], b[0]) > 0.03 || Math.min(a[1], b[1]) - P[1] > 0.045 || P[1] - Math.max(a[1], b[1]) > 0.045) continue;
+            const kk = Math.cos(a[0]*rad), dx = (b[1]-a[1])*kk, dy = b[0]-a[0], L2 = dx*dx + dy*dy, t = L2 ? Math.max(0, Math.min(1, ((P[1]-a[1])*kk*dx + (P[0]-a[0])*dy)/L2)) : 0, x = [a[0] + dy*t, a[1] + (b[1]-a[1])*t], d = dist(x, P); if(!bq || d < bq.d) bq = {d, p:x, a, b, pts:pref}; }
+          if(bq && bq.d <= q.d + 150 && bq.d < 2500) q = bq; }
+        TTV.railPref.set(trip, q.pts); if(TTV.railPref.size > 5000) TTV.railPref.clear(); }
+      if(q){ P = q.p; sA = q.a; sB = q.b; } }
     out.set(trip, {s:e.s, p:P, A:sA, B:sB}); }
   TTV.lastP = new Map([...out].map(([t, v]) => [t, v.p]));
   return out; }
@@ -3076,6 +3100,7 @@ window.__testRide = () => { for(const t of trains.values()) if(t.d && !t.rail &&
 window.__rideState = () => ({key:FW.t && FW.t.key, ride:FW.ride, d:FW.t && FW.t.d, c:(c => c && [c.lat(), c.lng()])(map.getCenter())});
 window.__rekey = () => { const t = FW.t; if(!t) return null; const k = t.key + ':new'; trains.delete(t.key); trains.set(k, Object.assign({}, t, {key:k})); return k; };
 window.__gf = () => ({id:GF.id, on:GF.on, p:(g => g && gpsPos(g, Date.now()))(gfVehicle()), c:(c => c && [c.lat(), c.lng()])(map.getCenter())});
+window.__ttRail = () => { const m = TTV.rail || new Map(); return {routes:[...m.values()].filter(Boolean).length, failed:[...m].filter(([, v]) => !v).map(([k]) => k).slice(0, 6), tiles:NRNET.tiles.size, graph:NRG.pos.size}; };
 window.__testStop = i => { const L = ukStopsHere(); if(L[i]) openUKStop(L[i]); return L.length; }; // (tests: open the i-th bus stop in view)
 window.__smoke = () => ({city:CITYL.cur?.name || null, cityFiles:cityData().length, cityLines:cityData().reduce((n, d) => n + d.lines.length, 0),
   tfl:ACTIVE.filter(l => l.layer).length, gps:GPS.list.size, tt:TTV.ferries ? TTV.ferries.size : 0,
@@ -3103,9 +3128,12 @@ function ttTick(){ if(!TTV.ferries || !TRAINS_ON || inTfLArea([map.getCenter().l
       if(cf && kind === 'bus'){ v.op = cf; v.coach = true; v.line = String(name || '').replace(/^(FlixBus|BlaBlaCar Bus)\s*/i, ''); v.col = COACHES[cf][1]; } }
     if(!g){ g = {from:p, to:p, t0:now, dur:2000, lin:true}; GPS.list.set(id, g); }
     else { g.from = gpsPos(g, now); g.to = p; g.t0 = now; g.lin = true; g.path = null;
-      const jd = dist(g.from, p); g.dur = jd > 200 ? Math.min(10000, 2000 + jd*6) : 2000; } // a real correction (a delay came in): travels there over a few seconds, not a leap
+      const jd = dist(g.from, p), vmax = TT_VMAX(m)*1.4; // never faster on screen than such a vehicle goes: a correction is a steady catch-up, never a leap
+      if(jd > 5000){ g.from = p; g.dur = 2000; } else g.dur = Math.max(2000, Math.min(30000, jd/vmax*1000)); } // (5 km off: placed afresh, not chased across the map)
     g.v = v; g.seen = now; }
-  for(const k of [...GPS.list.keys()]) if(k.startsWith('tf:') && !seen.has(k)) GPS.list.delete(k); }
+  // one missing for an update (its stretch between two answers, a twin check) is held where it was for 8 s rather than
+  // removed: removed, it came back a moment later as a new vehicle somewhere else, which looked like a jump
+  for(const [k, g] of [...GPS.list]) if(k.startsWith('tf:')){ if(seen.has(k)){ g.miss = 0; continue; } g.miss ||= now; if(now - g.miss > 8000) GPS.list.delete(k); } }
 setInterval(ttTick, 2000);
 // start as soon as the relay is known (not when the street map has finished loading, which can take seconds), and again after each move
 setInterval(refreshTT, 60000); for(const ms of [600, 1500, 3000, 6000, 20000]) setTimeout(refreshTT, ms);
@@ -3451,6 +3479,8 @@ function cityHere(){ const c = map.getCenter(); if(!c) return null; const p = [c
 const exCity = () => { const [a, b, c] = EX.path; return CATALOG[a]?.countries[b]?.cities[c] || null; };
 const isSwitch = m => ['tube','overground','elizabeth','dlr','bike','rail','river','cable','road'].includes(m) || ((m === 'tram' || m === 'bus') && exCity()?.name === 'London');
 const modeOn = m => isSwitch(m) ? !MODES_OFF.has(m) : !GPS_OFF.has(m);
+// Explore in alphabetical order: regions, the countries in each, the cities in each (accents sorted as letters)
+{ const by = (a, b) => a.name.localeCompare(b.name, undefined, {sensitivity:'base'}); CATALOG.sort(by); for(const ct of CATALOG){ ct.countries.sort(by); for(const co of ct.countries) co.cities.sort(by); } }
 function renderExplore(){
   const box = $('explore'); if(box.hidden) return;
   const [a, b, c] = EX.path, ct = CATALOG[a], co = ct && ct.countries[b], ci = co && co.cities[c];
