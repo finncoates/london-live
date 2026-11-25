@@ -2774,6 +2774,7 @@ function drawTTLines(ctx){
   const cd = cityData(), drawn = cd.length ? (CITYL.cur.names ||= new Set(cd.flatMap(d => d.lines.map(l => l.kind + '|' + l.name)))) : null;
   for(const {s, pts} of TTV.ferries.values()){ const m = s[0], kind = /FERRY/.test(m) ? 'ferry' : /BUS|COACH/.test(m) ? 'bus' : /TRAM/.test(m) ? 'tram' : /SUBWAY|METRO/.test(m) ? 'metro' : 'train';
     if(drawn && (drawn.has(kind + '|' + s[2]) || (kind === 'tram' && drawn.has('metro|' + s[2])) || (s[2] && [...drawn].some(k => k.startsWith(kind + '|') && k.endsWith(' ' + s[2]))))) continue;
+    if((kind === 'metro' || kind === 'tram') && drawn && pts.length > 1 && cityPath(kind, s[2] || '?', pts[0], pts.at(-1))) continue; // runs along a drawn line under another name (Porto's 'B' on 'Bx')
     if(kind === 'bus' && CITYL.cur?.bus) continue; // the city's bus map already draws every bus road, in one colour (as London)
     if(kind === 'train' && (railC(s[3].slice(2)) || railC(s[4].slice(2)))) continue; // France's whole rail network is drawn (cities/nr): trains run on it (either end: an international train from Germany was drawn straight across Amsterdam)
     if(GPS_OFF.has(kind) || (kind === 'bus' && busOff())) continue; const col = s[1] && /^[0-9a-f]{6}$/i.test(s[1]) ? inkA('#' + s[1].toLowerCase()) : {ferry:'#00A0E2', train:'#5D6670', tram:'#7A1F3D', metro:'#0E4C92', bus:'#DC241F'}[kind];
@@ -2806,14 +2807,16 @@ function cityPath(kind, name, A, B){
   if(TTV.pathC.has(key)) return TTV.pathC.get(key); let best = null;
   const near = (pts, q) => { let bi = -1, bt = 0, bd = Infinity; for(let i = 1; i < pts.length; i++){ const a = pts[i-1], b = pts[i], c = Math.cos(a[0]*rad), dx = (b[1]-a[1])*c, dy = b[0]-a[0], L2 = dx*dx + dy*dy;
       const t = L2 ? Math.max(0, Math.min(1, ((q[1]-a[1])*c*dx + (q[0]-a[0])*dy)/L2)) : 0, p = [a[0] + dy*t, a[1] + (b[1]-a[1])*t], dd = dist(p, q); if(dd < bd){ bd = dd; bi = i; bt = t; } } return {i:bi, t:bt, d:bd}; };
-  for(const d of cityData()) for(const l of d.lines){ if(l.name !== name || !(l.kind === kind || (kind === 'tram' && l.kind === 'metro') || (kind === 'metro' && l.kind === 'tram'))) continue;
+  // the same-named line first; failing that (Porto's metro 'B' is drawn as 'Bx'), any drawn line of that kind through both stops
+  for(const any of [false, true]){ if(best || (any && kind === 'train')) break;
+  for(const d of cityData()) for(const l of d.lines){ if((!any && l.name !== name) || !(l.kind === kind || (kind === 'tram' && l.kind === 'metro') || (kind === 'metro' && l.kind === 'tram'))) continue;
     const P = l.pts && Array.isArray(l.pts[0]) && Array.isArray(l.pts[0][0]) ? l.pts : [l.pts]; // (a line in one or several pieces)
-    for(const pts of P){ if(!pts || pts.length < 2) continue; const a = near(pts, A), b = near(pts, B); if(a.d > 250 || b.d > 250) continue;
+    for(const pts of P){ if(!pts || pts.length < 2) continue; const a = near(pts, A), b = near(pts, B), lim = any ? 80 : 250; if(a.d > lim || b.d > lim) continue;
       const at = x => [pts[x.i-1][0] + (pts[x.i][0]-pts[x.i-1][0])*x.t, pts[x.i-1][1] + (pts[x.i][1]-pts[x.i-1][1])*x.t];
       let path; if(a.i < b.i || (a.i === b.i && a.t <= b.t)) path = [at(a), ...pts.slice(a.i, b.i), at(b)]; else path = [at(a), ...pts.slice(b.i, a.i).reverse(), at(b)];
       let L = 0; for(let i = 1; i < path.length; i++) L += dist(path[i-1], path[i]); const D = dist(A, B);
       if(L > Math.max(2*D, D + 1200)) continue; // the other way round a loop, or a different branch
-      const sc = a.d + b.d + L*0.01; if(!best || sc < best.sc) best = {sc, path}; } }
+      const sc = a.d + b.d + L*0.01; if(!best || sc < best.sc) best = {sc, path}; } } }
   const r = best ? best.path : null; TTV.pathC.set(key, r); if(TTV.pathC.size > 20000) TTV.pathC.clear(); return r; }
 // the nearest point of the drawn track to p: the same-named line in the city's file (within 300 m), else for a train
 // the rail network's tiles (cities/nr, within 2.5 km). Null when nothing's near (it stays where the timetable puts it).
@@ -2825,7 +2828,9 @@ function ttSnap(kind, name, p){
   if(name){ TTV.lineIx ||= new Map(); const key = (CITYL.cur?.urls?.[0] || '') + ':' + cityData().length + '|' + kind + '|' + name; let L = TTV.lineIx.get(key);
     if(!L){ L = []; for(const d of cityData()) for(const l of d.lines) if(l.name === name && (l.kind === kind || (/^(tram|metro)$/.test(kind) && /^(tram|metro)$/.test(l.kind)))) for(const pts of (Array.isArray(l.pts?.[0]?.[0]) ? l.pts : [l.pts])) if(pts && pts.length > 1) L.push(pts);
       if(cityData().length) TTV.lineIx.set(key, L); }
-    for(const pts of L) look(pts, 300); if(best) return best; }
+    for(const pts of L) look(pts, 300); if(best) return best;
+    // no line of that name drawn: the nearest drawn line of that kind, if it's right there (Porto's 'B' trains on line 'Bx')
+    if(kind !== 'train' && !L.length){ for(const d of cityData()) for(const l of d.lines) if(/^(tram|metro)$/.test(l.kind) && (l.kind === kind || kind !== 'bus')) for(const pts of (Array.isArray(l.pts?.[0]?.[0]) ? l.pts : [l.pts])) if(pts && pts.length > 1) look(pts, 80); if(best) return best; } }
   if(kind !== 'train' || !railC(p) || typeof NRNET === 'undefined') return null;
   for(const dl of [-1, 0, 1]) for(const dn of [-1, 0, 1]){ const t = (Math.floor(p[0]*2) + dl) + '_' + (Math.floor(p[1]*2) + dn);
     if(!NRNET.tiles.has(t)){ NRNET.tiles.set(t, null); fetch('cities/nr/' + t + '.json').then(r => r.ok ? r.json() : []).then(j => { NRNET.tiles.set(t, j); NRNET.n++; }).catch(() => NRNET.tiles.set(t, [])); continue; }
