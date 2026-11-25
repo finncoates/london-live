@@ -226,6 +226,14 @@ body.dark #outage{background:#3a2a10;color:#ffe2b0;border-color:#7a5a20}
 #gfollow li span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 #gfollow time{font-variant-numeric:tabular-nums;flex:none}
 #gfollow .late{color:#c0392b}
+#howto{background:var(--soft);border-radius:12px;padding:9px 11px;margin:0 0 10px;font-size:12.5px;line-height:1.4}
+#howto[hidden]{display:none}
+#howto ul{margin:5px 0 7px;padding:0;list-style:none;display:grid;gap:4px}
+#howto .hv{display:inline-block;width:18px;height:9px;border-radius:3px;margin-right:6px;vertical-align:middle}
+#howto .hv.live{background:#E4002B}
+#howto .hv.sched{background:#f6c9d2;border:1.5px solid #E4002B}
+#howto .hb{display:flex;gap:6px;flex-wrap:wrap}
+#howto button{font-size:12.5px;padding:5px 10px}
 .alerts{display:grid;gap:4px;margin:6px 0 8px;font-size:12.5px}
 .alerts details{background:#fff4e5;color:#3b2600;border-radius:8px;padding:5px 8px}
 body.dark .alerts details{background:#3a2a10;color:#ffe2b0}
@@ -309,6 +317,10 @@ button.lnk{border:0;background:none;padding:0;color:var(--acc);font-weight:600;f
   </h1>
   <div id="status">Loading lines…</div>
   <div id="outage" role="status" hidden></div>
+  <div id="howto" hidden><b>How to read the map</b>
+    <ul><li><i class="hv live"></i>Solid: where the vehicle really is (live GPS)</li><li><i class="hv sched"></i>Pale with a coloured edge: placed from the timetable (with live delays where the network shares them)</li>
+    <li>Tap a vehicle for its next stops, or <b>Follow</b> it · tap a stop for its departures · <b>⌖</b> for what's near you</li></ul>
+    <div class="hb"><button type="button" id="howOk">Got it</button><button type="button" id="bInstall" hidden>Install as an app</button></div></div>
   <div id="explore" class="explore" hidden></div>
   <div class="search">
     <div class="field"><label for="q">Find</label><input id="q" placeholder="Search a station or line (e.g. 172)" autocomplete="off" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="sres" enterkeyhint="search"></div>
@@ -423,17 +435,18 @@ const store = {
   set(k,d,ms){ try{ localStorage.setItem(k, JSON.stringify({d,exp:Date.now()+ms})) }catch(e){} }
 };
 async function get(path){
-  if(window.__tflRelay && !KEY){ try{ const r = await fetch(window.__tflRelay + path); if(r.ok) return r.json(); }catch(e){} } // shared copy via the relay (TfL: 500 calls a minute for everyone); else straight to TfL
+  if(window.__tflRelay && !KEY){ try{ const r = await fetch(window.__tflRelay + path, {signal:AbortSignal.timeout(15000)}); if(r.ok) return r.json(); }catch(e){} } // shared copy via the relay (TfL: 500 calls a minute for everyone); else straight to TfL
   const url = API + path + (KEY ? (path.includes('?')?'&':'?') + KEY : '');
-  let r; try{ r = await fetch(url); }catch(e){ health('tfl', false); throw e; }
+  let r; try{ r = await fetch(url, {signal:AbortSignal.timeout(15000)}); }catch(e){ health('tfl', false); throw e; } // (a request that never answers no longer holds up the next refresh)
   if(!r.ok){ if(r.status >= 500) health('tfl', false); const e = new Error(r.status + ' ' + path); e.status = r.status; throw e; }
   health('tfl', true); return r.json();
 }
 // ---- which live sources are answering: a source that keeps failing gets a short note in the panel, so a gap on the
 // map is explained (25 Nov 2026: the server went silent overnight and UK trains just vanished, with no word why)
 const HEALTH = {};
-function health(src, ok){ const h = HEALTH[src] ||= {ok:0, fail:0, n:0}; if(ok){ h.ok = Date.now(); h.n = 0; } else { h.fail = Date.now(); h.n++; } if(typeof renderOutage === 'function') renderOutage(); }
-const down = src => { const h = HEALTH[src]; return !!h && h.n >= 2 && h.fail > h.ok; };
+function health(src, ok){ const h = HEALTH[src] ||= {ok:0, fail:0, n:0, first:0}; if(ok){ h.ok = Date.now(); h.n = 0; h.first = 0; } else { h.fail = Date.now(); if(!h.n++) h.first = h.fail; } if(typeof renderOutage === 'function') renderOutage(); }
+// down: failing for over a minute, three times or more, with no answer since (one burst of failed tiles on opening is not an outage)
+const down = src => { const h = HEALTH[src]; return !!h && h.n >= 3 && h.fail > h.ok && h.fail - h.first >= 60000; };
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 const cleanName = n => n.replace(/ (Underground|DLR|Rail) Station$/,'').replace(/ Station$/,'');
 const normName = n => cleanName(n||'').replace(/\s*\(London\)/,'').toLowerCase().trim();
@@ -1445,7 +1458,9 @@ function draw(ts){
   draw.hit = drawn;
   if(draw.ride) draw.ride(); // ride along: keep the map on the train every frame
   draw.ms = (draw.ms||0)*0.9 + (performance.now()-t0)*0.1;
-  if(!LOW && Q.get('quality') !== 'high' && ts > 20000 && draw.ms > 14 && (draw.slow = (draw.slow||0) + 1) > FPS*4){ LOW = true; FPS = Math.min(FPS, 15); console.info('low-power mode on'); }
+  if(draw.ms < 8) draw.slow = 0; // (only a run of slow frames counts: hiccups over hours on a TV screen used to add up)
+  if(!LOW && Q.get('quality') !== 'high' && ts > 20000 && draw.ms > 14 && (draw.slow = (draw.slow||0) + 1) > FPS*4){ LOW = draw.autoLow = true; draw.fps0 = FPS; FPS = Math.min(FPS, 15); draw.fast = 0; console.info('low-power mode on'); }
+  else if(LOW && draw.autoLow && draw.ms < 5 && (draw.fast = (draw.fast||0) + 1) > FPS*60){ LOW = draw.autoLow = false; FPS = draw.fps0 || 30; draw.slow = 0; console.info('low-power mode off'); } // a quiet minute (the busy city left behind): full speed again
   else if(draw.ms <= 14) draw.slow = 0;
 }
 requestAnimationFrame(draw);
@@ -4207,6 +4222,26 @@ addEventListener('keydown', e => {
 });
 const tick = () => { $('clock').textContent = new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}); };
 tick(); setInterval(tick, 1000);
+// first visit: how to read the map (once; and again after 'Got it' never); the browser's offer to install the app,
+// when it makes one, as a button there
+try{ if(!localStorage.getItem('howtoSeen') && !document.body.classList.contains('kiosk')) $('howto').hidden = false; }catch(e){}
+$('howOk').onclick = () => { $('howto').hidden = true; try{ localStorage.setItem('howtoSeen', '1'); }catch(e){} };
+let installEv = null;
+addEventListener('beforeinstallprompt', e => { e.preventDefault(); installEv = e; $('bInstall').hidden = false; if($('howto').hidden && !matchMedia('(display-mode: standalone)').matches){ try{ if(!localStorage.getItem('installNo')) $('howto').hidden = false; }catch(x){} } });
+$('bInstall').onclick = async () => { if(!installEv) return; installEv.prompt(); const r = await installEv.userChoice.catch(() => null); installEv = null; $('bInstall').hidden = true; if(r && r.outcome !== 'accepted') try{ localStorage.setItem('installNo', '1'); }catch(e){} };
+// ---- reliability: the map keeps going whatever one part does
+// script errors are kept (the last 30, for the smoke test and for debugging), not left to stop anything
+const ERRS = window.__errs = [];
+addEventListener('error', e => { ERRS.push((e.message || 'error') + ' @' + (e.lineno || '?')); if(ERRS.length > 30) ERRS.shift(); });
+addEventListener('unhandledrejection', e => { ERRS.push('promise: ' + String(e.reason?.message || e.reason).slice(0, 160)); if(ERRS.length > 30) ERRS.shift(); });
+// a refresh waiting on a request that never answered would hold its layer still for good: released after 90 s
+const BUSYS = [[GPS, 'live vehicles'], [RAIL, 'trains'], [TTV, 'timetable'], [BUS, 'buses'], [BIKES, 'bikes'], [SHARE, 'scooters'], [ROADS, 'roads']];
+setInterval(() => { const now = Date.now(); for(const [o, n] of BUSYS){ if(!o.busy){ o.busySince = 0; continue; } o.busySince ||= now; if(now - o.busySince > 90000){ o.busy = false; o.busySince = 0; console.warn('released a stuck refresh:', n); } } }, 10000);
+// back to the tab after a while (timers slow right down in the background): everything fetched again at once, not
+// left showing where vehicles were minutes ago
+let hiddenAt = 0;
+document.addEventListener('visibilitychange', () => { if(document.hidden){ hiddenAt = Date.now(); return; } if(!hiddenAt || Date.now() - hiddenAt < 20000) return; hiddenAt = 0;
+  for(const f of [refreshGps, refreshTT, refreshShips, () => railOn() && refreshRail(), () => !document.body.classList.contains('away') && refresh()]) try{ Promise.resolve(f()).catch(() => {}); }catch(e){} });
 map.addListener('dragstart', () => { $('tip').style.display = 'none'; hover = null; });
 map.addListener('zoom_changed', () => { $('tip').style.display = 'none'; hover = null; });
 renderModeChips(); renderLegend(); syncMapMenu();

@@ -411,16 +411,19 @@ async function ttTile(url, cors){
         const ch = cache ? await cache.match(ck).catch(() => null) : null; if(ch){ const v = await ch.json(); TT_MEM.set(key, v); return v; }
         const q = `zoom=${zm}&min=${la},${lo}&max=${la + sz},${lo + sz}&startTime=${new Date(bucket).toISOString()}&endTime=${new Date(bucket + 240000).toISOString()}`;
         const get = () => fetch('https://api.transitous.org/api/v5/map/trips?' + q, {headers:{'user-agent':'LondonLive/1.0 (+https://github.com/finncoates/london-live)'}, signal:AbortSignal.timeout(20000)}).catch(e => ({ok:false, status:e.message}));
-        let r = await get(); if(!r.ok){ await new Promise(ok => setTimeout(ok, 700)); r = await get(); } // Transitous turns away the odd burst: once more
-        const lastKey = la + ':' + lo + ':' + zm + ':' + sz, last = TT_LAST.get(lastKey);
-        if(!r.ok){ if(last && bucket - last.at <= 600000) return last.v; throw fail('Transitous: HTTP ' + r.status, 502); } // keep showing the last good answer (up to 10 min)
+        let r = await get(); for(const ms of [700, 1800]){ if(r.ok) break; await new Promise(ok => setTimeout(ok, ms)); r = await get(); } // Transitous turns away the odd burst: twice more
+        const lastKey = la + ':' + lo + ':' + zm + ':' + sz, last = TT_LAST.get(lastKey), lk = new Request('https://tt-cache.invalid/last/' + lastKey);
+        if(!r.ok){ if(last && bucket - last.at <= 600000) return last.v; // keep showing the last good answer (up to 10 min)
+          const lc = cache ? await cache.match(lk).catch(() => null) : null; if(lc) return await lc.json(); // (or another instance's, from the shared cache: a fresh instance has none of its own)
+          throw fail('Transitous: HTTP ' + r.status, 502); }
         const stop = s => [s.name, s.stopCode || null, +s.lat.toFixed(5), +s.lon.toFixed(5)];
         const box = [la, lo, la + sz, lo + sz], tol = sz >= 4 ? 0.02 : sz >= 2 ? 0.01 : sz >= 1 ? 0.005 : 0.0002;
         const v = (await r.json()).map(s => { const c = polyClip(s.polyline || '', Date.parse(s.departure), Date.parse(s.arrival), box, Math.max(0.03, sz*0.4));
           return [s.mode, s.routeColor || null, s.trips?.[0]?.displayName || '', stop(s.from), stop(s.to), c[1], c[2], s.realTime ? 1 : 0, s.trips?.[0]?.tripId || '', polyThin(c[0], tol)]; });
         TT_MEM.set(key, v); for(const k of TT_MEM.keys()) if(+k.split(':')[2] < bucket - 240000) TT_MEM.delete(k);
         TT_LAST.set(lastKey, {at:bucket, v}); if(TT_LAST.size > 400) TT_LAST.delete(TT_LAST.keys().next().value);
-        if(cache) await cache.put(ck, new Response(JSON.stringify(v), {headers:{'content-type':'application/json', 'cache-control':'public, max-age=240'}})).catch(() => {});
+        if(cache){ const body = JSON.stringify(v); await cache.put(ck, new Response(body, {headers:{'content-type':'application/json', 'cache-control':'public, max-age=240'}})).catch(() => {});
+          await cache.put(lk, new Response(body, {headers:{'content-type':'application/json', 'cache-control':'public, max-age=900'}})).catch(() => {}); }
         return v; })().finally(() => TT_WAIT.delete(key));
       TT_WAIT.set(key, w); }
     all = await w; }
