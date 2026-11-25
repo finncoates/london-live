@@ -79,7 +79,7 @@ http.createServer((req, res) => {
   const bbox = (b => b.length === 4 && b.every(isFinite) ? b : null)((u.searchParams.get('bbox') || '').split(',').map(Number));
   if(u.pathname === '/health') return send(200, {ok:true, trains:D.trains.size, messages:D.msgs, lastMessage:D.last ? new Date(D.last).toISOString() : null, received:D.raw || 0, darwin:!!env.DARWIN_BOOTSTRAP,
     ferries:{on:!!env.AISSTREAM_KEY, status:AIS.status, ships:AIS.list(null).length, messages:AIS.msgs},
-    feeds:Object.fromEntries([...FEEDS].map(([id, F]) => [id, {name:F.cfg.name, cc:F.cfg.cc || null, box:F.cfg.box || F.box || null, tt:F.cfg.tt || null, ttModes:F.cfg.ttModes || null, vehicles:F.vehicles.length, routes:F.routes.size, at:F.at ? new Date(F.at).toISOString() : null, error:F.error}]))});
+    feeds:Object.fromEntries([...FEEDS].map(([id, F]) => [id, {name:F.cfg.name, cc:F.cfg.cc || null, box:F.cfg.box || F.box || null, tt:F.cfg.tt || null, ttModes:F.cfg.ttModes || null, vehicles:F.vehicles.length, routes:F.routes.size, trips:F.trips.size, timetable:F.routesAt ? new Date(F.routesAt).toISOString() : F.routesLoading || null, timetableError:F.routesErr || null, at:F.at ? new Date(F.at).toISOString() : null, error:F.error}]))});
   if(u.pathname === '/ferries') return send(200, {at:Date.now(), ships:AIS.list(bbox)});
   if(u.pathname === '/rt'){ const F = FEEDS.get(u.searchParams.get('feed')); if(!F) return send(404, {error:'no such feed (on)'}); return send(200, {feed:F.cfg.id, name:F.cfg.name, at:F.at, error:F.error, vehicles:F.list(bbox)}); }
   if(u.pathname === '/trains'){

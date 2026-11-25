@@ -5,7 +5,7 @@
 //   live data (the relay, TfL)  never saved: positions are only ever live or timetable-now
 const V = 'v1', SHELL = 'shell-' + V, DATA = 'data-' + V, TILES = 'tiles-' + V;
 const LIMIT = {[DATA]: 4000, [TILES]: 3000};
-self.addEventListener('install', e => { e.waitUntil(caches.open(SHELL).then(c => c.addAll(['./', './maplibre-google.js', './manifest.webmanifest'])).catch(() => {}).then(() => self.skipWaiting())); });
+self.addEventListener('install', e => { e.waitUntil(caches.open(SHELL).then(c => c.addAll(['./', './maplibre-google.js', './i18n.js', './manifest.webmanifest'])).catch(() => {}).then(() => self.skipWaiting())); });
 self.addEventListener('activate', e => { e.waitUntil(caches.keys().then(ks => Promise.all(ks.filter(k => ![SHELL, DATA, TILES].includes(k)).map(k => caches.delete(k)))).then(() => self.clients.claim())); });
 const trim = async name => { const c = await caches.open(name), ks = await c.keys(); for(let i = 0; i < ks.length - LIMIT[name]; i++) await c.delete(ks[i]); };
 let trimT = 0;

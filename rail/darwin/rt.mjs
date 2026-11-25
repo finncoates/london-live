@@ -81,15 +81,15 @@ export class Feed {
   headers(){ const h = {}; for(const [k, v] of Object.entries(this.cfg.headers || {})) h[k] = String(v).replace(/\$([A-Z_]+)/g, (_, n) => this.env[n] || ''); return h; }
   get enabled(){ return !this.cfg.needs || this.cfg.needs.every(n => this.env[n]); }
   async loadRoutes(){ if(!this.cfg.gtfs) return; // one feed at a time: a small server can't read many timetables at once
-    const turn = LOADQ.then(() => this._loadRoutes()); LOADQ = turn.catch(() => {}); return turn; }
+    this.routesLoading = 'queued'; const turn = LOADQ.then(() => { this.routesLoading = 'now'; return this._loadRoutes(); }); LOADQ = turn.catch(() => {}); return turn; }
   async _loadRoutes(){
     try{ const f = await zipFiles(this.sub(this.cfg.gtfs), ['routes.txt', 'agency.txt', ...(this.cfg.trips === true ? ['trips.txt'] : [])], this.cfg.gtfsHeaders ? this.headers() : {});
       const ag = new Map((f['agency.txt'] ? csv(f['agency.txt']) : []).map(a => [a.agency_id, a.agency_name]));
       this.routes = new Map(csv(f['routes.txt'] || '').map(r => [r.route_id, {name:r.route_short_name || r.route_long_name || '', kind:kindOf(r.route_type),
         col:/^[0-9a-f]{6}$/i.test(r.route_color || '') ? '#' + r.route_color : null, op:ag.get(r.agency_id) || (ag.size === 1 ? [...ag.values()][0] : '') || ''}]));
       if(f['trips.txt']){ this.trips = new Map(); this.trips = tripRoutes(f['trips.txt']); } // a feed that gives only the trip: its route from the timetable
-      console.log(this.cfg.id, 'routes:', this.routes.size, 'trips:', this.trips.size); }
-    catch(e){ console.warn(this.cfg.id, 'routes', e.message); } }
+      console.log(this.cfg.id, 'routes:', this.routes.size, 'trips:', this.trips.size); this.routesAt = Date.now(); this.routesErr = null; }
+    catch(e){ console.warn(this.cfg.id, 'routes', e.message); this.routesErr = e.message; } finally{ this.routesLoading = false; } }
   async poll(){
     try{ const r = await fetch(this.sub(this.cfg.url), {headers:{...UA, ...this.headers()}, signal:AbortSignal.timeout(30000)});
       if(!r.ok) throw new Error('HTTP ' + r.status);

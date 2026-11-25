@@ -315,6 +315,7 @@ button.lnk{border:0;background:none;padding:0;color:var(--acc);font-weight:600;f
 #lkHint{flex:1 1 100%;text-align:center;font-weight:400;font-size:12.5px;opacity:.9}
 #lkSim{flex:1 1 100%}
 </style>
+<script src="i18n.js"></script>
 </head>
 <body>
 <div id="map"></div>
@@ -2027,8 +2028,8 @@ function renderOutage(){
   if(rg === 'london' && down('tfl')) msgs.push('TfL’s live data isn’t answering: Tube and bus positions may be out of date.');
   const boxes = Object.keys(SRV.feeds).length ? Object.values(SRV.feeds).map(f => f.box) : (() => { try{ return JSON.parse(localStorage.getItem('srvBoxes') || '[]'); }catch(e){ return []; } })(); // (the server down since the page opened: where its feeds were last time)
   if(!uk && down('server') && boxes.some(b => b && p[0] >= b[0] && p[0] <= b[2] && p[1] >= b[1] && p[1] <= b[3]))
-    msgs.push('Some live GPS feeds here aren’t available right now: vehicles are placed from the timetable instead.');
-  if(!uk && down('tt')) msgs.push('The European timetable service (Transitous) isn’t answering: some trams, buses and trains may be missing.');
+    msgs.push(T('Some live GPS feeds here aren’t available right now: vehicles are placed from the timetable instead.'));
+  if(!uk && down('tt')) msgs.push(T('The European timetable service (Transitous) isn’t answering: some trams, buses and trains may be missing.'));
   const html = msgs.map(m => '⚠ ' + esc(m)).join('<br>'); if(el.innerHTML !== html) el.innerHTML = html; el.hidden = !msgs.length; }
 setInterval(renderOutage, 5000); // (feeds whose area is learnt a little later still join within two minutes)
 function gpsOnly(...keep){ keep.push('ais:'); for(const k of [...GPS.list.keys()]){ const src = GPS_SRC.find(x => k.startsWith(x)) || 'uk'; if(!keep.includes(src)) GPS.list.delete(k); } } // (live ferries stay everywhere)
@@ -3038,7 +3039,7 @@ function ttTick(){ if(!TTV.ferries || !TRAINS_ON || inTfLArea([map.getCenter().l
     { const lk = liveAt.get(kind0(s[0]) + '|' + String(name || '').toLowerCase()); if(lk && lk.some(q => Math.abs(q[0] - p[0]) < 0.011 && Math.abs(q[1] - p[1]) < 0.016 && dist(q, p) < 1200)) continue; }
     const id = 'tf:' + trip; seen.add(id); let g = GPS.list.get(id);
     const m = s[0], kind = /FERRY/.test(m) ? 'ferry' : /BUS|COACH/.test(m) ? 'bus' : /TRAM/.test(m) ? 'tram' : /SUBWAY|METRO/.test(m) ? 'metro' : 'train';
-    const fid = s[8].split('_')[2] || '', feed = FEEDN[fid] != null ? FEEDN[fid] : fid.replace(/^[a-z]{2}-/, '').replace(/[-_]+/g, ' ').replace(/\b\w/g, c => c.toUpperCase()).replace(/\bSncf\b/, 'SNCF').replace(/\bRatp\b/, 'RATP').replace(/\bFor\b/, 'for'); // the timetable it comes from (Transport for Ireland, SNCF…)
+    const fid = s[8].split('_')[2] || '', feed = FEEDN[fid] != null ? FEEDN[fid] : fid.replace(/^[a-z]{2}-/, '').replace(/[-_]+/g, ' ').replace(/(^|[\s'’])(\p{Ll})/gu, (m, a, c) => a + c.toUpperCase()) /* (\b\w made 'Kraków' 'KrakóW') */.replace(/\bSncf\b/, 'SNCF').replace(/\bRatp\b/, 'RATP').replace(/\bFor\b/, 'for'); // the timetable it comes from (Transport for Ireland, SNCF…)
     const v = {id, line:/^(rail|bus|tram|train)$/i.test(name) ? '' : name, op:kind !== 'ferry' ? feed || 'Timetable' : /^CM\d|^\d+[A-Z]?$/.test(name) ? 'CalMac' : 'Ferry', dest:(TRIPI.get(trip)?.dest || to[0]).replace(/ (Ferry )?Terminal$/i, ''), from:TRIPI.get(trip) ? null : from[0].replace(/ (Ferry )?Terminal$/i, ''), next:TRIPI.get(trip) ? to[0] : null, trip, lat:p[0], lon:p[1], kind, sched:!s[7], est:!!s[7], t:null,
       train:kind === 'train', tram:kind === 'tram', metro:kind === 'metro', col:kind === 'bus' && CITYL.cur?.bus ? CITYL.cur.bus[0] /* one colour for a city's buses (as London's red), not their route colours, which clash with the metro's */ : col && /^[0-9a-f]{6}$/i.test(col) ? inkA('#' + col.toLowerCase()) : cityLineCol(kind, name) || {ferry:'#00A0E2', train:'#1D5BA0', tram:'#7A1F3D', metro:'#0E4C92', bus:'#DC241F'}[kind],
       segAng:Math.atan2(-(B[0]-A[0]), (B[1]-A[1])*Math.cos(A[0]*rad))};
@@ -3457,7 +3458,7 @@ function applyRegion(){
   { const t = $('ttl'), fit = m => { t.style.fontSize = ''; for(let f = 17; f >= m && t.scrollWidth > t.clientWidth + 1; f--) t.style.fontSize = f + 'px'; return t.scrollWidth <= t.clientWidth + 1; };
     if(!fit(14) && / map$/.test(t.textContent)){ t.textContent = t.textContent.replace(/ map$/, ''); fit(13); } } // long names shrink a little rather than being cut off
   $('bFit').title = away ? 'Near me (tap again: the area around you)' : 'Near me (tap again: all of London)';
-  $('q').placeholder = !away ? 'Search a station, line or place (e.g. 172)' : abroad ? 'Search a stop, line or place' : 'Search a stop, route or place (e.g. X1)';
+  $('q').placeholder = !away ? 'Search a station, line or place (e.g. 172)' : abroad ? T('Search a stop, line or place') : 'Search a stop, route or place (e.g. X1)';
   if(typeof onTrainsUpdate === 'function') onTrainsUpdate(ACTIVE.reduce((s, l) => s + (shown(l) ? l.count : 0), 0));
 }
 map.addListener('idle', applyRegion);
@@ -4307,7 +4308,7 @@ function shareLink(extra){ const u = new URL(location.origin + location.pathname
   for(const [k, v] of Object.entries(extra)) u.searchParams.set(k, v); return u.toString(); }
 async function doShare(url, title){
   try{ if(navigator.share && matchMedia('(pointer:coarse)').matches){ await navigator.share({title, url}); return; } }catch(e){ if(e && e.name === 'AbortError') return; }
-  try{ await navigator.clipboard.writeText(url); toast('Link copied'); }catch(e){ const el = $('err'); el.innerHTML = `Copy this link: <input readonly value="${esc(url)}" style="width:100%" onfocus="this.select()">`; clearTimeout(toast.t); toast.t = setTimeout(() => { el.textContent = ''; }, 12000); } }
+  try{ await navigator.clipboard.writeText(url); toast(T('Link copied')); }catch(e){ const el = $('err'); el.innerHTML = `Copy this link: <input readonly value="${esc(url)}" style="width:100%" onfocus="this.select()">`; clearTimeout(toast.t); toast.t = setTimeout(() => { el.textContent = ''; }, 12000); } }
 function toast(t){ const el = $('err'); el.textContent = t; clearTimeout(toast.t); toast.t = setTimeout(() => { if(el.textContent === t) el.textContent = ''; }, 3000); }
 $('station').addEventListener('click', e => { if(!e.target.closest('#stShare') || !CARD) return;
   doShare(shareLink(CARD.t === 'ldn' ? {station:CARD.name} : {stop:CARD.name, view:[(+CARD.lat).toFixed(5), (+CARD.lon).toFixed(5), 16].join(',')}), CARD.name + ' · live departures'); });
@@ -4324,6 +4325,7 @@ if(Q.get('follow')) (async () => { const id = Q.get('follow');
   toast('That vehicle isn’t on the map any more (its trip may have ended)'); })();
 // first visit: how to read the map (once; and again after 'Got it' never); the browser's offer to install the app,
 // when it makes one, as a button there
+if(LANG !== 'en'){ const li = $('howto').querySelectorAll('li'); if(li[2]) li[2].innerHTML = T('HOWTO3'); } // (the line with bold words: whole, translated)
 try{ if(!localStorage.getItem('howtoSeen') && !document.body.classList.contains('kiosk')) $('howto').hidden = false; }catch(e){}
 $('howOk').onclick = () => { $('howto').hidden = true; try{ localStorage.setItem('howtoSeen', '1'); }catch(e){} };
 let installEv = null;
