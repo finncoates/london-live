@@ -1388,6 +1388,45 @@ async function refresh(){
 // Where is a train right now?
 // zoomed right in on a station: its platform numbers, at the end of each platform's track nearest the station's
 // entrance (from OpenStreetMap; the trains standing there are on the same tracks)
+// ---------- every track (cities/osm_tracks.py): the rail map draws one line per corridor; a four-track main line
+// (Brockley) is four tracks here. From zoom 15 they are drawn, and each train runs on the track for its direction ----------
+const TRK = {sq:new Map(), Z:15};
+function trkSquare(i, j){ const k = i + '_' + j; let v = TRK.sq.get(k);
+  if(v === undefined){ TRK.sq.set(k, null); fetch('cities/tracks/' + k + '.json').then(r => r.ok ? r.json() : []).then(L => TRK.sq.set(k, (L || []).map(([d, pts]) => {
+      let a = 90, b = -90, c = 180, e = -180; for(const q of pts){ if(q[0] < a) a = q[0]; if(q[0] > b) b = q[0]; if(q[1] < c) c = q[1]; if(q[1] > e) e = q[1]; } return {d, pts, bb:[a, b, c, e]}; })))
+      .catch(() => TRK.sq.set(k, [])); return null; }
+  return v; }
+function trkNear(p, r){ const out = [], m = r/111320, i0 = Math.floor((p[0] - m)*10), i1 = Math.floor((p[0] + m)*10), j0 = Math.floor((p[1] - m*1.7)*10), j1 = Math.floor((p[1] + m*1.7)*10);
+  for(let i = i0; i <= i1; i++) for(let j = j0; j <= j1; j++){ const L = trkSquare(i, j); if(L) for(const t of L) if(t.bb[0] - m < p[0] && p[0] < t.bb[1] + m && t.bb[2] - m*1.7 < p[1] && p[1] < t.bb[3] + m*1.7) out.push(t); }
+  return out; }
+function drawTracks(ctx, s){
+  if(PV.z < TRK.Z || !nrLondon()) return; const b = map.getBounds(); if(!b) return; const sw = b.getSouthWest(), ne = b.getNorthEast(), dark = document.body.classList.contains('dark');
+  ctx.save(); ctx.lineCap = 'butt'; ctx.lineJoin = 'round'; ctx.lineWidth = Math.max(1.6, lineW()*0.42); ctx.strokeStyle = dark ? '#7c848e' : '#8f969f'; ctx.globalAlpha = window.DIM_TRAINS ? 0.15 : 1;
+  const seen = new Set(); ctx.beginPath();
+  for(let i = Math.floor(sw.lat()*10); i <= Math.floor(ne.lat()*10); i++) for(let j = Math.floor(sw.lng()*10); j <= Math.floor(ne.lng()*10); j++){ const L = trkSquare(i, j); if(!L) continue;
+    for(const t of L){ if(seen.has(t.pts) || t.bb[1] < sw.lat() || t.bb[0] > ne.lat() || t.bb[3] < sw.lng() || t.bb[2] > ne.lng()) continue; seen.add(t.pts);
+      t.pts.forEach((q, k) => { const w = scr(q); k ? ctx.lineTo(w.x, w.y) : ctx.moveTo(w.x, w.y); }); } }
+  ctx.stroke(); ctx.restore(); }
+// the track a train at p, travelling (east, north) = (ve, vn), runs on: the way trains use it where OSM says, else
+// Britain's left-hand running (the nearest track on its left); it keeps its track while that one still runs alongside
+function trkFor(t, p, ve, vn){
+  const now = performance.now(); if(t.trkAt && now - t.trkAt < 400 && t.trk){ const q = trkOn(t.trk, p); if(q && q.d < 45) return Object.assign(q, {t:t.trk}); }
+  t.trkAt = now; const L = Math.hypot(ve, vn) || 1, ux = ve/L, uy = vn/L, kx = Math.cos(p[0]*rad), cand = [];
+  for(const tr of trkNear(p, 45)){ const q = trkOn(tr, p); if(!q || q.d > 45) continue;
+    const dot = q.se*ux + q.sn*uy; if(Math.abs(dot) < 0.85) continue; // not alongside
+    if(tr.d && dot*tr.d < 0) continue; // trains run the other way on it
+    const side = -uy*((q.p[1] - p[1])*111320*kx) + ux*((q.p[0] - p[0])*111320); // + : left of the way it travels (east, north)·(−uy, ux)
+    cand.push({tr, q, side, dir:tr.d ? 1 : 0}); }
+  if(!cand.length){ t.trk = null; return null; }
+  const cur = t.trk && cand.find(c => c.tr === t.trk);
+  const pick = cur || cand.filter(c => c.dir).sort((a, b) => a.q.d - b.q.d)[0] || cand.filter(c => c.side > 0.8).sort((a, b) => a.side - b.side)[0] || cand.sort((a, b) => a.q.d - b.q.d)[0];
+  t.trk = pick.tr; return Object.assign(pick.q, {t:pick.tr}); }
+// nearest point on a track: {p, d metres, i segment, se/sn its direction (unit, east/north, first point → last)}
+function trkOn(tr, p){ const P = tr.pts, kx = Math.cos(p[0]*rad); let best = null;
+  for(let i = 1; i < P.length; i++){ const a = P[i-1], b = P[i], dx = (b[1]-a[1])*kx, dy = b[0]-a[0], L2 = dx*dx + dy*dy; if(!L2) continue;
+    const u = Math.max(0, Math.min(1, ((p[1]-a[1])*kx*dx + (p[0]-a[0])*dy)/L2)), q = [a[0] + dy*u, a[1] + (b[1]-a[1])*u], d = Math.hypot((q[1]-p[1])*kx, q[0]-p[0])*111320;
+    if(!best || d < best.d){ const l = Math.sqrt(L2); best = {p:q, d, i, se:dx/l, sn:dy/l}; } }
+  return best; }
 const PLAT_OK = /^([0-9]{1,3}[A-Z]?|[A-Z]{1,2}[0-9]{0,2})$/; // a platform's name (7, 7A, B, A1), not a running line's ("5 UP")
 function drawPlatNums(ctx, s){
   if(PV.z < 15 || STOPS_OFF.has('train') || !SHOW_ST) return;
@@ -1523,7 +1562,12 @@ function frame(ts, sync){
     let dA = Math.atan2(Math.sin(ang-(t.ang??ang)), Math.cos(ang-(t.ang??ang)));
     if(dA > Math.PI/2) dA -= Math.PI; else if(dA < -Math.PI/2) dA += Math.PI;
     t.ang = (t.ang??ang) + dA*ka;
-    const c = scr(t.d), lane = trainLane(t, l); if(lane){ c.x += lane.x; c.y += lane.y; }
+    let c = scr(t.d), lane = trainLane(t, l), TK = null;
+    if(t.rail && PV.z >= TRK.Z && !t.onPlat && on.a && on.b){ TK = trkFor(t, t.d, (on.b[1]-on.a[1])*cosLat, on.b[0]-on.a[0]); // on the track for its direction
+      if(TK){ const o = t.trkO || (t.trkO = [0, 0]); o[0] += (TK.p[0] - t.d[0] - o[0])*0.2; o[1] += (TK.p[1] - t.d[1] - o[1])*0.2; c = scr([t.d[0] + o[0], t.d[1] + o[1]]); lane = null;
+        const a2 = Math.atan2(-TK.sn, TK.se); let dA = Math.atan2(Math.sin(a2 - t.ang), Math.cos(a2 - t.ang)); if(dA > Math.PI/2) dA -= Math.PI; else if(dA < -Math.PI/2) dA += Math.PI; t.ang += dA*ka; } }
+    if(!TK && t.trkO){ t.trkO[0] *= 0.8; t.trkO[1] *= 0.8; if(Math.abs(t.trkO[0]) + Math.abs(t.trkO[1]) < 1e-6) t.trkO = null; else { const w = scr([t.d[0] + t.trkO[0], t.d[1] + t.trkO[1]]); c.x = w.x; c.y = w.y; } }
+    if(lane){ c.x += lane.x; c.y += lane.y; }
     if(c.x<-40||c.y<-40||c.x>s.x+40||c.y>s.y+40) continue;
     const cs = Math.cos(t.ang), sn = Math.sin(t.ang);
     [hl, hw] = size(l); if(l.mode === 'bus' && hl <= hl0){ hl = Math.max(5, hl0*0.5); hw = Math.max(2.4, hw0*0.9); } // buses: short and stubby
@@ -1537,9 +1581,11 @@ function frame(ts, sync){
       const at = (d0, j) => { const f = (d0 - C[j-1])/((C[j]-C[j-1]) || 1); return [P[j-1][0] + (P[j][0]-P[j-1][0])*f, P[j-1][1] + (P[j][1]-P[j-1][1])*f]; };
       const pts = [at(a0, j0)]; for(let j = j0; j < j1; j++) if(C[j] > a0 && C[j] < a1) pts.push(P[j]); pts.push(at(a1, j1));
       if(pts.length > 2){ const ox = lane ? lane.x : 0, oy = lane ? lane.y : 0; body = pts.map(q => { const w = scr(q); return [w.x + ox, w.y + oy]; }); } }
+    if(TK){ const B = bodyAlong(TK.t.pts, TK.i, TK.p, hl*mpp); if(B && B.length > 2){ const w0 = scr(TK.p), sh = c.x - w0.x, sv = c.y - w0.y; body = B.map(q => { const w = scr(q); return [w.x + sh, w.y + sv]; }); } else body = null; }
     const item = [t, c.x, c.y, c.x, c.y, r, cs, sn, hl, hw, body]; drawn.push(item);
     if(!byLine.has(l)) byLine.set(l, []); byLine.get(l).push(item);
   }
+  drawTracks(ctx, s); // zoomed in: every track
   drawPlatNums(ctx, s); // zoomed right in: each platform's number at its end
   fanLondon(drawn, mpp); // trains piled at a station (a terminus, an interchange): side by side, as on their platforms
   // "Show trains" off: no train shapes (your own train, if any, still shows)
@@ -2984,9 +3030,9 @@ function drawNRWorld(g, zi, W){
   g.save(); g.lineJoin = 'round'; g.lineCap = 'round'; const w = Math.max(1.6, W*(zi >= 12 ? 0.95 : 0.75));
   for(const [t, ps] of sets){ const key = 'w' + t + '@' + zi; let path = NRNET.path.get(key);
     if(!path){ path = new Path2D(); for(const poly of ps) poly.forEach((q, i) => { const p2 = world(q, zi); i ? path.lineTo(p2[0], p2[1]) : path.moveTo(p2[0], p2[1]); }); NRNET.path.set(key, path); if(NRNET.path.size > 120) NRNET.path.delete(NRNET.path.keys().next().value); }
-    g.globalAlpha = (zi < 12 ? 0.5 : 0.75)*(window.DIM_TRAINS ? 0.15 : 1); g.strokeStyle = dark ? '#8A939C' : '#5D6670'; g.lineWidth = w; g.stroke(path); // London's network is dense: a step quieter than the Tube
+    g.globalAlpha = (zi < 12 ? 0.5 : zi >= TRK.Z ? 0.22 : 0.75)*(window.DIM_TRAINS ? 0.15 : 1); g.strokeStyle = dark ? '#8A939C' : '#5D6670'; g.lineWidth = zi >= TRK.Z ? w*1.6 : w; g.stroke(path); // (zoomed in: faint, a band behind the corridor's tracks) // London's network is dense: a step quieter than the Tube
     (drawNRWorld.inner || (drawNRWorld.inner = [])).push(path); }
-  if(zi >= 10 && w >= 2.5){ g.globalAlpha = window.DIM_TRAINS ? 0.15 : 1; g.strokeStyle = MAP_BG(); g.lineWidth = w/3; for(const path of drawNRWorld.inner) g.stroke(path); } drawNRWorld.inner = [];
+  if(zi >= 10 && zi < TRK.Z && w >= 2.5){ g.globalAlpha = window.DIM_TRAINS ? 0.15 : 1; g.strokeStyle = MAP_BG(); g.lineWidth = w/3; for(const path of drawNRWorld.inner) g.stroke(path); } drawNRWorld.inner = [];
   if(zi >= 13 && SHOW_ST && !STOPS_OFF.has('train')){ const r = Math.max(2.5, W*0.55); g.globalAlpha = window.DIM_TRAINS ? 0.15 : 1; g.lineWidth = Math.max(1.5, W*0.3); // stations only National Rail serves (Bromley South, Queens Road Peckham…)
     for(const st of nrOnlyStations()){ const p2 = world(nrSnap(st, sets), zi); g.beginPath(); g.arc(p2[0], p2[1], r, 0, 7); g.fillStyle = dark ? '#1b1c1f' : '#fff'; g.fill(); g.strokeStyle = dark ? '#c9ced4' : '#5D6670'; g.stroke(); } }
   g.restore(); }
