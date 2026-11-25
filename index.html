@@ -211,8 +211,27 @@ body.away #mapMenu .ldn-only, body.away #mapMenu .ldn-txt, body:not(.away) #mapM
 #clock{position:fixed;right:16px;bottom:30px;z-index:1000;font-weight:800;font-size:30px;font-variant-numeric:tabular-nums;color:var(--ink);text-shadow:0 0 8px var(--bg);display:none}
 body.kiosk #panel{display:none} body.kiosk #clock{display:block} body.boardon #clock{display:none!important}
 body.kiosk #map{bottom:0!important}
+#outage{background:#fff4e5;color:#3b2600;border:1px solid #f3c784;border-radius:10px;padding:7px 10px;margin:6px 0 8px;font-size:12.5px;line-height:1.35}
+body.dark #outage{background:#3a2a10;color:#ffe2b0;border-color:#7a5a20}
 #follow{background:var(--soft);border-radius:12px;padding:9px 11px;margin-bottom:10px;display:flex;align-items:center;gap:8px;font-size:13.5px}
-#follow .sw{width:6px;align-self:stretch;border-radius:3px;flex:none}
+#follow .sw,#gfollow .sw{width:6px;align-self:stretch;border-radius:3px;flex:none}
+#gfollow{background:var(--soft);border-radius:12px;padding:9px 11px;margin-bottom:10px;display:flex;gap:8px;font-size:13.5px}
+#gfollow[hidden]{display:none}
+#gfollow .ft{flex:1;min-width:0}
+#gfollow small{display:block;color:var(--mute);font-size:12px}
+#gfollow .gfb{display:flex;flex-direction:column;gap:6px;flex:none}
+#gfollow button{font-size:12.5px;padding:5px 9px}
+#gfollow ol{list-style:none;margin:6px 0 0;padding:0 0 0 10px;border-left:3px solid var(--c);display:grid;gap:2px;font-size:12.5px}
+#gfollow li{display:flex;justify-content:space-between;gap:8px}
+#gfollow li span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#gfollow time{font-variant-numeric:tabular-nums;flex:none}
+#gfollow .late{color:#c0392b}
+.alerts{display:grid;gap:4px;margin:6px 0 8px;font-size:12.5px}
+.alerts details{background:#fff4e5;color:#3b2600;border-radius:8px;padding:5px 8px}
+body.dark .alerts details{background:#3a2a10;color:#ffe2b0}
+.alerts summary{cursor:pointer;line-height:1.35}
+.alerts p{margin:5px 0 0;white-space:pre-line}
+.alerts a{color:inherit}
 #follow .ft{flex:1;min-width:0}
 #follow small{display:block;color:var(--mute);font-size:12px}
 #follow button{font-size:12.5px;padding:5px 9px;flex:none}
@@ -289,6 +308,7 @@ button.lnk{border:0;background:none;padding:0;color:var(--acc);font-weight:600;f
     <button id="bTheme" class="icon" title="Dark / light (D)" aria-label="Switch dark or light map">🌓</button>
   </h1>
   <div id="status">Loading lines…</div>
+  <div id="outage" role="status" hidden></div>
   <div id="explore" class="explore" hidden></div>
   <div class="search">
     <div class="field"><label for="q">Find</label><input id="q" placeholder="Search a station or line (e.g. 172)" autocomplete="off" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="sres" enterkeyhint="search"></div>
@@ -296,6 +316,7 @@ button.lnk{border:0;background:none;padding:0;color:var(--acc);font-weight:600;f
   </div>
   <div id="station" hidden></div>
   <div id="follow" hidden></div>
+  <div id="gfollow" hidden></div>
   <div id="mapMenu" class="mapmenu" hidden>
     <label class="mm-row ldn-only"><span>Live mode <span class="st st1" style="vertical-align:1px">New</span><small>Tap a train for its speed, depth underground, next stops and distance from you; ride along with it; pin a station; and on phones, Look down to see the Tube under your feet through the camera.</small></span><input type="checkbox" id="mLive" class="switch"></label>
     <div class="mm-row"><span>Map style</span>
@@ -404,10 +425,15 @@ const store = {
 async function get(path){
   if(window.__tflRelay && !KEY){ try{ const r = await fetch(window.__tflRelay + path); if(r.ok) return r.json(); }catch(e){} } // shared copy via the relay (TfL: 500 calls a minute for everyone); else straight to TfL
   const url = API + path + (KEY ? (path.includes('?')?'&':'?') + KEY : '');
-  const r = await fetch(url);
-  if(!r.ok){ const e = new Error(r.status + ' ' + path); e.status = r.status; throw e; }
-  return r.json();
+  let r; try{ r = await fetch(url); }catch(e){ health('tfl', false); throw e; }
+  if(!r.ok){ if(r.status >= 500) health('tfl', false); const e = new Error(r.status + ' ' + path); e.status = r.status; throw e; }
+  health('tfl', true); return r.json();
 }
+// ---- which live sources are answering: a source that keeps failing gets a short note in the panel, so a gap on the
+// map is explained (25 Nov 2026: the server went silent overnight and UK trains just vanished, with no word why)
+const HEALTH = {};
+function health(src, ok){ const h = HEALTH[src] ||= {ok:0, fail:0, n:0}; if(ok){ h.ok = Date.now(); h.n = 0; } else { h.fail = Date.now(); h.n++; } if(typeof renderOutage === 'function') renderOutage(); }
+const down = src => { const h = HEALTH[src]; return !!h && h.n >= 2 && h.fail > h.ok; };
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 const cleanName = n => n.replace(/ (Underground|DLR|Rail) Station$/,'').replace(/ Station$/,'');
 const normName = n => cleanName(n||'').replace(/\s*\(London\)/,'').toLowerCase().trim();
@@ -1557,7 +1583,7 @@ async function refreshRail(){
     if(!hubs.list.length){ RAIL.msg = 'no stations near'; return; }
     RAIL.busy = true; let res; try{
       // Darwin (every train's real running) when the relay has it; otherwise the departure boards of the stations around
-      if(RAIL.darwin){ res = await railGet('/darwin/trains?bbox=' + railBox()).catch(() => null); RAIL.src = res && (res.trains || []).length ? 'darwin' : 'boards'; }
+      if(RAIL.darwin){ res = await railGet('/darwin/trains?bbox=' + railBox()).catch(() => null); RAIL.src = res && (res.trains || []).length ? 'darwin' : 'boards'; health('darwin', !!(res && !res.error && (res.trains || []).length)); }
       if(!res || !(res.trains || []).length) res = await railGet('/trains?crs=' + hubs.list.join(','));
     } finally { RAIL.busy = false; }
     const t0 = Date.now(), seen = new Set(); let newStops = false;
@@ -1933,13 +1959,14 @@ const LIVE_ABROAD = [ // (Rennes: STAR's own API has a daily limit shared by eve
 const SRV = {feeds:{}, ferries:false, at:0};
 async function srvSetup(){
   if(!RAIL.relay || RAIL.relay === 'demo' || !RAIL.darwin) return;
-  try{ const h = await (await fetch(RAIL.relay + '/srv/health', {signal:AbortSignal.timeout(10000)})).json(); SRV.at = Date.now(); SRV.ferries = !!(h.ferries && h.ferries.on && h.ferries.ships);
+  try{ const h = await (await fetch(RAIL.relay + '/srv/health', {signal:AbortSignal.timeout(10000)})).json(); if(h.error || !h.feeds) throw new Error(h.error || 'no feeds'); health('server', true); SRV.at = Date.now(); SRV.ferries = !!(h.ferries && h.ferries.on && h.ferries.ships);
     for(const [id, f] of Object.entries(h.feeds || {})){ if(!f.box || f.error && !f.vehicles) continue;
       if(SRV.feeds[id]){ const x = SRV.feeds[id].entry; x[1] = f.box; x[4] = new RegExp(f.tt || '^$', 'i'); x[5] = new RegExp(f.ttModes || 'BUS'); continue; } // known: just keep its settings current
       SRV.feeds[id] = f; SRV.added = true; LIVE_ABROAD.push(f.entry = [f.name.replace(/ \(.*\)$/, ''), f.box, () => { const b = map.getBounds(), sw = b.getSouthWest(), ne = b.getNorthEast(); return `${RAIL.relay}/srv/rt?feed=${id}&bbox=${[sw.lat(), sw.lng(), ne.lat(), ne.lng()].map(x => x.toFixed(2)).join(',')}`; },
         j => (j.vehicles || []).map(v => ({id:'la:' + id + ':' + v.id, line:v.line || '', op:v.op || f.name, dest:'', lat:v.lat, lon:v.lon, brg:v.bearing ? v.bearing : null, t:v.at || null, kind:v.kind, tram:v.kind === 'tram', metro:v.kind === 'metro', train:v.kind === 'train', col:v.kind === 'bus' && CITYL.cur?.bus ? CITYL.cur.bus[0] : v.col ? inkA(v.col.toLowerCase()) : cityLineCol(v.kind, v.line)})), // buses in the city's one bus colour, as the timetable's; others their line's
         new RegExp(f.tt || '^$', 'i'), new RegExp(f.ttModes || 'BUS'), f.cc || null]); } }
-  catch(e){ console.warn('server', e); }
+  catch(e){ console.warn('server', e); health('server', false); }
+  try{ const bx = Object.values(SRV.feeds).map(f => f.box).filter(Boolean); if(bx.length) localStorage.setItem('srvBoxes', JSON.stringify(bx)); }catch(e){}
   if(SRV.added){ SRV.added = false; setTimeout(() => refreshGps().catch(() => {}), 50); } } // new live feeds: show their vehicles now, not at the next refresh
 // live ferries (AIS, from the server): every passenger ship and fast ferry in view, where it really is
 async function refreshShips(){
@@ -1951,7 +1978,19 @@ async function refreshShips(){
     gpsMerge({vehicles:vs}, 'ais:'); SRV.shipsAt = Date.now(); }
   catch(e){} }
 setInterval(refreshShips, 20000); map.addListener('idle', () => { clearTimeout(SRV.st); SRV.st = setTimeout(refreshShips, 1200); });
-setTimeout(srvSetup, 4000); setTimeout(srvSetup, 15000); setInterval(srvSetup, 120000); // (feeds whose area is learnt a little later still join within two minutes)
+setTimeout(srvSetup, 4000); setTimeout(srvSetup, 15000); setInterval(srvSetup, 120000); setInterval(() => { if(down('server')) srvSetup(); }, 30000); // (while it's down: tried every 30 s, so the note goes soon after it's back)
+// the panel's note on live sources not answering, for the place in view (nothing when all is well)
+function renderOutage(){
+  const el = $('outage'); if(!el || !map || !map.getCenter) return; const c = map.getCenter(); if(!c) return; const p = [c.lat(), c.lng()], rg = regionOf(p), msgs = [];
+  const uk = rg === 'london' || rg === 'uk' || rg === 'edinburgh';
+  if(uk && (down('darwin') || (down('server') && RAIL.darwin))) msgs.push('Live train positions in Britain aren’t available right now: trains are placed from station departure boards, so some may be missing.');
+  if(rg === 'london' && down('tfl')) msgs.push('TfL’s live data isn’t answering: Tube and bus positions may be out of date.');
+  const boxes = Object.keys(SRV.feeds).length ? Object.values(SRV.feeds).map(f => f.box) : (() => { try{ return JSON.parse(localStorage.getItem('srvBoxes') || '[]'); }catch(e){ return []; } })(); // (the server down since the page opened: where its feeds were last time)
+  if(!uk && down('server') && boxes.some(b => b && p[0] >= b[0] && p[0] <= b[2] && p[1] >= b[1] && p[1] <= b[3]))
+    msgs.push('Some live GPS feeds here aren’t available right now: vehicles are placed from the timetable instead.');
+  if(!uk && down('tt')) msgs.push('The European timetable service (Transitous) isn’t answering: some trams, buses and trains may be missing.');
+  const html = msgs.map(m => '⚠ ' + esc(m)).join('<br>'); if(el.innerHTML !== html) el.innerHTML = html; el.hidden = !msgs.length; }
+setInterval(renderOutage, 5000); // (feeds whose area is learnt a little later still join within two minutes)
 function gpsOnly(...keep){ keep.push('ais:'); for(const k of [...GPS.list.keys()]){ const src = GPS_SRC.find(x => k.startsWith(x)) || 'uk'; if(!keep.includes(src)) GPS.list.delete(k); } } // (live ferries stay everywhere)
 // ---- Berlin & Brandenburg: S-Bahn, U-Bahn, trams, buses, regional trains (VBB "radar": real-time positions, no key) ----
 const inOslo = p => p[0] > 59.75 && p[0] < 60.10 && p[1] > 10.45 && p[1] < 11.05, inBergen = p => p[0] > 60.25 && p[0] < 60.50 && p[1] > 5.15 && p[1] < 5.50, inTrondheim = p => p[0] > 63.35 && p[0] < 63.48 && p[1] > 10.20 && p[1] < 10.60;
@@ -2164,6 +2203,14 @@ function cityStationAt(x, y, rad0){
 // a destination in capitals (many French timetables: 'TAILLAN LA BOETIE') in ordinary case: 'Taillan la Boetie'
 const tcase = t => !t || t !== t.toUpperCase() || !/\p{Lu}{3}/u.test(t) ? t : t.toLowerCase().replace(/(^|[\s'’(/-])(\p{L})/gu, (m, a, b) => a + b.toUpperCase())
   .replace(/ (De|Du|Des|La|Le|Les|Et|Sur|Sous|En|Aux|Au|D'|L')(?= )/g, w => w.toLowerCase()).replace(/ ([DL])['’]/g, (m, a) => ' ' + a.toLowerCase() + "'").replace(/(Sncf|Ter|Tgv|Zi|Za|Zac|Chu|Ch|Iut|Cc)/g, w => w.toUpperCase());
+// operators' notices (works, diversions, closed stops) that Transitous passes on with departures and trips: one per
+// notice, with the lines it touches; a tap opens its full text
+function altList(pairs){ const m = new Map();
+  for(const [ln, as] of pairs) for(const a of as || []){ const head = (a.headerText || a.descriptionText || '').trim(); if(!head) continue; const k = head.toLowerCase();
+    const e = m.get(k) || m.set(k, {head, desc:(a.descriptionText || '').trim(), url:a.url || '', lines:new Set()}).get(k); if(ln) e.lines.add(ln); }
+  return [...m.values()].slice(0, 6); }
+function altHtml(list){ if(!list || !list.length) return '';
+  return `<div class="alerts">${list.map(a => `<details><summary>⚠ ${a.lines.size ? `<b>${esc([...a.lines].slice(0, 4).join(', '))}</b> · ` : ''}${esc(a.head.length > 110 ? a.head.slice(0, 108) + '…' : a.head)}</summary>${a.desc && a.desc !== a.head ? `<p>${esc(a.desc.slice(0, 600))}</p>` : ''}${/^https?:/.test(a.url) ? `<a href="${esc(a.url)}" target="_blank" rel="noopener">More</a>` : ''}</details>`).join('')}</div>`; }
 async function openCityStation(hit){
   const {st, url} = hit, box = $('station'); unfocusLine(); clearFocus(); FOCUS_ST = null; $('tip').style.display = 'none';
   const kindName = {metro:'metro', train:'train', tram:'tram', ferry:'ferry'};
@@ -2175,7 +2222,7 @@ async function openCityStation(hit){
     icon:{path:google.maps.SymbolPath.CIRCLE, scale:14, fillColor:'#fff', fillOpacity:.25, strokeColor:(c => dark && c === '#5D6670' ? '#C9CED4' : ink(c))((st[4][0] || [])[1] || '#5D6670'), strokeWeight:4}});
   const row = (col, to, sub, mins) => `<li><span class="sw" style="background:${col}"></span><span class="to">${esc(to)}<small>${esc(sub)}</small></span><b>${mins < 1 ? 'due' : mins + ' min'}</b></li>`;
   const load = async () => {
-    let rows = null, note = '';
+    let rows = null, note = '', alerts = [];
     try{
       const now = Date.now();
       if(/finland\.json/.test(url)){ // Fintraffic: trains at this station
@@ -2235,11 +2282,12 @@ async function openCityStation(hit){
           const sch = Date.parse(pl.scheduledDeparture || pl.scheduledArrival || ''), late = sch ? Math.round((when - sch)/60000) : 0, ln = x.routeShortName || x.displayName || '', l = st[4].find(q => q[0] === ln), k = kind0(x.mode || '');
           rows.push({when, cat:{tram:'Trams', metro:'Metro', train:'Trains', bus:'Buses', ferry:'Boats'}[k] || 'Other',
             html:row(l && l[1] || (k === 'bus' && CITYL.cur?.bus ? CITYL.cur.bus[0] : x.routeColor ? inkA('#' + x.routeColor.toLowerCase()) : '#5D6670'), tcase(x.headsign || x.tripTo?.name || ''), (ln ? ln + ' · ' : '') + (x.realTime ? (late >= 2 ? late + ' min late' : 'live') : 'timetable'), Math.max(0, Math.round((when - now)/60000)))}); }
+        alerts = altList(js.flatMap(j => (j.stopTimes || []).map(x => [x.routeShortName || x.displayName || '', [...(x.place?.alerts || []), ...(x.alerts || [])]])));
         if(!rows.length) note = near.length ? 'No departures from here in the next while.' : 'No stop found here in the timetables.'; }
     }catch(e){ note = 'Departures could not be loaded right now.'; }
     if(box.hidden) return;
     rows = (rows || []).filter(r => r && r.when > Date.now() - 60000).sort((a, b) => a.when - b.when);
-    box.innerHTML = head + (rows.length ? depGroups(rows) : `<div class="muted">${esc(note || 'No departures listed right now.')}</div>`);
+    box.innerHTML = head + altHtml(alerts) + (rows.length ? depGroups(rows) : `<div class="muted">${esc(note || 'No departures listed right now.')}</div>`);
   };
   load(); clearInterval(focusTimer); focusTimer = setInterval(load, 30000); focusLoad = load;
 }
@@ -2711,7 +2759,7 @@ const TT_TFL = /elizabeth|overground|liberty|lioness|mildmay|suffragette|weaver|
 const TT_CACHE = new Map();
 function ttGet(path){ const now = Date.now(), hit = TT_CACHE.get(path) || (path.includes(',bus&') ? null : TT_CACHE.get(path.replace('&z=', ',bus&z=')));
   if(hit && now - hit.at < 50000) return hit.p;
-  const p = railGet(path); TT_CACHE.set(path, {at:now, p}); p.catch(() => TT_CACHE.delete(path));
+  const p = railGet(path); TT_CACHE.set(path, {at:now, p}); p.then(() => health('tt', true), () => { TT_CACHE.delete(path); health('tt', false); });
   if(TT_CACHE.size > 300) for(const [k, v] of TT_CACHE) if(now - v.at > 60000) TT_CACHE.delete(k);
   return p; }
 async function refreshTT(){
@@ -2926,6 +2974,8 @@ function vlistFill(){ const box = document.getElementById('vlist'); if(!box || !
     return `<li>${esc(k)}${v.line ? ' ' + esc(v.line) : ''}${v.dest ? ' to ' + esc(v.dest) : ''} · ${d < 1000 ? Math.round(d/10)*10 + ' m' : (d/1000).toFixed(1) + ' km'} from the middle · ${how}</li>`; }).join(''); }
 document.getElementById('vlist')?.addEventListener('toggle', vlistFill); setInterval(vlistFill, 10000);
 window.__GPSL = () => GPS.list; window.__gpsPos = (g, t) => gpsPos(g, t);
+window.__testVeh = kind => { for(const g of GPS.list.values()) if((!kind || vkind(g.v) === kind) && String(g.v.id).startsWith('tf:') && g.v.trip){ openGFollow(g); GF.on = true; renderGFollow(); return g.v.id; } return null; };
+window.__testStop = i => { const L = ukStopsHere(); if(L[i]) openUKStop(L[i]); return L.length; }; // (tests: open the i-th bus stop in view)
 window.__smoke = () => ({city:CITYL.cur?.name || null, cityFiles:cityData().length, cityLines:cityData().reduce((n, d) => n + d.lines.length, 0),
   tfl:ACTIVE.filter(l => l.layer).length, gps:GPS.list.size, tt:TTV.ferries ? TTV.ferries.size : 0,
   // timetable trams, metros and boats of a line the city draws that are still over 300 m from it after snapping
@@ -3059,11 +3109,42 @@ function decodePolyP(str, prec){ const f = 10 ** prec, out = []; let i = 0, la =
 // coach destinations come with the stand: 'Gatwick Airport (South) Lower Forecourt Stops 1 - 5' → 'Gatwick Airport (South) Lower Forecourt'
 const coachDest = d => { const x = String(d).replace(/\s*\((?:opposite|near|outside|o\/s)\b[^)]*\)$/i, '').replace(/\s+(?:near|outside|opposite)\b.*$/i, '')
   .replace(/\s+(?:(?:arrival|departure)\s+)?(?:stops?|stands?|bays?)\b(?:\s+[\w-]+(?:\s*[-–]\s*\w+)?)?$/i, '').trim(); return x.length >= 8 ? x : d; };
+// ---- a tapped vehicle (anywhere but TfL's): a card with its line, where it's going and its next stops (from Transitous,
+// with live times where the network shares them), and Follow: the map keeps it in the middle until you move the map
+const GF = {id:null, on:false, stops:null, trip:null, dest:''};
+const hhmm = t => new Date(t).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
+function gfVehicle(){ if(!GF.id) return null; for(const g of GPS.list.values()) if(g.v.id === GF.id) return g; return null; }
+function openGFollow(g){ const v = g.v; if(GF.id === v.id) return; GF.id = v.id; GF.on = false; GF.stops = null; GF.alerts = null; GF.dest = ''; GF.trip = v.trip || null; GF.lost = 0;
+  renderGFollow(); if(GF.trip && String(v.id).startsWith('tf:')) loadGFStops(GF.trip); }
+async function loadGFStops(trip){
+  try{ const j = await (await fetch('https://api.transitous.org/api/v5/trip?tripId=' + encodeURIComponent(trip), {signal:AbortSignal.timeout(10000)})).json(); if(GF.trip !== trip) return;
+    const L = j.legs?.[0]; if(!L) return; GF.dest = L.headsign || L.to?.name || '';
+    GF.stops = [L.from, ...(L.intermediateStops || []), L.to].filter(Boolean).map(o => ({name:o.name, t:Date.parse(o.arrival || o.departure), s:Date.parse(o.scheduledArrival || o.scheduledDeparture), p:[o.lat, o.lon]})).filter(x => x.t);
+    GF.live = !!L.realTime; GF.alerts = altList([[L.routeShortName || '', [...(L.alerts || []), ...[L.from, ...(L.intermediateStops || []), L.to].flatMap(o => o?.alerts || [])]]]); renderGFollow(); }catch(e){} }
+function closeGFollow(){ GF.id = null; GF.on = false; GF.stops = null; BROUTE.polys = null; BROUTE.key = ''; renderGFollow(); }
+function renderGFollow(){
+  const el = $('gfollow'); if(!el) return; if(!GF.id){ el.hidden = true; el.innerHTML = ''; return; }
+  const g = gfVehicle(); if(!g){ if(++GF.lost > 6){ closeGFollow(); return; } return; } GF.lost = 0; // (gone for a while: out of view, or its trip has ended)
+  const v = g.v, now = Date.now(), col = v.col || (v.tram ? '#7A1F3D' : opCol(v.op)), kind = vkind(v), dest = GF.dest || v.dest || '';
+  const next = (GF.stops || []).filter(x => x.t >= now - 20000).slice(0, 6), late = next[0] && next[0].s ? Math.round((next[0].t - next[0].s)/60000) : null;
+  const how = String(v.id).startsWith('tf:') ? (GF.live || v.est ? 'live timings' : 'timetable') : 'live GPS';
+  el.style.setProperty('--c', col);
+  el.innerHTML = `<span class="sw" style="background:${col}"></span><div class="ft"><b>${esc({tram:'Tram', metro:'Metro', train:'Train', ferry:'Boat', bus:'Bus'}[kind] || 'Vehicle')} ${esc(v.line || '')}</b>${dest ? ' to ' + esc(dest) : ''}
+    <small>${esc(opName(v.op || ''))}${opName(v.op || '') ? ' · ' : ''}${how}${late != null && late >= 1 ? ` · <span class="late">${late} min late</span>` : late != null && late <= -1 ? ` · ${-late} min early` : ''}</small>
+    ${next.length ? `<ol>${next.map(x => `<li><span>${esc(x.name)}</span><time>${hhmm(x.t)}${x.s && x.t - x.s >= 60000 ? ` <span class="late">+${Math.round((x.t - x.s)/60000)}</span>` : ''}</time></li>`).join('')}</ol>` : GF.trip && GF.stops === null && String(v.id).startsWith('tf:') ? '<small>Loading its stops…</small>' : ''}${altHtml(GF.alerts)}</div>
+    <div class="gfb"><button type="button" id="gfOn" aria-pressed="${GF.on}">${GF.on ? 'Following' : 'Follow'}</button><button type="button" id="gfX" aria-label="Close">✕</button></div>`;
+  el.hidden = false; }
+setInterval(() => { if(!GF.id) return; const g = gfVehicle(); if(GF.on && g){ const p = gpsPos(g, Date.now()); if(p && isFinite(p[0])) map.panTo(LL(p)); } }, 1000);
+setInterval(() => { if(GF.id) renderGFollow(); }, 10000);
+$('gfollow').addEventListener('click', e => { if(e.target.closest('#gfX')) closeGFollow();
+  else if(e.target.closest('#gfOn')){ GF.on = !GF.on; const g = gfVehicle(); if(GF.on && g){ if(map.getZoom() < 15) map.setZoom(15); map.panTo(LL(gpsPos(g, Date.now()))); } renderGFollow(); } });
+setTimeout(() => { try{ map.addListener('dragstart', () => { if(GF.on){ GF.on = false; renderGFollow(); } }); }catch(e){} }, 0); // moving the map yourself stops following
 function gpsTip(e, r, tip){
   const x = e.clientX - r.left, y = e.clientY - r.top, rad0 = matchMedia('(pointer:coarse)').matches ? 24 : 14;
   let best = null, bd = rad0; for(const [g, gx, gy] of draw.ghit || []){ const d = Math.hypot(gx - x, gy - y); if(d < bd){ bd = d; best = g; } }
   if(!best) return false;
   const v = best.v, age = v.t ? Math.max(0, Math.round((Date.now() - v.t)/1000)) : null;
+  if(e.type === 'click') openGFollow(best);
   if(e.type === 'click' && (vkind(v) === 'bus' || String(v.id).startsWith('tf:'))) showBusRoute(best); else if(e.type === 'click'){ BROUTE.polys = null; BROUTE.key = ''; }
   if((v.sched || (v.est && v.id?.startsWith("tf:"))) && v.trip && !TRIPI.get(v.trip)) tripInfo(v.trip).then(() => { const t = TRIPI.get(v.trip); if(t && t.dest){ v.dest = t.dest; v.from = null; if(tip.style.display === 'block') gpsTip(e, r, tip); } }); // where it's really going
   const kind = v.train ? (v.freight ? 'freight train' : 'train') : v.kind || (v.tram ? 'tram' : 'bus'), col = v.col || (v.tram ? '#7A1F3D' : opCol(v.op));
@@ -4093,6 +4174,14 @@ if(Q.get('kiosk') === '1') document.body.classList.add('kiosk');
 $('bKiosk').onclick = () => document.body.classList.toggle('kiosk');
 // ⌖: near me (your position, nearest station's departures); tap again for the whole network
 let nearMode = false, nearWatch = null;
+// anywhere else: the nearest station or stop's departures (a tram/metro station within ~1.3x the nearest bus stop's
+// distance wins), once the city's lines and the stop tiles round you have loaded
+async function nearestStop(p){
+  for(let k = 0; k < 24; k++){ await sleep(500); const cands = [];
+    for(const d of cityData()) for(const st of d.stations || []) if(showSt(d, st)) cands.push([dist([st[2], st[3]], p)/1.3, () => openCityStation({st, src:d.src || CITYL.cur?.name, url:d.url})]);
+    for(const h of ukStopsHere()) cands.push([dist([h[0][2], h[0][3]], p), () => openUKStop(h)]);
+    const loading = [...UKST.tiles.values()].some(v => v === null);
+    if(cands.length && !loading || k === 23){ cands.sort((a, b) => a[0] - b[0]); if(cands[0] && cands[0][0] < 800) cands[0][1](); return; } } }
 $('bFit').onclick = () => {
   if(nearMode || !navigator.geolocation){ nearMode = false; if(nearWatch != null){ navigator.geolocation.clearWatch(nearWatch); nearWatch = null; } const was = me; me = null;
     if(document.body.classList.contains('away') && was){ map.panTo(LL(was)); map.setZoom(12); return; } // outside London: the area around you, not London
@@ -4100,7 +4189,7 @@ $('bFit').onclick = () => {
   $('bFit').textContent = '…';
   navigator.geolocation.getCurrentPosition(pos => { $('bFit').textContent = '⌖'; nearMode = true;
     me = [pos.coords.latitude, pos.coords.longitude]; meAcc = pos.coords.accuracy || 0;
-    if(!inLondonView(me) && !(me[0] > 51.2 && me[0] < 51.8 && me[1] > -0.7 && me[1] < 0.4)){ map.panTo(LL(me)); map.setZoom(15); return; } // near London (Epping, Watford…): still the nearest TfL station
+    if(!inLondonView(me) && !(me[0] > 51.2 && me[0] < 51.8 && me[1] > -0.7 && me[1] < 0.4)){ map.panTo(LL(me)); map.setZoom(16); nearestStop(me); return; } // near London (Epping, Watford…): still the nearest TfL station
     if(!STATIONS || STATIONS.length < 50) STATIONS = stationIndex();
     let best = null, bd = 3000; for(const st of STATIONS){ const river = [...st.lines].every(id => BY[id] && (BY[id].mode === 'river' || BY[id].mode === 'cable')); const d = dist(st.p, me) + (river ? 400 : 0); if(d < bd){ bd = d; best = st; } } // piers only when much closer
     if(best) goStation(best); map.panTo(LL(me)); map.setZoom(15);
