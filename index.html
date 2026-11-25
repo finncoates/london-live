@@ -2159,10 +2159,20 @@ function lineAt(v, p){
   // the snap is worked out again only when the vehicle has moved ~20 m (it ran every frame for every vehicle: with the
   // lines put on the track, 4x the points, Paris dropped to 16 frames a second and vehicles seemed to freeze)
   // (keyed by what the answer depends on, not the vehicle: timetable vehicles are new objects every 2 s)
-  const key = kind + '|' + (v.line || '') + '|' + Math.round(p[0]*5e3) + ',' + Math.round(p[1]*5e3) + ',' + cityData().length; let c = LANE_C.get(key);
-  if(!c){ const sn = snapGps({lat:p[0], lon:p[1], kind, tram:v.tram, metro:v.metro, train:v.train, line:v.line});
+  const key = kind + '|' + (v.line || '') + '|' + Math.round(p[0]*5e3) + ',' + Math.round(p[1]*5e3) + ',' + cityData().length + (kind === 'train' && typeof NRNET !== 'undefined' ? ',' + NRNET.n : ''); let c = LANE_C.get(key);
+  if(!c){ let sn = snapGps({lat:p[0], lon:p[1], kind, tram:v.tram, metro:v.metro, train:v.train, line:v.line});
+    if(!sn && kind === 'train') sn = railAt(p); // a train off the city's lines: the national rail network's track (cities/nr), for bending along it
     c = {sn, e:sn && sn.d ? cityShare(sn.d)[sn.li]?.[sn.i - 1] : null}; if(LANE_C.size > 50000) LANE_C.clear(); LANE_C.set(key, c); }
   return c; }
+// the nearest piece of the rail network's track to p (within 40 m), as a line to bend a train along: {l:{pts}, i}
+function railAt(p){ if(typeof NRNET === 'undefined' || typeof railC !== 'function' || !railC(p)) return null; let best = null, bd = 40;
+  const la = Math.floor(p[0]*2), lo = Math.floor(p[1]*2);
+  for(const t of [la + '_' + lo, (la - 1) + '_' + lo, (la + 1) + '_' + lo, la + '_' + (lo - 1), la + '_' + (lo + 1)]){ const ps = NRNET.tiles.get(t); if(!ps) continue;
+    for(const pts of ps){ if(!pts || pts.length < 2) continue;
+      for(let j = 1; j < pts.length; j++){ const a = pts[j-1], b = pts[j]; if(Math.min(a[0], b[0]) - p[0] > 0.001 || p[0] - Math.max(a[0], b[0]) > 0.001 || Math.min(a[1], b[1]) - p[1] > 0.0015 || p[1] - Math.max(a[1], b[1]) > 0.0015) continue;
+        const k = Math.cos(a[0]*rad), dx = (b[1]-a[1])*k, dy = b[0]-a[0], L2 = dx*dx + dy*dy, t2 = L2 ? Math.max(0, Math.min(1, ((p[1]-a[1])*k*dx + (p[0]-a[0])*dy)/L2)) : 0, d = dist([a[0] + dy*t2, a[1] + (b[1]-a[1])*t2], p);
+        if(d < bd){ bd = d; best = {l:{pts}, i:j}; } } } }
+  return best; }
 // a vehicle's body bent along its line, as London's trains: the track half its length each way from where it is
 // (the segment it's on found again close by: the cached one can be a few metres stale)
 function bodyAlong(P, i0, p, half){
@@ -2393,7 +2403,7 @@ async function refreshGps(){
   }
   hslStop(); for(const [k] of GPS.list) if(k.startsWith('fi:')) GPS.list.delete(k);
   if(inNorway(p) && TRAINS_ON){
-    gpsOnly('no:');
+    gpsOnly('no:', 'tf:'); // (the timetable fills in what Entur's live feed doesn't have: most of Oslo's trams, T-bane and buses)
     if(z < 10){ for(const k of [...GPS.list.keys()]) if(k.startsWith('no:')) GPS.list.delete(k); BUS.note = 'Norway: zoom in to see every bus, tram, metro and train live'; renderBusNote(); return; }
     if(GPS.busy) return; GPS.busy = true;
     try{ gpsMerge(await norwayVehicles(), 'no:'); const n = [...GPS.list.keys()].filter(k => k.startsWith('no:')).length;
@@ -2844,7 +2854,7 @@ function ttGet(path){ const now = Date.now(), hit = TT_CACHE.get(path) || (path.
   if(TT_CACHE.size > 300) for(const [k, v] of TT_CACHE) if(now - v.at > 60000) TT_CACHE.delete(k);
   return p; }
 async function refreshTT(){
-  const c0 = map.getCenter(), world = c0 && regionOf([c0.lat(), c0.lng()]) === 'world'; // beyond the places with their own feeds (France, Ireland…): everything from the timetable
+  const c0 = map.getCenter(), world = c0 && ['world', 'norway'].includes(regionOf([c0.lat(), c0.lng()])); // beyond the places with their own feeds (France, Ireland…): everything from the timetable
   if(TTV.busy || !RAIL.relay || RAIL.relay === 'demo' || !TRAINS_ON || map.getZoom() < (world ? 5 : 8)) return;
   if(!world && (!railOn() || MODES_OFF.has('rail') || !RAIL.stations)) return;
   const b = fetchBounds(); if(!b) return; const sw = b.getSouthWest(), ne = b.getNorthEast(), zq = Math.round(map.getZoom());
@@ -3076,7 +3086,7 @@ function ttTick(){ if(!TTV.ferries || !TRAINS_ON || inTfLArea([map.getCenter().l
   const liveKinds = new Set(); for(const [k, g] of GPS.list) if(k.startsWith('la:')) liveKinds.add(g.v.kind || 'bus'); // what the city's live feed actually has (Amsterdam's has no metro, Rotterdam's does)
   // live vehicles here, by kind and line: a timetable vehicle with a live twin nearby (same kind and line, within ~1.2 km,
   // allowing for delays) isn't shown, whichever feed the two come from (Bordeaux's trams: TBM live, the region's timetable)
-  const liveAt = new Map(); for(const [k, g] of GPS.list) if((k.startsWith('la:') || k.startsWith('es:')) && g.v.line){ const key = vkind(g.v) + '|' + String(g.v.line).toLowerCase(); (liveAt.get(key) || liveAt.set(key, []).get(key)).push(g.to || [g.v.lat, g.v.lon]); }
+  const liveAt = new Map(); for(const [k, g] of GPS.list) if((k.startsWith('la:') || k.startsWith('es:') || k.startsWith('no:')) && g.v.line){ const key = vkind(g.v) + '|' + String(g.v.line).toLowerCase(); (liveAt.get(key) || liveAt.set(key, []).get(key)).push(g.to || [g.v.lat, g.v.lon]); }
   const best = ttPlace(now + 2000); // where each will be when this glide ends: moved at a steady speed (linear), it is where the timetable says, all the time, not surging and slowing every 2 s
   for(const [trip, {s, p, A, B}] of best){ const [, col, name, from, to, dep, arr] = s;
     if(TTV.esLive && Date.now() - TTV.esLive < 120000 && /RENFE-?Cercan|Rodalies|Cercan/i.test(trip)) continue;
