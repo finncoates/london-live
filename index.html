@@ -1477,6 +1477,7 @@ function frame(ts, sync){
     const item = [t, c.x, c.y, c.x, c.y, r, cs, sn, hl, hw, body]; drawn.push(item);
     if(!byLine.has(l)) byLine.set(l, []); byLine.get(l).push(item);
   }
+  fanLondon(drawn, mpp); // trains piled at a station (a terminus, an interchange): side by side, as on their platforms
   // "Show trains" off: no train shapes (your own train, if any, still shows)
   if(!SHOW_ICONS){ for(let i = drawn.length-1; i >= 0; i--) if(!HL.has(drawn[i][0].key)) drawn.splice(i, 1);
     for(const [l, items] of byLine){ const keep = items.filter(d => HL.has(d[0].key)); keep.length ? byLine.set(l, keep) : byLine.delete(l); } }
@@ -2620,6 +2621,52 @@ const BUSANG = new Map();
 function busAngAt(v, p, prev){ const key = Math.round(p[0]*1e4) + ',' + Math.round(p[1]*1e4); let ra = BUSANG.get(key);
   if(ra === undefined){ ra = busRoadAng({...v, lat:p[0], lon:p[1]}, prev); if(ra == null) return null; /* (not remembered: its road tile may still be loading) */ BUSANG.set(key, ra); if(BUSANG.size > 50000) BUSANG.clear(); }
   return ra; }
+// vehicles piled on one another at a station or bus station (several trains at a terminus, buses at their stands):
+// side by side across their line, like platforms or bays, each kept parallel to its line, the spread kept to a
+// station's width; a group's members keep their order, and their offsets glide in and out
+const FAN_CAP = {train:120, metro:60, tram:50, bus:40, coach:40, ferry:150}; // metres: the widest a group spreads
+function fanOut(now, s0, hw0, mpp){
+  if(PV.z < 13) return null; const items = [], cell = new Map();
+  for(const g of GPS.list.values()){ if(gOff(g.v)) continue; const p = gpsPos(g, now), c = scr(p); if(c.x < -60 || c.y < -60 || c.x > s0.x + 60 || c.y > s0.y + 60) continue;
+    const kind = coachOf(g.v) ? 'coach' : vkind(g.v), [len, wid] = REAL_SIZE[KIND_MODE[kind === 'coach' ? 'bus' : kind] || 'bus'] || REAL_SIZE.tube;
+    const hw = Math.max(hw0, wid/2/mpp), hl = Math.max(hw0*2.5, len/2/mpp), a = g.ang ?? 0, it = {g, c, kind, hw, hl, a, cs:Math.cos(a), sn:Math.sin(a)};
+    const k = kind + ':' + Math.floor(c.x/40) + ':' + Math.floor(c.y/40); (cell.get(k) || cell.set(k, []).get(k)).push(it); items.push(it); }
+  // groups: same kind, parallel (within 30°), overlapping across (closer than a vehicle's width and a bit) and along
+  const parent = new Map(items.map(it => [it, it])), find = x => { while(parent.get(x) !== x){ parent.set(x, parent.get(parent.get(x))); x = parent.get(x); } return x; };
+  for(const it of items){ const cx = Math.floor(it.c.x/40), cy = Math.floor(it.c.y/40);
+    for(let i = -1; i <= 1; i++) for(let j = -1; j <= 1; j++) for(const o of cell.get(it.kind + ':' + (cx + i) + ':' + (cy + j)) || []){ if(o === it || o.g.v.id < it.g.v.id) continue;
+      let da = Math.abs(it.a - o.a) % Math.PI; if(da > Math.PI/2) da = Math.PI - da; if(da > 0.52) continue;
+      const dx = o.c.x - it.c.x, dy = o.c.y - it.c.y, along = Math.abs(dx*it.cs + dy*it.sn), across = Math.abs(-dx*it.sn + dy*it.cs);
+      if(across < it.hw + o.hw + 2 && along < (it.hl + o.hl)*0.8) parent.set(find(it), find(o)); } }
+  const groups = new Map(); for(const it of items){ const r = find(it); (groups.get(r) || groups.set(r, []).get(r)).push(it); }
+  const out = new Map();
+  for(const grp of groups.values()){
+    if(grp.length < 2){ const g = grp[0].g; if(g.fanO){ g.fanO.x *= 0.8; g.fanO.y *= 0.8; if(Math.abs(g.fanO.x) + Math.abs(g.fanO.y) < 0.3) g.fanO = null; else out.set(g, g.fanO); } continue; }
+    grp.sort((a, b) => String(a.g.v.id) < String(b.g.v.id) ? -1 : 1); const r0 = grp[0], px = -r0.sn, py = r0.cs; // across the group's line
+    const n = grp.length, hw = Math.max(...grp.map(x => x.hw)), cap = (FAN_CAP[r0.kind] || 60)/mpp;
+    const sp = Math.min(2*hw + 3, n > 1 ? cap/(n - 1) : 0), mid = grp.reduce((t, x) => t + (x.c.x*px + x.c.y*py), 0)/n;
+    grp.forEach((x, i) => { const want = mid + (i - (n - 1)/2)*sp - (x.c.x*px + x.c.y*py), tx = px*want, ty = py*want, f = x.g.fanO || (x.g.fanO = {x:0, y:0});
+      f.x += (tx - f.x)*0.25; f.y += (ty - f.y)*0.25; out.set(x.g, f); }); }
+  return out; }
+// London's trains (drawn items [t, x, y, x, y, rect, cos, sin, hl, hw, body]): the same as fanOut, on the drawn shapes
+function fanLondon(drawn, mpp){
+  if(PV.z < 13 || drawn.length < 2) return; const cell = new Map();
+  const its = drawn.map(d => { const l = BY[d[0].line], kind = l ? modeKey(l.mode) : 'metro', it = {d, kind, x:d[1], y:d[2], cs:d[6], sn:d[7], hl:d[8], hw:d[9], a:Math.atan2(d[7], d[6])};
+    const k = kind + ':' + Math.floor(d[1]/40) + ':' + Math.floor(d[2]/40); (cell.get(k) || cell.set(k, []).get(k)).push(it); return it; });
+  const parent = new Map(its.map(i => [i, i])), find = x => { while(parent.get(x) !== x){ parent.set(x, parent.get(parent.get(x))); x = parent.get(x); } return x; };
+  for(const it of its){ const cx = Math.floor(it.x/40), cy = Math.floor(it.y/40);
+    for(let i = -1; i <= 1; i++) for(let j = -1; j <= 1; j++) for(const o of cell.get(it.kind + ':' + (cx + i) + ':' + (cy + j)) || []){ if(o === it || o.d[0].key < it.d[0].key) continue;
+      let da = Math.abs(it.a - o.a) % Math.PI; if(da > Math.PI/2) da = Math.PI - da; if(da > 0.52) continue;
+      const dx = o.x - it.x, dy = o.y - it.y, along = Math.abs(dx*it.cs + dy*it.sn), across = Math.abs(-dx*it.sn + dy*it.cs);
+      if(across < it.hw + o.hw + 2 && along < (it.hl + o.hl)*0.8) parent.set(find(it), find(o)); } }
+  const groups = new Map(); for(const it of its){ const r = find(it); (groups.get(r) || groups.set(r, []).get(r)).push(it); }
+  const move = (d, dx, dy) => { d[1] += dx; d[2] += dy; d[3] += dx; d[4] += dy; for(let k = 0; k < 8; k += 2){ d[5][k] += dx; d[5][k+1] += dy; } if(d[10]) for(const q of d[10]){ q[0] += dx; q[1] += dy; } };
+  for(const grp of groups.values()){ const t0 = grp[0].d[0];
+    if(grp.length < 2){ if(t0.fanO){ t0.fanO.x *= 0.8; t0.fanO.y *= 0.8; if(Math.abs(t0.fanO.x) + Math.abs(t0.fanO.y) < 0.3) t0.fanO = null; else move(grp[0].d, t0.fanO.x, t0.fanO.y); } continue; }
+    grp.sort((a, b) => a.d[0].key < b.d[0].key ? -1 : 1); const r0 = grp[0], px = -r0.sn, py = r0.cs, n = grp.length, hw = Math.max(...grp.map(x => x.hw));
+    const sp = Math.min(2*hw + 3, (FAN_CAP[r0.kind] || 60)/mpp/(n - 1)), mid = grp.reduce((t, x) => t + (x.x*px + x.y*py), 0)/n;
+    grp.forEach((x, i) => { const want = mid + (i - (n - 1)/2)*sp - (x.x*px + x.y*py), t = x.d[0], f = t.fanO || (t.fanO = {x:0, y:0});
+      f.x += (px*want - f.x)*0.25; f.y += (py*want - f.y)*0.25; move(x.d, f.x, f.y); }); } }
 function drawGps(ctx, s, hl0, hw0, mpp){
   draw.ghit = [];
   // the still layers (rail network, bus and coach routes, city lines, stops, timetable lines) drawn once into a layer
@@ -2643,6 +2690,7 @@ function drawGps(ctx, s, hl0, hw0, mpp){
       for(const poly of BROUTE.polys){ ctx.beginPath(); poly.forEach((q, i) => { const c = scr(q); i ? ctx.lineTo(c.x, c.y) : ctx.moveTo(c.x, c.y); }); ctx.stroke(); } }
     ctx.globalAlpha = 1; }
   ctx.lineWidth = 1; ctx.font = '700 10.5px system-ui, sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  const FAN = fanOut(now, s, hw0, mpp);
   for(const g of GPS.list.values()){
     if(gOff(g.v)) continue;
     if(vkind(g.v) === 'bus' && g.v.segAng == null && !g.v.sn && PV.z >= 11 && now - (g.raT || 0) > 1500){ g.raT = now; const ra = (g.v.coach ? coachRoadAng(g.v, g.ang) : null) ?? busRoadAng(g.v, g.ang); if(ra != null) g.v.segAng = ra; } // not yet known: once the road map is in
@@ -2650,6 +2698,7 @@ function drawGps(ctx, s, hl0, hw0, mpp){
        !g.v.line && !g.v.dest && !g.v.coach && vkind(g.v) === 'bus' ? 0.45 : 1; // a bus out of service: faded
     const p = gpsPos(g, now), c = scr(p); if(c.x < -30 || c.y < -30 || c.x > s.x + 30 || c.y > s.y + 30) continue;
     if((g.v.tram || g.v.metro) && PV.z >= 12){ const sh = laneShift(g.v, p); if(sh){ c.x += sh.x; c.y += sh.y; } } // on its own line where lines run side by side
+    { const fo = FAN && FAN.get(g); if(fo){ c.x += fo.x; c.y += fo.y; } } // piled at a station: side by side (fanOut)
     let ang = g.pAng != null ? g.pAng : g.v.segAng != null ? g.v.segAng : g.v.brg != null ? (g.v.brg - 90)*rad : g.ang ?? 0; // on a known line: its direction
     if(g.v.segAng == null && g.v.brg == null && (g.to[0] !== g.from[0] || g.to[1] !== g.from[1])) ang = Math.atan2(-(g.to[0] - g.from[0]), (g.to[1] - g.from[1])*cosLat);
     if(vkind(g.v) === 'bus' && !coachOf(g.v) && PV.z >= 13){ const ra = busAngAt(g.v, p, ang); if(ra != null) ang = ra; } // a bus along the road it's on (a GPS heading or a timetable shape between stops pointed it across corners)
