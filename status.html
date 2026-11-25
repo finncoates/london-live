@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Live map status</title>
+<meta name="description" content="Whether each source of the live map is answering right now: the relay, the server, UK trains, Europe's timetables and every live GPS feed.">
+<style>
+:root{--bg:#f6f7f9;--card:#fff;--ink:#16181d;--mute:#69707c;--edge:#e3e6eb;--ok:#1e8e3e;--warn:#b26a00;--bad:#c5221f}
+@media (prefers-color-scheme:dark){:root{--bg:#0e0f12;--card:#17181c;--ink:#f2f2f2;--mute:#9aa0a8;--edge:#2a2d33;--ok:#5bd27a;--warn:#f0b54a;--bad:#ff7a72}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.45 system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
+main{max-width:860px;margin:0 auto;padding:20px 16px 40px}
+h1{font-size:22px;margin:0 0 4px}
+.sub{color:var(--mute);margin:0 0 18px;font-size:13.5px}
+.card{background:var(--card);border:1px solid var(--edge);border-radius:12px;padding:12px 14px;margin:0 0 12px}
+.row{display:flex;gap:10px;align-items:baseline;padding:6px 0;border-top:1px solid var(--edge)}
+.row:first-of-type{border-top:0}
+.dot{width:10px;height:10px;border-radius:50%;flex:none;transform:translateY(1px)}
+.ok{background:var(--ok)}.warn{background:var(--warn)}.bad{background:var(--bad)}
+.name{font-weight:600;flex:1;min-width:0}
+.info{color:var(--mute);font-size:13px;text-align:right}
+h2{font-size:15px;margin:0 0 6px}
+.feeds{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:2px 16px}
+.feeds .row{border-top:0;padding:3px 0;font-size:13.5px}
+.feeds .name{font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+a{color:inherit}
+</style>
+</head>
+<body>
+<main>
+<h1>Live map status</h1>
+<p class="sub" id="when">Checking…</p>
+<div class="card" id="core"></div>
+<div class="card"><h2>Live GPS feeds <span class="info" id="fsum"></span></h2><div class="feeds" id="feeds"></div></div>
+<p class="sub"><a href="./">← Back to the map</a></p>
+</main>
+<script>
+// Each source asked directly, the way the map asks it; refreshed every minute. Nothing is stored.
+const R = 'https://london-rail.londonlivemap.workers.dev', esc = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'})[c]);
+const row = (state, name, info) => `<div class="row"><span class="dot ${state}"></span><span class="name">${esc(name)}</span><span class="info">${esc(info)}</span></div>`;
+async function timed(url){ const t0 = performance.now(); try{ const r = await fetch(url, {cache:'no-store', signal:AbortSignal.timeout(25000)}); const j = await r.json().catch(() => ({})); return {ok:r.ok && !j.error, j, ms:Math.round(performance.now() - t0), status:r.status}; }catch(e){ return {ok:false, j:{}, ms:Math.round(performance.now() - t0), err:e.message}; } }
+const speed = x => x.ms > 8000 ? 'warn' : 'ok';
+async function check(){
+  const [relay, srv, tt, tr, tfl] = await Promise.all([timed(R + '/health'), timed(R + '/srv/health'), timed(R + '/tt?la=48.75&lo=2.25&s=0.125&modes=rail,tram&z=14'),
+    timed(R + '/transitous/api/v1/geocode?text=Paris&place=48.9,2.3'), timed(R + '/tfl/Line/victoria/Arrivals')]);
+  const h = srv.j || {}, feeds = Object.entries(h.feeds || {});
+  const darwinAge = h.lastMessage ? Math.round((Date.now() - Date.parse(h.lastMessage))/1000) : null;
+  document.getElementById('core').innerHTML = [
+    row(relay.ok ? speed(relay) : 'bad', 'Relay (Cloudflare)', relay.ok ? `answering · ${relay.ms} ms` : 'not answering'),
+    row(srv.ok ? speed(srv) : 'bad', 'Live server (UK trains, ferries, GPS feeds)', srv.ok ? `answering · ${srv.ms} ms` : `not answering${srv.status ? ' (' + srv.status + ')' : ''}`),
+    row(!srv.ok ? 'bad' : darwinAge != null && darwinAge < 300 ? 'ok' : 'warn', 'UK train positions (Darwin)', srv.ok ? `${(h.trains || 0).toLocaleString()} trains · last message ${darwinAge != null ? darwinAge + ' s ago' : 'none'}` : 'needs the live server'),
+    row(!srv.ok ? 'bad' : h.ferries?.status === 'open' || h.ferries?.ships ? 'ok' : 'warn', 'Ferries (AIS)', srv.ok ? `${h.ferries?.ships || 0} ships · ${h.ferries?.status || '?'}` : 'needs the live server'),
+    row(tt.ok ? speed(tt) : 'bad', 'Europe\'s timetables (Transitous)', tt.ok ? `${(tt.j.vehicles || []).length} vehicles in a Paris tile · ${tt.ms} ms` : 'not answering'),
+    row(tr.ok ? speed(tr) : 'bad', 'Search and departures (Transitous)', tr.ok ? `answering · ${tr.ms} ms` : 'not answering'),
+    row(!srv.ok ? 'warn' : (h.pageErrors24h || 0) > 50 ? 'bad' : (h.pageErrors24h || 0) > 5 ? 'warn' : 'ok', 'Script errors in visitors' maps (24 h)', srv.ok ? (h.pageErrors24h != null ? String(h.pageErrors24h) : 'not counted yet') : 'needs the live server'),
+    row(tfl.ok && Array.isArray(tfl.j) ? speed(tfl) : 'bad', 'London (TfL)', tfl.ok && Array.isArray(tfl.j) ? `${tfl.j.length} Victoria line arrivals · ${tfl.ms} ms` : 'not answering')].join('');
+  const live = feeds.filter(([, f]) => f.vehicles > 0).length, err = feeds.filter(([, f]) => f.error && !f.vehicles).length;
+  document.getElementById('fsum').textContent = feeds.length ? `· ${live} of ${feeds.length} with vehicles · ${err} failing` : '';
+  document.getElementById('feeds').innerHTML = feeds.sort((a, b) => (a[1].cc || '').localeCompare(b[1].cc || '') || a[1].name.localeCompare(b[1].name))
+    .map(([id, f]) => row(f.vehicles > 0 ? 'ok' : f.error ? 'bad' : 'warn', `${(f.cc || '').toUpperCase()} ${f.name}`, f.vehicles > 0 ? `${f.vehicles} live` : f.error ? String(f.error).slice(0, 40) : 'none right now')).join('')
+    || '<p class="sub">The live server isn\'t answering, so its feeds can\'t be listed.</p>';
+  document.getElementById('when').textContent = 'Checked at ' + new Date().toLocaleTimeString() + ' · refreshed every minute';
+}
+check(); setInterval(check, 60000);
+</script>
+</body>
+</html>

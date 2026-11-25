@@ -73,11 +73,16 @@ async function consume(){
 async function loop(delay = 5000){ try{ await consume(); }catch(e){ console.warn('kafka', e.message, '- retrying in', delay/1000, 's'); setTimeout(() => loop(Math.min(delay*2, 300000)), delay); } }
 loop();
 
+const REPORTS = new Map(); // pages' anonymous error reports (message @ line → count, where, which browsers)
 http.createServer((req, res) => {
   const u = new URL(req.url, 'http://x'), send = (code, body) => { res.writeHead(code, {'content-type':'application/json', 'cache-control':'no-store', 'access-control-allow-origin':'*'}); res.end(JSON.stringify(body)); };
   if(env.RELAY_TOKEN && req.headers['x-relay-token'] !== env.RELAY_TOKEN && u.pathname !== '/health') return send(403, {error:'forbidden'});
+  if(req.method === 'POST' && u.pathname === '/report'){ let body = ''; req.on('data', d => { if(body.length < 4000) body += d; }); req.on('end', () => { try{ const j = JSON.parse(body), k = String(j.m || '').slice(0, 200) + ' @' + (+j.l || 0);
+        const e = REPORTS.get(k) || {n:0, first:Date.now(), where:{}, browsers:{}}; e.n++; e.last = Date.now(); e.where[j.r || '?'] = (e.where[j.r || '?'] || 0) + 1; e.browsers[j.b || '?'] = (e.browsers[j.b || '?'] || 0) + 1; e.v = String(j.v || '').slice(0, 40); REPORTS.set(k, e);
+        if(REPORTS.size > 300) REPORTS.delete(REPORTS.keys().next().value); }catch(x){} send(204, {}); }); return; }
+  if(u.pathname === '/reports'){ const day = Date.now() - 86400000; return send(200, [...REPORTS].filter(([, e]) => e.last > day).sort((a, b) => b[1].n - a[1].n).map(([k, e]) => ({error:k, ...e}))); }
   const bbox = (b => b.length === 4 && b.every(isFinite) ? b : null)((u.searchParams.get('bbox') || '').split(',').map(Number));
-  if(u.pathname === '/health') return send(200, {ok:true, trains:D.trains.size, messages:D.msgs, lastMessage:D.last ? new Date(D.last).toISOString() : null, received:D.raw || 0, darwin:!!env.DARWIN_BOOTSTRAP,
+  if(u.pathname === '/health') return send(200, {ok:true, pageErrors24h:[...REPORTS.values()].filter(e => e.last > Date.now() - 86400000).reduce((t, e) => t + e.n, 0), trains:D.trains.size, messages:D.msgs, lastMessage:D.last ? new Date(D.last).toISOString() : null, received:D.raw || 0, darwin:!!env.DARWIN_BOOTSTRAP,
     ferries:{on:!!env.AISSTREAM_KEY, status:AIS.status, ships:AIS.list(null).length, messages:AIS.msgs},
     feeds:Object.fromEntries([...FEEDS].map(([id, F]) => [id, {name:F.cfg.name, cc:F.cfg.cc || null, box:F.cfg.box || F.box || null, tt:F.cfg.tt || null, ttModes:F.cfg.ttModes || null, vehicles:F.vehicles.length, routes:F.routes.size, trips:F.trips.size, timetable:F.routesAt ? new Date(F.routesAt).toISOString() : F.routesLoading || null, timetableError:F.routesErr || null, at:F.at ? new Date(F.at).toISOString() : null, error:F.error}]))});
   if(u.pathname === '/ferries') return send(200, {at:Date.now(), ships:AIS.list(bbox)});

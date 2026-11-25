@@ -40,6 +40,10 @@ export default {
     const url = new URL(request.url);
     const cors = corsHeaders(request, env);
     if(request.method === 'OPTIONS') return new Response(null, {status:204, headers:cors});
+    if(request.method === 'POST' && url.pathname === '/report'){ // a page's anonymous error report: passed to the server's log
+      const body = (await request.text()).slice(0, 2000);
+      if(env.DARWIN_URL) ctx.waitUntil(fetch(env.DARWIN_URL.replace(/\/+$/, '') + '/report', {method:'POST', body, headers:{'x-relay-token':env.RELAY_TOKEN || '', 'content-type':'application/json'}, signal:AbortSignal.timeout(10000)}).catch(() => {}));
+      return new Response(null, {status:204, headers:cors}); }
     if(request.method !== 'GET') return json({error:'GET only'}, 405, cors);
     try{
       if(url.pathname === '/' || url.pathname === '/health')

@@ -31,6 +31,7 @@
     'Routes':['Itinéraires', 'Strecken', 'Routes', 'Rutas', 'Percorsi', 'Trasy', 'Percursos'],
     'A new version of the map is ready.':['Une nouvelle version de la carte est prête.', 'Eine neue Version der Karte ist da.', 'Er is een nieuwe versie van de kaart.', 'Hay una nueva versión del mapa.', 'È pronta una nuova versione della mappa.', 'Nowa wersja mapy jest gotowa.', 'Há uma nova versão do mapa.'],
     'Update':['Mettre à jour', 'Aktualisieren', 'Bijwerken', 'Actualizar', 'Aggiorna', 'Aktualizuj', 'Atualizar'],
+    'Loading what’s moving here…':['Chargement de ce qui circule ici…', 'Lade, was hier fährt…', 'Laden wat hier rijdt…', 'Cargando lo que circula aquí…', 'Caricamento di ciò che si muove qui…', 'Wczytywanie tego, co tu jeździ…', 'A carregar o que circula aqui…'],
     'Other':['Autres', 'Sonstige', 'Overig', 'Otros', 'Altro', 'Inne', 'Outros'],
     'Departures':['Départs', 'Abfahrten', 'Vertrek', 'Salidas', 'Partenze', 'Odjazdy', 'Partidas'],
     'Bus':['Bus', 'Bus', 'Bus', 'Autobús', 'Autobus', 'Autobus', 'Autocarro'],
