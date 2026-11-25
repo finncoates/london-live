@@ -71,7 +71,11 @@ Wants=network-online.target
 User=$USER
 WorkingDirectory=$HOME/london-live/rail/darwin
 EnvironmentFile=/etc/london-live-darwin.env
-ExecStart=$NODE server.mjs
+# memory capped: a timetable too big for the machine restarts this service, rather than the whole 1 GB machine swapping
+# itself unreachable (it went silent overnight on 25 Nov 2026 and needed a reboot from Oracle's console)
+ExecStart=$NODE --max-old-space-size=480 server.mjs
+MemoryHigh=650M
+MemoryMax=750M
 Restart=always
 RestartSec=10
 

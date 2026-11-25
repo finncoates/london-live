@@ -1671,7 +1671,8 @@
     "TRAFIKLAB_STATIC_KEY"
    ],
    "url": "https://opendata.samtrafiken.se/gtfs-rt/sl/VehiclePositions.pb?key=$TRAFIKLAB_RT_KEY",
-   "gtfs": "https://opendata.samtrafiken.se/gtfs/sl/sl.zip?key=$TRAFIKLAB_STATIC_KEY"
+   "gtfs": "https://opendata.samtrafiken.se/gtfs/sl/sl.zip?key=$TRAFIKLAB_STATIC_KEY",
+   "trips": true
   },
   {
    "id": "se-ul",
@@ -1691,7 +1692,8 @@
     "TRAFIKLAB_STATIC_KEY"
    ],
    "url": "https://opendata.samtrafiken.se/gtfs-rt/ul/VehiclePositions.pb?key=$TRAFIKLAB_RT_KEY",
-   "gtfs": "https://opendata.samtrafiken.se/gtfs/ul/ul.zip?key=$TRAFIKLAB_STATIC_KEY"
+   "gtfs": "https://opendata.samtrafiken.se/gtfs/ul/ul.zip?key=$TRAFIKLAB_STATIC_KEY",
+   "trips": true
   },
   {
    "id": "se-skane",
@@ -1711,7 +1713,8 @@
     "TRAFIKLAB_STATIC_KEY"
    ],
    "url": "https://opendata.samtrafiken.se/gtfs-rt/skane/VehiclePositions.pb?key=$TRAFIKLAB_RT_KEY",
-   "gtfs": "https://opendata.samtrafiken.se/gtfs/skane/skane.zip?key=$TRAFIKLAB_STATIC_KEY"
+   "gtfs": "https://opendata.samtrafiken.se/gtfs/skane/skane.zip?key=$TRAFIKLAB_STATIC_KEY",
+   "trips": true
   },
   {
    "id": "se-otraf",
@@ -1731,7 +1734,8 @@
     "TRAFIKLAB_STATIC_KEY"
    ],
    "url": "https://opendata.samtrafiken.se/gtfs-rt/otraf/VehiclePositions.pb?key=$TRAFIKLAB_RT_KEY",
-   "gtfs": "https://opendata.samtrafiken.se/gtfs/otraf/otraf.zip?key=$TRAFIKLAB_STATIC_KEY"
+   "gtfs": "https://opendata.samtrafiken.se/gtfs/otraf/otraf.zip?key=$TRAFIKLAB_STATIC_KEY",
+   "trips": true
   }
  ]
 }

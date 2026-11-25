@@ -3,6 +3,12 @@
 // Route names, colours and kinds (bus, tram, metro, train, ferry) come from the feed's GTFS timetable: only its small
 // routes.txt (and agency.txt) are read, straight out of the zip with ranged downloads, once a day.
 import zlib from 'node:zlib';
+import fs from 'node:fs';
+import fsp from 'node:fs/promises';
+import os from 'node:os';
+import path from 'node:path';
+import {Readable} from 'node:stream';
+import {pipeline} from 'node:stream/promises';
 import {createRequire} from 'node:module';
 const require = createRequire(import.meta.url);
 const GTFSRT = require('gtfs-realtime-bindings').transit_realtime;
@@ -25,14 +31,32 @@ export async function zipFiles(url, names, headers = {}){
   let read, end; // read(from, length) → bytes of the zip; end: its last 64 kB (where the directory is)
   if(r0.status === 206){ const total = +(r0.headers.get('content-range') || '').split('/')[1], tail = Buffer.from(await r0.arrayBuffer()), base = total - tail.length, u = r0.url || url; end = tail;
     read = async (from, len) => from >= base && from + len <= total ? tail.subarray(from - base, from - base + len) : Buffer.from(await (await get(u, `${from}-${from + len - 1}`)).arrayBuffer()); }
-  else { const n = +(r0.headers.get('content-length') || 0); // no ranges: the whole zip, unless it's too big for a small server
-    if(n > 60e6){ try{ await r0.body?.cancel(); }catch(e){} throw new Error(`timetable too big to read whole (${Math.round(n/1e6)} MB)`); }
-    const all = Buffer.from(await r0.arrayBuffer()); if(all.length > 60e6) throw new Error('timetable too big to read whole');
+  else { const n = +(r0.headers.get('content-length') || 0); // no ranges: the whole zip; a big one (Stockholm's) goes to disk, not memory
+    if(!n || n > 30e6){ const tmp = path.join(os.tmpdir(), 'gtfs-' + process.pid + '-' + Date.now() + '.zip');
+      await pipeline(Readable.fromWeb(r0.body), fs.createWriteStream(tmp)); const fh = await fsp.open(tmp, 'r'), size = (await fh.stat()).size;
+      const rd = async (from, len) => { const b = Buffer.alloc(len); await fh.read(b, 0, len, from); return b; };
+      try{ end = await rd(Math.max(0, size - 65536), Math.min(size, 65536)); const base = Math.max(0, size - 65536), cdi = centralDir(end);
+        const ents = entries(await rd(cdi.offset, cdi.size)); return await pick(ents, rd, names); }
+      finally{ await fh.close().catch(() => {}); fsp.unlink(tmp).catch(() => {}); } }
+    const all = Buffer.from(await r0.arrayBuffer());
     read = async (from, len) => all.subarray(from, from + len); end = all; }
-  const cdi = centralDir(end), ents = entries(await read(cdi.offset, cdi.size)), out = {};
+  const cdi = centralDir(end), ents = entries(await read(cdi.offset, cdi.size));
+  return pick(ents, read, names); }
+// the files wanted, unpacked: text, except trips.txt, kept as bytes (Stockholm's is tens of MB: read by tripRoutes)
+async function pick(ents, read, names){ const out = {};
   for(const n of names){ const en = ents.get(n); if(!en) continue;
-    const lh = await read(en.off, 30), data = await read(en.off + 30 + lh.readUInt16LE(26) + lh.readUInt16LE(28), en.csize);
-    out[n] = (en.method === 8 ? zlib.inflateRawSync(data) : data).toString('utf8').replace(/^﻿/, ''); }
+    const lh = await read(en.off, 30), data = await read(en.off + 30 + lh.readUInt16LE(26) + lh.readUInt16LE(28), en.csize), raw = en.method === 8 ? zlib.inflateRawSync(data) : data;
+    out[n] = n === 'trips.txt' ? raw : raw.toString('utf8').replace(/^﻿/, ''); }
+  return out; }
+// trip_id → route_id from trips.txt's bytes, line by line and only those two fields (the generic CSV reader made an
+// object of every row: hundreds of MB for Stockholm, more than the small server has). Route ids are shared strings.
+export function tripRoutes(buf){
+  const out = new Map(), ids = new Map(); let i = 0; if(buf[0] === 0xef && buf[1] === 0xbb && buf[2] === 0xbf) i = 3;
+  const line = () => { let j = buf.indexOf(10, i); if(j < 0) j = buf.length; const t = buf.toString('utf8', i, j).replace(/\r$/, ''); i = j + 1; return t; };
+  const split = t => t.indexOf('"') < 0 ? t.split(',') : (t.match(/("([^"]|"")*"|[^,]*)(,|$)/g) || []).map(f => f.replace(/,$/, '').replace(/^"|"$/g, '').replace(/""/g, '"'));
+  const h = split(line()).map(x => x.trim()), ti = h.indexOf('trip_id'), ri = h.indexOf('route_id'); if(ti < 0 || ri < 0) return out;
+  while(i < buf.length){ const f = split(line()); const t = f[ti], r = f[ri]; if(!t || r == null) continue;
+    let id = ids.get(r); if(id === undefined){ id = r; ids.set(r, r); } out.set(t, id); }
   return out; }
 
 // ---------- CSV (GTFS: quoted fields, commas inside quotes) ----------
@@ -63,7 +87,7 @@ export class Feed {
       const ag = new Map((f['agency.txt'] ? csv(f['agency.txt']) : []).map(a => [a.agency_id, a.agency_name]));
       this.routes = new Map(csv(f['routes.txt'] || '').map(r => [r.route_id, {name:r.route_short_name || r.route_long_name || '', kind:kindOf(r.route_type),
         col:/^[0-9a-f]{6}$/i.test(r.route_color || '') ? '#' + r.route_color : null, op:ag.get(r.agency_id) || (ag.size === 1 ? [...ag.values()][0] : '') || ''}]));
-      if(f['trips.txt']) this.trips = new Map(csv(f['trips.txt']).map(t => [t.trip_id, t.route_id])); // a feed that gives only the trip: its route from the timetable
+      if(f['trips.txt']){ this.trips = new Map(); this.trips = tripRoutes(f['trips.txt']); } // a feed that gives only the trip: its route from the timetable
       console.log(this.cfg.id, 'routes:', this.routes.size, 'trips:', this.trips.size); }
     catch(e){ console.warn(this.cfg.id, 'routes', e.message); } }
   async poll(){
