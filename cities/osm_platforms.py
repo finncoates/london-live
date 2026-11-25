@@ -115,6 +115,7 @@ def beside(pl, tracks, side=None, maxd=12.0):
         if best is None or md < best[0]: best = (md, [g[2] for g in sorted(got)])
     return best and best[1]
 
+PLAT_RE = re.compile(r'[0-9]{1,3}[A-Z]?|[A-Z]{1,2}[0-9]{0,2}') # platform names (7, 7A, B, A1); not running lines ("5 UP")
 out = {}
 for s in ST:
     to, back = local(s)
@@ -165,7 +166,7 @@ for s in ST:
             old = res.get(t['ref'])
             if not old or old is not None and len(keep) > len(old): res[t['ref']] = keep
     if res:
-        out[s[0]] = {r: [list(back(q)) for q in rdp(P)] for r, P in res.items() if math.hypot(P[-1][0]-P[0][0], P[-1][1]-P[0][1]) > 30}
+        out[s[0]] = {r: [list(back(q)) for q in rdp(P)] for r, P in res.items() if PLAT_RE.fullmatch(r) and math.hypot(P[-1][0]-P[0][0], P[-1][1]-P[0][1]) > 30}
         if not out[s[0]]: del out[s[0]]
 if OSM_ST: print(len(ST), 'stations')
 if outf.endswith('/') or os.path.isdir(outf):

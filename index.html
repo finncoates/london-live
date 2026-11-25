@@ -1388,15 +1388,21 @@ async function refresh(){
 // Where is a train right now?
 // zoomed right in on a station: its platform numbers, at the end of each platform's track nearest the station's
 // entrance (from OpenStreetMap; the trains standing there are on the same tracks)
+const PLAT_OK = /^([0-9]{1,3}[A-Z]?|[A-Z]{1,2}[0-9]{0,2})$/; // a platform's name (7, 7A, B, A1), not a running line's ("5 UP")
 function drawPlatNums(ctx, s){
-  if(PV.z < 16.5 || STOPS_OFF.has('train') || !SHOW_ST) return;
+  if(PV.z < 15 || STOPS_OFF.has('train') || !SHOW_ST) return;
   const SS = []; for(const crs in RAIL.plats || {}){ const st = RAIL.byCrs[crs]; if(st) SS.push({p:st.p, pl:RAIL.plats[crs]}); } // London (and Britain)
   { const b = map.getBounds(); if(b && typeof platSquare === 'function'){ const sw = b.getSouthWest(), ne = b.getNorthEast(); // abroad: the squares in view
       for(let la = Math.floor(sw.lat()); la <= Math.floor(ne.lat()); la++) for(let lo = Math.floor(sw.lng()); lo <= Math.floor(ne.lng()); lo++){ const L = platSquare(la + 0.5, lo + 0.5); if(L) SS.push(...L); } } }
   ctx.save(); ctx.font = '700 10px system-ui, sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.lineJoin = 'round';
   const dark = document.documentElement.classList.contains('dark') || matchMedia('(prefers-color-scheme: dark)').matches;
+  // the tracks: one per platform (the network map draws a station's few through lines; a station has a track at every platform)
+  ctx.lineCap = 'butt'; ctx.lineWidth = Math.max(2, lineW()*0.55); ctx.strokeStyle = dark ? '#6f7680' : '#9aa1aa';
+  for(const st of SS){ const c = scr(st.p); if(c.x < -700 || c.y < -700 || c.x > s.x + 700 || c.y > s.y + 700) continue;
+    for(const pl in st.pl){ if(!PLAT_OK.test(pl)) continue; const q = st.pl[pl]; ctx.beginPath(); q.forEach((pt, i) => { const w = scr(pt); i ? ctx.lineTo(w.x, w.y) : ctx.moveTo(w.x, w.y); }); ctx.stroke(); } }
+  if(PV.z < 16.5){ ctx.restore(); return; }
   const PNB = []; for(const st of SS){ const c = scr(st.p); if(c.x < -500 || c.y < -500 || c.x > s.x + 500 || c.y > s.y + 500) continue;
-    for(const pl in st.pl){ const q = st.pl[pl], A = q[0], B = q.at(-1), e = dist(A, st.p) < dist(B, st.p), E = e ? A : B, F = e ? q[1] : q.at(-2);
+    for(const pl in st.pl){ if(!PLAT_OK.test(pl)) continue; const q = st.pl[pl], A = q[0], B = q.at(-1), e = dist(A, st.p) < dist(B, st.p), E = e ? A : B, F = e ? q[1] : q.at(-2);
       const a = scr(E), b = scr(F), L = Math.hypot(a.x - b.x, a.y - b.y) || 1, x = a.x + (a.x - b.x)/L*9, y = a.y + (a.y - b.y)/L*9;
       if(x < -20 || y < -20 || x > s.x + 20 || y > s.y + 20) continue;
       const w = ctx.measureText(pl).width/2 + 2; if(PNB.some(b => Math.abs(b[0] - x) < b[2] + w && Math.abs(b[1] - y) < 10)) continue; PNB.push([x, y, w]); // (close platforms: no number drawn over another)
@@ -1407,18 +1413,36 @@ function drawPlatNums(ctx, s){
 function platPath(crs, pl){ const P = RAIL.plats && RAIL.plats[crs], q = P && P[pl]; if(!q) return null;
   const c = RAIL.platC || (RAIL.platC = new Map()), k = crs + '|' + pl; if(c.has(k)) return c.get(k);
   const cum = [0]; for(let i = 1; i < q.length; i++) cum.push(cum[i-1] + dist(q[i-1], q[i])); const r = {pts:q, cum, len:cum.at(-1), plat:true}; c.set(k, r); return r; }
-// where on the platform: the middle; at a terminus, a train's length from the buffers (the end away from the line)
-function onPlatform(t, crs, other){ const pl = t.plats && t.plats[crs], path = pl && platPath(crs, pl); if(!path || path.len < 30) return null;
-  let f = 0.5; const T = t.ahead, term = T && (T[0][0] === crs || T.at(-1)[0] === crs), o = other && RAIL.byCrs[other];
-  if(term && o){ const buf0 = dist(path.pts[0], o.p) > dist(path.pts.at(-1), o.p), half = Math.min(path.len/2, 105)/path.len; f = buf0 ? half : 1 - half; }
-  return Object.assign(along(path, f), {path, plat:pl}); }
+// a train's platform at a station: its track, where it stops (the middle; at a terminus a train's length from the
+// buffers), and which end faces the neighbouring station (`nb`: where it comes from, or goes to)
+function platInfo(t, crs, nb){ const pl = t.plats && t.plats[crs], path = pl && platPath(crs, pl); if(!path || path.len < 30) return null;
+  const o = nb && RAIL.byCrs[nb], nbEnd = o ? (dist(path.pts[0], o.p) < dist(path.pts.at(-1), o.p) ? 0 : 1) : 0;
+  const T = t.ahead, term = T && (T[0][0] === crs || T.at(-1)[0] === crs); let f = 0.5;
+  if(term && o){ const half = Math.min(path.len/2, 105)/path.len; f = nbEnd === 1 ? half : 1 - half; }
+  return {path, pl, f, nbEnd}; }
+// d metres from where it stops, towards the neighbouring station (null once that is off the platform)
+function platAt(I, d){ const f = I.f + (I.nbEnd === 1 ? d : -d)/I.path.len; if(f < 0 || f > 1) return null; return Object.assign(along(I.path, f), {path:I.path, plat:I.pl}); }
+// zoomed in on stations with mapped platforms: their departure boards give each train's platform; matched to the
+// trains by where they call next and when (within 3 minutes)
+async function platBoards(){
+  if(PV.z < 14 || !RAIL.plats || !railOn() || document.hidden) return; const c = map.getCenter(); if(!c) return; const m = [c.lat(), c.lng()];
+  const near = Object.keys(RAIL.plats).filter(k => RAIL.byCrs[k]).map(k => [k, dist(RAIL.byCrs[k].p, m)]).filter(x => x[1] < 2500).sort((a, b) => a[1] - b[1]).slice(0, 3);
+  for(const [crs] of near){ let b; try{ b = await railBoard(crs); }catch(e){ continue; }
+    for(const sv of b.services || []){ if(!sv.platform) continue; const here = sv.calls.find(x => x.crs === crs); if(!here || here.ms == null) continue;
+      let best = null, bd = 180000; for(const t of trains.values()){ if(!t.rail || !t.ahead) continue; const a = t.ahead.find(x => x[0] === crs); if(!a) continue;
+        const d = Math.abs(a[1] - here.ms); if(d < bd && (!sv.destination || !t.towards || t.towards === sv.destination || sv.destination.includes(t.towards) || t.towards.includes(sv.destination))){ bd = d; best = t; } }
+      if(best){ best.plats ||= {}; best.plats[crs] ||= String(sv.platform).toUpperCase(); } } } }
+setInterval(() => platBoards().catch(() => {}), 30000); setTimeout(() => platBoards().catch(() => {}), 6000);
 function placeTrain(t){
   const r = placeTrain0(t); t.onPlat = null; if(!r || !t.rail || !t.plats || !RAIL.plats) return r;
-  // standing at a station (arrived, waiting to leave, or at the end of its run): on its platform
-  const T = t.ahead || [], i = T.findIndex(a => a[0] === t.cur), atNext = !r.path || (t.f ?? 0) >= 0.999, atPrev = r.path && (t.f ?? 1) <= 0.001 && t.curPrev;
-  const S = atNext ? t.cur : atPrev ? t.curPrev : null; if(!S) return r;
-  const j = T.findIndex(a => a[0] === S), other = (T[j - 1] || T[j + 1] || [])[0];
-  const p = onPlatform(t, S, other); if(!p) return r; t.onPlat = S + ' ' + p.plat; return p; }
+  const T = t.ahead || [], f = t.f ?? 0, L = r.path ? r.path.len : 0, nbOf = S => { const j = T.findIndex(a => a[0] === S); return (T[j - 1] || T[j + 1] || [])[0]; };
+  // standing at a station (arrived, waiting to leave, or at the end of its run)
+  if(!r.path || f >= 0.999 || (f <= 0.001 && t.curPrev)){ const S = !r.path || f >= 0.999 ? t.cur : t.curPrev, I = platInfo(t, S, nbOf(S)), p = I && platAt(I, 0);
+    if(p){ t.onPlat = S + ' ' + p.plat; return p; } return r; }
+  // coming in: the last stretch along its platform's track; going out: the first
+  const In = platInfo(t, t.cur, t.curPrev), pin = In && platAt(In, (1 - f)*L); if(pin){ t.onPlat = t.cur + ' ' + pin.plat; return pin; }
+  const Out = t.curPrev && platInfo(t, t.curPrev, t.cur), pout = Out && platAt(Out, f*L); if(pout){ t.onPlat = t.curPrev + ' ' + pout.plat; return pout; }
+  return r; }
 function placeTrain0(t){
   const l = BY[t.line], n = now();
   let prev = t.prev, next = t.next, arr = t.arr;
@@ -1764,7 +1788,7 @@ async function refreshRail(){
       const old = tr.gks.map(k => (RAIL.gk || new Map()).get(k)).find(k => k && trains.has(k)), key = old || 'nr:' + tr.id; let t = trains.get(key);
       for(const k of tr.gks) gk.set(k, key);
       if(!t){ t = {key, rail:true}; trains.set(key, t); }
-      const plats = {}; for(const c of calls) if(c[3]) plats[c[0]] = c[3];
+      const plats = {...(t && t.plats)}; for(const c of calls) if(c[3]) plats[c[0]] = c[3]; /* (with any the boards gave) */
       Object.assign(t, {line:l.id, ahead:calls.map(c => [c[0], c[1]]), plats, prev:calls[0][0], next:calls[1][0], arr:calls[1][1],
         towards:tr.dest || '', loc:tr.reason || '', seen:t0}); seen.add(key);
     }
