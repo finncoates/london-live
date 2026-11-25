@@ -14,5 +14,8 @@ jobs:
       - run: cd tools && npm ci --silent
       - run: node tools/smoke.mjs
         env: {BROWSER: /usr/bin/google-chrome}
+      - name: Features (stop cards, search, saved stops, share, vehicle card, Follow, switches, French, Near me, Paris jumps)
+        run: node tools/features.mjs
+        env: {BROWSER: /usr/bin/google-chrome}
       - name: Line checks (report only)
         run: python3 cities/check_lines.py 2>&1 | tail -n 15 || true

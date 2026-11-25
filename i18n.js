@@ -29,6 +29,8 @@
     'Vehicles':['Véhicules', 'Fahrzeuge', 'Voertuigen', 'Vehículos', 'Veicoli', 'Pojazdy', 'Veículos'],
     'Lines':['Lignes', 'Linien', 'Lijnen', 'Líneas', 'Linee', 'Linie', 'Linhas'],
     'Routes':['Itinéraires', 'Strecken', 'Routes', 'Rutas', 'Percorsi', 'Trasy', 'Percursos'],
+    'A new version of the map is ready.':['Une nouvelle version de la carte est prête.', 'Eine neue Version der Karte ist da.', 'Er is een nieuwe versie van de kaart.', 'Hay una nueva versión del mapa.', 'È pronta una nuova versione della mappa.', 'Nowa wersja mapy jest gotowa.', 'Há uma nova versão do mapa.'],
+    'Update':['Mettre à jour', 'Aktualisieren', 'Bijwerken', 'Actualizar', 'Aggiorna', 'Aktualizuj', 'Atualizar'],
     'Other':['Autres', 'Sonstige', 'Overig', 'Otros', 'Altro', 'Inne', 'Outros'],
     'Departures':['Départs', 'Abfahrten', 'Vertrek', 'Salidas', 'Partenze', 'Odjazdy', 'Partidas'],
     'Bus':['Bus', 'Bus', 'Bus', 'Autobús', 'Autobus', 'Autobus', 'Autocarro'],
@@ -103,7 +105,7 @@
   // a status text node (' trains · ') follows its count, in bold: the count decides the form
   const trStatus = (t, n) => t.replace(/\b(trains|train|trams|buses|bus|metros|ferries|coaches|coach|boats)\b/g, w => plural(n, w)).replace(/ & /g, ' ' + W.and[i] + ' ').replace(/\bupdated\b/g, W.updated[i]);
   // where the pass looks: the panel's own words, never a stop's or line's name
-  const SEL = '#ttl, #status, #mModes, .mcat-h, .dep-h, .deps small, .deps b, #station > .muted, #station .alerts small, #gfollow small, #gfollow button, #gfollow .ft, #favs h3, #vlist summary, .search label, #howto, #outage, #err';
+  const SEL = '#ttl, #status, #mModes, .mcat-h, .dep-h, .deps small, .deps b, #station > .muted, #station .alerts small, #gfollow small, #gfollow button, #gfollow .ft, #favs h3, #vlist summary, .search label, #howto, #outage, #upd, #err';
   const done = new WeakMap();
   const pass = root => { if(i < 0 || !root) return; const w = document.createTreeWalker(root, NodeFilter.SHOW_TEXT); let n;
     while((n = w.nextNode())){ const el = n.parentElement; if(!el || !el.closest(SEL) || done.get(n) === n.nodeValue) continue;

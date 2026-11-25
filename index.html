@@ -231,6 +231,33 @@ body.dark #outage{background:#3a2a10;color:#ffe2b0;border-color:#7a5a20}
   #mModes::-webkit-scrollbar{display:none} #mModes .mcat,#mModes .chips{display:contents} #mModes .mcat-h{display:none} #mModes button{flex:none;white-space:nowrap}}
 #vlistOl .vl{background:none;border:0;padding:3px 0;margin:0;text-align:left;font:inherit;color:inherit;cursor:pointer;text-decoration:underline dotted;text-underline-offset:3px;min-height:28px}
 #mModes .lin .lsw{display:inline-block;width:14px;height:4px;border-radius:2px;margin-right:6px;vertical-align:middle}
+#upd{background:#e8f1ff;color:#0b2a5b;border:1px solid #9fc1f5;border-radius:10px;padding:7px 10px;margin:6px 0 8px;font-size:12.5px;display:flex;align-items:center;gap:8px;justify-content:space-between}
+#upd[hidden]{display:none}
+body.dark #upd{background:#10284d;color:#cfe0ff;border-color:#2f5a99}
+#upd button{font-size:12.5px;padding:5px 12px}
+#plan{background:var(--soft);border-radius:12px;padding:9px 11px;margin:0 0 10px;font-size:13px}
+#plan[hidden]{display:none}
+#plan .pl-h{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px}
+#plan .pl-f{display:grid;grid-template-columns:1fr auto;grid-template-rows:auto auto;gap:4px 6px;align-items:center}
+#plan .pl-in{display:flex;align-items:center;gap:6px;background:var(--bg);border-radius:8px;padding:4px 8px;grid-column:1}
+#plan .pl-in label{font-size:11.5px;color:var(--mute);width:34px;flex:none}
+#plan .pl-in input{border:0;background:none;flex:1;min-width:0;font:inherit;color:inherit;padding:4px 0}
+#plSwap{grid-column:2;grid-row:1/3;font-size:16px;padding:4px 8px}
+#plSug{list-style:none;margin:6px 0 0;padding:0;display:grid;gap:2px}
+#plSug li{padding:6px 8px;border-radius:6px;cursor:pointer}#plSug li:hover,#plSug li.on{background:var(--bg)}
+#plSug small{display:block;color:var(--mute);font-size:11.5px}
+#plRes{margin-top:8px;display:grid;gap:6px}
+#plRes .it{display:block;width:100%;text-align:left;background:var(--bg);border:0;border-radius:8px;padding:7px 9px;cursor:pointer;font:inherit;color:inherit}
+#plRes .it.on{outline:2px solid var(--acc,#1a73e8)}
+#plRes .it b{font-variant-numeric:tabular-nums}
+#plRes .legs{display:flex;flex-wrap:wrap;gap:4px;margin-top:4px;align-items:center}
+#plRes .lp{border-radius:4px;padding:1px 6px;font-size:12px;font-weight:700;color:#fff}
+#plRes .wk{font-size:12px;color:var(--mute)}
+#plRes ol{list-style:none;margin:6px 0 0;padding:0;display:grid;gap:6px}
+#plRes ol li{border-left:4px solid var(--c);padding:2px 0 2px 8px;font-size:12.5px}
+#plRes ol li.walk{border-left-style:dotted}
+#plRes ol small{display:block;color:var(--mute)}
+#plRes ol [data-follow]{font-size:12px;padding:3px 8px;margin-top:3px;display:inline-block;border:1px solid var(--edge);border-radius:6px}
 #favs{margin:0 0 10px}
 #favs[hidden]{display:none}
 #favs h3{font-size:11.5px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--mute);margin:0 0 6px}
@@ -240,6 +267,8 @@ body.dark #outage{background:#3a2a10;color:#ffe2b0;border-color:#7a5a20}
 #stStar[aria-pressed=true]{color:#f5a623}
 #stShare{font-size:17px;line-height:1;padding:4px 8px;margin-left:auto;background:none;border:0;color:var(--mute);cursor:pointer;min-width:36px;min-height:36px}
 #stShare+#stStar{margin-left:0}
+#stDir{font-size:17px;line-height:1;padding:4px 8px;margin-left:auto;background:none;border:0;color:var(--mute);cursor:pointer;min-width:36px;min-height:36px}
+#stDir+#stShare{margin-left:0}
 #howto{background:var(--soft);border-radius:12px;padding:9px 11px;margin:0 0 10px;font-size:12.5px;line-height:1.4}
 #howto[hidden]{display:none}
 #howto ul{margin:5px 0 7px;padding:0;list-style:none;display:grid;gap:4px}
@@ -326,13 +355,23 @@ button.lnk{border:0;background:none;padding:0;color:var(--acc);font-weight:600;f
     <button id="bPlaces" class="icon" title="Explore cities" aria-label="Explore cities around the world" aria-expanded="false"><svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="2"/><path d="M3 12h18M12 3c3 3.2 3 14.8 0 18M12 3c-3 3.2-3 14.8 0 18" fill="none" stroke="currentColor" stroke-width="1.6"/></svg></button>
     <button id="bMap" class="icon" title="Map style" aria-label="Map style" aria-expanded="false"><svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l9 5-9 5-9-5 9-5zm-9 9l9 5 9-5M3 16l9 5 9-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg></button>
     <button id="bLook" class="icon" title="Look down: the Tube under your feet, through the camera" aria-label="Look down: see the Tube under your feet through the camera" hidden><svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true"><rect x="6" y="2" width="12" height="20" rx="2.5" fill="none" stroke="currentColor" stroke-width="2"/><path d="M3 15.5h18M3 19h18" stroke="currentColor" stroke-width="1.6" stroke-dasharray="2 2"/></svg></button>
+    <button id="bPlan" class="icon" title="Directions" aria-label="Directions: plan a journey">↱</button>
     <button id="bFit" class="icon" title="Near me (tap again: all of London)" aria-label="Show where I am and the nearest station">⌖</button>
     <button id="bKiosk" class="icon" title="Full-screen TV mode (K)" aria-label="Full-screen TV mode">⛶</button>
     <button id="bTheme" class="icon" title="Dark / light (D)" aria-label="Switch dark or light map">🌓</button>
   </h1>
   <div id="status">Loading lines…</div>
   <div id="outage" role="status" hidden></div>
+  <div id="upd" role="status" hidden>A new version of the map is ready. <button type="button" id="updGo">Update</button></div>
   <div id="favs" hidden></div>
+  <div id="plan" role="region" aria-label="Directions" hidden>
+    <div class="pl-h"><b>Directions</b><button type="button" class="x" id="plX" aria-label="Close directions">✕</button></div>
+    <div class="pl-f"><div class="pl-in"><label for="plFrom">From</label><input id="plFrom" placeholder="My location" autocomplete="off"></div>
+      <button type="button" id="plSwap" aria-label="Swap from and to">⇅</button>
+      <div class="pl-in"><label for="plTo">To</label><input id="plTo" placeholder="A stop, street or place" autocomplete="off"></div></div>
+    <ul id="plSug" role="listbox" hidden></ul>
+    <div id="plRes" aria-live="polite"></div>
+  </div>
   <div id="howto" hidden><b>How to read the map</b>
     <ul><li><i class="hv live"></i>Solid: where the vehicle really is (live GPS)</li><li><i class="hv sched"></i>Pale with a coloured edge: placed from the timetable (with live delays where the network shares them)</li>
     <li>Tap a vehicle for its next stops, or <b>Follow</b> it · tap a stop for its departures · <b>⌖</b> for what's near you</li></ul>
@@ -2552,6 +2591,11 @@ const opCol = op => { let h = 0; for(const ch of op || '') h = (h*31 + ch.charCo
 function drawGps(ctx, s, hl0, hw0, mpp){
   draw.ghit = []; STL.boxes = []; STL.nr = []; if(TRAINS_ON && document.body.classList.contains('away') && !document.body.classList.contains('abroad')){ drawNR(ctx); drawUKStops(ctx); } else if(TRAINS_ON && document.body.classList.contains('abroad') && map.getCenter() && railC([map.getCenter().lat(), map.getCenter().lng()])){ drawNR(ctx); if(!busOff()) drawUKStops(ctx); } /* France, the Netherlands: the whole railway, and bus stops close up */ /* France: SNCF's whole passenger network, as Britain's */ drawCoachNet(ctx); if(TRAINS_ON && document.body.classList.contains('away') && map.getCenter()){ const mc = [map.getCenter().lat(), map.getCenter().lng()]; drawBusNet(ctx); if(CITYL.cur && CITYL.cur.box(mc)) drawCityLines(ctx); flushNrNames(ctx); } else if(TRAINS_ON && document.body.classList.contains('edge')){ drawUKStops(ctx); drawBusNet(ctx); } /* just outside Greater London: its own stops and routes */ else if(TRAINS_ON && !MODES_OFF.has('bus') && PV.z >= 14) drawBusNet(ctx); /* London with buses on: the routes just outside Greater London too */ if(!GPS.list.size || !SHOW_ICONS || !TRAINS_ON) return;
   if(window.__TTV && __TTV.world && __TTV.ferries) drawTTLines(ctx); // abroad: the routes the timetable vehicles are on, as lines under them
+  if(typeof PL !== 'undefined' && PL.draw && PL.sel >= 0 && !$('plan').hidden){ const W = lineW(); ctx.save(); ctx.lineJoin = 'round'; ctx.lineCap = 'round'; // the journey chosen in Directions
+    for(const d of PL.draw){ const P = d.pts.map(q => scr(q)); const line = () => { ctx.beginPath(); P.forEach((c, i) => i ? ctx.lineTo(c.x, c.y) : ctx.moveTo(c.x, c.y)); ctx.stroke(); };
+      if(d.k === 'walk'){ ctx.setLineDash([2, 6]); ctx.strokeStyle = dark ? '#cfd4da' : '#5f6670'; ctx.lineWidth = Math.max(3, W*0.6); line(); ctx.setLineDash([]); }
+      else { ctx.strokeStyle = dark ? '#000' : '#fff'; ctx.lineWidth = Math.max(6, W*1.6) + 3; line(); ctx.strokeStyle = d.col; ctx.lineWidth = Math.max(6, W*1.6); line(); } }
+    ctx.restore(); }
   const LBOX = []; const now = Date.now(), cosLat = Math.cos(map.getCenter().lat()*rad), label = PV.z >= 14.5; // (line numbers from 14.5: overlapping labels are left out, so busy streets stay readable)
   // bus routes abroad: where each bus has driven (thin, light, like London's bus routes), and the tapped bus's whole route
   if(!busOff() && !GPS_OFF.has('bus') && PV.z >= 13){ const W = lineW(), look = lineLook('bus', W); ctx.lineJoin = 'round'; ctx.lineCap = 'round';
@@ -2563,7 +2607,8 @@ function drawGps(ctx, s, hl0, hw0, mpp){
   for(const g of GPS.list.values()){
     if(gOff(g.v)) continue;
     if(vkind(g.v) === 'bus' && g.v.segAng == null && !g.v.sn && PV.z >= 11 && now - (g.raT || 0) > 1500){ g.raT = now; const ra = (g.v.coach ? coachRoadAng(g.v, g.ang) : null) ?? busRoadAng(g.v, g.ang); if(ra != null) g.v.segAng = ra; } // not yet known: once the road map is in
-    ctx.globalAlpha = (LF.city && !lfMatch(g)) || LF.id ? 0.2 : !g.v.line && !g.v.dest && !g.v.coach && vkind(g.v) === 'bus' ? 0.45 : 1; // a bus out of service: faded
+    ctx.globalAlpha = (LF.city && !lfMatch(g)) || LF.id || (PL.draw && PL.sel >= 0 && !$('plan').hidden && !PL.trips?.has(String(g.v.id).slice(3))) ? 0.2 : // (a journey chosen in Directions: everything else faded)
+       !g.v.line && !g.v.dest && !g.v.coach && vkind(g.v) === 'bus' ? 0.45 : 1; // a bus out of service: faded
     const p = gpsPos(g, now), c = scr(p); if(c.x < -30 || c.y < -30 || c.x > s.x + 30 || c.y > s.y + 30) continue;
     if((g.v.tram || g.v.metro) && PV.z >= 12){ const sh = laneShift(g.v, p); if(sh){ c.x += sh.x; c.y += sh.y; } } // on its own line where lines run side by side
     let ang = g.pAng != null ? g.pAng : g.v.segAng != null ? g.v.segAng : g.v.brg != null ? (g.v.brg - 90)*rad : g.ang ?? 0; // on a known line: its direction
@@ -4410,6 +4455,13 @@ addEventListener('keydown', e => {
 });
 const tick = () => { $('clock').textContent = new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}); };
 tick(); setInterval(tick, 1000);
+// a new version published while the page is open: a banner offers it (the page's version tag, checked with a tiny
+// HEAD request every 10 minutes and on coming back to the tab; open pages otherwise ran old code until reloaded)
+const VER = {tag:null};
+async function checkVersion(){ if(!/^https:/.test(location.protocol)) return; try{ const r = await fetch(location.pathname, {method:'HEAD', cache:'no-store'}); const t = r.headers.get('etag') || r.headers.get('last-modified'); if(!t) return;
+  if(VER.tag == null) VER.tag = t; else if(t !== VER.tag) $('upd').hidden = false; }catch(e){} }
+checkVersion(); setInterval(checkVersion, 600000); document.addEventListener('visibilitychange', () => { if(!document.hidden) checkVersion(); });
+$('updGo').onclick = () => location.reload();
 // ---- saved stops: ☆ on any stop or station card; saved ones sit at the top of the panel, a tap away (kept in this browser)
 const FAVK = c => c.t + '|' + c.name + '|' + (+c.lat).toFixed(4);
 const favs = () => { try{ return JSON.parse(localStorage.getItem('favStops') || '[]'); }catch(e){ return []; } };
@@ -4431,6 +4483,55 @@ new MutationObserver(() => { const x = document.getElementById('stClose'); if(!x
 $('station').addEventListener('click', e => { if(!e.target.closest('#stStar') || !CARD) return; const L = favs(), k = FAVK(CARD), i = L.findIndex(f => FAVK(f) === k);
   if(i >= 0) L.splice(i, 1); else L.unshift(JSON.parse(JSON.stringify(CARD))); setFavs(L); const b = $('stStar'), on = i < 0; b.textContent = on ? '★' : '☆'; b.setAttribute('aria-pressed', String(on)); b.setAttribute('aria-label', on ? 'Remove from your stops' : 'Save to your stops'); });
 renderFavs();
+// ---- journey planner (Transitous, through the relay): from your location or any stop/place, to any stop/place;
+// up to 5 ways, each drawn on the map when chosen (rides in their line's colour, walks dotted), its legs listed, and
+// a ride whose vehicle is on the map can be followed
+const PL = {from:null, to:null, its:[], sel:-1, field:null, sug:[], t:0, seq:0, draw:null};
+const hm2 = t => new Date(t).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}), mins = ms => Math.max(1, Math.round(ms/60000));
+const legKind = m => /SUBWAY|METRO/.test(m) ? 'metro' : /TRAM/.test(m) ? 'tram' : /FERRY/.test(m) ? 'ferry' : /BUS|COACH/.test(m) ? 'bus' : /WALK|FOOT/.test(m) ? 'walk' : /BIKE|BICYCLE|SCOOTER/.test(m) ? 'bike' : 'train';
+const legCol = L => L.routeColor && /^[0-9a-f]{6}$/i.test(L.routeColor) ? inkA('#' + L.routeColor.toLowerCase()) : ({metro:'#0E4C92', tram:'#7A1F3D', ferry:'#00A0E2', bus:'#DC241F', train:'#1D5BA0', walk:'#8a8f98', bike:'#2E7D32'})[legKind(L.mode)];
+const KNAME = {metro:'Metro', tram:'Tram', bus:'Bus', train:'Train', ferry:'Boat', bike:'Bike'};
+function openPlan(to){ $('plan').hidden = false; if(to){ PL.to = to; $('plTo').value = to.name; } if(!PL.from){ PL.from = {me:true, name:'My location'}; $('plFrom').value = ''; }
+  if(PL.to) planGo(); else $('plTo').focus(); }
+function closePlan(){ $('plan').hidden = true; PL.its = []; PL.sel = -1; PL.draw = null; $('plRes').innerHTML = ''; $('plSug').hidden = true; }
+$('bPlan').onclick = () => $('plan').hidden ? openPlan() : closePlan(); $('plX').onclick = closePlan;
+$('plSwap').onclick = () => { const a = PL.from || {me:true, name:'My location'}, b = PL.to || {me:true, name:'My location'}; PL.from = b; PL.to = a;
+  $('plFrom').value = PL.from.me ? '' : PL.from.name; $('plTo').value = PL.to.me ? 'My location' : PL.to.name; planGo(); };
+for(const id of ['plFrom', 'plTo']) $(id).addEventListener('input', () => { PL.field = id; const q = $(id).value.trim(); clearTimeout(PL.t); if(q.length < 3){ $('plSug').hidden = true; return; }
+  PL.t = setTimeout(async () => { const c = map.getCenter(); try{ const j = await (await fetch(`${TRS()}/api/v1/geocode?text=${encodeURIComponent(q)}&place=${c.lat().toFixed(1)},${c.lng().toFixed(1)}`, {signal:AbortSignal.timeout(8000)})).json();
+      if($(id).value.trim() !== q) return; PL.sug = (Array.isArray(j) ? j : []).filter(x => isFinite(x.lat)).slice(0, 6).map(x => ({name:x.name, lat:x.lat, lon:x.lon, area:[...new Set((x.areas || []).map(a => a.name).filter(n => n && n !== x.name))].slice(-2).reverse().join(', '), type:x.type}));
+      PL.sugMe = id === 'plFrom'; $('plSug').innerHTML = (PL.sugMe ? [{me:true, name:'My location'}] : []).concat(PL.sug).map((x, i) => `<li role="option" data-i="${i}">${esc(x.name)}${x.area ? `<small>${esc(x.area)}</small>` : ''}</li>`).join('');
+      $('plSug').hidden = false; }catch(e){} }, 300); });
+$('plSug').addEventListener('click', e => { const li = e.target.closest('li'); if(!li) return; const L = (PL.sugMe ? [{me:true, name:'My location'}] : []).concat(PL.sug), x = L[+li.dataset.i]; if(!x) return;
+  if(PL.field === 'plFrom'){ PL.from = x; $('plFrom').value = x.me ? '' : x.name; } else { PL.to = x; $('plTo').value = x.name; } $('plSug').hidden = true; planGo(); });
+async function planGo(){ if(!PL.to) return; const seq = ++PL.seq; $('plRes').innerHTML = '<div class="muted">Finding ways…</div>';
+  let from = PL.from;
+  if(!from || from.me){ try{ const p = await new Promise((ok, no) => navigator.geolocation ? navigator.geolocation.getCurrentPosition(q => ok([q.coords.latitude, q.coords.longitude]), no, {enableHighAccuracy:true, timeout:10000, maximumAge:60000}) : no(new Error('no location')));
+      from = {me:true, name:'My location', lat:p[0], lon:p[1]}; }catch(e){ if(seq === PL.seq) $('plRes').innerHTML = '<div class="muted">Your location isn’t available: type where you’re starting from.</div>'; return; } }
+  if(PL.to.me){ $('plRes').innerHTML = '<div class="muted">Choose where you’re going.</div>'; return; }
+  try{ const j = await (await fetch(`${TRS()}/api/v5/plan?fromPlace=${from.lat.toFixed(5)},${from.lon.toFixed(5)}&toPlace=${PL.to.lat.toFixed(5)},${PL.to.lon.toFixed(5)}`, {signal:AbortSignal.timeout(20000)})).json();
+    if(seq !== PL.seq) return; PL.its = (j.itineraries || []).slice(0, 5); PL.sel = -1;
+    if(!PL.its.length){ $('plRes').innerHTML = `<div class="muted">No way found by public transport${j.direct?.length ? ` (walking takes ${mins(j.direct[0].duration*1000)} min)` : ''}.</div>`; PL.draw = null; return; }
+    pickIt(0); }
+  catch(e){ if(seq === PL.seq) $('plRes').innerHTML = '<div class="muted">Journeys couldn’t be found right now.</div>'; } }
+function renderPlan(){
+  $('plRes').innerHTML = PL.its.map((it, i) => { const s = Date.parse(it.startTime), e = Date.parse(it.endTime);
+    const pills = it.legs.map(L => legKind(L.mode) === 'walk' ? `<span class="wk">🚶${mins(Date.parse(L.endTime) - Date.parse(L.startTime))}</span>` : `<span class="lp" style="background:${legCol(L)}">${esc(L.routeShortName || L.displayName || KNAME[legKind(L.mode)] || '')}</span>`).join('<span class="wk">›</span>');
+    const body = i === PL.sel ? `<ol>${it.legs.map(L => { const k = legKind(L.mode), a = Date.parse(L.startTime), b = Date.parse(L.endTime), stops = (L.intermediateStops || []).length + 1, late = L.realTime && L.scheduledStartTime ? Math.round((a - Date.parse(L.scheduledStartTime))/60000) : 0;
+        const toName = !L.to?.name || /^(END|START)$/i.test(L.to.name) ? PL.to?.name || '' : L.to.name, head = !L.headsign || /^[A-Z]{4}$/.test(L.headsign) ? L.tripTo?.name || L.to?.name || '' : L.headsign; // (the place you asked for, not 'END'; an RER mission code like VACK: its terminus)
+        return k === 'walk' ? `<li class="walk" style="--c:#8a8f98">Walk ${mins(b - a)} min to ${esc(toName)}</li>`
+          : `<li style="--c:${legCol(L)}"><b>${esc(KNAME[k] || '')} ${esc(L.routeShortName || L.displayName || '')}</b> towards ${esc(head)}
+            <small>${hm2(a)} ${esc(L.from?.name || '')} → ${hm2(b)} ${esc(L.to?.name || '')} · ${stops} stop${stops > 1 ? 's' : ''}${L.realTime ? (late >= 2 ? ` · ${late} min late` : ' · live') : ''}</small>${L.tripId && GPS.list.has('tf:' + L.tripId) ? `<span role="button" tabindex="0" data-follow="${esc(L.tripId)}">Follow it</span>` : ''}</li>`; }).join('')}</ol>` : '';
+    return `<button type="button" class="it ${i === PL.sel ? 'on' : ''}" data-it="${i}"><b>${hm2(s)} – ${hm2(e)}</b> · ${mins(e - s)} min${it.transfers ? ` · ${it.transfers} change${it.transfers > 1 ? 's' : ''}` : ''}<div class="legs">${pills}</div>${body}</button>`; }).join(''); }
+function pickIt(i){ PL.sel = i; const it = PL.its[i]; renderPlan(); if(!it) return;
+  PL.trips = new Set(it.legs.map(L => L.tripId).filter(Boolean));
+  PL.draw = it.legs.map(L => ({k:legKind(L.mode), col:legCol(L), pts:L.legGeometry?.points ? decodePolyP(L.legGeometry.points, L.legGeometry.precision || 6) : [[L.from.lat, L.from.lon], [L.to.lat, L.to.lon]]}));
+  const all = PL.draw.flatMap(d => d.pts); if(all.length){ const B = new google.maps.LatLngBounds(); for(const q of all) B.extend({lat:q[0], lng:q[1]}); try{ map.fitBounds(B, 60); }catch(e){} } }
+$('plRes').addEventListener('click', e => { const f = e.target.closest('[data-follow]'); if(f){ e.stopPropagation(); const g = GPS.list.get('tf:' + f.dataset.follow); if(g){ openGFollow(g); GF.on = true; renderGFollow(); } return; }
+  const b = e.target.closest('[data-it]'); if(b && +b.dataset.it !== PL.sel) pickIt(+b.dataset.it); });
+// a stop card's 'Directions here'
+new MutationObserver(() => { const x = document.getElementById('stShare'); if(!x || !CARD || document.getElementById('stDir')) return; const d = document.createElement('button'); d.type = 'button'; d.id = 'stDir'; d.textContent = '↱'; d.title = 'Directions here'; d.setAttribute('aria-label', 'Directions to this stop'); x.before(d); }).observe($('station'), {childList:true, subtree:true});
+$('station').addEventListener('click', e => { if(!e.target.closest('#stDir') || !CARD) return; openPlan({name:CARD.name, lat:+CARD.lat, lon:+CARD.lon}); });
 // keyboard and screen readers: a vehicle in the list opens its card; Escape closes the open card; a card opened from
 // the keyboard takes the focus, so it's read out
 document.addEventListener('click', e => { const b = e.target.closest('#vlistOl .vl'); if(!b) return; for(const g of GPS.list.values()) if(g.v.id === b.dataset.vid){ openGFollow(g); map.panTo(LL(gpsPos(g, Date.now()))); $('gfollow').setAttribute('tabindex', '-1'); $('gfollow').focus(); break; } });
