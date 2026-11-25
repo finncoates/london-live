@@ -2801,7 +2801,7 @@ function nrAddTile(t, ps){
   // join each piece's ends to the line they meet (junctions, and pieces cut at tile edges), for the new tile and its neighbours
   const [ta, tb] = t.split('_').map(Number);
   for(const [p, id] of NRG.ends){ if(p[0]*2 < ta - 0.05 || p[0]*2 > ta + 1.05 || p[1]*2 < tb - 0.05 || p[1]*2 > tb + 1.05) continue;
-    const k = nrNodeKey(p), m = nrOnTrack(p, 60, id); if(m) nrLink(k, m.k, dist(p, NRG.pos.get(m.k))); }
+    const k = nrNodeKey(p), m = nrOnTrack(p, 60, id) || nrOnTrack(p, 150, id); if(m) nrLink(k, m.k, dist(p, NRG.pos.get(m.k))*(dist(p, NRG.pos.get(m.k)) > 60 ? 1.5 : 1)); } // (up to 150 m: one kept track of several ends and the line carries on along its neighbour, 60–100 m over; a longer jump costs a little more)
   NRG.paths.clear(); NRG.snaps = null; }
 function nrTiles(A, B){ // the map tiles between two stations: true once all are here (fetches the missing ones)
   let ok = true; const la0 = Math.floor(Math.min(A[0], B[0])*2), la1 = Math.floor(Math.max(A[0], B[0])*2), lo0 = Math.floor(Math.min(A[1], B[1])*2), lo1 = Math.floor(Math.max(A[1], B[1])*2);
@@ -3123,6 +3123,10 @@ window.__rideState = () => ({key:FW.t && FW.t.key, ride:FW.ride, d:FW.t && FW.t.
 window.__rekey = () => { const t = FW.t; if(!t) return null; const k = t.key + ':new'; trains.delete(t.key); trains.set(k, Object.assign({}, t, {key:k})); return k; };
 window.__gf = () => ({id:GF.id, on:GF.on, p:(g => g && gpsPos(g, Date.now()))(gfVehicle()), c:(c => c && [c.lat(), c.lng()])(map.getCenter())});
 window.__ttRail = () => { const m = TTV.rail || new Map(); return {routes:[...m.values()].filter(Boolean).length, failed:[...m].filter(([, v]) => !v).map(([k]) => k).slice(0, 6), tiles:NRNET.tiles.size, graph:NRG.pos.size}; };
+window.__nrGap = (A, B) => { nrTiles(A, B); const comp = st => { const seen = new Set(st), q = [...st]; while(q.length){ const u = q.pop(); for(const [v] of NRG.adj.get(u) || []) if(!seen.has(v)){ seen.add(v); q.push(v); } } return seen; };
+  const ca = comp(nrCands(A, 600).map(c => c[0])), cb = comp(nrCands(B, 600).map(c => c[0])); if([...cb].some(x => ca.has(x))) return 'connected';
+  const pa = [...ca].map(k => NRG.pos.get(k)); let best = null; for(const k of cb){ const p = NRG.pos.get(k); for(const q of pa){ if(Math.abs(p[0]-q[0]) > 0.05 || Math.abs(p[1]-q[1]) > 0.08) continue; const d = dist(p, q); if(!best || d < best.d) best = {d:Math.round(d), a:q, b:p}; } }
+  return {sizeA:ca.size, sizeB:cb.size, gap:best}; };
 window.__testStop = i => { const L = ukStopsHere(); if(L[i]) openUKStop(L[i]); return L.length; }; // (tests: open the i-th bus stop in view)
 window.__smoke = () => ({city:CITYL.cur?.name || null, cityFiles:cityData().length, cityLines:cityData().reduce((n, d) => n + d.lines.length, 0),
   tfl:ACTIVE.filter(l => l.layer).length, gps:GPS.list.size, tt:TTV.ferries ? TTV.ferries.size : 0,
