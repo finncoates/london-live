@@ -25,14 +25,16 @@ function entries(cd){ const out = new Map(); let i = 0;
     const method = cd.readUInt16LE(i + 10), csize = cd.readUInt32LE(i + 20), nlen = cd.readUInt16LE(i + 28), xlen = cd.readUInt16LE(i + 30), clen = cd.readUInt16LE(i + 32), off = cd.readUInt32LE(i + 42);
     out.set(cd.toString('utf8', i + 46, i + 46 + nlen).replace(/^.*\//, ''), {method, csize, off}); i += 46 + nlen + xlen + clen; }
   return out; }
-export async function zipFiles(url, names, headers = {}){
-  const get = async (u, rg) => { const r = await fetch(u, {headers:{...UA, ...headers, ...(rg ? {range:'bytes=' + rg} : {})}, signal:AbortSignal.timeout(300000)}); if(!r.ok) throw new Error('HTTP ' + r.status); return r; };
-  const r0 = await get(url, '-65536');
+// opt.whole: no ranged reads, the zip fetched compressed (Trafiklab answers 406 to a request without Accept-Encoding:
+// gzip, and a byte range of a compressed transfer isn't a byte range of the file)
+export async function zipFiles(url, names, headers = {}, opt = {}){
+  const get = async (u, rg) => { const r = await fetch(u, {headers:{...UA, ...(opt.whole ? {'accept-encoding':'gzip, deflate'} : {}), ...headers, ...(rg ? {range:'bytes=' + rg} : {})}, signal:AbortSignal.timeout(300000)}); if(!r.ok) throw new Error('HTTP ' + r.status); return r; };
+  const r0 = await get(url, opt.whole ? null : '-65536');
   let read, end; // read(from, length) → bytes of the zip; end: its last 64 kB (where the directory is)
   if(r0.status === 206){ const total = +(r0.headers.get('content-range') || '').split('/')[1], tail = Buffer.from(await r0.arrayBuffer()), base = total - tail.length, u = r0.url || url; end = tail;
     read = async (from, len) => from >= base && from + len <= total ? tail.subarray(from - base, from - base + len) : Buffer.from(await (await get(u, `${from}-${from + len - 1}`)).arrayBuffer()); }
   else { const n = +(r0.headers.get('content-length') || 0); // no ranges: the whole zip; a big one (Stockholm's) goes to disk, not memory
-    if(!n || n > 30e6){ const tmp = path.join(os.tmpdir(), 'gtfs-' + process.pid + '-' + Date.now() + '.zip');
+    if(!n || n > 30e6 || opt.whole){ const tmp = path.join(os.tmpdir(), 'gtfs-' + process.pid + '-' + Date.now() + '.zip');
       await pipeline(Readable.fromWeb(r0.body), fs.createWriteStream(tmp)); const fh = await fsp.open(tmp, 'r'), size = (await fh.stat()).size;
       const rd = async (from, len) => { const b = Buffer.alloc(len); await fh.read(b, 0, len, from); return b; };
       try{ end = await rd(Math.max(0, size - 65536), Math.min(size, 65536)); const base = Math.max(0, size - 65536), cdi = centralDir(end);
@@ -92,7 +94,7 @@ export class Feed {
       await fsp.writeFile(fn + '.tmp', JSON.stringify({routes:[...this.routes], trips:[...this.trips]})); await fsp.rename(fn + '.tmp', fn); }catch(e){ console.warn(this.cfg.id, 'cache', e.message); } }
   async _loadRoutes(){
     if(!this.loadedOnce){ this.loadedOnce = true; if(await this._fromDisk()) return; }
-    try{ const f = await zipFiles(this.sub(this.cfg.gtfs), ['routes.txt', 'agency.txt', ...(this.cfg.trips === true ? ['trips.txt'] : [])], this.cfg.gtfsHeaders ? this.headers() : {});
+    try{ const f = await zipFiles(this.sub(this.cfg.gtfs), ['routes.txt', 'agency.txt', ...(this.cfg.trips === true ? ['trips.txt'] : [])], this.cfg.gtfsHeaders ? this.headers() : {}, {whole:!!this.cfg.gtfsWhole});
       const ag = new Map((f['agency.txt'] ? csv(f['agency.txt']) : []).map(a => [a.agency_id, a.agency_name]));
       this.routes = new Map(csv(f['routes.txt'] || '').map(r => [r.route_id, {name:r.route_short_name || r.route_long_name || '', kind:kindOf(r.route_type),
         col:/^[0-9a-f]{6}$/i.test(r.route_color || '') ? '#' + r.route_color : null, op:ag.get(r.agency_id) || (ag.size === 1 ? [...ag.values()][0] : '') || ''}]));
