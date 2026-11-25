@@ -54,6 +54,7 @@ export default {
       if(url.pathname.startsWith('/tfl/')) return await tfl(url, env, cors);
       if(url.pathname.startsWith('/transitous/')) return await transitous(url, cors);
       if(url.pathname === '/tt') return await ttTile(url, cors);
+      if(url.pathname === '/planes') return await planes(url, cors);
       if(url.pathname === '/gbfs') return await gbfsProxy(url, cors);
       if(url.pathname === '/darwin/trains') return await darwinTrains(url, env, cors);
       if(/^\/srv\/(health|ferries|rt)$/.test(url.pathname)) return await srv(url, env, cors);
@@ -377,6 +378,36 @@ async function transitous(url, cors){
         if(cache) await cache.put(ck, new Response(body, {headers:{'content-type':'application/json', 'cache-control':'public, max-age=' + ttl}})).catch(() => {}); }
       return {body, status:up.status}; })().finally(() => TR_WAIT.delete(key)); TR_WAIT.set(key, w); }
   const r = await w; return out(r.body, r.status, 'upstream'); }
+
+// ---------- planes: real aircraft positions from ADS-B receivers run by volunteers ----------
+// GET /planes?la=51.5&lo=-0.1 → {now, src, ac:[[hex, callsign, lat, lon, track°, speed kt, altitude ft (or -1 on the
+// ground), type, registration, seconds since its position, vertical rate ft/min]]} within ~220 km of that 1° square's
+// middle. adsb.lol (open data, ODbL), else adsb.fi, else airplanes.live (Cloudflare's shared addresses are sometimes turned away); one call per square every 8 s, shared by everyone.
+const PL_MEM = new Map(), PL_WAIT = new Map(), PL_TTL = 8;
+async function planes(url, cors){
+  const la = Math.round(+url.searchParams.get('la')*2)/2, lo = Math.round(+url.searchParams.get('lo')*2)/2;
+  if(!isFinite(la) || !isFinite(lo) || Math.abs(la) > 85 || Math.abs(lo) > 180) return json({error:'la, lo'}, 400, cors);
+  const key = la + ',' + lo, now = Date.now(), hit = PL_MEM.get(key);
+  const out = (body, how) => new Response(body, {status:200, headers:{'content-type':'application/json', 'cache-control':'public, max-age=' + PL_TTL, 'x-ll-cache':how, ...cors}});
+  if(hit && now - hit.t < PL_TTL*1000) return out(hit.body, 'memory');
+  const ck = new Request('https://pl-cache.invalid/' + key), cache = typeof caches !== 'undefined' ? caches.default : null;
+  const ch = cache ? await cache.match(ck).catch(() => null) : null;
+  if(ch){ const body = await ch.text(); PL_MEM.set(key, {t:now, body}); return out(body, 'shared'); }
+  let w = PL_WAIT.get(key);
+  if(!w){ w = (async () => {
+      const UA = {headers:{'user-agent':'LondonLive/1.0 (+https://github.com/finncoates/london-live)'}, signal:AbortSignal.timeout(9000)};
+      let d = null, src = 'adsb.lol';
+      for(const [s, u] of [['adsb.lol', `https://api.adsb.lol/v2/lat/${la}/lon/${lo}/dist/120`], ['adsb.fi', `https://opendata.adsb.fi/api/v2/lat/${la}/lon/${lo}/dist/120`], ['airplanes.live', `https://api.airplanes.live/v2/point/${la}/${lo}/120`]]){
+        try{ const r = await fetch(u, UA); if(r.ok){ d = await r.json(); d.ac ||= d.aircraft; src = s; if(Array.isArray(d.ac)) break; } }catch(e){} }
+      if(!d || !Array.isArray(d.ac)) return hit ? hit.body : JSON.stringify({now:Date.now(), src:null, ac:[]});
+      const r1 = x => Math.round(x*1e5)/1e5;
+      const ac = d.ac.filter(a => a.lat != null && a.lon != null && (a.seen_pos ?? 0) < 60).map(a => [a.hex, (a.flight || '').trim(), r1(a.lat), r1(a.lon), Math.round(a.track ?? a.true_heading ?? 0),
+        Math.round(a.gs ?? 0), a.alt_baro === 'ground' ? -1 : Math.round(a.alt_baro ?? a.alt_geom ?? 0), a.t || '', a.r || '', Math.round((a.seen_pos ?? 0)*10)/10, a.baro_rate ?? a.geom_rate ?? 0]);
+      const body = JSON.stringify({now:d.now || Date.now(), src, ac});
+      PL_MEM.set(key, {t:Date.now(), body}); if(PL_MEM.size > 400) PL_MEM.delete(PL_MEM.keys().next().value);
+      if(cache) await cache.put(ck, new Response(body, {headers:{'content-type':'application/json', 'cache-control':'public, max-age=' + PL_TTL}})).catch(() => {});
+      return body; })().finally(() => PL_WAIT.delete(key)); PL_WAIT.set(key, w); }
+  return out(await w, 'upstream'); }
 
 // ---------- timetable vehicles from Transitous (every train/tram/bus running now, from open timetables) ----------
 // GET /tt?la=52.5&lo=-1.5&modes=rail|tram|all → the vehicles on the move in that 0.5° tile in the next ~3 minutes:

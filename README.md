@@ -48,6 +48,8 @@ Thank you to everyone who publishes open transport data. This map would not exis
 | [Rail Data Marketplace](https://raildata.org.uk) (Network Rail / National Rail, Darwin) | Live train running in Great Britain |
 | [Bus Open Data Service](https://www.bus-data.dft.gov.uk) and [bustimes.org](https://bustimes.org) | Live buses and coaches in Great Britain |
 | [Transitous](https://transitous.org) | Timetables, live delays, departures, search and journey planning across Europe |
+| [adsb.lol](https://adsb.lol) (ODbL), with [adsb.fi](https://adsb.fi) and [airplanes.live](https://airplanes.live) as fallbacks | Planes: live aircraft positions from volunteer ADS-B receivers |
+| [OpenStreetMap](https://www.openstreetmap.org) (ODbL) | Station platforms and their tracks |
 | [Mobility Database](https://mobilitydatabase.org), [transport.data.gouv.fr](https://transport.data.gouv.fr) and national open-data portals | The timetables each city's lines are drawn from |
 | Live feeds from operators and agencies, including OVapi (Netherlands), VBB (Berlin), HSL (Helsinki), Entur (Norway), Trafiklab (Sweden), Transport for Edinburgh and many French networks | Live vehicle positions |
 | [AISStream](https://aisstream.io) | Live ferry positions |

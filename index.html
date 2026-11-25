@@ -274,6 +274,11 @@ body.dark #upd{background:#10284d;color:#cfe0ff;border-color:#2f5a99}
 #stShare+#stStar{margin-left:0}
 #stDir{font-size:17px;line-height:1;padding:4px 8px;margin-left:auto;background:none;border:0;color:var(--mute);cursor:pointer;min-width:36px;min-height:36px}
 #stDir+#stShare{margin-left:0}
+#plane{position:fixed;right:12px;bottom:28px;z-index:30;min-width:210px;max-width:290px;background:var(--panel);color:var(--ink);border:1px solid var(--edge);border-radius:12px;padding:10px 12px;font-size:13px;line-height:1.45;box-shadow:0 4px 18px rgba(0,0,0,.25)}
+#plane .ph{display:flex;justify-content:space-between;align-items:center;font-size:15px;margin-bottom:2px}
+#plane .ph button{border:0;background:none;color:var(--mute);font-size:15px;cursor:pointer;padding:2px 4px}
+#plane .pm{margin-top:6px;font-size:11.5px;color:var(--mute)}
+#plane .pm a{color:var(--acc)}
 #news{background:var(--soft);border-radius:12px;padding:9px 11px;margin:0 0 10px;font-size:12.5px;line-height:1.4;border-left:4px solid #1a73e8}
 #news[hidden]{display:none}
 #news ul{margin:5px 0 7px;padding-left:18px;display:grid;gap:3px}
@@ -381,9 +386,10 @@ button.lnk{border:0;background:none;padding:0;color:var(--acc);font-weight:600;f
     <ul id="plSug" role="listbox" hidden></ul>
     <div id="plRes" aria-live="polite"></div>
   </div>
+  <div id="plane" role="dialog" aria-label="Plane" hidden></div>
   <div id="news" role="status" hidden><b>New on the map</b>
     <ul><li><b>Directions</b> (↱): plan a journey anywhere in Europe, drawn on the map</li><li>Tap a departure for an <b>alert</b> 2 minutes before it leaves</li>
-    <li>The menu: switch each kind's vehicles, lines, stops and numbers on their own</li><li>Munich, Hamburg, Vienna, Rome, Milan, Barcelona and Madrid drawn on the track</li></ul>
+    <li>The menu: switch each kind's vehicles, lines, stops and numbers on their own</li><li>Munich, Hamburg, Vienna, Rome, Milan, Barcelona and Madrid drawn on the track</li><li><b>Planes</b> ✈ overhead, live (switch them off in the menu)</li><li>London: trains wait at their real <b>platform</b></li></ul>
     <div class="hb"><button type="button" id="newsOk">OK</button></div></div>
   <div id="howto" hidden><b>How to read the map</b>
     <ul><li><i class="hv live"></i>Solid: where the vehicle really is (live GPS)</li><li><i class="hv sched"></i>Pale with a coloured edge: placed from the timetable (with live delays where the network shares them)</li>
@@ -1554,6 +1560,7 @@ function frame(ts, sync){
   if(typeof drawBikes === 'function') drawBikes(ctx, s);
   if(typeof drawShare === 'function') drawShare(ctx, s);
   if(typeof drawGps === 'function') drawGps(ctx, s, hl0, hw0, mpp); // GPS buses/trams outside London
+  if(typeof drawPlanes === 'function') drawPlanes(ctx, s, mpp); // planes, above everything
   // the user's own train/bus: drawn larger, on top, with a ring
   for(const d of drawn) if(HL.has(d[0].key)){
     const [t, x, y, , , , cs, sn, hl, hw] = d, k = hl > hl0 ? 1.15 : 1.7, ux=cs*hl*k, uy=sn*hl*k, vx=-sn*hw*k, vy=cs*hw*k;
@@ -1932,6 +1939,7 @@ function renderModeChips(){
     + sec('Trains', trio('train')) + sec('Metro & trams', trio('metro', !away || ks.has('metro')) + trio('tram', !away || ks.has('tram')))
     + sec('Buses & coaches', trio('bus') + trio('coach')) + sec('Boats', trio('ferry', !away || ks.has('ferry')))
     + (!away ? sec('London networks', ['rail', 'tube', 'overground', 'elizabeth', 'dlr', 'tram', 'cable', 'river', 'bus'].map(modeChip).join('')) : !abroad ? sec('Live trains', modeChip('rail')) : '')
+    + sec('Planes', `<div class="mrow"><button type="button" class="chip2" data-planes="1" aria-pressed="${PLANES.on}">✈ ${T('Planes')}</button><button type="button" class="chip2 num" data-labels="plane" aria-pressed="${!LABELS_OFF.has('plane')}"><span class="nsw">12</span>${T('Flight numbers')}</button></div>`)
     + sec('Bikes & scooters', modeChip('bike')) + (!abroad ? sec('Road works', modeChip('road')) : '');
 }
 // outside London: trams / metro / ferries of the city on screen get their own switches (vehicles and lines together)
@@ -1950,6 +1958,8 @@ function awayKindChips(){
 }
 $('mModes').addEventListener('click', e => { if(!e.target.closest('[data-coachlines]')) return;
   COACHNET.on = !COACHNET.on; try{ localStorage.setItem('coachLines', COACHNET.on ? '1' : '0'); }catch(x){} renderModeChips(); });
+$('mModes').addEventListener('click', e => { const pb = e.target.closest('[data-planes]'); if(!pb) return; PLANES.on = !PLANES.on; try{ localStorage.setItem('planes', PLANES.on ? '1' : '0'); }catch(x){}
+  if(PLANES.on){ PLANES.at = 0; refreshPlanes(); } else { $('plane').hidden = true; } renderModeChips(); });
 $('mModes').addEventListener('click', e => { const gk = e.target.closest('[data-gkind]');
   if(gk){ const k = gk.dataset.gkind; GPS_OFF.has(k) ? GPS_OFF.delete(k) : GPS_OFF.add(k); try{ localStorage.setItem('gpsOff', JSON.stringify([...GPS_OFF])); }catch(x){} renderModeChips(); if(k === 'coach'){ COACH.at = 0; refreshGps(); if(typeof updateBuses === 'function') updateBuses(true); } /* coaches: fetched again (or cleared) now, and the counts follow */ if(typeof renderBusNote === 'function') renderBusNote(); return; } });
 $('mModes').addEventListener('click', e => { const b = e.target.closest('[data-mode]'); if(!b || b.disabled) return;
@@ -2703,6 +2713,46 @@ function fanLondon(drawn, mpp){
     const sp = Math.min(2*hw + 3, (FAN_CAP[r0.kind] || 60)/mpp/(n - 1)), mid = grp.reduce((t, x) => t + (x.x*px + x.y*py), 0)/n;
     grp.forEach((x, i) => { const want = mid + (i - (n - 1)/2)*sp - (x.x*px + x.y*py), t = x.d[0], f = t.fanO || (t.fanO = {x:0, y:0});
       f.x += (px*want - f.x)*0.25; f.y += (py*want - f.y)*0.25; move(x.d, f.x, f.y); }); } }
+// ---------- planes: real aircraft (ADS-B, from adsb.lol's volunteer receivers, through the relay) ----------
+const PLANES = {on:(() => { try{ return localStorage.getItem('planes') !== '0'; }catch(e){ return true; } })(), list:new Map(), at:0, busy:false, src:''};
+async function refreshPlanes(){
+  if(!PLANES.on || document.hidden || PV.z < 7 || PLANES.busy || !RAIL.relay) return; const c = map.getCenter(); if(!c) return;
+  const la = Math.round(c.lat()*2)/2, lo = Math.round(c.lng()*2)/2; PLANES.busy = true;
+  try{ const r = await fetch(RAIL.relay + '/planes?la=' + la + '&lo=' + lo, {signal:AbortSignal.timeout(12000)}); if(!r.ok) return; const d = await r.json(), t0 = Date.now(), seen = new Set();
+    PLANES.src = d.src || '';
+    for(const a of d.ac || []){ const [hex, cs, lat, lon, trk, gs, alt, type, reg, age, vr] = a; seen.add(hex);
+      const p = PLANES.list.get(hex) || {hex}; Object.assign(p, {cs, lat, lon, trk, gs, alt, type, reg, vr, t:t0 - (age || 0)*1000, seen:t0}); PLANES.list.set(hex, p); }
+    for(const [h, p] of PLANES.list) if(!seen.has(h) && t0 - p.seen > 40000) PLANES.list.delete(h);
+    PLANES.at = t0; }catch(e){} finally { PLANES.busy = false; } }
+setInterval(refreshPlanes, 8000); setTimeout(refreshPlanes, 2500);
+// where a plane is now: its last position, moved on along its heading at its speed (for up to 40 s)
+function planePos(p, now){ const dt = Math.min(40, Math.max(0, (now - p.t)/1000)), m = p.alt < 0 ? 0 : p.gs*0.5144*dt, a = p.trk*Math.PI/180;
+  return [p.lat + m*Math.cos(a)/111320, p.lon + m*Math.sin(a)/(111320*Math.cos(p.lat*Math.PI/180))]; }
+// a plane seen from above, nose up, about 1 unit long
+const PLANE_SHAPE = [[0,-.5],[.06,-.42],[.07,-.12],[.5,.06],[.5,.13],[.07,.04],[.05,.32],[.19,.42],[.19,.48],[0,.44],[-.19,.48],[-.19,.42],[-.05,.32],[-.07,.04],[-.5,.13],[-.5,.06],[-.07,-.12],[-.06,-.42]];
+const PLANE_LEN = {A388:73, B748:76, B744:71, B77W:74, B77L:64, B772:64, B773:74, B788:57, B789:63, B78X:68, A359:67, A35K:74, A332:59, A333:64, A339:64, A21N:44, A321:44, A20N:38, A320:38, A319:34, A318:31, B38M:40, B738:40, B737:33, B739:42, E190:36, E195:39, E75L:32, CRJ9:36, DH8D:33, AT76:27, AT75:27};
+function drawPlanes(ctx, s, mpp){
+  if(!PLANES.on || PV.z < 7 || !PLANES.list.size) return; const now = Date.now(), dark = document.body.classList.contains('dark'), lab = PV.z >= 9 && !LABELS_OFF.has('plane');
+  ctx.save(); ctx.lineJoin = 'round'; ctx.font = '600 10.5px system-ui, sans-serif'; ctx.textBaseline = 'middle';
+  for(const p of PLANES.list.values()){ const want = planePos(p, now); p.sx = null;
+    if(!p.d || Math.abs(p.d[0] - want[0]) + Math.abs(p.d[1] - want[1]) > 0.05) p.d = want.slice(); else { p.d[0] += (want[0] - p.d[0])*0.15; p.d[1] += (want[1] - p.d[1])*0.15; } // corrections glide
+    const c = scr(p.d); if(c.x < -40 || c.y < -40 || c.x > s.x + 40 || c.y > s.y + 40) continue;
+    const L = Math.max(PV.z >= 12 ? 18 : 14, (PLANE_LEN[p.type] || 38)/mpp), a = p.trk*Math.PI/180, cs = Math.cos(a), sn = Math.sin(a), gnd = p.alt < 0;
+    p.sx = c.x; p.sy = c.y; p.sr = L/2;
+    ctx.beginPath(); PLANE_SHAPE.forEach(([u, v], i) => { const x = c.x + (u*cs - v*sn)*L, y = c.y + (u*sn + v*cs)*L; i ? ctx.lineTo(x, y) : ctx.moveTo(x, y); }); ctx.closePath();
+    ctx.globalAlpha = gnd ? 0.55 : 1; ctx.fillStyle = gnd ? '#8a8f98' : dark ? '#F4F6FA' : '#2D3340'; ctx.strokeStyle = dark ? 'rgba(10,12,16,.85)' : 'rgba(255,255,255,.95)'; ctx.lineWidth = 1.4;
+    ctx.stroke(); ctx.fill();
+    if(lab && (p.cs || p.reg) && !gnd){ const t = p.cs || p.reg, x = c.x + L*0.45 + 4; ctx.lineWidth = 3; ctx.strokeText(t, x, c.y); ctx.fillStyle = dark ? '#E8EAED' : '#2D3340'; ctx.fillText(t, x, c.y); } }
+  ctx.restore(); }
+const planeAt = (x, y) => { if(!PLANES.on) return null; let best = null, bd = matchMedia('(pointer:coarse)').matches ? 20 : 13;
+  for(const p of PLANES.list.values()){ if(p.sx == null) continue; const d = Math.hypot(p.sx - x, p.sy - y) - (p.sr || 0)*0.4; if(d < bd){ bd = d; best = p; } } return best; };
+function openPlane(p){ const el = $('plane'); PLANES.open = p.hex;
+  const ft = p.alt, alt = ft < 0 ? T('On the ground') : `${(Math.round(ft/100)*100).toLocaleString()} ft · ${(Math.round(ft*0.3048/10)*10).toLocaleString()} m`, kmh = Math.round(p.gs*1.852);
+  const climb = ft < 0 ? '' : p.vr > 400 ? ' · ' + T('climbing') : p.vr < -400 ? ' · ' + T('descending') : '';
+  el.innerHTML = `<div class="ph"><b>${esc(p.cs || p.reg || p.hex.toUpperCase())}</b><button type="button" id="planeX" aria-label="${T('Close')}">✕</button></div>
+    <div>${esc([p.type, p.reg].filter(Boolean).join(' · ') || T('Aircraft'))}</div><div>${alt}${climb}</div>${ft < 0 ? '' : `<div>${kmh} km/h · ${T('heading')} ${Math.round(p.trk)}°</div>`}
+    <div class="pm"><a href="https://globe.adsb.lol/?icao=${encodeURIComponent(p.hex)}" target="_blank" rel="noopener">${T('Flight details')} ↗</a> · ${T('Data')}: ${esc(PLANES.src || 'adsb.lol')} (ODbL)</div>`;
+  el.hidden = false; $('planeX').onclick = () => { el.hidden = true; PLANES.open = null; }; }
 function drawGps(ctx, s, hl0, hw0, mpp){
   draw.ghit = [];
   // the still layers (rail network, bus and coach routes, city lines, stops, timetable lines) drawn once into a layer
@@ -4401,6 +4451,7 @@ function setLive(on){ LIVE.on = !!on; try{ localStorage.setItem('liveMode', LIVE
 $('mLive').onchange = () => setLive($('mLive').checked);
 $('mLive').checked = LIVE.on; document.body.classList.toggle('livemode', LIVE.on); $('bLook').hidden = !(LIVE.on && AR_OK);
 map.addListener('click', ev => { if(!ev.pixel) return; const {x, y} = ev.pixel, coarse = matchMedia('(pointer:coarse)').matches;
+  { const pl = planeAt(x, y); if(pl) return openPlane(pl); } // a plane (drawn on top)
   if(document.body.classList.contains('away')){ const cs = cityStationAt(x, y); if(cs) return openCityStation(cs); const us = ukStopAt(x, y); if(us) return openUKStop(us);
     const mc = map.getCenter(), rc = mc && railC([mc.lat(), mc.lng()]); if(rc && rc.list && PV.z >= 12 && SHOW_ST && !STOPS_OFF.has('train')){ let bd = coarse ? 14 : 10, best = null; // France: an SNCF station's dot
       for(const s0 of rc.list){ const c = scr(s0.slice(2, 4)); if(Math.abs(c.x - x) > bd || Math.abs(c.y - y) > bd) continue; const k = Math.hypot(c.x - x, c.y - y); if(k < bd){ bd = k; best = s0; } }
@@ -4751,7 +4802,7 @@ if(LANG !== 'en'){ const li = $('howto').querySelectorAll('li'); if(li[2]) li[2]
 try{ if(!localStorage.getItem('howtoSeen') && !document.body.classList.contains('kiosk')) $('howto').hidden = false; }catch(e){}
 $('howOk').onclick = () => { $('howto').hidden = true; try{ localStorage.setItem('howtoSeen', '1'); localStorage.setItem('newsSeen', NEWS_ID); }catch(e){} };
 // what's new, once, for people who have been here before (a first visit gets the how-to card instead)
-const NEWS_ID = '2026-11-25';
+const NEWS_ID = '2026-11-25b';
 try{ if(localStorage.getItem('howtoSeen') && localStorage.getItem('newsSeen') !== NEWS_ID && !document.body.classList.contains('kiosk')) $('news').hidden = false; }catch(e){}
 $('newsOk').onclick = () => { $('news').hidden = true; try{ localStorage.setItem('newsSeen', NEWS_ID); }catch(e){} };
 let installEv = null;
