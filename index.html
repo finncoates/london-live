@@ -1392,27 +1392,87 @@ async function refresh(){
 // (Brockley) is four tracks here. From zoom 15 they are drawn, and each train runs on the track for its direction ----------
 const TRK = {sq:new Map(), Z:15};
 function trkSquare(i, j){ const k = i + '_' + j; let v = TRK.sq.get(k);
-  if(v === undefined){ TRK.sq.set(k, null); fetch('cities/tracks/' + k + '.json').then(r => r.ok ? r.json() : []).then(L => TRK.sq.set(k, (L || []).map(([d, pts]) => {
-      let a = 90, b = -90, c = 180, e = -180; for(const q of pts){ if(q[0] < a) a = q[0]; if(q[0] > b) b = q[0]; if(q[1] < c) c = q[1]; if(q[1] > e) e = q[1]; } return {d, pts, bb:[a, b, c, e]}; })))
+  if(v === undefined){ TRK.sq.set(k, null); fetch('cities/tracks/' + k + '.json').then(r => r.ok ? r.json() : []).then(L => TRK.sq.set(k, (L || []).map(([d, pts, kd = 'r']) => {
+      let a = 90, b = -90, c = 180, e = -180; for(const q of pts){ if(q[0] < a) a = q[0]; if(q[0] > b) b = q[0]; if(q[1] < c) c = q[1]; if(q[1] > e) e = q[1]; } return trkEdge({d, pts, bb:[a, b, c, e], kind:kd[0], tun:kd[1] === 't'}); })))
       .catch(() => TRK.sq.set(k, [])); return null; }
   return v; }
 function trkNear(p, r){ const out = [], m = r/111320, i0 = Math.floor((p[0] - m)*10), i1 = Math.floor((p[0] + m)*10), j0 = Math.floor((p[1] - m*1.7)*10), j1 = Math.floor((p[1] + m*1.7)*10);
   for(let i = i0; i <= i1; i++) for(let j = j0; j <= j1; j++){ const L = trkSquare(i, j); if(L) for(const t of L) if(t.bb[0] - m < p[0] && p[0] < t.bb[1] + m && t.bb[2] - m*1.7 < p[1] && p[1] < t.bb[3] + m*1.7) out.push(t); }
   return out; }
+// the network: each piece of track runs junction to junction; its ends are the junctions (exact coordinates)
+TRK.adj = new Map(); TRK.byKey = new Map();
+const tkey = q => q[0].toFixed(6) + ',' + q[1].toFixed(6);
+function trkEdge(e){ const P = e.pts, k0 = tkey(P[0]), k1 = tkey(P.at(-1)), id = k0 + '|' + k1 + '|' + P.length; const old = TRK.byKey.get(id); if(old) return old; // (a piece crossing squares comes in each)
+  const kx = Math.cos(P[0][0]*rad), hd = (a, b) => { const x = (b[1]-a[1])*kx, y = b[0]-a[0], l = Math.hypot(x, y) || 1e-12; return [x/l, y/l]; };
+  let len = 0; const cum = [0]; for(let i = 1; i < P.length; i++){ len += dist(P[i-1], P[i]); cum.push(len); }
+  Object.assign(e, {k0, k1, len, cum, h0:hd(P[0], P[1]), h1:hd(P.at(-2), P.at(-1))});
+  for(const k of [k0, k1]) (TRK.adj.get(k) || TRK.adj.set(k, []).get(k)).push(e); TRK.byKey.set(id, e); return e; }
+// A train's way from one station to the next, track by track (as a signaller sets the route): from where it stands
+// to its platform at the next station (or, not known, a track at that station's platforms), never reversing through
+// points, keeping to each track's direction where mapped and to the left-hand track of the corridor (Britain).
+// corridor: the rail map's path between the two stations (the way the train goes, roughly). → {pts, cum, len} or null
+function trkRoute(A, B, corridor, goalPl, kind = 'r'){
+  const R0 = kind === 's' ? 120 : kind === 'l' ? 60 : 40; // (deep Tube platforms lie well off the station's point)
+  const P = corridor.pts; let la0 = 90, la1 = -90, lo0 = 180, lo1 = -180; for(const q of P){ la0 = Math.min(la0, q[0]); la1 = Math.max(la1, q[0]); lo0 = Math.min(lo0, q[1]); lo1 = Math.max(lo1, q[1]); }
+  if(la1 - la0 > 0.25 || lo1 - lo0 > 0.4) return null; // long hops: the map's own line
+  for(let i = Math.floor((la0 - 0.004)*10); i <= Math.floor((la1 + 0.004)*10); i++) for(let j = Math.floor((lo0 - 0.006)*10); j <= Math.floor((lo1 + 0.006)*10); j++) if(trkSquare(i, j) === null) return undefined; // still loading
+  // which side of the corridor a point is on (+: left of the way the train goes), and how far from it
+  const kx = Math.cos(A[0]*rad), side = q => { let bd = Infinity, sd = 0; for(let i = 1; i < P.length; i++){ const a = P[i-1], b = P[i], dx = (b[1]-a[1])*kx, dy = b[0]-a[0], L2 = dx*dx + dy*dy; if(!L2) continue;
+      const u = Math.max(0, Math.min(1, ((q[1]-a[1])*kx*dx + (q[0]-a[0])*dy)/L2)), ex = (q[1] - a[1] - (b[1]-a[1])*u)*kx, ey = q[0] - a[0] - dy*u, d = Math.hypot(ex, ey);
+      if(d < bd){ bd = d; sd = (dx*ey - dy*ex)/Math.sqrt(L2); } } return [sd*111320, bd*111320]; };
+  const dir0 = (() => { const a = P[0], b = P[Math.min(P.length - 1, 3)], x = (b[1]-a[1])*kx, y = b[0]-a[0], l = Math.hypot(x, y) || 1; return [x/l, y/l]; })();
+  const dir1 = (() => { const a = P[Math.max(0, P.length - 4)], b = P.at(-1), x = (b[1]-a[1])*kx, y = b[0]-a[0], l = Math.hypot(x, y) || 1; return [x/l, y/l]; })();
+  const near = (q, r) => trkNear(q, r).filter(e => e.kind === kind).map(e => ({e, o:trkOn(e, q)})).filter(x => x.o && x.o.d <= r);
+  // where it sets off: a track at A going the train's way
+  const start = near(A, R0).flatMap(({e, o}) => { const f = o.se*dir0[0] + o.sn*dir0[1]; if(Math.abs(f) < 0.5) return []; const fw = f > 0, at = e.cum[o.i-1] + dist(e.pts[o.i-1], o.p);
+    return [{e, fw, at, o}]; });
+  // where it is going: its platform's track, else the tracks along that station's platforms, else tracks at B
+  const goalOK = e => { if(goalPl){ const m = along({pts:e.pts, cum:e.cum, len:e.len}, 0.5).p; let bd = Infinity; for(let i = 1; i < goalPl.length; i++) bd = Math.min(bd, segDist(m, goalPl[i-1], goalPl[i])); return bd < 4; } return true; };
+  const goals = new Map(); for(const {e, o} of near(B, goalPl ? 260 : R0 + 20)){ const f = o.se*dir1[0] + o.sn*dir1[1]; if(Math.abs(f) < 0.5 || !goalOK(e)) continue; goals.set(e, {fw:f > 0, at:e.cum[o.i-1] + dist(e.pts[o.i-1], o.p)}); }
+  if(!start.length || !goals.size) return null;
+  const cost = new Map(), memo = new Map(), w = e => { let m = memo.get(e); if(m == null){ const [sd, d] = side(e.pts[Math.floor(e.pts.length/2)]); m = d > 400 ? 50 : (sd < -1.5 ? 3 : 1); memo.set(e, m); } return m; };
+  const heap = [], push = x => { heap.push(x); let i = heap.length - 1; while(i){ const j = (i - 1) >> 1; if(heap[j].c <= x.c) break; heap[i] = heap[j]; i = j; } heap[i] = x; };
+  const pop = () => { const top = heap[0], x = heap.pop(); if(heap.length){ let i = 0; for(;;){ let j = 2*i + 1; if(j >= heap.length) break; if(j + 1 < heap.length && heap[j+1].c < heap[j].c) j++; if(heap[j].c >= x.c) break; heap[i] = heap[j]; i = j; } heap[i] = x; } return top; };
+  const bad = (e, fw) => e.d && (fw ? e.d < 0 : e.d > 0) ? 20 : 1; // against the way trains use it
+  for(const s0 of start){ const rest = s0.fw ? s0.e.len - s0.at : s0.at, g = goals.get(s0.e);
+    if(g && g.fw === s0.fw && (s0.fw ? g.at >= s0.at : g.at <= s0.at)) push({c:Math.abs(g.at - s0.at), e:s0.e, fw:s0.fw, prev:null, s0, end:g.at, done:true});
+    push({c:rest*w(s0.e)*bad(s0.e, s0.fw), e:s0.e, fw:s0.fw, prev:null, s0}); }
+  let got = null, n = 0;
+  while(heap.length && n++ < 30000){ const x = pop(); if(x.done){ got = x; break; } const sk = x.e.k0 + x.e.k1 + x.e.len + (x.fw ? '+' : '-'); if(cost.has(sk)) continue; cost.set(sk, x.c);
+    const node = x.fw ? x.e.k1 : x.e.k0, h = x.fw ? x.e.h1 : [-x.e.h0[0], -x.e.h0[1]];
+    for(const e2 of TRK.adj.get(node) || []){ if(e2 === x.e || e2.kind !== kind) continue; const fw = e2.k0 === node, h2 = fw ? e2.h0 : [-e2.h1[0], -e2.h1[1]];
+      if(h[0]*h2[0] + h[1]*h2[1] < 0.6) continue; // through the points the way they lie: no reversing, no hairpins
+      const g = goals.get(e2); if(g && g.fw === fw) push({c:x.c + (fw ? g.at : e2.len - g.at), e:e2, fw, prev:x, end:g.at, done:true});
+      push({c:x.c + e2.len*w(e2)*bad(e2, fw), e:e2, fw, prev:x}); } }
+  if(!got) return null;
+  // the points along it: the piece it sets off on (from where it stands), every piece after, the last up to its stop
+  const chain = []; for(let x = got; x; x = x.prev) chain.unshift(x); const out = [];
+  const piece = (e, fw, from, to) => { const q = e.pts, c = e.cum, at = d => along({pts:q, cum:c, len:e.len}, Math.max(0, Math.min(1, d/(e.len || 1)))).p, r = [at(from)];
+    if(fw){ for(let i = 0; i < q.length; i++) if(c[i] > from && c[i] < to) r.push(q[i]); } else { for(let i = q.length - 1; i >= 0; i--) if(c[i] < from && c[i] > to) r.push(q[i]); }
+    r.push(at(to)); return r; };
+  chain.forEach((x, k) => { const from = k === 0 ? x.s0 ? x.s0.at : (x.fw ? 0 : x.e.len) : (x.fw ? 0 : x.e.len), to = x.done ? x.end : (x.fw ? x.e.len : 0);
+    const seg = k === 0 && x.s0 ? piece(x.e, x.fw, x.s0.at, to) : piece(x.e, x.fw, from, to); out.push(...(out.length ? seg.slice(1) : seg)); });
+  // merged steps from neighbouring squares share a point: drop doubles
+  const pts = out.filter((q, i) => !i || q[0] !== out[i-1][0] || q[1] !== out[i-1][1]); if(pts.length < 2) return null;
+  const cum = [0]; for(let i = 1; i < pts.length; i++) cum.push(cum[i-1] + dist(pts[i-1], pts[i])); const len = cum.at(-1);
+  if(len > corridor.len*1.6 + 300) return null; // a detour: something's missing in the map
+  return {pts, cum, len, real:true}; }
+const segDist = (p, a, b) => { const kx = Math.cos(p[0]*rad), dx = (b[1]-a[1])*kx, dy = b[0]-a[0], L2 = dx*dx + dy*dy, u = L2 ? Math.max(0, Math.min(1, ((p[1]-a[1])*kx*dx + (p[0]-a[0])*dy)/L2)) : 0;
+  return Math.hypot((p[1] - a[1] - (b[1]-a[1])*u)*kx, p[0] - a[0] - dy*u)*111320; };
 function drawTracks(ctx, s){
   if(PV.z < TRK.Z || !nrLondon()) return; const b = map.getBounds(); if(!b) return; const sw = b.getSouthWest(), ne = b.getNorthEast(), dark = document.body.classList.contains('dark');
   ctx.save(); ctx.lineCap = 'butt'; ctx.lineJoin = 'round'; ctx.lineWidth = Math.max(1.6, lineW()*0.42); ctx.strokeStyle = dark ? '#7c848e' : '#8f969f'; ctx.globalAlpha = window.DIM_TRAINS ? 0.15 : 1;
-  const seen = new Set(); ctx.beginPath();
+  const seen = new Set(), open = new Path2D(), tun = new Path2D(), on = {r:!MODES_OFF.has('rail') || !MODES_OFF.has('overground') || !MODES_OFF.has('elizabeth'), l:!MODES_OFF.has('dlr'), s:!MODES_OFF.has('tube')};
   for(let i = Math.floor(sw.lat()*10); i <= Math.floor(ne.lat()*10); i++) for(let j = Math.floor(sw.lng()*10); j <= Math.floor(ne.lng()*10); j++){ const L = trkSquare(i, j); if(!L) continue;
-    for(const t of L){ if(seen.has(t.pts) || t.bb[1] < sw.lat() || t.bb[0] > ne.lat() || t.bb[3] < sw.lng() || t.bb[2] > ne.lng()) continue; seen.add(t.pts);
-      t.pts.forEach((q, k) => { const w = scr(q); k ? ctx.lineTo(w.x, w.y) : ctx.moveTo(w.x, w.y); }); } }
-  ctx.stroke(); ctx.restore(); }
+    for(const t of L){ if(seen.has(t) || !on[t.kind] || t.bb[1] < sw.lat() || t.bb[0] > ne.lat() || t.bb[3] < sw.lng() || t.bb[2] > ne.lng()) continue; seen.add(t);
+      const P = t.tun ? tun : open; t.pts.forEach((q, k) => { const w = scr(q); k ? P.lineTo(w.x, w.y) : P.moveTo(w.x, w.y); }); } }
+  ctx.stroke(open); ctx.globalAlpha *= 0.4; ctx.setLineDash([4, 3]); ctx.stroke(tun); ctx.restore(); } // (in tunnels: fainter, dashed)
 // the track a train at p, travelling (east, north) = (ve, vn), runs on: the way trains use it where OSM says, else
 // Britain's left-hand running (the nearest track on its left); it keeps its track while that one still runs alongside
 function trkFor(t, p, ve, vn){
   const now = performance.now(); if(t.trkAt && now - t.trkAt < 400 && t.trk){ const q = trkOn(t.trk, p); if(q && q.d < 45) return Object.assign(q, {t:t.trk}); }
   t.trkAt = now; const L = Math.hypot(ve, vn) || 1, ux = ve/L, uy = vn/L, kx = Math.cos(p[0]*rad), cand = [];
-  for(const tr of trkNear(p, 45)){ const q = trkOn(tr, p); if(!q || q.d > 45) continue;
+  for(const tr of trkNear(p, 45)){ if(tr.kind !== 'r') continue; const q = trkOn(tr, p); if(!q || q.d > 45) continue;
     const dot = q.se*ux + q.sn*uy; if(Math.abs(dot) < 0.85) continue; // not alongside
     if(tr.d && dot*tr.d < 0) continue; // trains run the other way on it
     const side = -uy*((q.p[1] - p[1])*111320*kx) + ux*((q.p[0] - p[0])*111320); // + : left of the way it travels (east, north)·(−uy, ux)
@@ -1496,7 +1556,13 @@ function placeTrain0(t){
   if(t.rail && (!prev || prev === next) && arr - n > 90000) return null;
   const at = () => { const s = snapAt(l, next); return s.wait ? null : s; }; // (null while the track there is loading)
   if(!prev || prev === next || !l.stops[prev]) return at();
-  const path = trackPath(l, prev, next); if(!path) return at();
+  let path = trackPath(l, prev, next); if(!path) return at();
+  const KS = t.rail ? 'r' : {tube:'s', dlr:'l', overground:'r', elizabeth:'r'}[l.mode], mc = map.getCenter();
+  if(KS && PV && PV.z >= TRK.Z - 1 && nrLondon() && mc && Math.abs(path.pts[0][0] - mc.lat()) < 0.05 && Math.abs(path.pts[0][1] - mc.lng()) < 0.08){ const rk = prev + '>' + next + '|' + (t.plats?.[next] || '') + '|' + (t.plats?.[prev] || '');
+    if(!t.rt || t.rt.k !== rk){ const A = (t.plats?.[prev] && platPath(prev, t.plats[prev])) ? along(platPath(prev, t.plats[prev]), 0.5).p : path.pts[0], gp = t.plats?.[next] && platPath(next, t.plats[next]);
+      const B = gp ? along(gp, 0.5).p : path.pts.at(-1), r = trkRoute(A, B, path, gp ? gp.pts : null, KS); if(r !== undefined) t.rt = {k:rk, r}; } // (undefined: its tracks still loading: asked again next frame)
+  }
+  if(KS && t.rt && t.rt.r && t.rt.k.startsWith(prev + '>' + next + '|') && PV && PV.z >= TRK.Z - 1) path = t.rt.r; /* (PV: the view isn't set on the first refresh) */
   const remain = (arr - n)/1000;
   const segT = t.rail && t.ahead ? (() => { const i = t.ahead.findIndex(a => a[0] === next && a[1] === arr); return i > 0 ? Math.max(30, (arr - t.ahead[i-1][1])/1000 - DWELL.rail/2) : segTime(l, prev, next); })() : segTime(l, prev, next);
   let f = Math.min(1, Math.max(0, 1 - remain/segT));
@@ -1562,8 +1628,8 @@ function frame(ts, sync){
     let dA = Math.atan2(Math.sin(ang-(t.ang??ang)), Math.cos(ang-(t.ang??ang)));
     if(dA > Math.PI/2) dA -= Math.PI; else if(dA < -Math.PI/2) dA += Math.PI;
     t.ang = (t.ang??ang) + dA*ka;
-    let c = scr(t.d), lane = trainLane(t, l), TK = null;
-    if(t.rail && PV.z >= TRK.Z && !t.onPlat && on.a && on.b){ TK = trkFor(t, t.d, (on.b[1]-on.a[1])*cosLat, on.b[0]-on.a[0]); // on the track for its direction
+    let c = scr(t.d), lane = pos.path && pos.path.real ? null : trainLane(t, l), TK = null;
+    if(t.rail && PV.z >= TRK.Z && !t.onPlat && on.a && on.b && !(pos.path && pos.path.real)){ TK = trkFor(t, t.d, (on.b[1]-on.a[1])*cosLat, on.b[0]-on.a[0]); // on the track for its direction
       if(TK){ const o = t.trkO || (t.trkO = [0, 0]); o[0] += (TK.p[0] - t.d[0] - o[0])*0.2; o[1] += (TK.p[1] - t.d[1] - o[1])*0.2; c = scr([t.d[0] + o[0], t.d[1] + o[1]]); lane = null;
         const a2 = Math.atan2(-TK.sn, TK.se); let dA = Math.atan2(Math.sin(a2 - t.ang), Math.cos(a2 - t.ang)); if(dA > Math.PI/2) dA -= Math.PI; else if(dA < -Math.PI/2) dA += Math.PI; t.ang += dA*ka; } }
     if(!TK && t.trkO){ t.trkO[0] *= 0.8; t.trkO[1] *= 0.8; if(Math.abs(t.trkO[0]) + Math.abs(t.trkO[1]) < 1e-6) t.trkO = null; else { const w = scr([t.d[0] + t.trkO[0], t.d[1] + t.trkO[1]]); c.x = w.x; c.y = w.y; } }
@@ -3451,6 +3517,7 @@ window.__testRide = () => { for(const t of trains.values()) if(t.d && !t.rail &&
 // tools: give the trains calling at a station platforms (as Darwin would), then read where they stand
 window.__platGive = crs => { const P = Object.keys(RAIL.plats?.[crs] || {}); let k = 0; for(const t of trains.values()) if(t.rail && t.ahead && t.ahead.some(a => a[0] === crs)) t.plats = {...t.plats, [crs]:P[k++ % P.length]}; return {plats:P.length, given:k}; };
 window.__platAbroad = () => [...GPS.list.values()].filter(g => g.v.plat).map(g => g.v.id.slice(0, 40) + ' @' + g.v.plat.ref);
+window.__routes = () => { let on = 0, none = 0, wait = 0; for(const t of trains.values()) if(t.d && (t.rail || /tube|dlr|overground|elizabeth/.test(BY[t.line]?.mode))){ if(t.rt?.r) on++; else if(t.rt) none++; else wait++; } return {routed:on, noRoute:none, waiting:wait}; };
 window.__platOn = () => [...trains.values()].filter(t => t.onPlat).map(t => t.onPlat);
 window.__rideState = () => ({key:FW.t && FW.t.key, ride:FW.ride, d:FW.t && FW.t.d, c:(c => c && [c.lat(), c.lng()])(map.getCenter())});
 window.__rekey = () => { const t = FW.t; if(!t) return null; const k = t.key + ':new'; trains.delete(t.key); trains.set(k, Object.assign({}, t, {key:k})); return k; };
