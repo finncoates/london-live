@@ -40,5 +40,9 @@ for d, p, kd in h.ways:
     for a0, a1 in zip(cut, cut[1:]):
         seg = [(a, b) for a, b, _ in p[a0:a1 + 1]]; q = [[a, b] for a, b in rdp(seg, 1.0/111320)]; pieces += 1 # ~1 m
         for key in {(math.floor(a*10), math.floor(b*10)) for a, b in seg}: tiles.setdefault(key, []).append([d, q, kd])
-for (i, j), v in tiles.items(): json.dump(v, open(os.path.join(out, f'{i}_{j}.json'), 'w'), separators=(',', ':'))
+# merged with what a square already has (a square on a border gets both countries' tracks; a rebuild adds nothing twice)
+for (i, j), v in tiles.items():
+    f = os.path.join(out, f'{i}_{j}.json'); old = json.load(open(f)) if os.path.exists(f) else []
+    seen = {json.dumps(x, separators=(',', ':')) for x in v}; v = v + [x for x in old if json.dumps(x, separators=(',', ':')) not in seen]
+    json.dump(v, open(f, 'w'), separators=(',', ':'))
 print(len(h.ways), 'tracks,', pieces, 'pieces junction to junction;', sum(1 for d, _, _ in h.ways if d), 'with a direction;', len(tiles), 'squares')

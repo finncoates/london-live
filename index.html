@@ -1412,7 +1412,7 @@ function trkEdge(e){ const P = e.pts, k0 = tkey(P[0]), k1 = tkey(P.at(-1)), id =
 // to its platform at the next station (or, not known, a track at that station's platforms), never reversing through
 // points, keeping to each track's direction where mapped and to the left-hand track of the corridor (Britain).
 // corridor: the rail map's path between the two stations (the way the train goes, roughly). → {pts, cum, len} or null
-function trkRoute(A, B, corridor, goalPl, kind = 'r', avoid = []){ // avoid: platforms of stations it runs through without calling (it takes the line without platforms: the fast line)
+function trkRoute(A, B, corridor, goalPl, kind = 'r', avoid = [], hand = 1){ // avoid: platforms of stations it runs through without calling (it takes the line without platforms: the fast line)
   const R0 = kind === 's' ? 120 : kind === 'l' ? 60 : 40; // (deep Tube platforms lie well off the station's point)
   const P = corridor.pts; let la0 = 90, la1 = -90, lo0 = 180, lo1 = -180; for(const q of P){ la0 = Math.min(la0, q[0]); la1 = Math.max(la1, q[0]); lo0 = Math.min(lo0, q[1]); lo1 = Math.max(lo1, q[1]); }
   if(la1 - la0 > 0.25 || lo1 - lo0 > 0.4) return null; // long hops: the map's own line
@@ -1431,7 +1431,7 @@ function trkRoute(A, B, corridor, goalPl, kind = 'r', avoid = []){ // avoid: pla
   const goalOK = e => { if(goalPl){ const m = along({pts:e.pts, cum:e.cum, len:e.len}, 0.5).p; let bd = Infinity; for(let i = 1; i < goalPl.length; i++) bd = Math.min(bd, segDist(m, goalPl[i-1], goalPl[i])); return bd < 4; } return true; };
   const goals = new Map(); for(const {e, o} of near(B, goalPl ? 260 : R0 + 20)){ const f = o.se*dir1[0] + o.sn*dir1[1]; if(Math.abs(f) < 0.5 || !goalOK(e)) continue; goals.set(e, {fw:f > 0, at:e.cum[o.i-1] + dist(e.pts[o.i-1], o.p)}); }
   if(!start.length || !goals.size) return null;
-  const cost = new Map(), memo = new Map(), w = e => { let m = memo.get(e); if(m == null){ const mid = e.pts[Math.floor(e.pts.length/2)], [sd, d] = side(mid); m = d > 400 ? 50 : (sd < -1.5 ? 3 : 1);
+  const cost = new Map(), memo = new Map(), w = e => { let m = memo.get(e); if(m == null){ const mid = e.pts[Math.floor(e.pts.length/2)], [sd, d] = side(mid); m = d > 400 ? 50 : (sd*hand < -1.5 ? 3 : 1);
     if(avoid.length && avoid.some(q => Math.abs(q[0][0] - mid[0]) < 0.004 && q.some((x, i) => i && segDist(mid, q[i-1], x) < 4))) m *= 2.5; memo.set(e, m); } return m; };
   const heap = [], push = x => { heap.push(x); let i = heap.length - 1; while(i){ const j = (i - 1) >> 1; if(heap[j].c <= x.c) break; heap[i] = heap[j]; i = j; } heap[i] = x; };
   const pop = () => { const top = heap[0], x = heap.pop(); if(heap.length){ let i = 0; for(;;){ let j = 2*i + 1; if(j >= heap.length) break; if(j + 1 < heap.length && heap[j+1].c < heap[j].c) j++; if(heap[j].c >= x.c) break; heap[i] = heap[j]; i = j; } heap[i] = x; } return top; };
@@ -1467,7 +1467,7 @@ function passedPlats(path, prev, next){ const out = [], P = path.pts; let la0 = 
 const segDist = (p, a, b) => { const kx = Math.cos(p[0]*rad), dx = (b[1]-a[1])*kx, dy = b[0]-a[0], L2 = dx*dx + dy*dy, u = L2 ? Math.max(0, Math.min(1, ((p[1]-a[1])*kx*dx + (p[0]-a[0])*dy)/L2)) : 0;
   return Math.hypot((p[1] - a[1] - (b[1]-a[1])*u)*kx, p[0] - a[0] - dy*u)*111320; };
 function drawTracks(ctx, s){
-  if(PV.z < TRK.Z || !trkHere()) return; const b = map.getBounds(); if(!b) return; const sw = b.getSouthWest(), ne = b.getNorthEast(), dark = document.body.classList.contains('dark');
+  if(PV.z < TRK.Z || (document.body.classList.contains('abroad') ? LINES_OFF.has('train') : !trkHere())) return; const b = map.getBounds(); if(!b) return; const sw = b.getSouthWest(), ne = b.getNorthEast(), dark = document.body.classList.contains('dark');
   ctx.save(); ctx.lineCap = 'butt'; ctx.lineJoin = 'round'; ctx.lineWidth = Math.max(1.6, lineW()*0.42); ctx.strokeStyle = dark ? '#7c848e' : '#8f969f'; ctx.globalAlpha = window.DIM_TRAINS ? 0.15 : 1;
   const seen = new Set(), open = new Path2D(), tun = new Path2D(), on = {r:!MODES_OFF.has('rail') || !MODES_OFF.has('overground') || !MODES_OFF.has('elizabeth'), l:!MODES_OFF.has('dlr'), s:!MODES_OFF.has('tube')};
   for(let i = Math.floor(sw.lat()*10); i <= Math.floor(ne.lat()*10); i++) for(let j = Math.floor(sw.lng()*10); j <= Math.floor(ne.lng()*10); j++){ const L = trkSquare(i, j); if(!L) continue;
@@ -2945,7 +2945,9 @@ function drawGps(ctx, s, hl0, hw0, mpp){
     if(PV.z < 10){ const f = Math.max(0.5, (PV.z - 5)/5); hl *= f; hw *= Math.max(0.65, f); } // whole-country views: smaller, so the map stays readable
     const cs = Math.cos(ang), sn = Math.sin(ang), ux = cs*hl, uy = sn*hl, vx = -sn*hw, vy = cs*hw;
     // trams, metros and trains on a drawn line: bent along it (as in London), not a straight box across the bends
-    let body = null; if(g.v.plat && PV.z >= 13 && hl*mpp > 8){ const B = bodyAlong(g.v.plat.pts, g.v.plat.i, p, hl*mpp); if(B && B.length > 2) body = B.map(q => { const w = scr(q); return [w.x, w.y]; }); } // at its platform
+    let body = null; if(g.v.rpts && !g.v.plat && PV.z >= 13 && hl*mpp > 8){ const R = g.v.rpts; let bi = 1, bd = Infinity; for(let i = 1; i < R.length; i++){ const d = segDist(p, R[i-1], R[i]); if(d < bd){ bd = d; bi = i; } }
+      const B = bd < 40 && bodyAlong(R, bi, p, hl*mpp); if(B && B.length > 2){ const sh = c.x - scr(p).x, sv = c.y - scr(p).y; body = B.map(q => { const w = scr(q); return [w.x + sh, w.y + sv]; }); } } // on its own tracks (trkRoute)
+    else if(g.v.plat && PV.z >= 13 && hl*mpp > 8){ const B = bodyAlong(g.v.plat.pts, g.v.plat.i, p, hl*mpp); if(B && B.length > 2) body = B.map(q => { const w = scr(q); return [w.x, w.y]; }); } // at its platform
     else if((kind === 'tram' || kind === 'metro' || kind === 'train') && !coach && PV.z >= 13 && hl*mpp > 8){ const sc = lineAt(g.v, p);
       if(sc && sc.sn && sc.sn.l){ const B = bodyAlong(sc.sn.l.pts, sc.sn.i, p, hl*mpp); if(B && B.length > 2){ const sh = c.x - scr(p).x, sv = c.y - scr(p).y; body = B.map(q => { const w = scr(q); return [w.x + sh, w.y + sv]; }); } } }
     if(body){ const col = g.v.col || (tram ? '#7A1F3D' : opCol(g.v.op)), line = w => { ctx.lineWidth = w; ctx.beginPath(); body.forEach((q, k) => k ? ctx.lineTo(q[0], q[1]) : ctx.moveTo(q[0], q[1])); ctx.stroke(); };
@@ -3456,6 +3458,14 @@ function ttPlace(now){ TTV.railBudget = 1;
       // than the hop (a timetable shape that wanders through sidings) becomes the straight hop
       for(const e of m){ const A = e.s[3].slice(2), B = e.s[4].slice(2); if(dist(e.pts[0], A) > 150 || dist(e.pts.at(-1), B) > 150) continue;
         const kind = /TRAM/.test(e.s[0]) ? 'tram' : /SUBWAY|METRO/.test(e.s[0]) ? 'metro' : /RAIL|LONG_DISTANCE/.test(e.s[0]) ? 'train' : 'other';
+        if(kind === 'train' && e.real){ continue; } // (already on its tracks)
+        if(kind === 'train' && PV && PV.z >= TRK.Z - 1){ const mc = map.getCenter(); if(mc && Math.abs(A[0] - mc.lat()) < 0.06 && Math.abs(A[1] - mc.lng()) < 0.09){
+          const rk = trip + '|' + A + '|' + B + '|' + (e.s[4][4] || ''), R = TTV.rt || (TTV.rt = new Map()); let r = R.get(rk);
+          if(r === undefined){ const pa = platAbroad(e.s[3]), pb = platAbroad(e.s[4]), cc = (e.s[8].split('_')[2] || '').slice(0, 2);
+            let L = 0; for(let i = 1; i < e.pts.length; i++) L += dist(e.pts[i-1], e.pts[i]);
+            r = trkRoute(pa ? along(pa, 0.5).p : A, pb ? along(pb, 0.5).p : B, {pts:e.pts.length > 1 ? e.pts : [A, B], len:L || dist(A, B)}, pb ? pb.pts : null, 'r', [], /^(fr|be|ch|it|se|pt|gb|lu)$/.test(cc) ? 1 : -1);
+            if(r !== undefined){ R.set(rk, r); if(R.size > 3000) R.clear(); } }
+          if(r){ e.pts = r.pts.slice(); e.real = true; continue; } } } // its own tracks, through the points to its platform
         const cp = cityPath(kind, e.s[2], A, B); if(cp){ e.pts = cp; continue; }
         if(kind === 'train' && e.pts.length <= 3){ const rp = ttRail(A, B); if(rp){ e.pts = rp; continue; } } // a train whose timetable has no shape: along the real track
         let L = 0; for(let i = 1; i < e.pts.length; i++) L += dist(e.pts[i-1], e.pts[i]); const D = dist(A, B); if(kind !== 'other' && L > Math.max(1.8*D, D + 1500)) e.pts = [A, B]; } // (rail only: a boat's crossing or a bus's loop is meant to be longer than the hop — Bordeaux's river shuttles were cut across the bank)
@@ -3486,7 +3496,7 @@ function ttPlace(now){ TTV.railBudget = 1;
     // last of all, onto the track you see: a tram, metro or train on its own drawn line (a timetable piece clipped at a
     // tile edge isn't matched to the line above: Bordeaux's tram B sat in the Quinconces), a train with no city line on
     // the drawn rail network (a TGV from Massy is one 480 km straight stretch)
-    { const k = kind0(e.s[0]); let q = k !== 'bus' ? ttSnap(k, e.s[2], P) : null; /* (boats too: Bordeaux's 951 is a straight 2 km hop in the timetable, its drawn route curves 150 m out) */
+    { const k = kind0(e.s[0]); let q = k !== 'bus' && !e.real ? ttSnap(k, e.s[2], P) : null; /* (boats too: Bordeaux's 951 is a straight 2 km hop in the timetable, its drawn route curves 150 m out) */
       // a train on the rail network stays on the piece of track it was on unless another is 150 m nearer: snapped afresh
       // each time, a straight timetable line drifting past parallel tracks made it hop between them
       if(k === 'train' && q && q.pts){ TTV.railPref ||= new Map(); const pref = TTV.railPref.get(trip);
@@ -3501,7 +3511,7 @@ function ttPlace(now){ TTV.railBudget = 1;
       else for(let j = 1; j < ch.length; j++) if(ch[j-1].s[6] <= now && now <= ch[j].s[5]){ st = ch[j].s[3][4] ? ch[j].s[3] : ch[j-1].s[4]; break; }
       const pp = st && dist(st.slice(2, 4), P) < 600 && platAbroad(st);
       if(pp){ const a = along(pp, 0.5), i = pp.pts.indexOf(a.b); P = a.p; sA = a.a; sB = a.b; plat = {pts:pp.pts, i:Math.max(1, i), ref:st[4]}; } }
-    out.set(trip, {s:e.s, p:P, A:sA, B:sB, plat}); }
+    out.set(trip, {s:e.s, p:P, A:sA, B:sB, plat, real:e.real ? e.pts : null}); }
   TTV.lastP = new Map([...out].map(([t, v]) => [t, v.p]));
   return out; }
 window.__ttPlace = ttPlace;
@@ -3526,6 +3536,7 @@ window.__testRide = () => { for(const t of trains.values()) if(t.d && !t.rail &&
 window.__platGive = crs => { const P = Object.keys(RAIL.plats?.[crs] || {}); let k = 0; for(const t of trains.values()) if(t.rail && t.ahead && t.ahead.some(a => a[0] === crs)) t.plats = {...t.plats, [crs]:P[k++ % P.length]}; return {plats:P.length, given:k}; };
 window.__platAbroad = () => [...GPS.list.values()].filter(g => g.v.plat).map(g => g.v.id.slice(0, 40) + ' @' + g.v.plat.ref);
 window.__routes = () => { let on = 0, none = 0, wait = 0; for(const t of trains.values()) if(t.d && (t.rail || /tube|dlr|overground|elizabeth/.test(BY[t.line]?.mode))){ if(t.rt?.r) on++; else if(t.rt) none++; else wait++; } return {routed:on, noRoute:none, waiting:wait}; };
+window.__rptsN = () => { let r = 0, n = 0; for(const g of GPS.list.values()) if(g.v.train){ n++; if(g.v.rpts) r++; } return {trains:n, onTracks:r}; };
 window.__platOn = () => [...trains.values()].filter(t => t.onPlat).map(t => t.onPlat);
 window.__rideState = () => ({key:FW.t && FW.t.key, ride:FW.ride, d:FW.t && FW.t.d, c:(c => c && [c.lat(), c.lng()])(map.getCenter())});
 window.__rekey = () => { const t = FW.t; if(!t) return null; const k = t.key + ':new'; trains.delete(t.key); trains.set(k, Object.assign({}, t, {key:k})); return k; };
@@ -3565,7 +3576,7 @@ function ttTick(){ if(!TTV.ferries || !TRAINS_ON || inTfLArea([map.getCenter().l
   // allowing for delays) isn't shown, whichever feed the two come from (Bordeaux's trams: TBM live, the region's timetable)
   const liveAt = new Map(); for(const [k, g] of GPS.list) if((k.startsWith('la:') || k.startsWith('es:') || k.startsWith('no:')) && g.v.line){ const key = vkind(g.v) + '|' + String(g.v.line).toLowerCase(); (liveAt.get(key) || liveAt.set(key, []).get(key)).push(g.to || [g.v.lat, g.v.lon]); }
   const best = ttPlace(now + 2000); // where each will be when this glide ends: moved at a steady speed (linear), it is where the timetable says, all the time, not surging and slowing every 2 s
-  for(const [trip, {s, p, A, B, plat}] of best){ const [, col, name, from, to, dep, arr] = s;
+  for(const [trip, {s, p, A, B, plat, real}] of best){ const [, col, name, from, to, dep, arr] = s;
     if(TTV.esLive && Date.now() - TTV.esLive < 120000 && /RENFE-?Cercan|Rodalies|Cercan/i.test(trip)) continue;
     if(SRV.shipsAt && Date.now() - SRV.shipsAt < 120000 && /FERRY/.test(s[0]) && [...GPS.list].some(([k, g]) => k.startsWith('ais:') && dist(g.to || [g.v.lat, g.v.lon], p) < 600)) continue; // a ship live by AIS right there instead (only then: Bordeaux's river shuttles have no AIS, and all ferries vanished whenever any ship was tracked)
     if(TTV.cityLive && Date.now() - TTV.cityLive.at < 120000 && liveKinds.has(/FERRY/.test(s[0]) ? 'ferry' : /BUS|COACH/.test(s[0]) ? 'bus' : /TRAM/.test(s[0]) ? 'tram' : /SUBWAY|METRO/.test(s[0]) ? 'metro' : 'train') && LIVE_ABROAD.some(x => Date.now() - (TTV.live?.get(x[0])?.at || 0) < 120000 && x[4].test(trip) && (x[5] || /BUS/).test(s[0]))) continue; // that city's buses (and trams) are live // shown live by Renfe instead (its line is still drawn)
@@ -3578,7 +3589,7 @@ function ttTick(){ if(!TTV.ferries || !TRAINS_ON || inTfLArea([map.getCenter().l
       segAng:Math.atan2(-(B[0]-A[0]), (B[1]-A[1])*Math.cos(A[0]*rad))};
     { const cf = /flixbus/i.test(trip) ? 'FLIX' : /blablacar/i.test(trip) ? 'BBCB' : null; // long-distance coaches: their own look, as in Britain
       if(cf && kind === 'bus'){ v.op = cf; v.coach = true; v.line = String(name || '').replace(/^(FlixBus|BlaBlaCar Bus)\s*/i, ''); v.col = COACHES[cf][1]; } }
-    v.plat = plat || null;
+    v.plat = plat || null; v.rpts = real || null;
     if(!g){ g = {from:p, to:p, t0:now, dur:2000, lin:true}; GPS.list.set(id, g); }
     else { g.from = gpsPos(g, now); g.to = p; g.t0 = now; g.lin = true; g.path = null;
       const jd = dist(g.from, p), vmax = TT_VMAX(m)*1.4; // never faster on screen than such a vehicle goes: a correction is a steady catch-up, never a leap
