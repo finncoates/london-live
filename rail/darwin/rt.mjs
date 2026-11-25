@@ -82,13 +82,22 @@ export class Feed {
   get enabled(){ return !this.cfg.needs || this.cfg.needs.every(n => this.env[n]); }
   async loadRoutes(){ if(!this.cfg.gtfs) return; // one feed at a time: a small server can't read many timetables at once
     this.routesLoading = 'queued'; const turn = LOADQ.then(() => { this.routesLoading = 'now'; return this._loadRoutes(); }); LOADQ = turn.catch(() => {}); return turn; }
+  // the timetable's routes (and trips) kept on disk for a day: a restart reads them back in seconds instead of
+  // downloading all ~150 timetables again, one at a time, for an hour (25 Nov 2026: Sweden waited at the back of the queue)
+  cacheFile(){ return path.join(os.homedir(), '.cache', 'london-live-gtfs', this.cfg.id.replace(/[^\w-]/g, '_') + '.json'); }
+  async _fromDisk(){ try{ const fn = this.cacheFile(), st = await fsp.stat(fn); if(Date.now() - st.mtimeMs > 20*3600000) return false;
+      const j = JSON.parse(await fsp.readFile(fn, 'utf8')); if(!j.routes || !j.routes.length) return false; this.routes = new Map(j.routes); this.trips = new Map(j.trips || []);
+      console.log(this.cfg.id, 'routes from disk:', this.routes.size, 'trips:', this.trips.size); this.routesAt = st.mtimeMs; this.routesErr = null; return true; }catch(e){ return false; } }
+  async _toDisk(){ try{ const fn = this.cacheFile(); await fsp.mkdir(path.dirname(fn), {recursive:true});
+      await fsp.writeFile(fn + '.tmp', JSON.stringify({routes:[...this.routes], trips:[...this.trips]})); await fsp.rename(fn + '.tmp', fn); }catch(e){ console.warn(this.cfg.id, 'cache', e.message); } }
   async _loadRoutes(){
+    if(!this.loadedOnce){ this.loadedOnce = true; if(await this._fromDisk()) return; }
     try{ const f = await zipFiles(this.sub(this.cfg.gtfs), ['routes.txt', 'agency.txt', ...(this.cfg.trips === true ? ['trips.txt'] : [])], this.cfg.gtfsHeaders ? this.headers() : {});
       const ag = new Map((f['agency.txt'] ? csv(f['agency.txt']) : []).map(a => [a.agency_id, a.agency_name]));
       this.routes = new Map(csv(f['routes.txt'] || '').map(r => [r.route_id, {name:r.route_short_name || r.route_long_name || '', kind:kindOf(r.route_type),
         col:/^[0-9a-f]{6}$/i.test(r.route_color || '') ? '#' + r.route_color : null, op:ag.get(r.agency_id) || (ag.size === 1 ? [...ag.values()][0] : '') || ''}]));
       if(f['trips.txt']){ this.trips = new Map(); this.trips = tripRoutes(f['trips.txt']); } // a feed that gives only the trip: its route from the timetable
-      console.log(this.cfg.id, 'routes:', this.routes.size, 'trips:', this.trips.size); this.routesAt = Date.now(); this.routesErr = null; }
+      console.log(this.cfg.id, 'routes:', this.routes.size, 'trips:', this.trips.size); this.routesAt = Date.now(); this.routesErr = null; if(this.routes.size) this._toDisk(); }
     catch(e){ console.warn(this.cfg.id, 'routes', e.message); this.routesErr = e.message; } finally{ this.routesLoading = false; } }
   async poll(){
     try{ const r = await fetch(this.sub(this.cfg.url), {headers:{...UA, ...this.headers()}, signal:AbortSignal.timeout(30000)});

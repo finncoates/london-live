@@ -40,7 +40,7 @@ const AIS = new Ais(path.join(here, 'ais.json'));
 if(env.AISSTREAM_KEY) AIS.run(env.AISSTREAM_KEY, JSON.parse(env.AIS_BOXES || '[[[49.0,-11.0],[61.5,2.5]],[[43.0,-10.0],[49.0,10.0]],[[49.0,2.5],[66.0,31.0]],[[30.0,-6.0],[46.0,37.0]]]'));
 // live vehicle feeds
 const FEEDS = new Map();
-try{ for(const f of JSON.parse(fs.readFileSync(path.join(here, 'feeds.json'), 'utf8')).feeds){ const F = new Feed(f, env); if(F.enabled && !(env.FEEDS_OFF || '').split(',').includes(f.id)){ FEEDS.set(f.id, F); F.run(); } } }
+try{ for(const f of JSON.parse(fs.readFileSync(path.join(here, 'feeds.json'), 'utf8')).feeds.sort((a, b) => (b.trips === true) - (a.trips === true))){ /* (feeds whose vehicles can't be named without their timetable load first: Sweden's) */ const F = new Feed(f, env); if(F.enabled && !(env.FEEDS_OFF || '').split(',').includes(f.id)){ FEEDS.set(f.id, F); F.run(); } } }
 catch(e){ console.warn('feeds', e.message); }
 // each feed's area as learnt from its vehicles is kept across restarts (feed-boxes.json), so the map finds it straight away
 const BOXF = path.join(here, 'feed-boxes.json');
