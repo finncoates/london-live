@@ -230,6 +230,7 @@ body.dark #outage{background:#3a2a10;color:#ffe2b0;border-color:#7a5a20}
 @media (max-width:700px){#mModes{display:flex!important;flex-wrap:nowrap;overflow-x:auto;gap:6px;padding:2px 0 6px;scrollbar-width:none;-webkit-overflow-scrolling:touch}
   #mModes::-webkit-scrollbar{display:none} #mModes .mcat,#mModes .chips{display:contents} #mModes .mcat-h{display:none} #mModes button{flex:none;white-space:nowrap}}
 #vlistOl .vl{background:none;border:0;padding:3px 0;margin:0;text-align:left;font:inherit;color:inherit;cursor:pointer;text-decoration:underline dotted;text-underline-offset:3px;min-height:28px}
+#mModes .lin .lsw{display:inline-block;width:14px;height:4px;border-radius:2px;margin-right:6px;vertical-align:middle}
 #favs{margin:0 0 10px}
 #favs[hidden]{display:none}
 #favs h3{font-size:11.5px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--mute);margin:0 0 6px}
@@ -377,6 +378,9 @@ button.lnk{border:0;background:none;padding:0;color:var(--acc);font-weight:600;f
 (async () => {
 const Q = new URLSearchParams(location.search);
 window.T ||= s => s; window.LANG ||= 'en'; const T = window.T, LANG = window.LANG; // (i18n.js not loaded, blocked or offline: English, never a broken page)
+// lines and routes hidden, by kind (train, metro, tram, bus, ferry), apart from their vehicles
+let LINES_OFF = new Set((() => { try{ return JSON.parse(localStorage.getItem('linesOff')) || []; }catch(e){ return []; } })());
+const modeKey = m => m === 'rail' ? 'train' : m === 'bus' ? 'bus' : m === 'river' ? 'ferry' : m === 'tram' ? 'tram' : 'metro'; // London's networks, by kind
 const API = 'https://api.tfl.gov.uk';
 const KEY = Q.get('app_key') ? 'app_key=' + encodeURIComponent(Q.get('app_key')) : '';
 const REFRESH = Math.max(15, +(Q.get('refresh') || 30)) * 1000;
@@ -921,7 +925,7 @@ function trainLane(t, l){
 }
 const lineCentre = l => ({color:MAP_BG(), weight:LINE_W/3, opacity:lineStyle(l).opacity ? 1 : 0, z:2});
 const LF = {id:null, city:null, name:''}; // the line picked in search (live page)
-const lineStyle = l => ({color:ink(l.colour), weight:LINE_W, opacity:!shown(l)?0:l.on===false?0.07:window.DIM_TRAINS?(l.pinned && LF.id === l.id ? 1 : 0.08):1}); // a searched line stays bright
+const lineStyle = l => ({color:ink(l.colour), weight:LINE_W, opacity:!shown(l) || (!l.pinned && LINES_OFF.has(modeKey(l.mode)))?0:l.on===false?0.07:window.DIM_TRAINS?(l.pinned && LF.id === l.id ? 1 : 0.08):1}); // a searched line stays bright
 function applyTheme(){ document.body.classList.toggle('dark', dark); map.setOptions({styles:mapStyles(), mapTypeId:MAP_STYLE === 'satellite' ? 'hybrid' : 'roadmap'}); for(const l of ACTIVE) l.layer && l.layer.eachLayer(p => p.setStyle(lineStyle(l))); }
 applyTheme();
 // Screen positions (fractional pixels, so movement is smooth) via an empty overlay's projection
@@ -1387,6 +1391,7 @@ function frame(ts, sync){
   const drawn = [], byLine = new Map();
   for(const t of trains.values()){
     const l = BY[t.line]; if(!l.on || !shown(l) || wall - t.seen > (t.rail ? 150000 : REFRESH*1.5)) continue;
+    if(GPS_OFF.has(modeKey(l.mode)) && !HL.has(t.key)) continue; // that kind's vehicles switched off (its lines may stay)
     const pos = placeTrain(t); if(!pos) continue;
     // ease the displayed position, then put it back onto the line so it never cuts corners
     if(!t.d || dist(t.d, pos.p) > 3000) t.d = pos.p.slice();
@@ -1813,20 +1818,37 @@ $('legend').addEventListener('click', e => {
 
 // ---------- transport switches ----------
 const GROUP_SYM = {road:['drive','#F29400'], river:['tube','#009FE0'], cable:['tube','#E21836'], bike:['cycle','#EC0000'], bus:['tube','#DC241F'], tube:['tubeLogo','#DC241F'], overground:['tube','#FA7B05'], elizabeth:['tube','#60399E'], dlr:['tube','#00AFAD'], tram:['tube','#5FB526'], rail:['rail','#1D5BA0']};
+// the menu: Trains · Metro & trams · Buses & coaches · Boats · Bikes & scooters (· Road works), each with a switch for
+// the vehicles and one for their lines or routes, separately (London's line-by-line chips stay, to choose networks)
+const VL = {train:['Trains', 'Train lines', 'rail', '#8C4799'], metro:['Metro', 'Metro lines', 'metrog', '#FF6319'], tram:['Trams', 'Tram lines', 'tramg', '#00985F'],
+  bus:['Buses', 'Bus routes', 'busg', '#DC241F'], coach:['Coaches', 'Coach routes', 'busg', '#D2232A'], ferry:['Boats', 'Boat routes', 'ferryg', '#00B9E4']};
 function renderModeChips(){
-  const CATS = [['National Rail', ['rail']], ['Tube, Overground, DLR & trams', ['tube', 'overground', 'elizabeth', 'dlr', 'tram', 'cable']], ['Buses', ['bus']],
-    ['Bikes & scooters', ['bike']], ['Boats', ['river']], ['Road works', ['road']]];
   const names = Object.fromEntries(MODE_GROUPS), ni = document.body.classList.contains('ni'); if(ni) names.rail = 'NI Railways'; // Northern Ireland: Translink's railway, not National Rail
-  $('mModes').innerHTML = CATS.map(([cat, ms]) => `<div class="mcat" data-cat="${esc(cat)}"><div class="mcat-h">${esc(ni && cat === 'National Rail' ? 'Railways' : cat)}</div><div class="chips">${ms.filter(m => names[m]).map(m => [m, names[m]]).map(([m, name]) => {
+  const away = document.body.classList.contains('away') || document.body.classList.contains('edge'), abroad = document.body.classList.contains('abroad');
+  const modeChip = m => { if(!names[m]) return ''; const name = names[m];
     const nrLines = m === 'rail' && !document.body.classList.contains('abroad') && !(typeof railOn === 'function' && railOn());
     const has = m === 'bus' || m === 'bike' || m === 'road' || ACTIVE.some(l => l.mode === m) || (m === 'rail' && typeof railOn === 'function' && railOn()) || nrLines;
     const off = m === 'bus' && (document.body.classList.contains('away') || document.body.classList.contains('edge')) ? GPS_OFF.has('bus') : MODES_OFF.has(m);
     return `<button type="button" class="chip2" data-mode="${m}" aria-pressed="${has && !off}" ${has ? '' : 'disabled title="Coming soon"'}>${m === 'bus' && (document.body.classList.contains('away') || document.body.classList.contains('edge')) ? symbol('busg', '#DC241F', 16) : symbol(GROUP_SYM[m][0], GROUP_SYM[m][1], 16)}${name}${has ? (nrLines ? (ni ? ' <small>lines</small>' : ' <small>lines · live trains soon</small>') : '') : ' <small>soon</small>'}</button>`;
-  }).join('')}${cat === 'Buses' && !document.body.classList.contains('abroad') ? `<button type="button" class="chip2" data-gkind="stops" aria-pressed="${!GPS_OFF.has('stops')}">${symbol('stopg', '#DC241F', 16)}Bus stops</button><button type="button" class="chip2" data-gkind="coach" aria-pressed="${!GPS_OFF.has('coach')}">${symbol('busg', '#D2232A', 16)}Coaches</button><button type="button" class="chip2" data-coachlines="1" aria-pressed="${COACHNET.on}">${symbol('busg', '#D2232A', 16)}Coach routes</button>` : ''}</div></div>`).join('') + awayKindChips();
+  };
+  const pair = k => { const [vn, ln, sy, col] = VL[k], lon = k === 'coach' ? COACHNET.on : !LINES_OFF.has(k);
+    return `<button type="button" class="chip2" data-gkind="${k}" aria-pressed="${!GPS_OFF.has(k)}">${symbol(sy, col, 16)}${T(vn)}</button><button type="button" class="chip2 lin" ${k === 'coach' ? 'data-coachlines="1"' : `data-lin="${k}"`} aria-pressed="${lon}"><span class="lsw" style="background:${col}"></span>${T(ln)}</button>`; };
+  // London: a section's networks are its own chips, so one switch for all its vehicles and one for all its lines
+  const both = (keys, vn, ln, sy, col) => `<button type="button" class="chip2" data-vgroup="${keys}" aria-pressed="${!keys.split(',').every(k => GPS_OFF.has(k))}">${symbol(sy, col, 16)}${T(vn)}</button><button type="button" class="chip2 lin" data-lgroup="${keys}" aria-pressed="${!keys.split(',').every(k => LINES_OFF.has(k))}"><span class="lsw" style="background:${col}"></span>${T(ln)}</button>`;
+  const routesOnly = k => `<button type="button" class="chip2 lin" data-lin="${k}" aria-pressed="${!LINES_OFF.has(k)}"><span class="lsw" style="background:${VL[k][3]}"></span>${T(VL[k][1])}</button>`;
+  const sec = (title, inner) => inner ? `<div class="mcat" data-cat="${esc(title)}"><div class="mcat-h">${esc(T(title))}</div><div class="chips">${inner}</div></div>` : '';
+  const ks = new Set(awayKindsHere()); AWAY_KINDS = [...ks].join();
+  const stops = !abroad ? `<button type="button" class="chip2" data-gkind="stops" aria-pressed="${!GPS_OFF.has('stops')}">${symbol('stopg', '#DC241F', 16)}Bus stops</button>` : '';
+  $('mModes').innerHTML = !away
+    ? sec('Trains', modeChip('rail') + both('train', 'Vehicles', 'Lines', 'rail', '#8C4799')) + sec('Metro & trams', ['tube', 'overground', 'elizabeth', 'dlr', 'tram', 'cable'].map(modeChip).join('') + both('metro,tram', 'Vehicles', 'Lines', 'tube', '#0019A8'))
+      + sec('Buses & coaches', modeChip('bus') + routesOnly('bus') + stops + pair('coach')) + sec('Boats', modeChip('river') + both('ferry', 'Vehicles', 'Routes', 'ferryg', '#00B9E4')) + sec('Bikes & scooters', modeChip('bike')) + sec('Road works', modeChip('road'))
+    : sec('Trains', (!abroad ? modeChip('rail') : '') + pair('train')) + sec('Metro & trams', (ks.has('metro') ? pair('metro') : '') + (ks.has('tram') ? pair('tram') : ''))
+      + sec('Buses & coaches', pair('bus') + stops + pair('coach')) + sec('Boats', ks.has('ferry') ? pair('ferry') : '') + sec('Bikes & scooters', modeChip('bike')) + (!abroad ? sec('Road works', modeChip('road')) : '');
 }
 // outside London: trams / metro / ferries of the city on screen get their own switches (vehicles and lines together)
 const KIND_CHIP = {train:['Trains', 'rail', '#8C4799'], tram:['Trams', 'tramg', '#00985F'], metro:['Metro', 'metrog', '#FF6319'], ferry:['Ferries', 'ferryg', '#00B9E4']};
 let AWAY_KINDS = '';
+setInterval(() => { if(document.body.classList.contains('away') && awayKindsHere().join() !== AWAY_KINDS) renderModeChips(); }, 3000); // (a city's metro, trams or boats arrive after the menu is drawn: their section appears)
 function awayKindsHere(){
   if(!document.body.classList.contains('away')) return [];
   const k = new Set(); try{ for(const d of cityData()) for(const l of d.lines || []) k.add(l.kind); }catch(e){}
@@ -1990,7 +2012,7 @@ async function bostonLines(){
 function drawBostonLines(ctx){
   if(!BOS.lines) return; const W = lineW();
   ctx.lineJoin = 'round'; ctx.lineCap = 'round'; ctx.globalAlpha = 0.85;
-  for(const l of BOS.lines){ if(GPS_OFF.has(l.kind || 'train')) continue; ctx.beginPath(); l.pts.forEach((q, i) => { const c = scr(q); i ? ctx.lineTo(c.x, c.y) : ctx.moveTo(c.x, c.y); }); ctx.strokeStyle = l.col; ctx.lineWidth = W; ctx.stroke(); }
+  for(const l of BOS.lines){ if(LINES_OFF.has(l.kind || 'train')) continue; ctx.beginPath(); l.pts.forEach((q, i) => { const c = scr(q); i ? ctx.lineTo(c.x, c.y) : ctx.moveTo(c.x, c.y); }); ctx.strokeStyle = l.col; ctx.lineWidth = W; ctx.stroke(); }
   ctx.globalAlpha = 1;
 }
 async function bostonVehicles(){
@@ -2243,7 +2265,7 @@ function drawLineSet(ctx, d){
     d.pz = zc + ':' + kb + ':' + ORG.id; }
   ctx.save(); localView(ctx, O, k);
   ctx.lineJoin = 'round';
-  for(const [l, path, cnt] of d.paths){ if(GPS_OFF.has(l.kind)) continue; const look = lineLook(d.tramMain && l.kind === 'tram' ? 'metro' : l.kind, W) /* where trams are the main network (no metro: Bordeaux, Antwerp), drawn solid and full width like the Tube */, c = cnt || 1;
+  for(const [l, path, cnt] of d.paths){ if(LINES_OFF.has(l.kind)) continue; const look = lineLook(d.tramMain && l.kind === 'tram' ? 'metro' : l.kind, W) /* where trams are the main network (no metro: Bordeaux, Antwerp), drawn solid and full width like the Tube */, c = cnt || 1;
     ctx.globalAlpha = look.alpha * (LF.city ? (l.name === LF.city ? 1 : 0.12) : 1);
     ctx.lineCap = look.dash || c > 1 ? 'butt' : 'round'; ctx.setLineDash(look.dash ? look.dash.map(x => x/k) : []);
     ctx.strokeStyle = inkA(l.col); ctx.lineWidth = look.w/c/k; ctx.stroke(path);
@@ -2261,7 +2283,7 @@ function drawLineSet(ctx, d){
     if(names && !named.some(q => q[0] === stName(st[1]) && Math.hypot(q[1] - c.x, q[2] - c.y) < 120) && stLabelFree(c.x + rr + 4, c.y, ctx.measureText(stName(st[1])).width)){ named.push([stName(st[1]), c.x, c.y]); ctx.lineWidth = 3; // one name per stop (not one per platform) ctx.strokeStyle = dark ? 'rgba(0,0,0,.85)' : 'rgba(255,255,255,.95)'; ctx.strokeText(stName(st[1]), c.x + rr + 4, c.y);
       ctx.fillStyle = dark ? '#eee' : '#1b1c1f'; ctx.fillText(stName(st[1]), c.x + rr + 4, c.y); ctx.lineWidth = Math.max(1.5, W*0.3); } }
 }
-const showSt = (d, st) => st[4].some(l => !GPS_OFF.has(l[2])) && !(d.dupRail && st[4].every(l => l[2] === 'train'));
+const showSt = (d, st) => st[4].some(l => !LINES_OFF.has(l[2])) && !(d.dupRail && st[4].every(l => l[2] === 'train'));
 const stName = n => String(n).replace(/\s*\[[^\]]*\]$/, '').replace(/ \((Berlin|Helsinki|Helsingfors|Manchester Metrolink)\)$/, '').replace(/ Bhf\b/, '').replace(/ (0\d|T\d)$/, '').trim(); // Gdańsk's platform numbers (Śródmieście SKM 01) off the name
 // departures grouped by kind (train, metro, tram, bus…), soonest first, a few of each
 function depGroups(rows, per = 4){
@@ -2590,7 +2612,7 @@ function busnetTiles(){
 }
 const BUSNET_COL = {berlin:['#A5027D', '#B8509E'], boston:['#E0A000', '#9C8436'], helsinki:['#007AC9', '#3AA0E8'], oslo:['#E60000', '#FF5A5A']};
 function drawBusNet(ctx){
-  if(busOff() || GPS_OFF.has('bus') || PV.z < 12) return; const c = map.getCenter(); if(!c) return; const rg = regionOf([c.lat(), c.lng()]); { if(rg !== 'uk' && rg !== 'edinburgh' && rg !== 'london' && rg !== 'berlin' && rg !== 'boston' && !(rg === 'finland' && inHelsinki([c.lat(), c.lng()])) && rg !== 'norway' && rg !== 'city' && !CITYL.cur?.name?.match(/Manchester/) && !(CITYL.cur?.bus && CITYL.cur.box([c.lat(), c.lng()]))) return; } // Berlin, Boston, Helsinki: from their own timetables
+  if(LINES_OFF.has('bus') || (!document.body.classList.contains('away') && busOff()) || PV.z < 12) return; /* (the bus routes: their own switch; the buses' switch is separate) */ const c = map.getCenter(); if(!c) return; const rg = regionOf([c.lat(), c.lng()]); { if(rg !== 'uk' && rg !== 'edinburgh' && rg !== 'london' && rg !== 'berlin' && rg !== 'boston' && !(rg === 'finland' && inHelsinki([c.lat(), c.lng()])) && rg !== 'norway' && rg !== 'city' && !CITYL.cur?.name?.match(/Manchester/) && !(CITYL.cur?.bus && CITYL.cur.box([c.lat(), c.lng()]))) return; } // Berlin, Boston, Helsinki: from their own timetables
   const zc = Math.floor(PV.z), k = 2 ** (PV.z - zc), look = lineLook('bus', lineW());
   const O = orgAt(zc); ctx.save(); localView(ctx, O, k); ctx.globalAlpha = dark ? Math.min(1, look.alpha*1.4) : look.alpha; ctx.strokeStyle = (BUSNET_COL[rg === 'finland' ? 'helsinki' : rg === 'norway' ? 'oslo' : rg] || CITYL.cur?.bus || ['#DC241F', '#E8574F'])[dark ? 1 : 0]; /* the colour of the city's own buses (Berlin purple, Boston yellow, Helsinki blue); red in Britain */ ctx.lineWidth = look.w/k; ctx.lineJoin = 'round'; ctx.lineCap = 'round';
   const ldn = regionOf([c.lat(), c.lng()]) === 'london';
@@ -2707,7 +2729,7 @@ function nrPolysets(z){ const polysets = []; // the National Rail map tiles for 
   if(nrPolysets.es && polysets.length) polysets.push(['es', nrPolysets.es]); // Eurostar's lines abroad
   return polysets; }
 // London: the National Rail network under the TfL lines (grey double line, as elsewhere); live National Rail trains run on it
-const nrLondon = () => !document.body.classList.contains('away') && !!map.getCenter() && inLondonView([map.getCenter().lat(), map.getCenter().lng()]) && !MODES_OFF.has('rail');
+const nrLondon = () => !document.body.classList.contains('away') && !!map.getCenter() && inLondonView([map.getCenter().lat(), map.getCenter().lng()]) && !MODES_OFF.has('rail') && !LINES_OFF.has('train');
 function drawNRWorld(g, zi, W){
   if(!nrLondon() || zi < 9) return; const sets = nrPolysets(zi); if(!sets.length) return;
   g.save(); g.lineJoin = 'round'; g.lineCap = 'round'; const w = Math.max(1.6, W*(zi >= 12 ? 0.95 : 0.75));
@@ -2936,7 +2958,7 @@ function drawTTLines(ctx){
     if((kind === 'metro' || kind === 'tram') && drawn && pts.length > 1){ let on = TT_ON.get(pts); if(on === undefined) TT_ON.set(pts, on = !!cityPath(kind, s[2] || '?', pts[0], pts.at(-1))); if(on) continue; } // runs along a drawn line under another name (Porto's 'B' on 'Bx')
     if(kind === 'bus' && CITYL.cur?.bus) continue; // the city's bus map already draws every bus road, in one colour (as London)
     if(kind === 'train' && (railC(s[3].slice(2)) || railC(s[4].slice(2)))) continue; // France's whole rail network is drawn (cities/nr): trains run on it (either end: an international train from Germany was drawn straight across Amsterdam)
-    if(GPS_OFF.has(kind) || (kind === 'bus' && busOff())) continue; const col = s[1] && /^[0-9a-f]{6}$/i.test(s[1]) ? inkA('#' + s[1].toLowerCase()) : {ferry:'#00A0E2', train:'#5D6670', tram:'#7A1F3D', metro:'#0E4C92', bus:'#DC241F'}[kind];
+    if(LINES_OFF.has(kind)) continue; const col = s[1] && /^[0-9a-f]{6}$/i.test(s[1]) ? inkA('#' + s[1].toLowerCase()) : {ferry:'#00A0E2', train:'#5D6670', tram:'#7A1F3D', metro:'#0E4C92', bus:'#DC241F'}[kind];
     const P = pts.map(scr); if(!P.some(q => q.x > -50 && q.y > -50 && q.x < s0.x + 50 && q.y < s0.y + 50)) continue;
     const k = kind + '|' + col; (groups.get(k) || groups.set(k, []).get(k)).push(P); }
   ctx.save(); ctx.lineJoin = 'round'; ctx.lineCap = 'round';
@@ -3143,7 +3165,7 @@ function nrOnlyStations(){ if(!RAIL.stations){ railStations().then(() => { NRNET
   const tfl = stationIndex(); if(tfl.length < 200) return []; nrOnlyStations.k = k; // TfL's stations not loaded yet
   return nrOnlyStations.c = RAIL.stations.filter(x => x[2] > 51.2 && x[2] < 51.8 && x[3] > -0.7 && x[3] < 0.45 && !tfl.some(t => Math.abs(t.p[0] - x[2]) < 0.003 && dist(t.p, [x[2], x[3]]) < 220)); }
 function drawNR(ctx){
-  if(MODES_OFF.has('rail') || PV.z < 6) return;
+  if(MODES_OFF.has('rail') || LINES_OFF.has('train') || PV.z < 6) return;
   const zc = Math.floor(PV.z), k = 2 ** (PV.z - zc), W = lineW(), polysets = nrPolysets(PV.z); if(!polysets.length) return;
   const O = orgAt(zc); ctx.save(); localView(ctx, O, k); ctx.lineJoin = 'round'; ctx.lineCap = 'round';
   const w = Math.max(1.6, W*(PV.z >= 12 ? 0.95 : 0.75))/k;
@@ -3467,7 +3489,11 @@ const CATALOG = [
       {name:'Fukuoka', at:[33.590, 130.420, 12], live:'now', modes:[['train','JR & Shinkansen'], ['bus','Buses (zoom in)']], note:'From the timetable (Transitous open data).'}]}]},
 ];
 // vehicle kinds switched off abroad (buses use the Buses switch)
-let GPS_OFF = new Set((() => { try{ return JSON.parse(localStorage.getItem('gpsOff')) || []; }catch(e){ return []; } })());
+let GPS_OFF = new Set((() => { try{ return JSON.parse(localStorage.getItem('gpsOff')) || []; }catch(e){ return []; } })()); // vehicles hidden, by kind
+document.addEventListener('click', e => { const b = e.target.closest('#mModes [data-lin], #mModes [data-lgroup], #mModes [data-vgroup]'); if(!b) return;
+  const keys = (b.dataset.lin || b.dataset.lgroup || b.dataset.vgroup).split(','), S = b.dataset.vgroup ? GPS_OFF : LINES_OFF, on = keys.every(k => S.has(k)); // (a group: all on, or all off)
+  for(const k of keys) on ? S.delete(k) : S.add(k);
+  try{ localStorage.setItem('linesOff', JSON.stringify([...LINES_OFF])); localStorage.setItem('gpsOff', JSON.stringify([...GPS_OFF])); }catch(x){} LANES = null; linesSig = ''; lpathSig = ''; renderModeChips(); });
 const vkind = v => v.train ? 'train' : v.metro ? 'metro' : v.tram ? 'tram' : /ferry/i.test(v.kind || '') ? 'ferry' : 'bus';
 const gOff = v => GPS_OFF.has(v.coach ? 'coach' : vkind(v)); // coaches have their own switch (next to Buses)
 const stopsOff = () => GPS_OFF.has('stops'); // bus stop markers (London and the rest of the UK)
