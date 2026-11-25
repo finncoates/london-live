@@ -37,8 +37,11 @@ try {
       s = await page.evaluate(() => window.__smoke ? window.__smoke() : null).catch(() => null); title = await page.title();
       why = s ? check(s, title) : 'no state (page script did not run)'; if(!why || errs.some(e => e.startsWith('script'))) break; }
     if(why === 'WAIT timetable') why = null; // (the relay didn't answer in time: not the page's fault)
+    // the map must keep moving: frames drawn over 4 s (Paris once fell to 16 a second and vehicles seemed to freeze)
+    let fps = null; if(!why && !errs.length){ await new Promise(r => setTimeout(r, 4000)); /* (after the city's files are read in) */ fps = await page.evaluate(() => new Promise(res => { let f = 0; const t0 = performance.now(), tick = () => { f++; performance.now() - t0 < 4000 ? requestAnimationFrame(tick) : res(f/4); }; requestAnimationFrame(tick); })).catch(() => null);
+      if(fps != null && fps < 20) why = `map runs at ${fps.toFixed(0)} frames a second`; }
     const problem = errs.find(e => e.startsWith('script')) || why || errs[0];
-    console.log(`${problem ? 'FAIL' : 'ok  '} ${name.padEnd(9)} ${((Date.now() - t0)/1000).toFixed(0).padStart(3)} s  ${s ? `lines ${s.cityLines} · TfL ${s.tfl} · files ${s.cityFiles}${s.offLine ? ` · timetable on line ${s.offLine.n - s.offLine.of}/${s.offLine.n}` : ''}` : ''}${problem ? '  ← ' + problem : ''}`);
+    console.log(`${problem ? 'FAIL' : 'ok  '} ${name.padEnd(9)} ${((Date.now() - t0)/1000).toFixed(0).padStart(3)} s  ${s ? `lines ${s.cityLines} · TfL ${s.tfl} · files ${s.cityFiles}${s.offLine ? ` · timetable on line ${s.offLine.n - s.offLine.of}/${s.offLine.n}` : ''}${fps != null ? ` · ${fps.toFixed(0)} fps` : ''}` : ''}${problem ? '  ← ' + problem : ''}`);
     await page.close(); if(!problem) break; if(attempt === 2) bad++; else console.log('     (trying again)'); }
 } finally { await browser.close(); srv.kill(); }
 if(bad){ console.log(`\n${bad} place(s) failed: not pushing. (Skip once with: git push --no-verify)`); process.exit(1); }
