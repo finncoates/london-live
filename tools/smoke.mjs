@@ -20,7 +20,7 @@ const PLACES = [
   ['Lisbon', '38.72,-9.14,14', (s, t) => !/Lisbo/.test(t) ? 'title ' + t : s.cityLines < 5 ? `only ${s.cityLines} lines` : null],
 ];
 // noise that isn't the page's fault: the relay only answers the live site, favicons, missing optional tiles
-const IGNORE = /CORS|Access-Control|favicon|status of 404|404 |net::ERR|Failed to fetch|429|rate limit/i;
+const IGNORE = /CORS|Access-Control|favicon|status of 404|404 |net::ERR|Failed to fetch|429|rate limit|status of 50[234]/i; // (a live source down, e.g. the rail server: shown on the page by its outage note, not a page fault)
 const srv = spawn(process.platform === 'win32' ? 'python' : 'python3', ['-m', 'http.server', String(PORT), '--bind', '127.0.0.1'], {cwd: ROOT, stdio: 'ignore'});
 await new Promise(r => setTimeout(r, 1200));
 const browser = await puppeteer.launch({executablePath: browserPath, headless: 'new', args: ['--no-first-run', '--window-size=1200,800', ...(process.platform === 'win32' ? [] : ['--no-sandbox'])]});
