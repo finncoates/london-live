@@ -101,7 +101,7 @@ export class Feed {
       if(f['trips.txt']){ this.trips = new Map(); this.trips = tripRoutes(f['trips.txt']); } // a feed that gives only the trip: its route from the timetable
       console.log(this.cfg.id, 'routes:', this.routes.size, 'trips:', this.trips.size); this.routesAt = Date.now(); this.routesErr = null; if(this.routes.size) this._toDisk(); }
     catch(e){ console.warn(this.cfg.id, 'routes', e.message); this.routesErr = e.message; } finally{ this.routesLoading = false; } }
-  async poll(){
+  async poll(){ if(this.polling) return; this.polling = true;
     try{ const r = await fetch(this.sub(this.cfg.url), {headers:{...UA, ...this.headers()}, signal:AbortSignal.timeout(30000)});
       if(!r.ok) throw new Error('HTTP ' + r.status);
       const m = GTFSRT.FeedMessage.decode(new Uint8Array(await r.arrayBuffer())), now = Date.now(), out = [];
@@ -116,8 +116,10 @@ export class Feed {
         const b = [q(la, 0.02) - 0.02, q(lo, 0.02) - 0.03, q(la, 0.98) + 0.02, q(lo, 0.98) + 0.03];
         this.box = this.box ? [Math.min(this.box[0], b[0]), Math.min(this.box[1], b[1]), Math.max(this.box[2], b[2]), Math.max(this.box[3], b[3])].map(x => +x.toFixed(3)) : b.map(x => +x.toFixed(3)); }
       if(this.cfg.trips === 'auto' && !this.trips.size && out.length && out.filter(v => !v.route && v.trip).length > out.length/2){ this.cfg.trips = true; this.loadRoutes(); } } // vehicles give only their trip: its route from the timetable
-    catch(e){ this.error = e.message; console.warn(this.cfg.id, e.message); } }
+    catch(e){ this.error = e.message; console.warn(this.cfg.id, e.message); } finally{ this.polling = false; } }
   list(bbox){ return bbox ? this.vehicles.filter(v => v.lat >= bbox[0] && v.lat <= bbox[2] && v.lon >= bbox[1] && v.lon <= bbox[3]) : this.vehicles; }
   run(){ const d = Math.random()*60000; // first polls spread over a minute (many feeds)
-    setTimeout(() => { this.poll(); setInterval(() => this.poll(), (this.cfg.every || 30)*1000); }, d); this.loadRoutes().catch(() => {}); setInterval(() => this.loadRoutes(), 24*3600000); }
+    // polled every 30 s only while someone is looking (asked for in the last 5 minutes); otherwise every 10 minutes, to
+    // keep its area and health current. 148 feeds polled flat out saturated the small machine: answers took 6–20 s
+    setTimeout(() => { this.poll(); setInterval(() => { const idle = Date.now() - (this.wanted || 0) > 300000; if(idle && this.at && Date.now() - this.at < 600000) return; this.poll(); }, (this.cfg.every || 30)*1000); }, d); this.loadRoutes().catch(() => {}); setInterval(() => this.loadRoutes(), 24*3600000); }
 }

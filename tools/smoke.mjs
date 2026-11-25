@@ -24,6 +24,9 @@ const IGNORE = /CORS|Access-Control|favicon|status of 404|404 |net::ERR|Failed t
 // two functions with one name: the later silently replaces the earlier (a new snapAt once broke London's trains)
 { const src = exe.readFileSync(path.join(ROOT, 'index.html'), 'utf8'), names = [...src.matchAll(/^(?:async )?function ([A-Za-z0-9_$]+)/gm)].map(m => m[1]), dup = names.filter((n, i) => names.indexOf(n) !== i);
   if(dup.length){ console.log('FAIL two functions named ' + [...new Set(dup)].join(', ') + ' in index.html: not pushing'); process.exit(1); } }
+// the server, relay and helpers must at least parse (a stray // comment once swallowed the rest of a line)
+for(const f of ['rail/darwin/server.mjs', 'rail/darwin/rt.mjs', 'rail/worker.js', 'sw.js', 'i18n.js']){ const r = (await import('child_process')).spawnSync(process.execPath, ['--check', path.join(ROOT, f)], {encoding:'utf8'});
+  if(r.status){ console.log('FAIL ' + f + ' does not parse: ' + (r.stderr || '').split(String.fromCharCode(10)).find(l => /Error/.test(l))); process.exit(1); } }
 const srv = spawn(process.platform === 'win32' ? 'python' : 'python3', ['-m', 'http.server', String(PORT), '--bind', '127.0.0.1'], {cwd: ROOT, stdio: 'ignore'});
 await new Promise(r => setTimeout(r, 1200));
 const browser = await puppeteer.launch({executablePath: browserPath, headless: 'new', args: ['--no-first-run', '--window-size=1200,800', ...(process.platform === 'win32' ? [] : ['--no-sandbox'])]});

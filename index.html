@@ -3121,12 +3121,13 @@ window.__frames = () => MOVING.frames || 0;
 window.__testRide = () => { for(const t of trains.values()) if(t.d && !t.rail && t.line){ setLive(true); follow(t, 15); setRide(true); return t.key; } return null; };
 window.__rideState = () => ({key:FW.t && FW.t.key, ride:FW.ride, d:FW.t && FW.t.d, c:(c => c && [c.lat(), c.lng()])(map.getCenter())});
 window.__rekey = () => { const t = FW.t; if(!t) return null; const k = t.key + ':new'; trains.delete(t.key); trains.set(k, Object.assign({}, t, {key:k})); return k; };
-window.__gf = () => ({id:GF.id, on:GF.on, p:(g => g && gpsPos(g, Date.now()))(gfVehicle()), c:(c => c && [c.lat(), c.lng()])(map.getCenter())});
+window.__gf = () => ({stops:GF.stops && GF.stops.length, trip:GF.trip, firstT:GF.stops && GF.stops[0] && new Date(GF.stops[0].t).toISOString(), lastT:GF.stops && GF.stops.at(-1) && new Date(GF.stops.at(-1).t).toISOString(), id:GF.id, on:GF.on, p:(g => g && gpsPos(g, Date.now()))(gfVehicle()), c:(c => c && [c.lat(), c.lng()])(map.getCenter())});
 window.__ttRail = () => { const m = TTV.rail || new Map(); return {routes:[...m.values()].filter(Boolean).length, failed:[...m].filter(([, v]) => !v).map(([k]) => k).slice(0, 6), tiles:NRNET.tiles.size, graph:NRG.pos.size}; };
 window.__nrGap = (A, B) => { nrTiles(A, B); const comp = st => { const seen = new Set(st), q = [...st]; while(q.length){ const u = q.pop(); for(const [v] of NRG.adj.get(u) || []) if(!seen.has(v)){ seen.add(v); q.push(v); } } return seen; };
   const ca = comp(nrCands(A, 600).map(c => c[0])), cb = comp(nrCands(B, 600).map(c => c[0])); if([...cb].some(x => ca.has(x))) return 'connected';
   const pa = [...ca].map(k => NRG.pos.get(k)); let best = null; for(const k of cb){ const p = NRG.pos.get(k); for(const q of pa){ if(Math.abs(p[0]-q[0]) > 0.05 || Math.abs(p[1]-q[1]) > 0.08) continue; const d = dist(p, q); if(!best || d < best.d) best = {d:Math.round(d), a:q, b:p}; } }
   return {sizeA:ca.size, sizeB:cb.size, gap:best}; };
+window.__catalog = () => CATALOG.flatMap(ct => ct.countries.flatMap(co => co.cities.map(ci => ({name:ci.name, country:co.name, live:ci.live, at:ci.at}))));
 window.__testStop = i => { const L = ukStopsHere(); if(L[i]) openUKStop(L[i]); return L.length; }; // (tests: open the i-th bus stop in view)
 window.__smoke = () => ({city:CITYL.cur?.name || null, cityFiles:cityData().length, cityLines:cityData().reduce((n, d) => n + d.lines.length, 0),
   tfl:ACTIVE.filter(l => l.layer).length, gps:GPS.list.size, tt:TTV.ferries ? TTV.ferries.size : 0,
@@ -3280,17 +3281,19 @@ function gfCenter(){ if(!GF.id) return; const g = gfVehicle(); if(!g) return; co
   GF.lastP = p; GF.line = g.v.line; GF.kind = vkind(g.v); if(!GF.on) return; const c = map.getCenter(); if(c && dist([c.lat(), c.lng()], p) > 1.5) map.setCenter(LL(p)); }
 function openGFollow(g){ const v = g.v; if(GF.id === v.id) return; GF.id = v.id; GF.lastP = gpsPos(g, Date.now()); GF.line = v.line; GF.kind = vkind(v); // (known at once: a timetable tram hidden for its live twin is taken over by it) GF.on = false; GF.stops = null; GF.alerts = null; GF.dest = ''; GF.trip = v.trip || null; GF.lost = 0;
   renderGFollow(); if(GF.trip && String(v.id).startsWith('tf:')) loadGFStops(GF.trip); }
-async function loadGFStops(trip){
+async function loadGFStops(trip, again){
   try{ const j = await (await fetch(TRS() + '/api/v5/trip?tripId=' + encodeURIComponent(trip), {signal:AbortSignal.timeout(10000)})).json(); if(GF.trip !== trip) return;
     const L = j.legs?.[0]; if(!L) return; GF.dest = L.headsign || L.to?.name || '';
     GF.stops = [L.from, ...(L.intermediateStops || []), L.to].filter(Boolean).map(o => ({name:o.name, t:Date.parse(o.arrival || o.departure), s:Date.parse(o.scheduledArrival || o.scheduledDeparture), p:[o.lat, o.lon]})).filter(x => x.t);
-    GF.live = !!L.realTime; GF.alerts = altList([[L.routeShortName || '', [...(L.alerts || []), ...[L.from, ...(L.intermediateStops || []), L.to].flatMap(o => o?.alerts || [])]]]); renderGFollow(); }catch(e){} }
+    GF.live = !!L.realTime; GF.alerts = altList([[L.routeShortName || '', [...(L.alerts || []), ...[L.from, ...(L.intermediateStops || []), L.to].flatMap(o => o?.alerts || [])]]]); renderGFollow(); }catch(e){ if(!again && GF.trip === trip) setTimeout(() => loadGFStops(trip, true), 3000); } } // (once more, a moment later: a slow or refused answer)
 function closeGFollow(){ GF.id = null; GF.on = false; GF.stops = null; BROUTE.polys = null; BROUTE.key = ''; renderGFollow(); }
 function renderGFollow(){
   const el = $('gfollow'); if(!el) return; if(!GF.id){ el.hidden = true; el.innerHTML = ''; return; }
   const g = gfVehicle(); if(!g){ if(++GF.lost > 6){ closeGFollow(); return; } return; } GF.lost = 0; // (gone for a while: out of view, or its trip has ended)
   const v = g.v, now = Date.now(), col = v.col || (v.tram ? '#7A1F3D' : opCol(v.op)), kind = vkind(v), dest = GF.dest || v.dest || '';
-  const next = (GF.stops || []).filter(x => x.t >= now - 20000).slice(0, 6), late = next[0] && next[0].s ? Math.round((next[0].t - next[0].s)/60000) : null;
+  // the next stops up to its destination (Transitous can send the vehicle's whole day of trips, looping back past it)
+  const up = (GF.stops || []).filter(x => x.t >= now - 20000), di = dest ? up.findIndex(x => x.name && (x.name === dest || dest.startsWith(x.name) || x.name.startsWith(dest))) : -1;
+  const next = (di >= 0 ? up.slice(0, di + 1) : up).slice(0, 6), late = next[0] && next[0].s ? Math.round((next[0].t - next[0].s)/60000) : null;
   const how = String(v.id).startsWith('tf:') ? (GF.live || v.est ? 'live timings' : 'timetable') : 'live GPS';
   el.style.setProperty('--c', col);
   el.innerHTML = `<span class="sw" style="background:${col}"></span><div class="ft"><b>${esc({tram:'Tram', metro:'Metro', train:'Train', ferry:'Boat', bus:'Bus'}[kind] || 'Vehicle')} ${esc(v.line || '')}</b>${dest ? ' to ' + esc(dest) : ''}
