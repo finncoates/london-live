@@ -1380,7 +1380,36 @@ async function refresh(){
 }
 
 // Where is a train right now?
+// zoomed right in on a station: its platform numbers, at the end of each platform's track nearest the station's
+// entrance (from OpenStreetMap; the trains standing there are on the same tracks)
+function drawPlatNums(ctx, s){
+  if(PV.z < 16.5 || !RAIL.plats || STOPS_OFF.has('train') || !SHOW_ST) return;
+  ctx.save(); ctx.font = '700 10px system-ui, sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.lineJoin = 'round';
+  const dark = document.documentElement.classList.contains('dark') || matchMedia('(prefers-color-scheme: dark)').matches;
+  for(const crs in RAIL.plats){ const st = RAIL.byCrs[crs]; if(!st) continue; const c = scr(st.p); if(c.x < -500 || c.y < -500 || c.x > s.x + 500 || c.y > s.y + 500) continue;
+    for(const pl in RAIL.plats[crs]){ const q = RAIL.plats[crs][pl], A = q[0], B = q.at(-1), e = dist(A, st.p) < dist(B, st.p), E = e ? A : B, F = e ? q[1] : q.at(-2);
+      const a = scr(E), b = scr(F), L = Math.hypot(a.x - b.x, a.y - b.y) || 1, x = a.x + (a.x - b.x)/L*9, y = a.y + (a.y - b.y)/L*9;
+      if(x < -20 || y < -20 || x > s.x + 20 || y > s.y + 20) continue;
+      ctx.lineWidth = 3; ctx.strokeStyle = dark ? 'rgba(20,22,26,.9)' : 'rgba(255,255,255,.9)'; ctx.strokeText(pl, x, y);
+      ctx.fillStyle = dark ? '#E8EAED' : '#3C4043'; ctx.fillText(pl, x, y); } }
+  ctx.restore(); }
+// a station's platform as a path (cached): {pts, cum, len}
+function platPath(crs, pl){ const P = RAIL.plats && RAIL.plats[crs], q = P && P[pl]; if(!q) return null;
+  const c = RAIL.platC || (RAIL.platC = new Map()), k = crs + '|' + pl; if(c.has(k)) return c.get(k);
+  const cum = [0]; for(let i = 1; i < q.length; i++) cum.push(cum[i-1] + dist(q[i-1], q[i])); const r = {pts:q, cum, len:cum.at(-1), plat:true}; c.set(k, r); return r; }
+// where on the platform: the middle; at a terminus, a train's length from the buffers (the end away from the line)
+function onPlatform(t, crs, other){ const pl = t.plats && t.plats[crs], path = pl && platPath(crs, pl); if(!path || path.len < 30) return null;
+  let f = 0.5; const T = t.ahead, term = T && (T[0][0] === crs || T.at(-1)[0] === crs), o = other && RAIL.byCrs[other];
+  if(term && o){ const buf0 = dist(path.pts[0], o.p) > dist(path.pts.at(-1), o.p), half = Math.min(path.len/2, 105)/path.len; f = buf0 ? half : 1 - half; }
+  return Object.assign(along(path, f), {path, plat:pl}); }
 function placeTrain(t){
+  const r = placeTrain0(t); t.onPlat = null; if(!r || !t.rail || !t.plats || !RAIL.plats) return r;
+  // standing at a station (arrived, waiting to leave, or at the end of its run): on its platform
+  const T = t.ahead || [], i = T.findIndex(a => a[0] === t.cur), atNext = !r.path || (t.f ?? 0) >= 0.999, atPrev = r.path && (t.f ?? 1) <= 0.001 && t.curPrev;
+  const S = atNext ? t.cur : atPrev ? t.curPrev : null; if(!S) return r;
+  const j = T.findIndex(a => a[0] === S), other = (T[j - 1] || T[j + 1] || [])[0];
+  const p = onPlatform(t, S, other); if(!p) return r; t.onPlat = S + ' ' + p.plat; return p; }
+function placeTrain0(t){
   const l = BY[t.line], n = now();
   let prev = t.prev, next = t.next, arr = t.arr;
   if(t.ahead){ // move on along the predicted stops once a stop's time has passed
@@ -1477,6 +1506,7 @@ function frame(ts, sync){
     const item = [t, c.x, c.y, c.x, c.y, r, cs, sn, hl, hw, body]; drawn.push(item);
     if(!byLine.has(l)) byLine.set(l, []); byLine.get(l).push(item);
   }
+  drawPlatNums(ctx, s); // zoomed right in: each platform's number at its end
   fanLondon(drawn, mpp); // trains piled at a station (a terminus, an interchange): side by side, as on their platforms
   // "Show trains" off: no train shapes (your own train, if any, still shows)
   if(!SHOW_ICONS){ for(let i = drawn.length-1; i >= 0; i--) if(!HL.has(drawn[i][0].key)) drawn.splice(i, 1);
@@ -1658,6 +1688,7 @@ async function railStations(){
   const base = location.pathname.includes('/journey') ? '../rail/' : 'rail/';
   const list = await (await fetch(base + 'stations.json')).json();
   RAIL.stations = list; for(const [crs, n, lat, lon] of list) RAIL.byCrs[crs] = {n, p:[lat, lon]};
+  fetch(base + 'platforms.json').then(r => r.ok ? r.json() : null).then(j => { if(j) RAIL.plats = j; }).catch(() => {});
   if(typeof applyRegion === 'function') try{ applyRegion(); }catch(e){} // the title can name the town now
   return list;
 }
@@ -1722,7 +1753,8 @@ async function refreshRail(){
       const old = tr.gks.map(k => (RAIL.gk || new Map()).get(k)).find(k => k && trains.has(k)), key = old || 'nr:' + tr.id; let t = trains.get(key);
       for(const k of tr.gks) gk.set(k, key);
       if(!t){ t = {key, rail:true}; trains.set(key, t); }
-      Object.assign(t, {line:l.id, ahead:calls.map(c => [c[0], c[1]]), prev:calls[0][0], next:calls[1][0], arr:calls[1][1],
+      const plats = {}; for(const c of calls) if(c[3]) plats[c[0]] = c[3];
+      Object.assign(t, {line:l.id, ahead:calls.map(c => [c[0], c[1]]), plats, prev:calls[0][0], next:calls[1][0], arr:calls[1][1],
         towards:tr.dest || '', loc:tr.reason || '', seen:t0}); seen.add(key);
     }
     RAIL.gk = gk;
@@ -2655,7 +2687,7 @@ function fanOut(now, s0, hw0, mpp){
 // London's trains (drawn items [t, x, y, x, y, rect, cos, sin, hl, hw, body]): the same as fanOut, on the drawn shapes
 function fanLondon(drawn, mpp){
   if(PV.z < 13 || drawn.length < 2) return; const cell = new Map();
-  const its = drawn.map(d => { const l = BY[d[0].line], kind = l ? modeKey(l.mode) : 'metro', it = {d, kind, x:d[1], y:d[2], cs:d[6], sn:d[7], hl:d[8], hw:d[9], a:Math.atan2(d[7], d[6])};
+  const its = drawn.filter(d => !d[0].onPlat).map(d => { const l = BY[d[0].line], kind = l ? modeKey(l.mode) : 'metro', it = {d, kind, x:d[1], y:d[2], cs:d[6], sn:d[7], hl:d[8], hw:d[9], a:Math.atan2(d[7], d[6])};
     const k = kind + ':' + Math.floor(d[1]/40) + ':' + Math.floor(d[2]/40); (cell.get(k) || cell.set(k, []).get(k)).push(it); return it; });
   const parent = new Map(its.map(i => [i, i])), find = x => { while(parent.get(x) !== x){ parent.set(x, parent.get(parent.get(x))); x = parent.get(x); } return x; };
   for(const it of its){ const cx = Math.floor(it.x/40), cy = Math.floor(it.y/40);
@@ -3268,6 +3300,9 @@ window.__GPSL = () => GPS.list; window.__gpsPos = (g, t) => gpsPos(g, t);
 window.__testVeh = kind => { for(const g of GPS.list.values()) if((!kind || vkind(g.v) === kind) && String(g.v.id).startsWith('tf:') && g.v.trip){ openGFollow(g); GF.on = true; renderGFollow(); return g.v.id; } return null; };
 window.__frames = () => MOVING.frames || 0;
 window.__testRide = () => { for(const t of trains.values()) if(t.d && !t.rail && t.line){ setLive(true); follow(t, 15); setRide(true); return t.key; } return null; };
+// tools: give the trains calling at a station platforms (as Darwin would), then read where they stand
+window.__platGive = crs => { const P = Object.keys(RAIL.plats?.[crs] || {}); let k = 0; for(const t of trains.values()) if(t.rail && t.ahead && t.ahead.some(a => a[0] === crs)) t.plats = {...t.plats, [crs]:P[k++ % P.length]}; return {plats:P.length, given:k}; };
+window.__platOn = () => [...trains.values()].filter(t => t.onPlat).map(t => t.onPlat);
 window.__rideState = () => ({key:FW.t && FW.t.key, ride:FW.ride, d:FW.t && FW.t.d, c:(c => c && [c.lat(), c.lng()])(map.getCenter())});
 window.__rekey = () => { const t = FW.t; if(!t) return null; const k = t.key + ':new'; trains.delete(t.key); trains.set(k, Object.assign({}, t, {key:k})); return k; };
 window.__gf = () => ({stops:GF.stops && GF.stops.length, trip:GF.trip, firstT:GF.stops && GF.stops[0] && new Date(GF.stops[0].t).toISOString(), lastT:GF.stops && GF.stops.at(-1) && new Date(GF.stops.at(-1).t).toISOString(), id:GF.id, on:GF.on, p:(g => g && gpsPos(g, Date.now()))(gfVehicle()), c:(c => c && [c.lat(), c.lng()])(map.getCenter())});

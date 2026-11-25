@@ -61,7 +61,8 @@ export class Darwin {
       let l = t.locs.find(x => x.tpl === L.tpl && (!w || x.w === w)) || t.locs.find(x => x.tpl === L.tpl);
       if(!l){ l = {k:'IP', tpl:L.tpl, pta:L.pta, ptd:L.ptd, wta:L.wta, wtd:L.wtd, wtp:L.wtp, w}; t.locs.push(l); if(t.base == null) t.base = secs(w); t.locs.sort((a, b) => order(a, t.base) - order(b, t.base)); }
       for(const ev of ['arr', 'pass', 'dep']){ const e = L[ev]; if(!e) continue; // the time it leaves a station wins (the map runs station to station)
-        if(e.at){ l.at = e.at; l.atEv = ev; } else if(e.et && !l.at){ l.et = e.et; } } }
+        if(e.at){ l.at = e.at; l.atEv = ev; } else if(e.et && !l.at){ l.et = e.et; } }
+      const pl = platOf(L.plat); if(pl !== undefined) l.plat = pl; } // its platform (null: kept from the public)
     t.updated = Date.now(); }
   // every train running now (or about to), with its stations and their times: the shape the map's rail engine takes
   //  {id, op, opCode, dest, destCrs, calls:[[CRS, ms, actual 0/1], …]}   (only points that are stations with a CRS code)
@@ -73,10 +74,10 @@ export class Darwin {
       let prevMs = null; const pts = [];
       for(const l of t.locs){ if(l.can) continue;
         const sched = l.ptd || l.pta || l.wtd || l.wta || l.wtp, ms = toMs((l.at || l.et || sched || '').slice(0, 8), t.ssd, prevMs);
-        if(ms == null) continue; prevMs = ms; pts.push({tpl:l.tpl, ms, actual:!!l.at, kind:l.k}); }
+        if(ms == null) continue; prevMs = ms; pts.push({tpl:l.tpl, ms, actual:!!l.at, kind:l.k, plat:l.plat}); }
       if(pts.length < 2) continue;
       if(pts[pts.length - 1].ms < now - 10*60e3 || pts[0].ms > now + 30*60e3) continue; // finished, or not yet started
-      const calls = []; for(const p of pts){ const x = tiplocs[p.tpl]; if(x && x[2] && (!calls.length || calls[calls.length-1][0] !== x[2])) calls.push([x[2], p.ms, p.actual ? 1 : 0]); }
+      const calls = []; for(const p of pts){ const x = tiplocs[p.tpl]; if(x && x[2] && (!calls.length || calls[calls.length-1][0] !== x[2])) calls.push(p.plat ? [x[2], p.ms, p.actual ? 1 : 0, p.plat] : [x[2], p.ms, p.actual ? 1 : 0]); }
       if(calls.length < 2) continue;
       if(bbox){ // the stretch the train is on now must touch the box
         let i = calls.findIndex(c => c[1] > now); if(i < 0) i = calls.length - 1; const a = calls[Math.max(0, i - 1)], b = calls[i];
@@ -89,6 +90,11 @@ export class Darwin {
     for(const [rid, t] of this.trains){ const last = t.locs.at(-1); const ms = last && toMs((last.at || last.et || last.wta || last.wtp || last.wtd || '').slice(0, 8), t.ssd);
       if(ms != null && ms < now - 3*3600e3) this.trains.delete(rid); } }
 }
+// a TS location's platform: <plat platsup="true" conf="true">7</plat> (XML) or the same as JSON; suppressed ones
+// (platsup / cisPlatsup: not to be shown to the public) are dropped
+function platOf(x){ if(x == null) return undefined; if(typeof x !== 'object') return String(x).trim().toUpperCase() || undefined;
+  if(x.platsup === 'true' || x.platsup === true || x.cisPlatsup === 'true' || x.cisPlatsup === true) return null;
+  const v = x['#text'] ?? x[''] ?? x.value ?? x.content ?? x.plat; return v == null ? undefined : String(v).trim().toUpperCase() || undefined; }
 // timing points in running order: by working time, from the train's first point (after midnight = the next day)
 function secs(w){ const [h, m, s] = (w || '').split(':').map(Number); return isFinite(h) ? h*3600 + (m || 0)*60 + (s || 0) : 0; }
 function order(l, base = 0){ const x = secs(l.w || l.wtd || l.wta || l.wtp); return x < base - 6*3600 ? x + 86400 : x; }

@@ -120,6 +120,7 @@ function normaliseBoard(raw, crs){
     const prev = callingPoints(s.previousCallingPoints).map(cp => stop(cp, 'arr'));
     const here = stop({crs:raw.crs || crs, locationName:raw.locationName, std:s.std, etd:s.etd, atd:s.atd, sta:s.sta, eta:s.eta, ata:s.ata, isCancelled:s.isCancelled}, 'dep');
     const next = callingPoints(s.subsequentCallingPoints).map(cp => stop(cp, 'arr'));
+    if(s.platform) here.plat = String(s.platform).trim().toUpperCase(); /* the board's own station: its platform */
     const calls = [...prev, here, ...next];
     // serviceID differs from board to board; the RID (staff version) or origin + its time is the same everywhere
     const key = s.rid || ((s.operatorCode || '') + ':' + (calls[0].crs || '') + ':' + (calls[0].st || '') + ':' + (arr(s.destination)[0]?.crs || ''));
@@ -140,15 +141,15 @@ function normaliseBoard(raw, crs){
 }
 // merge the same train seen on several boards; keep the best-known time at each stop
 function mergeTrains(boards){
-  const by = new Map();
+  const by = new Map(), plats = new Map(); /* each board knows only its own station's platform: gather them */
   for(const b of boards) for(const s of b.services){
-    const key = s.id;
+    const key = s.id; for(const c of s.calls) if(c.plat && c.crs){ (plats.get(key) || plats.set(key, {}).get(key))[c.crs] = c.plat; }
     const cur = by.get(key);
     if(!cur || s.calls.filter(c => c.actual).length > cur.calls.filter(c => c.actual).length) by.set(key, s);
   }
   const trains = [...by.values()].filter(s => !s.cancelled).map(s => ({
     id:s.id, op:s.operator, opCode:s.opCode, dest:s.destination, destCrs:s.destCrs, reason:s.reason,
-    calls:s.calls.filter(c => c.crs && c.ms != null && !c.cancelled).map(c => [c.crs, c.ms, c.actual ? 1 : 0]),
+    calls:s.calls.filter(c => c.crs && c.ms != null && !c.cancelled).map(c => { const pl = c.plat || plats.get(s.id)?.[c.crs]; return pl ? [c.crs, c.ms, c.actual ? 1 : 0, pl] : [c.crs, c.ms, c.actual ? 1 : 0]; }),
   })).filter(t => t.calls.length >= 2);
   return {generatedAt:new Date().toISOString(), stations:boards.map(b => ({crs:b.crs, ok:!b.error, error:b.error || undefined})), trains};
 }

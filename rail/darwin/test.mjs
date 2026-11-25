@@ -18,7 +18,7 @@ const ts = `<Pport xmlns="http://www.thalesgroup.com/rtti/PushPort/v16" xmlns:ns
 <TS rid="202611237100001" uid="W12345" ssd="${ssd}">
 <ns5:Location tpl="EUSTON" wtd="15:00" ptd="15:00"><ns5:dep at="15:01" src="TD"/></ns5:Location>
 <ns5:Location tpl="CMDNJN" wtp="15:03"><ns5:pass at="15:04"/></ns5:Location>
-<ns5:Location tpl="WATFDJ" wta="15:14" wtd="15:15" pta="15:14" ptd="15:15"><ns5:arr at="15:16"/><ns5:dep at="15:17"/></ns5:Location>
+<ns5:Location tpl="WATFDJ" wta="15:14" wtd="15:15" pta="15:14" ptd="15:15"><ns5:arr at="15:16"/><ns5:dep at="15:17"/><ns5:plat conf="true">9</ns5:plat></ns5:Location>
 <ns5:Location tpl="MKNSCEN" wta="15:35" wtd="15:36" pta="15:35" ptd="15:36"><ns5:arr et="15:37"/><ns5:dep et="15:38"/></ns5:Location>
 </TS></uR></Pport>`;
 
@@ -34,6 +34,13 @@ test('a schedule, then running updates → stations with actual and expected tim
   assert.deepEqual(t.calls.map(c => c[0]), ['EUS', 'WFJ', 'MKC', 'RUG']); // the passing point (no CRS) left out
   assert.equal(new Date(t.calls[1][1]).toISOString(), '2026-11-23T15:17:00.000Z'); assert.equal(t.calls[1][2], 1); // departed Watford at 15:17 (actual)
   assert.equal(new Date(t.calls[2][1]).toISOString(), '2026-11-23T15:38:00.000Z'); assert.equal(t.calls[2][2], 0); // expected at MK
+  assert.equal(t.calls[1][3], '9'); assert.equal(t.calls[2][3], undefined); // Watford: platform 9; MK: not known
+});
+test('platforms: plain, as JSON, and kept from the public', () => {
+  const D = new Darwin(); D.ingest(sched);
+  D.ingest(JSON.stringify({bytes:JSON.stringify({ts:'x', uR:{TS:{rid:'202611237100001', uid:'W12345', ssd, Location:[{tpl:'EUSTON', wtd:'15:00', ptd:'15:00', dep:{at:'15:01'}, plat:{'':'14', conf:'true'}}, {tpl:'MKNSCEN', wta:'15:35', wtd:'15:36', arr:{et:'15:37'}, plat:{'':'4', platsup:'true'}}]}}})}));
+  const [t] = D.calls(TPL, Date.parse('2026-11-23T15:25:00Z'), null, NAMES);
+  assert.equal(t.calls[0][3], '14'); assert.equal(t.calls.find(c => c[0] === 'MKC')[3], undefined);
 });
 test('a box around where the train is now', () => {
   const D = new Darwin(); D.ingest(sched); D.ingest(ts); const now = Date.parse('2026-11-23T15:25:00Z');
