@@ -2625,28 +2625,32 @@ function busAngAt(v, p, prev){ const key = Math.round(p[0]*1e4) + ',' + Math.rou
 // side by side across their line, like platforms or bays, each kept parallel to its line, the spread kept to a
 // station's width; a group's members keep their order, and their offsets glide in and out
 const FAN_CAP = {train:120, metro:60, tram:50, bus:40, coach:40, ferry:150}; // metres: the widest a group spreads
+const FANS = {at:0, z:0, set:new Set()}; // the groups are found 4 times a second (or on zoom); each frame only glides
 function fanOut(now, s0, hw0, mpp){
-  if(PV.z < 13) return null; const items = [], cell = new Map();
-  for(const g of GPS.list.values()){ if(gOff(g.v)) continue; const p = gpsPos(g, now), c = scr(p); if(c.x < -60 || c.y < -60 || c.x > s0.x + 60 || c.y > s0.y + 60) continue;
-    const kind = coachOf(g.v) ? 'coach' : vkind(g.v), [len, wid] = REAL_SIZE[KIND_MODE[kind === 'coach' ? 'bus' : kind] || 'bus'] || REAL_SIZE.tube;
-    const hw = Math.max(hw0, wid/2/mpp), hl = Math.max(hw0*2.5, len/2/mpp), a = g.ang ?? 0, it = {g, c, kind, hw, hl, a, cs:Math.cos(a), sn:Math.sin(a)};
-    const k = kind + ':' + Math.floor(c.x/40) + ':' + Math.floor(c.y/40); (cell.get(k) || cell.set(k, []).get(k)).push(it); items.push(it); }
-  // groups: same kind, parallel (within 30°), overlapping across (closer than a vehicle's width and a bit) and along
-  const parent = new Map(items.map(it => [it, it])), find = x => { while(parent.get(x) !== x){ parent.set(x, parent.get(parent.get(x))); x = parent.get(x); } return x; };
-  for(const it of items){ const cx = Math.floor(it.c.x/40), cy = Math.floor(it.c.y/40);
-    for(let i = -1; i <= 1; i++) for(let j = -1; j <= 1; j++) for(const o of cell.get(it.kind + ':' + (cx + i) + ':' + (cy + j)) || []){ if(o === it || o.g.v.id < it.g.v.id) continue;
+  if(PV.z < 13){ if(FANS.set.size){ for(const g of FANS.set){ g.fanO = null; g.fanT = null; } FANS.set.clear(); } return null; }
+  if(now - FANS.at > 250 || Math.abs(PV.z - FANS.z) > 0.05){ FANS.at = now; FANS.z = PV.z;
+    for(const g of FANS.set) g.fanT = null;
+    const items = [], cell = new Map(), CK = (k, x, y) => k*1e8 + (x + 5000)*1e4 + (y + 5000), KI = {train:1, metro:2, tram:3, bus:4, coach:5, ferry:6};
+    for(const g of GPS.list.values()){ if(gOff(g.v)) continue; const p = gpsPos(g, now), c = scr(p); if(c.x < -60 || c.y < -60 || c.x > s0.x + 60 || c.y > s0.y + 60) continue;
+      const kind = coachOf(g.v) ? 'coach' : vkind(g.v), [len, wid] = REAL_SIZE[KIND_MODE[kind === 'coach' ? 'bus' : kind] || 'bus'] || REAL_SIZE.tube;
+      const hw = Math.max(hw0, wid/2/mpp), hl = Math.max(hw0*2.5, len/2/mpp), a = g.ang ?? 0, ki = KI[kind] || 7, cx = Math.floor(c.x/40), cy = Math.floor(c.y/40);
+      const it = {g, c, kind, ki, cx, cy, hw, hl, a, cs:Math.cos(a), sn:Math.sin(a)}; it.r = it;
+      const k = CK(ki, cx, cy); (cell.get(k) || cell.set(k, []).get(k)).push(it); items.push(it); }
+    // groups: same kind, parallel (within 30°), overlapping across (closer than a vehicle's width and a bit) and along
+    const find = x => { while(x.r !== x){ x.r = x.r.r; x = x.r; } return x; };
+    for(const it of items) for(let i = -1; i <= 1; i++) for(let j = -1; j <= 1; j++){ const L = cell.get(CK(it.ki, it.cx + i, it.cy + j)); if(L) for(const o of L){ if(o === it || o.g.v.id < it.g.v.id) continue;
       let da = Math.abs(it.a - o.a) % Math.PI; if(da > Math.PI/2) da = Math.PI - da; if(da > 0.52) continue;
-      const dx = o.c.x - it.c.x, dy = o.c.y - it.c.y, along = Math.abs(dx*it.cs + dy*it.sn), across = Math.abs(-dx*it.sn + dy*it.cs);
-      if(across < it.hw + o.hw + 2 && along < (it.hl + o.hl)*0.8) parent.set(find(it), find(o)); } }
-  const groups = new Map(); for(const it of items){ const r = find(it); (groups.get(r) || groups.set(r, []).get(r)).push(it); }
+      const dx = o.c.x - it.c.x, dy = o.c.y - it.c.y; if(Math.abs(-dx*it.sn + dy*it.cs) < it.hw + o.hw + 2 && Math.abs(dx*it.cs + dy*it.sn) < (it.hl + o.hl)*0.8) find(it).r = find(o); } }
+    const groups = new Map(); for(const it of items){ const r = find(it); (groups.get(r) || groups.set(r, []).get(r)).push(it); }
+    for(const grp of groups.values()){ if(grp.length < 2) continue;
+      grp.sort((a, b) => String(a.g.v.id) < String(b.g.v.id) ? -1 : 1); const r0 = grp[0], px = -r0.sn, py = r0.cs; // across the group's line
+      const n = grp.length, hw = Math.max(...grp.map(x => x.hw)), cap = (FAN_CAP[r0.kind] || 60)/mpp;
+      const sp = Math.min(2*hw + 3, cap/(n - 1)), mid = grp.reduce((t, x) => t + (x.c.x*px + x.c.y*py), 0)/n;
+      grp.forEach((x, i) => { const want = mid + (i - (n - 1)/2)*sp - (x.c.x*px + x.c.y*py); x.g.fanT = {x:px*want, y:py*want}; FANS.set.add(x.g); }); } }
+  // glide toward each one's place (back to the line when it leaves its group)
   const out = new Map();
-  for(const grp of groups.values()){
-    if(grp.length < 2){ const g = grp[0].g; if(g.fanO){ g.fanO.x *= 0.8; g.fanO.y *= 0.8; if(Math.abs(g.fanO.x) + Math.abs(g.fanO.y) < 0.3) g.fanO = null; else out.set(g, g.fanO); } continue; }
-    grp.sort((a, b) => String(a.g.v.id) < String(b.g.v.id) ? -1 : 1); const r0 = grp[0], px = -r0.sn, py = r0.cs; // across the group's line
-    const n = grp.length, hw = Math.max(...grp.map(x => x.hw)), cap = (FAN_CAP[r0.kind] || 60)/mpp;
-    const sp = Math.min(2*hw + 3, n > 1 ? cap/(n - 1) : 0), mid = grp.reduce((t, x) => t + (x.c.x*px + x.c.y*py), 0)/n;
-    grp.forEach((x, i) => { const want = mid + (i - (n - 1)/2)*sp - (x.c.x*px + x.c.y*py), tx = px*want, ty = py*want, f = x.g.fanO || (x.g.fanO = {x:0, y:0});
-      f.x += (tx - f.x)*0.25; f.y += (ty - f.y)*0.25; out.set(x.g, f); }); }
+  for(const g of FANS.set){ const t = g.fanT || {x:0, y:0}, f = g.fanO || (g.fanO = {x:0, y:0}); f.x += (t.x - f.x)*0.25; f.y += (t.y - f.y)*0.25;
+    if(!g.fanT && Math.abs(f.x) + Math.abs(f.y) < 0.3){ g.fanO = null; FANS.set.delete(g); continue; } out.set(g, f); }
   return out; }
 // London's trains (drawn items [t, x, y, x, y, rect, cos, sin, hl, hw, body]): the same as fanOut, on the drawn shapes
 function fanLondon(drawn, mpp){
