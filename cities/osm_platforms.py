@@ -34,30 +34,33 @@ def refs(v):
     if not v: return []
     return [x.strip().upper() for x in re.split(r'[;,/&]| and ', v) if x.strip() and len(x.strip()) <= 4]
 TRAIN = {'rail'} # national rail; metro and tram platforms are a later step
-class H(osmium.SimpleHandler):
-    def __init__(h): super().__init__(); h.tracks, h.plats, h.edges = [], [], []
-    def way(h, w):
-        t = w.tags; rw = t.get('railway')
-        if rw not in ('rail', 'platform', 'platform_edge') and t.get('public_transport') != 'platform': return
-        try: pts = [(n.lat, n.lon) for n in w.nodes]
-        except osmium.InvalidLocationError: return
-        if len(pts) < 2 or not any(near_station(*p) for p in pts[::max(1, len(pts)//4)]): return
-        if rw == 'rail':
-            if t.get('service') in ('yard', 'spur') or t.get('usage') in ('industrial', 'military'): return
-            h.tracks.append({'pts':pts, 'ref':(t.get('railway:track_ref') or '').strip().upper()})
-        elif rw == 'platform_edge': h.edges.append({'pts':pts, 'refs':refs(t.get('ref'))})
-        else:
-            if t.get('train') == 'no' or t.get('subway') == 'yes' or t.get('tram') == 'yes' or t.get('light_rail') == 'yes' or t.get('bus') == 'yes' or t.get('highway') == 'bus_stop': return
-            if rw != 'platform' and t.get('train') != 'yes': return
-            h.plats.append({'pts':pts, 'refs':refs(t.get('ref') or t.get('local_ref'))})
-    def node(h, n):
-        if not OSM_ST: return
-        t = n.tags
-        if t.get('railway') not in ('station', 'halt') or not t.get('name') or t.get('station') in SKIP or t.get('subway') == 'yes' or t.get('usage') in ('tourism', 'heritage'): return
-        if t.get('light_rail') == 'yes' and t.get('train') != 'yes': return
-        s = ['n' + str(n.id), t.get('name'), round(n.location.lat, 6), round(n.location.lon, 6)]; ST.append(s); grid.setdefault((FL(s[2]/G), FL(s[3]/G)), []).append(s)
-    def relation(h, r): pass
-h = H(); h.apply_file(pbf, locations=True, idx=os.environ.get('OSM_IDX', 'flex_mem'))
+# what each way is (read in two passes: osm2pass.py), and the stations (from OSM itself, for countries with no list)
+def keep_way(t):
+    rw = t.get('railway')
+    if rw == 'rail':
+        if t.get('service') in ('yard', 'spur') or t.get('usage') in ('industrial', 'military'): return None
+        return ('t', (t.get('railway:track_ref') or '').strip().upper())
+    if rw == 'platform_edge': return ('e', refs(t.get('ref')))
+    if rw != 'platform' and t.get('public_transport') != 'platform': return None
+    if t.get('train') == 'no' or t.get('subway') == 'yes' or t.get('tram') == 'yes' or t.get('light_rail') == 'yes' or t.get('bus') == 'yes' or t.get('highway') == 'bus_stop': return None
+    if rw != 'platform' and t.get('train') != 'yes': return None
+    return ('p', refs(t.get('ref') or t.get('local_ref')))
+def keep_node(t):
+    if not OSM_ST or t.get('railway') not in ('station', 'halt') or not t.get('name') or t.get('station') in SKIP or t.get('subway') == 'yes' or t.get('usage') in ('tourism', 'heritage'): return None
+    if t.get('light_rail') == 'yes' and t.get('train') != 'yes': return None
+    return t.get('name')
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__))); from osm2pass import read
+WAYS, NODES = read(pbf, keep_way, keep_node)
+for name, la, lo, nid in NODES:
+    s = ['n' + str(nid), name, round(la, 6), round(lo, 6)]; ST.append(s); grid.setdefault((FL(s[2]/G), FL(s[3]/G)), []).append(s)
+class H: tracks, plats, edges = [], [], []
+h = H()
+for (kind, v), pp in WAYS:
+    pts = [(a, b) for a, b, _ in pp]
+    if len(pts) < 2 or not any(near_station(*q) for q in pts[::max(1, len(pts)//4)] + [pts[-1]]): continue
+    if kind == 't': h.tracks.append({'pts':pts, 'ref':v})
+    elif kind == 'e': h.edges.append({'pts':pts, 'refs':v})
+    else: h.plats.append({'pts':pts, 'refs':v})
 for x in h.tracks + h.plats + h.edges: x['bb'] = (min(p[0] for p in x['pts']), max(p[0] for p in x['pts']), min(p[1] for p in x['pts']), max(p[1] for p in x['pts']))
 IDX = {} # what lies in each ~1 km cell (by its box), so a station looks only at what is near it
 for kind, L in (('t', h.tracks), ('p', h.plats), ('e', h.edges)):

@@ -10,18 +10,17 @@ import sys, os, json, math, osmium
 pbf, out = sys.argv[1], sys.argv[2]; box = [float(x) for x in sys.argv[3].split(',')] if len(sys.argv) > 3 else None
 os.makedirs(out, exist_ok=True)
 KIND = {'rail':'r', 'light_rail':'l', 'subway':'s'} # trains (with the Overground and Elizabeth line), the DLR, the Underground
-class H(osmium.SimpleHandler):
-    def __init__(h): super().__init__(); h.ways = []
-    def way(h, w):
-        t = w.tags
-        if t.get('railway') not in KIND or t.get('service') in ('siding', 'yard', 'spur') or t.get('usage') in ('industrial', 'military', 'tourism', 'test') or t.get('railway:preserved') == 'yes': return
-        try: p = [(round(n.lat, 6), round(n.lon, 6), n.ref) for n in w.nodes]
-        except osmium.InvalidLocationError: return
-        if len(p) < 2: return
-        if box and not any(box[0] <= a <= box[2] and box[1] <= b <= box[3] for a, b, _ in p): return
-        pd = t.get('railway:preferred_direction'); d = 1 if pd == 'forward' else -1 if pd == 'backward' else 0
-        h.ways.append((d, p, KIND[t.get('railway')] + ('t' if t.get('tunnel') in ('yes', 'building_passage') or t.get('layer', '0').startswith('-') else '')))
-h = H(); h.apply_file(pbf, locations=True, idx=os.environ.get('OSM_IDX', 'flex_mem'))
+def keep_way(t):
+    if t.get('railway') not in KIND or t.get('service') in ('siding', 'yard', 'spur') or t.get('usage') in ('industrial', 'military', 'tourism', 'test') or t.get('railway:preserved') == 'yes': return None
+    pd = t.get('railway:preferred_direction'); d = 1 if pd == 'forward' else -1 if pd == 'backward' else 0
+    return (d, KIND[t.get('railway')] + ('t' if t.get('tunnel') in ('yes', 'building_passage') or t.get('layer', '0').startswith('-') else ''))
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__))); from osm2pass import read
+class H: ways = []
+h = H()
+for (d, kd), p in read(pbf, keep_way, keys=('railway',))[0]:
+    p = [(round(a, 6), round(b, 6), n) for a, b, n in p]
+    if len(p) < 2 or box and not any(box[0] <= a <= box[2] and box[1] <= b <= box[3] for a, b, _ in p): continue
+    h.ways.append((d, p, kd))
 def rdp(P, eps):
     if len(P) < 3: return P
     k = math.cos(math.radians(P[0][0])); a, b = P[0], P[-1]; dx, dy = (b[1]-a[1])*k, b[0]-a[0]; L = math.hypot(dx, dy) or 1e-12
