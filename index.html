@@ -226,6 +226,19 @@ body.dark #outage{background:#3a2a10;color:#ffe2b0;border-color:#7a5a20}
 #gfollow li span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 #gfollow time{font-variant-numeric:tabular-nums;flex:none}
 #gfollow .late{color:#c0392b}
+/* phones: the transport types in one row you swipe along, not a stack of headed groups taking a third of the sheet */
+@media (max-width:700px){#mModes{display:flex!important;flex-wrap:nowrap;overflow-x:auto;gap:6px;padding:2px 0 6px;scrollbar-width:none;-webkit-overflow-scrolling:touch}
+  #mModes::-webkit-scrollbar{display:none} #mModes .mcat,#mModes .chips{display:contents} #mModes .mcat-h{display:none} #mModes button{flex:none;white-space:nowrap}}
+#vlistOl .vl{background:none;border:0;padding:3px 0;margin:0;text-align:left;font:inherit;color:inherit;cursor:pointer;text-decoration:underline dotted;text-underline-offset:3px;min-height:28px}
+#favs{margin:0 0 10px}
+#favs[hidden]{display:none}
+#favs h3{font-size:11.5px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--mute);margin:0 0 6px}
+#favs .fl{display:flex;flex-wrap:wrap;gap:6px}
+#favs button{font-size:13px;padding:7px 11px;min-height:36px}
+#stStar{font-size:18px;line-height:1;padding:4px 8px;margin-left:auto;margin-right:6px;background:none;border:0;color:var(--mute);cursor:pointer;min-width:36px;min-height:36px}
+#stStar[aria-pressed=true]{color:#f5a623}
+#stShare{font-size:17px;line-height:1;padding:4px 8px;margin-left:auto;background:none;border:0;color:var(--mute);cursor:pointer;min-width:36px;min-height:36px}
+#stShare+#stStar{margin-left:0}
 #howto{background:var(--soft);border-radius:12px;padding:9px 11px;margin:0 0 10px;font-size:12.5px;line-height:1.4}
 #howto[hidden]{display:none}
 #howto ul{margin:5px 0 7px;padding:0;list-style:none;display:grid;gap:4px}
@@ -317,6 +330,7 @@ button.lnk{border:0;background:none;padding:0;color:var(--acc);font-weight:600;f
   </h1>
   <div id="status">Loading lines…</div>
   <div id="outage" role="status" hidden></div>
+  <div id="favs" hidden></div>
   <div id="howto" hidden><b>How to read the map</b>
     <ul><li><i class="hv live"></i>Solid: where the vehicle really is (live GPS)</li><li><i class="hv sched"></i>Pale with a coloured edge: placed from the timetable (with live delays where the network shares them)</li>
     <li>Tap a vehicle for its next stops, or <b>Follow</b> it · tap a stop for its departures · <b>⌖</b> for what's near you</li></ul>
@@ -326,9 +340,9 @@ button.lnk{border:0;background:none;padding:0;color:var(--acc);font-weight:600;f
     <div class="field"><label for="q">Find</label><input id="q" placeholder="Search a station, line or place (e.g. 172)" autocomplete="off" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="sres" enterkeyhint="search"></div>
     <ul id="sres" role="listbox" hidden></ul>
   </div>
-  <div id="station" hidden></div>
+  <div id="station" role="region" aria-label="Stop or station" hidden></div>
   <div id="follow" hidden></div>
-  <div id="gfollow" hidden></div>
+  <div id="gfollow" role="region" aria-label="Vehicle" hidden></div>
   <div id="mapMenu" class="mapmenu" hidden>
     <label class="mm-row ldn-only"><span>Live mode <span class="st st1" style="vertical-align:1px">New</span><small>Tap a train for its speed, depth underground, next stops and distance from you; ride along with it; pin a station; and on phones, Look down to see the Tube under your feet through the camera.</small></span><input type="checkbox" id="mLive" class="switch"></label>
     <div class="mm-row"><span>Map style</span>
@@ -2239,7 +2253,7 @@ function altHtml(list){ if(!list || !list.length) return '';
   const more = list.length - 4; list = list.slice(0, 4);
   return `<div class="alerts">${list.map(a => `<details><summary>⚠ ${a.lines.size ? `<b>${esc([...a.lines].slice(0, 4).join(', '))}</b> · ` : ''}${esc(a.head.length > 110 ? a.head.slice(0, 108) + '…' : a.head)}</summary>${a.desc && a.desc !== a.head ? `<p>${esc(a.desc.slice(0, 600))}</p>` : ''}${/^https?:/.test(a.url) ? `<a href="${esc(a.url)}" target="_blank" rel="noopener">More</a>` : ''}</details>`).join('')}${more > 0 ? `<small class="muted">and ${more} more notice${more > 1 ? 's' : ''} from the operators</small>` : ''}</div>`; }
 async function openCityStation(hit){
-  const {st, url} = hit, box = $('station'); unfocusLine(); clearFocus(); FOCUS_ST = null; $('tip').style.display = 'none';
+  const {st, url} = hit, box = $('station'); CARD = {t:'city', name:stName(st[1]), lat:st[2], lon:st[3], st, url, src:hit.src || ''}; unfocusLine(); clearFocus(); FOCUS_ST = null; $('tip').style.display = 'none';
   const kindName = {metro:'metro', train:'train', tram:'tram', ferry:'ferry'};
   const head = `<div class="st-h"><b>${esc(stName(st[1]))}</b><button type="button" class="x" id="stClose" aria-label="Close">✕</button></div>
     <div class="st-lines">${st[4].slice(0, 14).map(([n, col, k]) => `<span class="pill" style="--c:${col || '#888'}">${symbol(k === 'train' ? 'rail' : 'tube', col || '#888', 14)} ${esc(n)}</span>`).join('')}</div>`;
@@ -2440,7 +2454,8 @@ function gpsMerge(res, prefix){
     for(const v of res.vehicles || []){ const lt = LIVE_TRAMS[v.op + ':' + v.line]; if(lt){ v.tram = true; v.kind = 'tram'; v.line = lt; v.op = 'Edinburgh Trams'; LIVE_TRAMS.seen = now; }
     }
     { const n = (res.vehicles || []).filter(v => v.op === 'Edinburgh Trams').length; if(n){ LIVE_TRAMS.n = n; if(n >= (LIVE_TRAMS.sn || 0)*0.6) for(const [k, g] of [...GPS.list]) if(k.startsWith('sch:') && g.v.op === 'Edinburgh Trams') GPS.list.delete(k); } } // live trams covering most of them: drop the timetable ones at once
-    for(const v of res.vehicles || []){ const sn = snapGps(v); if(sn){ v.lat = sn.lat; v.lon = sn.lon; v.segAng = sn.ang; if(sn.col) v.col = sn.col; }
+    for(const v of res.vehicles || []){ if(v.id == null || v.id === '' || !isFinite(v.lat) || !isFinite(v.lon)) continue; v.id = String(v.id); // (a feed's odd vehicle with no id or no position: skipped, not left to break every loop over the list)
+      const sn = snapGps(v); if(sn){ v.lat = sn.lat; v.lon = sn.lon; v.segAng = sn.ang; if(sn.col) v.col = sn.col; }
       let g = GPS.list.get(v.id);
       if(vkind(v) === 'bus' && !sn){ const ra = (v.coach ? coachRoadAng(v, g ? g.ang : null) : null) ?? busRoadAng(v, g ? g.ang : null); if(ra != null) v.segAng = ra; } // parallel to its road, moving or at rest
       if(g && vkind(v) === 'bus'){ const tr = g.trail || (g.trail = [[g.to[0], g.to[1]]]); const last = tr[tr.length - 1]; if(dist(last, [v.lat, v.lon]) > 15){ tr.push([v.lat, v.lon]); if(tr.length > 40) tr.shift(); } } // the road it has driven
@@ -2998,7 +3013,8 @@ function vlistFill(){ const box = document.getElementById('vlist'); if(!box || !
   document.getElementById('vlistNote').textContent = rows.length ? `${rows.length} in view; the nearest 40 to the middle of the map, updated every 10 seconds.` : 'Nothing moving in view.';
   ol.innerHTML = rows.slice(0, 40).map(([d, v]) => { const k = v.tfl ? v.kind + ' train' : ({train:'Train', metro:'Metro', tram:'Tram', ferry:'Boat', bus:'Bus'})[vkind(v)];
     const how = v.tfl ? 'live' : v.sched ? 'timetable position' : v.est ? 'live timings' : 'live GPS';
-    return `<li>${esc(k)}${v.line ? ' ' + esc(v.line) : ''}${v.dest ? ' to ' + esc(v.dest) : ''} · ${d < 1000 ? Math.round(d/10)*10 + ' m' : (d/1000).toFixed(1) + ' km'} from the middle · ${how}</li>`; }).join(''); }
+    const txt = `${esc(k)}${v.line ? ' ' + esc(v.line) : ''}${v.dest ? ' to ' + esc(v.dest) : ''} · ${d < 1000 ? Math.round(d/10)*10 + ' m' : (d/1000).toFixed(1) + ' km'} from the middle · ${how}`;
+    return `<li>${v.tfl || !v.id ? txt : `<button type="button" class="vl" data-vid="${esc(v.id)}">${txt}</button>`}</li>`; }).join(''); } // (a button: its card, its stops and Follow, from the keyboard too)
 document.getElementById('vlist')?.addEventListener('toggle', vlistFill); setInterval(vlistFill, 10000);
 window.__GPSL = () => GPS.list; window.__gpsPos = (g, t) => gpsPos(g, t);
 window.__testVeh = kind => { for(const g of GPS.list.values()) if((!kind || vkind(g.v) === kind) && String(g.v.id).startsWith('tf:') && g.v.trip){ openGFollow(g); GF.on = true; renderGFollow(); return g.v.id; } return null; };
@@ -3071,7 +3087,7 @@ const UKST = {tiles:new Map()};
 function ukStopTiles(){ const b = map.getBounds(); if(!b) return []; const sw = b.getSouthWest(), ne = b.getNorthEast(), out = [];
   for(let la = Math.floor(sw.lat()*20); la <= Math.floor(ne.lat()*20); la++) for(let lo = Math.floor(sw.lng()*20); lo <= Math.floor(ne.lng()*20); lo++) out.push(la + '_' + lo);
   return out.length > 16 ? [] : out; }
-function ukStopsHere(){ const out = []; if(PV.z < 16 || stopsOff()) return out;
+function ukStopsHere(){ const out = []; if(!PV || PV.z < 16 || stopsOff()) return out; // (PV: not before the map's first frame)
   for(const t of ukStopTiles()){ if(!UKST.tiles.has(t)){ UKST.tiles.set(t, null); fetch('cities/stops/' + t + '.json').then(r => r.ok ? r.json() : null).then(j => { UKST.tiles.set(t, j); }).catch(() => UKST.tiles.set(t, false)); continue; }
     const d = UKST.tiles.get(t); if(d) for(const st of d.stops) out.push([st, d]); }
   return out; }
@@ -3084,7 +3100,7 @@ function ukStopAt(x, y){ let best = null, bd = matchMedia('(pointer:coarse)').ma
   for(const [st, d] of ukStopsHere()){ const c = scr([st[2], st[3]]), k = Math.hypot(c.x - x, c.y - y); if(k < bd){ bd = k; best = [st, d]; } } return best; }
 function openUKStop([st, d]){
   if(String(st[0]).startsWith('x:')) return openCityStation({st:[st[0], st[1], st[2], st[3], [['Bus', (CITYL.cur?.bus || ['#7E8BA3'])[0], 'bus']]], url:'stop'}); // abroad: departures from Transitous, by place
-  const box = $('station'); unfocusLine(); clearFocus(); $('tip').style.display = 'none'; box.hidden = false;
+  const box = $('station'); unfocusLine(); clearFocus(); $('tip').style.display = 'none'; box.hidden = false; CARD = {t:'uk', name:st[1], lat:st[2], lon:st[3], id:st[0]};
   const routes = st[4].map(i => d.routes[i]).filter(Boolean);
   focusMarker = new google.maps.Marker({position:{lat:st[2], lng:st[3]}, map, zIndex:50, clickable:false, icon:{path:google.maps.SymbolPath.CIRCLE, scale:11, fillColor:'#fff', fillOpacity:.25, strokeColor:'#DC241F', strokeWeight:3}});
   const head0 = () => `<div class="st-h"><b>${esc(st[1])}</b><button type="button" class="x" id="stClose" aria-label="Close">✕</button></div>
@@ -3160,11 +3176,12 @@ function renderGFollow(){
   el.innerHTML = `<span class="sw" style="background:${col}"></span><div class="ft"><b>${esc({tram:'Tram', metro:'Metro', train:'Train', ferry:'Boat', bus:'Bus'}[kind] || 'Vehicle')} ${esc(v.line || '')}</b>${dest ? ' to ' + esc(dest) : ''}
     <small>${esc(opName(v.op || ''))}${opName(v.op || '') ? ' · ' : ''}${how}${late != null && late >= 1 ? ` · <span class="late">${late} min late</span>` : late != null && late <= -1 ? ` · ${-late} min early` : ''}</small>
     ${next.length ? `<ol>${next.map(x => `<li><span>${esc(x.name)}</span><time>${hhmm(x.t)}${x.s && x.t - x.s >= 60000 ? ` <span class="late">+${Math.round((x.t - x.s)/60000)}</span>` : ''}</time></li>`).join('')}</ol>` : GF.trip && GF.stops === null && String(v.id).startsWith('tf:') ? '<small>Loading its stops…</small>' : ''}${altHtml(GF.alerts)}</div>
-    <div class="gfb"><button type="button" id="gfOn" aria-pressed="${GF.on}">${GF.on ? 'Following' : 'Follow'}</button><button type="button" id="gfX" aria-label="Close">✕</button></div>`;
+    <div class="gfb"><button type="button" id="gfOn" aria-pressed="${GF.on}">${GF.on ? 'Following' : 'Follow'}</button><button type="button" id="gfShare" aria-label="Share a link to this vehicle">Share</button><button type="button" id="gfX" aria-label="Close">✕</button></div>`;
   el.hidden = false; }
 setInterval(() => { if(!GF.id) return; const g = gfVehicle(); if(GF.on && g){ const p = gpsPos(g, Date.now()); if(p && isFinite(p[0])) map.panTo(LL(p)); } }, 1000);
 setInterval(() => { if(GF.id) renderGFollow(); }, 10000);
 $('gfollow').addEventListener('click', e => { if(e.target.closest('#gfX')) closeGFollow();
+  else if(e.target.closest('#gfShare')){ const g = gfVehicle(); if(g){ const p = gpsPos(g, Date.now()); doShare(shareLink({follow:GF.id, view:[p[0].toFixed(5), p[1].toFixed(5), 15].join(',')}), `${g.v.line || ''} ${GF.dest ? 'to ' + GF.dest : ''}`.trim() || 'Live vehicle'); } }
   else if(e.target.closest('#gfOn')){ GF.on = !GF.on; const g = gfVehicle(); if(GF.on && g){ if(map.getZoom() < 15) map.setZoom(15); map.panTo(LL(gpsPos(g, Date.now()))); } renderGFollow(); } });
 setTimeout(() => { try{ map.addListener('dragstart', () => { if(GF.on){ GF.on = false; renderGFollow(); } }); }catch(e){} }, 0); // moving the map yourself stops following
 function gpsTip(e, r, tip){
@@ -3583,6 +3600,7 @@ function drawBusStops(ctx, s){
 }
 function busStopAt(x, y){ let best = null, bd = matchMedia('(pointer:coarse)').matches ? 16 : 10; for(const [st, sx, sy] of draw.sthit || []){ const k = Math.hypot(sx - x, sy - y); if(k < bd){ bd = k; best = st; } } return best; }
 async function openBusStop(st){
+  CARD = {t:'lbus', name:st.name + (st.letter ? ' (' + st.letter + ')' : ''), lat:st.p[0], lon:st.p[1], st:{id:st.id, name:st.name, letter:st.letter, p:st.p, lines:st.lines}};
   unfocusLine(); clearFocus(); FOCUS_ST = null; $('tip').style.display = 'none'; const box = $('station'); box.hidden = false;
   const head = `<div class="st-h"><b>${symbol('tube', '#DC241F', 18)} ${esc(st.name)}${st.letter ? ` <small class="muted">${esc(st.letter)}</small>` : ''}</b><button type="button" class="x" id="stClose" aria-label="Close">✕</button></div>
     <div class="st-lines">${st.lines.slice(0, 16).map(n => `<span class="pill" style="--c:#DC241F">${esc(n)}</span>`).join('')}</div>`;
@@ -3669,6 +3687,7 @@ function stationIndex(){
   return [...by.values()];
 }
 const SR = {items:[], sel:-1};
+let CARD = null; // the stop or station card that's open (for ☆ Save and Share)
 function searchStations(text){
   if(!STATIONS || STATIONS.length < 50) STATIONS = stationIndex();
   const q = text.toLowerCase().replace(/['’.]/g, '').replace(/&/g, 'and').replace(/[^a-z0-9]+/g, ' ').replace(/\bst\b/g, 'st').trim(); if(!q) return [];
@@ -3825,6 +3844,7 @@ function setStationUrl(name){ try{ const u = new URL(location.href); name ? u.se
 let focusMarker = null, focusTimer = 0, focusLoad = null;
 function clearFocus(){ clearTimeout(focusLine.t); focusLoad = null; if(focusMarker){ focusMarker.setMap(null); focusMarker = null; } $('station').hidden = true; clearInterval(focusTimer); }
 async function goStation(st){
+  CARD = {t:'ldn', name:st.name, lat:st.p[0], lon:st.p[1]};
   unfocusLine(); clearFocus(); FOCUS_ST = st; $('tip').style.display = 'none';
   setStationUrl(st.name);
   $('q').value = st.name; SR.items = []; $('sres').hidden = true; $('q').setAttribute('aria-expanded', 'false'); $('q').blur();
@@ -4254,6 +4274,54 @@ addEventListener('keydown', e => {
 });
 const tick = () => { $('clock').textContent = new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}); };
 tick(); setInterval(tick, 1000);
+// ---- saved stops: ☆ on any stop or station card; saved ones sit at the top of the panel, a tap away (kept in this browser)
+const FAVK = c => c.t + '|' + c.name + '|' + (+c.lat).toFixed(4);
+const favs = () => { try{ return JSON.parse(localStorage.getItem('favStops') || '[]'); }catch(e){ return []; } };
+const setFavs = L => { try{ localStorage.setItem('favStops', JSON.stringify(L.slice(0, 12))); }catch(e){} renderFavs(); };
+function renderFavs(){ const L = favs(), el = $('favs'); el.hidden = !L.length;
+  el.innerHTML = L.length ? `<h3>Your stops</h3><div class="fl">${L.map((f, i) => `<button type="button" data-fav="${i}" aria-label="Open ${esc(f.name)}">★ ${esc(f.name)}</button>`).join('')}</div>` : ''; }
+async function openFav(f){
+  map.panTo({lat:f.lat, lng:f.lon});
+  if(f.t === 'ldn'){ map.setZoom(Math.max(map.getZoom(), 14)); const st = findStation(f.name); if(st) goStation(st); return; }
+  if(f.t === 'lbus'){ map.setZoom(Math.max(map.getZoom(), 16)); return openBusStop(f.st); }
+  if(f.t === 'uk'){ map.setZoom(16.5); for(let k = 0; k < 16; k++){ await sleep(400); const h = ukStopsHere().find(([st]) => st[0] === f.id); if(h) return openUKStop(h); } return; }
+  map.setZoom(Math.max(map.getZoom(), 16)); await sleep(300); openCityStation({st:f.st, url:f.url, src:f.src}); }
+$('favs').addEventListener('click', e => { const b = e.target.closest('[data-fav]'); if(b){ const f = favs()[+b.dataset.fav]; if(f) openFav(f); } });
+// the ☆ on whichever stop card is open (the cards draw their own headers: it's added beside their ✕)
+new MutationObserver(() => { const x = document.getElementById('stClose'); if(!x || !CARD || document.getElementById('stStar')) return;
+  const on = favs().some(f => FAVK(f) === FAVK(CARD)), b = document.createElement('button'); b.type = 'button'; b.id = 'stStar'; b.textContent = on ? '★' : '☆';
+  b.setAttribute('aria-pressed', String(on)); b.setAttribute('aria-label', on ? 'Remove from your stops' : 'Save to your stops'); x.before(b);
+  const sh = document.createElement('button'); sh.type = 'button'; sh.id = 'stShare'; sh.textContent = '↗'; sh.title = 'Share'; sh.setAttribute('aria-label', 'Share a link to this stop'); b.before(sh); }).observe($('station'), {childList:true, subtree:true});
+$('station').addEventListener('click', e => { if(!e.target.closest('#stStar') || !CARD) return; const L = favs(), k = FAVK(CARD), i = L.findIndex(f => FAVK(f) === k);
+  if(i >= 0) L.splice(i, 1); else L.unshift(JSON.parse(JSON.stringify(CARD))); setFavs(L); const b = $('stStar'), on = i < 0; b.textContent = on ? '★' : '☆'; b.setAttribute('aria-pressed', String(on)); b.setAttribute('aria-label', on ? 'Remove from your stops' : 'Save to your stops'); });
+renderFavs();
+// keyboard and screen readers: a vehicle in the list opens its card; Escape closes the open card; a card opened from
+// the keyboard takes the focus, so it's read out
+document.addEventListener('click', e => { const b = e.target.closest('#vlistOl .vl'); if(!b) return; for(const g of GPS.list.values()) if(g.v.id === b.dataset.vid){ openGFollow(g); map.panTo(LL(gpsPos(g, Date.now()))); $('gfollow').setAttribute('tabindex', '-1'); $('gfollow').focus(); break; } });
+addEventListener('keydown', e => { if(e.key !== 'Escape' || e.target.id === 'q') return; if(!$('station').hidden && $('stClose')){ $('stClose').click(); } else if(GF.id) closeGFollow(); });
+let KBPICK = false; $('q').addEventListener('keydown', e => { if(e.key === 'Enter') KBPICK = true; }, true);
+new MutationObserver(() => { if(!KBPICK || $('station').hidden) return; KBPICK = false; $('station').setAttribute('tabindex', '-1'); $('station').focus(); }).observe($('station'), {childList:true, subtree:true}); // (the card itself: its contents are redrawn as departures arrive)
+// ---- share: a link that opens the map on a stop's departures (?stop=) or on a vehicle, followed (?follow=); the phone's
+// share sheet where there is one, else the link copied
+function shareLink(extra){ const u = new URL(location.origin + location.pathname), c = map.getCenter(); u.searchParams.set('view', [c.lat().toFixed(5), c.lng().toFixed(5), Math.round(map.getZoom()*10)/10].join(','));
+  for(const [k, v] of Object.entries(extra)) u.searchParams.set(k, v); return u.toString(); }
+async function doShare(url, title){
+  try{ if(navigator.share && matchMedia('(pointer:coarse)').matches){ await navigator.share({title, url}); return; } }catch(e){ if(e && e.name === 'AbortError') return; }
+  try{ await navigator.clipboard.writeText(url); toast('Link copied'); }catch(e){ const el = $('err'); el.innerHTML = `Copy this link: <input readonly value="${esc(url)}" style="width:100%" onfocus="this.select()">`; clearTimeout(toast.t); toast.t = setTimeout(() => { el.textContent = ''; }, 12000); } }
+function toast(t){ const el = $('err'); el.textContent = t; clearTimeout(toast.t); toast.t = setTimeout(() => { if(el.textContent === t) el.textContent = ''; }, 3000); }
+$('station').addEventListener('click', e => { if(!e.target.closest('#stShare') || !CARD) return;
+  doShare(shareLink(CARD.t === 'ldn' ? {station:CARD.name} : {stop:CARD.name, view:[(+CARD.lat).toFixed(5), (+CARD.lon).toFixed(5), 16].join(',')}), CARD.name + ' · live departures'); });
+// opening a shared link: the stop by its name near the point (a city's station, a bus stop's tile, London's), else
+// Transitous' departures for that place; the vehicle once it's on the map (a minute at most)
+if(Q.get('stop')) (async () => { const name = Q.get('stop'), at = [VIEW[0], VIEW[1]]; if(!isFinite(at[0])) return;
+  for(let k = 0; k < 24; k++){ await sleep(500);
+    for(const d of cityData()) for(const st of d.stations || []) if(stName(st[1]) === name && dist([st[2], st[3]], at) < 400) return openCityStation({st, url:d.url, src:d.src});
+    const h = ukStopsHere().find(([st]) => st[1] === name && dist([st[2], st[3]], at) < 400); if(h) return openUKStop(h);
+    const b = (BUS.stops || []).find(x => (x.name + (x.letter ? ' (' + x.letter + ')' : '')) === name && dist(x.p, at) < 400); if(b) return openBusStop(b); }
+  openCityStation({st:['q:' + name, name, at[0], at[1], [['Stops', '#5D6670', 'bus']]], url:'stop'}); })();
+if(Q.get('follow')) (async () => { const id = Q.get('follow');
+  for(let k = 0; k < 120; k++){ await sleep(500); for(const g of GPS.list.values()) if(g.v.id === id){ openGFollow(g); GF.on = true; renderGFollow(); return; } }
+  toast('That vehicle isn’t on the map any more (its trip may have ended)'); })();
 // first visit: how to read the map (once; and again after 'Got it' never); the browser's offer to install the app,
 // when it makes one, as a button there
 try{ if(!localStorage.getItem('howtoSeen') && !document.body.classList.contains('kiosk')) $('howto').hidden = false; }catch(e){}
