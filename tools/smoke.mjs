@@ -21,6 +21,9 @@ const PLACES = [
 ];
 // noise that isn't the page's fault: the relay only answers the live site, favicons, missing optional tiles
 const IGNORE = /CORS|Access-Control|favicon|status of 404|404 |net::ERR|Failed to fetch|429|rate limit|status of 50[234]/i; // (a live source down, e.g. the rail server: shown on the page by its outage note, not a page fault)
+// two functions with one name: the later silently replaces the earlier (a new snapAt once broke London's trains)
+{ const src = exe.readFileSync(path.join(ROOT, 'index.html'), 'utf8'), names = [...src.matchAll(/^(?:async )?function ([A-Za-z0-9_$]+)/gm)].map(m => m[1]), dup = names.filter((n, i) => names.indexOf(n) !== i);
+  if(dup.length){ console.log('FAIL two functions named ' + [...new Set(dup)].join(', ') + ' in index.html: not pushing'); process.exit(1); } }
 const srv = spawn(process.platform === 'win32' ? 'python' : 'python3', ['-m', 'http.server', String(PORT), '--bind', '127.0.0.1'], {cwd: ROOT, stdio: 'ignore'});
 await new Promise(r => setTimeout(r, 1200));
 const browser = await puppeteer.launch({executablePath: browserPath, headless: 'new', args: ['--no-first-run', '--window-size=1200,800', ...(process.platform === 'win32' ? [] : ['--no-sandbox'])]});
