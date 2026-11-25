@@ -389,7 +389,7 @@ button.lnk{border:0;background:none;padding:0;color:var(--acc);font-weight:600;f
   <div id="plane" role="dialog" aria-label="Plane" hidden></div>
   <div id="news" role="status" hidden><b>New on the map</b>
     <ul><li><b>Directions</b> (↱): plan a journey anywhere in Europe, drawn on the map</li><li>Tap a departure for an <b>alert</b> 2 minutes before it leaves</li>
-    <li>The menu: switch each kind's vehicles, lines, stops and numbers on their own</li><li>Munich, Hamburg, Vienna, Rome, Milan, Barcelona and Madrid drawn on the track</li><li><b>Planes</b> ✈ overhead, live (switch them off in the menu)</li><li>London: trains wait at their real <b>platform</b></li></ul>
+    <li>The menu: switch each kind's vehicles, lines, stops and numbers on their own</li><li>Munich, Hamburg, Vienna, Rome, Milan, Barcelona and Madrid drawn on the track</li><li><b>Planes</b> ✈ overhead, live: switch them on in the menu</li><li>London: trains wait at their real <b>platform</b></li></ul>
     <div class="hb"><button type="button" id="newsOk">OK</button></div></div>
   <div id="howto" hidden><b>How to read the map</b>
     <ul><li><i class="hv live"></i>Solid: where the vehicle really is (live GPS)</li><li><i class="hv sched"></i>Pale with a coloured edge: placed from the timetable (with live delays where the network shares them)</li>
@@ -2714,7 +2714,7 @@ function fanLondon(drawn, mpp){
     grp.forEach((x, i) => { const want = mid + (i - (n - 1)/2)*sp - (x.x*px + x.y*py), t = x.d[0], f = t.fanO || (t.fanO = {x:0, y:0});
       f.x += (px*want - f.x)*0.25; f.y += (py*want - f.y)*0.25; move(x.d, f.x, f.y); }); } }
 // ---------- planes: real aircraft (ADS-B, from adsb.lol's volunteer receivers, through the relay) ----------
-const PLANES = {on:(() => { try{ return localStorage.getItem('planes') !== '0'; }catch(e){ return true; } })(), list:new Map(), at:0, busy:false, src:''};
+const PLANES = {on:(() => { try{ return localStorage.getItem('planes') === '1'; }catch(e){ return false; } })(), /* off until switched on in the menu */ list:new Map(), at:0, busy:false, src:''};
 async function refreshPlanes(){
   if(!PLANES.on || document.hidden || PV.z < 7 || PLANES.busy || !RAIL.relay) return; const c = map.getCenter(); if(!c) return;
   const la = Math.round(c.lat()*2)/2, lo = Math.round(c.lng()*2)/2; PLANES.busy = true;
