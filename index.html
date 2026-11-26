@@ -3694,13 +3694,14 @@ window.__ttPlace = ttPlace;
 function vlistFill(){ const box = document.getElementById('vlist'); if(!box || !box.open || !map.getBounds()) return; const b = map.getBounds(), c = map.getCenter(), m = [c.lat(), c.lng()], now = Date.now();
   const rows = []; for(const [, g] of GPS.list){ const p = g.to || [g.v.lat, g.v.lon]; if(!b.contains(LL(p))) continue; rows.push([dist(p, m), g.v]); }
   if(!document.body.classList.contains('away')) for(const t of trains.values()){ const p = t.d; if(!p || !b.contains(LL(p))) continue; const L = LINES.find(x => x[0] === t.line);
-    rows.push([dist(p, m), {kind:t.rail ? 'National Rail' : L ? L[1] : 'London', line:'', dest:t.towards || t.dest || '', tfl:true}]); }
+    const x = BY[t.line] ? trainText(t) : null, lt = lateText(t); // (its line or operator, where it's going, its next stop or where it is, how late)
+    rows.push([dist(p, m), {kind:x ? x.line : t.rail ? 'National Rail' : L ? L[1] : 'London', line:'', dest:cleanName(t.towards || t.dest || ''), tfl:true, key:t.key, next:x ? x.next : '', late:lt}]); }
   rows.sort((a, b2) => a[0] - b2[0]); const ol = document.getElementById('vlistOl');
   document.getElementById('vlistNote').textContent = rows.length ? `${rows.length} in view; the nearest 40 to the middle of the map, updated every 10 seconds.` : 'Nothing moving in view.';
-  ol.innerHTML = rows.slice(0, 40).map(([d, v]) => { const k = v.tfl ? v.kind + ' train' : ({train:'Train', metro:'Metro', tram:'Tram', ferry:'Boat', bus:'Bus'})[vkind(v)];
+  ol.innerHTML = rows.slice(0, 40).map(([d, v]) => { const k = v.tfl ? v.kind + (/line$|^DLR$|train/i.test(v.kind) ? '' : ' train') : ({train:'Train', metro:'Metro', tram:'Tram', ferry:'Boat', bus:'Bus'})[vkind(v)];
     const how = v.tfl ? 'live' : v.sched ? 'timetable position' : v.est ? 'live timings' : 'live GPS';
-    const txt = `${esc(k)}${v.line ? ' ' + esc(v.line) : ''}${v.dest ? ' to ' + esc(v.dest) : ''} · ${d < 1000 ? Math.round(d/10)*10 + ' m' : (d/1000).toFixed(1) + ' km'} from the middle · ${how}`;
-    return `<li>${v.tfl || !v.id ? txt : `<button type="button" class="vl" data-vid="${esc(v.id)}">${txt}</button>`}</li>`; }).join(''); } // (a button: its card, its stops and Follow, from the keyboard too)
+    const txt = `${esc(k)}${v.line ? ' ' + esc(v.line) : ''}${v.dest ? ' to ' + esc(v.dest) : ''}${v.next ? ' · ' + esc(v.next) : ''}${v.late ? ' · ' + esc(v.late) : ''} · ${d < 1000 ? Math.round(d/10)*10 + ' m' : (d/1000).toFixed(1) + ' km'} from the middle · ${how}`;
+    return `<li>${v.tfl ? `<button type="button" class="vl" data-tkey="${esc(v.key)}">${txt}</button>` : !v.id ? txt : `<button type="button" class="vl" data-vid="${esc(v.id)}">${txt}</button>`}</li>`; }).join(''); } // (a button: its card, its stops and Follow, from the keyboard too)
 document.getElementById('vlist')?.addEventListener('toggle', vlistFill); setInterval(vlistFill, 10000);
 window.__GPSL = () => GPS.list; window.__gpsPos = (g, t) => gpsPos(g, t);
 window.__testVeh = kind => { for(const pass of [0, 1]) for(const g of GPS.list.values()) if((!kind || vkind(g.v) === kind) && (pass || String(g.v.id).startsWith('tf:')) && g.v.trip){ openGFollow(g); GF.on = true; renderGFollow(); return g.v.id; } return null; }; // (a timetable one first; else a live one: Bordeaux's trams are all live now)
@@ -5175,7 +5176,7 @@ new MutationObserver(() => { const x = document.getElementById('stShare'); if(!x
 $('station').addEventListener('click', e => { if(!e.target.closest('#stDir') || !CARD) return; openPlan({name:CARD.name, lat:+CARD.lat, lon:+CARD.lon}); });
 // keyboard and screen readers: a vehicle in the list opens its card; Escape closes the open card; a card opened from
 // the keyboard takes the focus, so it's read out
-document.addEventListener('click', e => { const b = e.target.closest('#vlistOl .vl'); if(!b) return; for(const g of GPS.list.values()) if(g.v.id === b.dataset.vid){ openGFollow(g); map.panTo(LL(gpsPos(g, Date.now()))); $('gfollow').setAttribute('tabindex', '-1'); $('gfollow').focus(); break; } });
+document.addEventListener('click', e => { const b = e.target.closest('#vlistOl .vl'); if(!b) return; if(b.dataset.tkey){ const t = trains.get(b.dataset.tkey); if(t) follow(t, 15); return; } /* (a London train: followed) */ for(const g of GPS.list.values()) if(g.v.id === b.dataset.vid){ openGFollow(g); map.panTo(LL(gpsPos(g, Date.now()))); $('gfollow').setAttribute('tabindex', '-1'); $('gfollow').focus(); break; } });
 addEventListener('keydown', e => { if(e.key !== 'Escape' || e.target.id === 'q') return; if(!$('station').hidden && $('stClose')){ $('stClose').click(); } else if(GF.id) closeGFollow(); });
 let KBPICK = false; $('q').addEventListener('keydown', e => { if(e.key === 'Enter') KBPICK = true; }, true);
 new MutationObserver(() => { if(!KBPICK || $('station').hidden) return; KBPICK = false; $('station').setAttribute('tabindex', '-1'); $('station').focus(); }).observe($('station'), {childList:true, subtree:true}); // (the card itself: its contents are redrawn as departures arrive)
