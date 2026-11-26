@@ -27,6 +27,7 @@ export function toMs(hhmm, ssd, after){
   if(after != null){ while(t < after - 6*3600e3) t += 864e5; } // past midnight
   return t; }
 
+const CALLS = new WeakMap(); // train → its worked-out calls (kept out of the saved state)
 export class Darwin {
   constructor(){ this.trains = new Map(); this.msgs = 0; this.last = 0; }
   // one Kafka message (RDM's JSON topic wraps the XML in a "bytes" field) or raw XML
@@ -55,7 +56,7 @@ export class Darwin {
     const base = secs((locs.find(l => l.k === 'OR' || l.k === 'OPOR') || locs[0] || {}).w); t.base = base;
     locs.sort((a, b) => order(a, base) - order(b, base));
     for(const l of locs){ const o = old.get(l.tpl + '|' + (l.w || '')); if(o){ l.at = o.at; l.et = o.et; } }
-    t.locs = locs; this.trains.set(s.rid, t); }
+    t.locs = locs; t.v = (t.v || 0) + 1; this.trains.set(s.rid, t); }
   status(ts){
     let t = this.trains.get(ts.rid);
     if(!t){ t = {rid:ts.rid, uid:ts.uid, ssd:ts.ssd, locs:[], partial:true}; this.trains.set(ts.rid, t); } // no schedule seen yet: build from the updates
@@ -67,7 +68,7 @@ export class Darwin {
       for(const ev of ['arr', 'pass', 'dep']){ const e = L[ev]; if(!e) continue; // the time it leaves a station wins (the map runs station to station)
         if(e.at){ l.at = e.at; l.atEv = ev; } else if(e.et && !l.at){ l.et = e.et; } }
       const pl = platOf(L.plat); if(pl !== undefined) l.plat = pl; } // its platform (null: kept from the public)
-    t.updated = Date.now(); }
+    t.updated = Date.now(); t.v = (t.v || 0) + 1; }
   // every train running now (or about to), with its stations and their times: the shape the map's rail engine takes
   //  {id, op, opCode, dest, destCrs, calls:[[CRS, ms, actual 0/1], …]}   (only points that are stations with a CRS code)
   calls(tiplocs, now = Date.now(), bbox = null, names = {}){
@@ -75,19 +76,21 @@ export class Darwin {
     const inBox = c => { const x = at[c[0]]; return x && x[0] >= bbox[0] && x[0] <= bbox[2] && x[1] >= bbox[1] && x[1] <= bbox[3]; };
     for(const t of this.trains.values()){
       if(t.cancelled || !t.locs.length || !t.ssd) continue;
-      let prevMs = null; const pts = [];
-      for(const l of t.locs){ if(l.can) continue;
-        const sched = l.ptd || l.pta || l.wtd || l.wta || l.wtp, ms = toMs((l.at || l.et || sched || '').slice(0, 8), t.ssd, prevMs);
-        if(ms == null) continue; prevMs = ms; pts.push({tpl:l.tpl, ms, actual:!!l.at, kind:l.k, plat:l.plat}); }
-      if(pts.length < 2) continue;
-      if(pts[pts.length - 1].ms < now - 10*60e3 || pts[0].ms > now + 30*60e3) continue; // finished, or not yet started
-      const calls = []; for(const p of pts){ const x = tiplocs[p.tpl]; if(x && x[2] && (!calls.length || calls[calls.length-1][0] !== x[2])) calls.push(p.plat ? [x[2], p.ms, p.actual ? 1 : 0, p.plat] : [x[2], p.ms, p.actual ? 1 : 0]); }
-      if(calls.length < 2) continue;
+      // its times and stations, worked out again only when the train changes (each request went through all ~600,000 times)
+      let C = CALLS.get(t);
+      if(!C || C.v !== t.v || C.tl !== tiplocs){ let prevMs = null; const pts = [];
+        for(const l of t.locs){ if(l.can) continue;
+          const sched = l.ptd || l.pta || l.wtd || l.wta || l.wtp, ms = toMs((l.at || l.et || sched || '').slice(0, 8), t.ssd, prevMs);
+          if(ms == null) continue; prevMs = ms; pts.push({tpl:l.tpl, ms, actual:!!l.at, kind:l.k, plat:l.plat}); }
+        const calls = []; for(const p of pts){ const x = tiplocs[p.tpl]; if(x && x[2] && (!calls.length || calls[calls.length-1][0] !== x[2])) calls.push(p.plat ? [x[2], p.ms, p.actual ? 1 : 0, p.plat] : [x[2], p.ms, p.actual ? 1 : 0]); }
+        C = {v:t.v, tl:tiplocs, live:pts.some(p => p.actual), first:pts.length > 1 ? pts[0].ms : null, last:pts.length > 1 ? pts[pts.length - 1].ms : null, calls}; CALLS.set(t, C); }
+      if(C.first == null || C.last < now - 10*60e3 || C.first > now + 30*60e3) continue; // finished, or not yet started
+      const calls = C.calls; if(calls.length < 2) continue;
       if(bbox){ // the stretch the train is on now must touch the box
         let i = calls.findIndex(c => c[1] > now); if(i < 0) i = calls.length - 1; const a = calls[Math.max(0, i - 1)], b = calls[i];
         if(!inBox(a) && !inBox(b)) continue; }
       const last = t.locs.filter(l => !l.can).at(-1), dx = last && tiplocs[last.tpl];
-      out.push({id:t.rid, op:TOC[t.toc] || t.toc || '', opCode:t.toc || '', dest:dx && names[dx[2]] || '', destCrs:dx && dx[2] || null, headcode:t.trainId || '', live:pts.some(p => p.actual), calls});
+      out.push({id:t.rid, op:TOC[t.toc] || t.toc || '', opCode:t.toc || '', dest:dx && names[dx[2]] || '', destCrs:dx && dx[2] || null, headcode:t.trainId || '', live:C.live, calls});
     }
     return out; }
   prune(now = Date.now()){ // forget trains long finished
