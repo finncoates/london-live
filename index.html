@@ -1363,7 +1363,7 @@ async function refresh(){
   const olds = [...trains.values()].filter(t => t.anon && t.d), cand = [];
   for(const o of out) if(o.anon){
     const pos = placeTrain(o); if(!pos) continue;
-    for(const t of olds) if(t.line===o.line && t.towards===o.towards){ const d = dist(t.d, pos.p); if(d < 2000) cand.push([d, o, t]); }
+    for(const t of olds) if(t.line===o.line && t.towards===o.towards){ const d = dist(t.d, pos.p); if(d < 1000) cand.push([d, o, t]); } // (within 1 km: further, two trains swapped and one leapt 700 m)
   }
   cand.sort((a,b)=>a[0]-b[0]);
   for(const [, o, t] of cand) if(!o.key && !t.claimed){ o.key = t.key; t.claimed = true; }
@@ -1754,7 +1754,7 @@ function frame(ts, sync){
       const togo = (m.carry ? m.carry.path.len - m.carry.s : 0) + sT - m.s;
       off = Math.abs(togo) > CATCH_M || !!m.off && Math.hypot(m.off[0]*111320, m.off[1]*70000) > 15; // (catching up, held back, or gliding across onto its track: not where it really is)
       if(togo > 2500 || togo < -2500) { m.s = sT; m.carry = null; t.fx = wall + 2500; }
-      else if(togo >= 0 || P.plat){ m.hold = 0; let st = Math.sign(togo)*Math.min(Math.abs(togo)*k*1.5, 55*dt) + (togo > 0 ? Math.min(togo, 2*dt) : 0); // (eased; at most 55 m/s)
+      else if(togo >= 0){ m.hold = 0; /* (never backwards, on a platform's track too: it's handed over the way the train goes) */ let st = Math.sign(togo)*Math.min(Math.abs(togo)*k*1.5, 55*dt) + (togo > 0 ? Math.min(togo, 2*dt) : 0); // (eased; at most 55 m/s)
         if(m.carry){ m.carry.s += st; if(m.carry.s >= m.carry.path.len){ st = m.carry.s - m.carry.path.len; m.carry = null; } else st = 0; } m.s = Math.max(0, Math.min(P.len, m.s + st)); }
       else { m.hold ||= wall; if(wall - m.hold > 45000){ m.s = sT; m.carry = null; m.hold = 0; } } // behind: it waits
       PP = m.carry ? m.carry.path : P; on = sAt(PP, m.carry ? m.carry.s : m.s); t.d = on.p.slice();
