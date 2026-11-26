@@ -1326,6 +1326,12 @@ async function refresh(){
     if(first.timeToStation > 300 && was.length){ const fp = l.stops[first.S]?.p, near = was.filter(w => l.stops[w.S]).sort((a, b) => dist(l.stops[a.S].p, fp) - dist(l.stops[b.S].p, fp))[0];
       if(near && fp && dist(l.stops[near.S].p, fp) < 4000 && (!prev || !l.stops[prev] || dist(l.stops[near.S].p, fp) < dist(l.stops[prev].p, fp) - 200)) prev = near.S; }
     if(!prev && seq[1]){ prev = first.S; first = seq[1]; } // at its origin: wait there until it departs
+    // TfL's answers can disagree from one refresh to the next: the same next stop reached from another station
+    // (a Metropolitan train to Finchley Road 'from Wembley Park', then 'from Willesden Green'), or a stop it has
+    // already left back as next (Liverpool Street, then Whitechapel again): it keeps the stretch it is on
+    { const o = trains.get(key); if(o && !o.rail && Date.now() - (o.seenAt || 0) < 120000){
+        if(o.next === first.S && o.prev && l.stops[o.prev] && prev !== o.prev) prev = o.prev;
+        else if(o.prev && o.prev === first.S && o.next !== first.S && (o.f ?? 0) < 0.95) continue; } /* (not once it has got there: at the end of the line it really does turn back) */ } // (back to where it has come from: this answer is behind it, the train stays as it was)
     if(!prev && first.timeToStation > 120) continue;          // not started yet / in a siding
     if(prev && first.timeToStation > segTime(l, prev, first.S) + 600) continue; // too far out to place
     // keep the next few stops with TfL's own times, so the train can carry on past a stop whose
@@ -1380,7 +1386,7 @@ async function refresh(){
     let t = trains.get(o.key);
     if(!t){ t = {key:o.key}; trains.set(o.key, t); fresh.push(t); }
     delete o.f; delete o.fk;  // progress state belongs to the persistent train
-    Object.assign(t, o, {seen:t0}); keep.add(o.key);
+    Object.assign(t, o, {seen:t0, seenAt:Date.now()}); keep.add(o.key);
   }
   const gone = [];
   for(const [k,t] of trains) if(!keep.has(k)){
