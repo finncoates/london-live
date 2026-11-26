@@ -182,7 +182,8 @@ body.dark #simnote{background:#1f2a44;color:#c6dafc}
 .st-lift{font-size:12px;padding:5px 8px;border-radius:8px;margin:4px 0;background:#e8f0fe;color:#174ea6}body.dark .st-lift{background:#1e2a44;color:#aecbfa}
 .deps li[data-veh]{cursor:pointer}.deps li[data-veh]:hover{background:var(--soft)}
 .dep-h{font-size:11.5px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--mute);margin:10px 0 2px}
-.st-warn{font-size:12px;line-height:1.35;padding:5px 8px;border-radius:8px;margin:4px 0}.st-warn b{font-weight:700}
+.st-warn{font-size:12px;line-height:1.35;padding:5px 8px;border-radius:8px;margin:4px 0;cursor:pointer}.st-warn b{font-weight:700}
+.st-warn:not(.open){white-space:nowrap;overflow:hidden;text-overflow:ellipsis} /* one line each (tap for the rest): the departures stay in sight */
 .deps{list-style:none;margin:6px 0 0;padding:0;display:grid;gap:6px}
 .deps li{display:flex;align-items:center;gap:8px;font-size:13.5px}
 .deps .sw{width:4px;align-self:stretch;border-radius:2px;flex:none}
@@ -4489,7 +4490,9 @@ function unfocusLine(){
   if(LF.id || LF.city){ window.DIM_TRAINS = false; LANES = null; LPATHS = null; linesSig = ''; }
   LF.id = null; LF.city = null; LF.name = ''; LF.coach = null;
 }
-$('station').addEventListener('click', e => { if(e.target.closest('#lfClose')){ clearFocus(); unfocusLine(); $('q').value = ''; } });
+const WARN_OPEN = new Set(); // a station's line notices opened in full (kept across refreshes)
+$('station').addEventListener('click', e => { const w = e.target.closest('.st-warn[data-warn]'); if(w){ const id = w.dataset.warn; WARN_OPEN.has(id) ? WARN_OPEN.delete(id) : WARN_OPEN.add(id); w.classList.toggle('open', WARN_OPEN.has(id)); w.setAttribute('aria-expanded', String(WARN_OPEN.has(id))); }
+  if(e.target.closest('#lfClose')){ clearFocus(); unfocusLine(); $('q').value = ''; } });
 function renderResults(){
   const ul = $('sres');
   ul.innerHTML = SR.items.map((s, i) => s.geoHit ? `<li role="option" data-i="${i}" class="${i===SR.sel?'on':''}"><span class="dots"><i style="background:${s.type === 'STOP' ? '#5D6670' : '#1a73e8'}"></i></span><span><b>${esc(s.name)}</b><small>${esc([s.type === 'STOP' ? 'Stop' : s.type === 'ADDRESS' ? 'Address' : 'Place', s.area].filter(Boolean).join(' · '))}</small></span></li>` : s.placeHit ? `<li role="option" data-i="${i}" class="${i===SR.sel?'on':''}"><span class="dots"><i style="background:#1a73e8"></i></span><span><b>${esc(s.ci.name)}</b><small>Go to ${esc(s.ci.name)}'s live map${s.country ? ' · ' + esc(s.country) : ''}</small></span></li>` : s.lineHit ? lineResult(s, i) : s.cityHit ? `<li role="option" data-i="${i}" class="${i===SR.sel?'on':''}"><span class="dots">${s.st[4].slice(0, 6).map(l => `<i style="background:${l[1] || '#888'}"></i>`).join('')}</span><span><b>${esc(stName(s.st[1]))}</b><small>${esc(s.st[4].map(l => l[0]).slice(0, 8).join(', '))}</small></span></li>` : `<li role="option" data-i="${i}" class="${i===SR.sel?'on':''}" aria-selected="${i===SR.sel}">
@@ -4593,7 +4596,7 @@ async function goStation(st){
     <div class="st-actions"><button type="button" id="stBoard">Show as TV board</button><a class="btn" id="stPlan" href="journey/?to=${encodeURIComponent(st.name)}&ll=${st.p[0].toFixed(5)},${st.p[1].toFixed(5)}">Plan a trip here</a>${LIVE.on ? (pinnedStation() === st.name ? '<button type="button" id="stPin" class="on" aria-pressed="true" title="Opens when you start the app. Tap to unpin.">★ Pinned</button>' : '<button type="button" id="stPin" aria-pressed="false" title="Open this station every time you start the app">☆ Pin</button>') : ''}</div>
     <div class="st-lines">${[...st.lines].map(id => `<span class="pill" style="--c:${BY[id].colour}">${symbol(BY[id].mode==='tube'?'tube':BY[id].mode, BY[id].colour, 14)} ${esc(BY[id].name)}</span>`).join('')}</div>`
     + [...st.lines].map(id => { const x = lineStatus(id); if(!x || !x.lv) return ''; const why = (x.reasons[0] || '').replace(/\s*(Good service|Valid tickets).*$/i, '');
-      return `<div class="st-warn st${x.lv}" title="${esc(why)}"><b>${esc(BY[id].name)}: ${esc(x.text)}</b>${why ? ' · ' + esc(why.length > 90 ? why.slice(0, 90).replace(/\s+\S*$/, '') + '…' : why) : ''}</div>`; }).join(''); // problems on this station's lines (rebuilt on each refresh: status may arrive later)
+      return `<div class="st-warn st${x.lv}${WARN_OPEN.has(id) ? ' open' : ''}" data-warn="${esc(id)}" role="button" tabindex="0" aria-expanded="${WARN_OPEN.has(id)}" title="${esc(why)}"><b>${esc(BY[id].name)}: ${esc(x.text)}</b>${why ? ' · ' + esc(why) : ''}</div>`; }).join(''); // problems on this station's lines (rebuilt on each refresh: status may arrive later)
   // extras: how busy it is (TfL crowding: live when available, otherwise today's typical pattern) and lifts out of service
   let extra = ''; const head1 = head0; const naptan = [...st.ids].find(id => /^940G/.test(id));
   const myGen = (goStation.gen = (goStation.gen || 0) + 1);
