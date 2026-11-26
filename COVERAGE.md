@@ -50,9 +50,11 @@ Live already (own feeds): Finland/Helsinki, Norway, Berlin, Boston, Tallinn, Gda
 
 **Whole countries** (Explore → a country → *Whole country (trains)*): zoomed out, every high-speed and intercity train in the country; one step in, every regional train too; at city zoom, metros, trams, ferries and buses as before. All from the timetable (Transitous), refreshed every minute. Countries: Ireland (with Northern Ireland), France, Spain, Germany, Poland, Italy, Switzerland, Austria, the Netherlands, Belgium, Denmark, Sweden, Czechia, Portugal and Japan (Finland's is live GPS).
 
-**Gaps in the open timetables** (nothing the app can do until the operator publishes one): Metro de Madrid; the subways in Osaka, Kyoto, Sapporo and Fukuoka (Tokyo's are there). South Korea, Australia and New Zealand have too little in Transitous for a country view yet.
+**Gaps in the open timetables** (nothing the app can do until the operator publishes one): Metro de Madrid's trains (its 13 lines and stations are drawn, from its last open timetable, which ran out in May 2026, and OpenStreetMap); the subways in Osaka, Kyoto, Sapporo and Fukuoka (Tokyo's are there). South Korea, Australia and New Zealand have too little in Transitous for a country view yet.
 
 **Explore menu**: Europe (UK, Ireland, France, Spain), North America (Toronto) and **Asia — Japan** (Tokyo, Osaka, Kyoto, Sapporo, Fukuoka). Japan is timetable-only (Transitous) for now. Live Tokyo trains (Tokyo Metro, Toei, some JR East) come from ODPT (developer.odpt.org): free sign-up, approved in a few days; add the key as `ODPT_KEY` on the relay once you have it.
+
+**Added 26 Nov 2026**: **Sweden** — Stockholm (SL), Uppsala (UL), Malmö and all of Skåne, Norrköping and Linköping, every bus, tram, metro and boat live by GPS (Trafiklab); **Barcelona** — both tram networks and the FGC drawn with the metro (they were built but only one network loaded); **Madrid** — the Metro's lines and stations; **Rouen, Nicosia, Zagreb** — every network whose area covers the view loads together.
 
 **New live feeds**: **Spain** — Renfe's trains live (~430: Cercanías/Rodalies in Madrid, Barcelona, Seville…; AVE/long distance from the timetable); **Rennes** — every STAR bus live; **Toronto** — TTC streetcars and buses live (~1,150; subway from the timetable).
 Other cities checked and not possible without a key: Paris (RATP/IDFM: free PRIM key), Ireland's buses (NTA: free key), Netherlands (live positions open, but no route names without a 200 MB timetable), Brussels, Switzerland, Prague, Warsaw (keys).
