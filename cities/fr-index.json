@@ -3530,22 +3530,7 @@
 ]
 },
 {
-"id": "madrid-ml",
-"name": "Madrid",
-"box": [
-40.202,
--3.934,
-40.528,
--3.621
-],
-"url": "cities/es-madrid-ml.json",
-"bus": [
-"#7E8BA3",
-"#97A6BF"
-]
-},
-{
-"id": "madrid-cercanias",
+"id": "madrid",
 "name": "Madrid",
 "box": [
 40.2,
@@ -3553,7 +3538,12 @@
 40.7,
 -3.4
 ],
-"url": "cities/es-madrid-cercanias.json",
+"url": "cities/es-madrid-metro.json",
+"urls": [
+"cities/es-madrid-metro.json",
+"cities/es-madrid-ml.json",
+"cities/es-madrid-cercanias.json"
+],
 "bus": [
 "#7E8BA3",
 "#97A6BF"
