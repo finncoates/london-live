@@ -1542,17 +1542,37 @@ function platsFor(crs, want){ const P = RAIL.plats?.[crs]; if(!P) return []; con
   const ks = all.map(([k, q]) => [k, q, platKind(crs, k, q)]); if(ks.some(x => x[2] === undefined)) return undefined;
   const m = ks.filter(x => x[2] === want).map(x => [x[0], x[1]]); return m.length ? m : all; }
 function platKind(crs, k, q){ const C = RAIL.platK || (RAIL.platK = new Map()), key = crs + '|' + k; if(C.has(key)) return C.get(key);
-  const runsOn = (E, F) => { const L = dist(E, F) || 1, X = [E[0] + (E[0] - F[0])*40/L, E[1] + (E[1] - F[1])*40/L]; // 40 m beyond the platform's end
-    for(let i = Math.floor((X[0] - 0.001)*10); i <= Math.floor((X[0] + 0.001)*10); i++) for(let j = Math.floor((X[1] - 0.0015)*10); j <= Math.floor((X[1] + 0.0015)*10); j++) if(trkSquare(i, j) === null) return undefined;
-    return trkNear(X, 12).some(e => e.kind === 'r' && (trkOn(e, X)?.d ?? 99) < 8); };
-  const a = runsOn(q[0], q[1]), b = runsOn(q.at(-1), q.at(-2)); if(a === undefined || b === undefined) return undefined;
-  const v = a && b ? 'through' : 'end'; C.set(key, v); return v; }
+  const a = trkOut(q[0], q[1]), b = trkOut(q.at(-1), q.at(-2)); if(a === undefined || b === undefined) return undefined;
+  const v = a.dead || b.dead ? 'end' : 'through'; RAIL.platD ||= new Map(); RAIL.platX ||= new Map();
+  const dead = a.dead && !b.dead ? 0 : b.dead && !a.dead ? 1 : null; RAIL.platD.set(key, dead);
+  // its track run on to the buffers (OSM's platform often stops short of them: Paddington's 1-8 by ~250 m)
+  if(dead !== null){ const ext = dead === 0 ? [...a.pts.slice().reverse(), ...q] : [...q, ...b.pts], cum = [0]; for(let i = 1; i < ext.length; i++) cum.push(cum[i-1] + dist(ext[i-1], ext[i])); RAIL.platX.set(key, {pts:ext, cum, len:cum.at(-1), plat:true}); }
+  C.set(key, v); return v; } // (platD: the end with the buffers)
+// along the track from a platform's end E (away from F): {dead:true, pts to the buffers} where it ends within 400 m,
+// {dead:false} where it runs on; undefined while the tracks there load
+function trkOut(E, F){
+  for(let i = Math.floor((E[0] - 0.004)*10); i <= Math.floor((E[0] + 0.004)*10); i++) for(let j = Math.floor((E[1] - 0.006)*10); j <= Math.floor((E[1] + 0.006)*10); j++) if(trkSquare(i, j) === null) return undefined;
+  const kx = Math.cos(E[0]*rad), L = Math.hypot((E[1]-F[1])*kx, E[0]-F[0]) || 1e-9, u = [(E[1]-F[1])*kx/L, (E[0]-F[0])/L];
+  let best = null; for(const e of trkNear(E, 10)){ if(e.kind !== 'r') continue; const o = trkOn(e, E); if(!o || o.d > 8) continue; const dot = o.se*u[0] + o.sn*u[1]; if(Math.abs(dot) < 0.8) continue; if(!best || o.d < best.o.d) best = {e, o, fw:dot > 0}; }
+  if(!best) return {dead:true, pts:[]}; // (no track beyond: the buffers are here)
+  let {e, o, fw} = best, pts = [], go = 0; const at0 = e.cum[o.i-1] + dist(e.pts[o.i-1], o.p);
+  for(let i = fw ? o.i : o.i - 1; fw ? i < e.pts.length : i >= 0; i += fw ? 1 : -1){ const q = e.pts[i]; go += dist(pts.at(-1) || E, q); pts.push(q); }
+  for(let n = 0; n < 40 && go < 400; n++){ const node = fw ? e.k1 : e.k0, h = fw ? e.h1 : [-e.h0[0], -e.h0[1]]; let nx = null, bd = 0.6;
+    for(const e2 of TRK.adj.get(node) || []){ if(e2 === e || e2.kind !== 'r') continue; const f2 = e2.k0 === node, h2 = f2 ? e2.h0 : [-e2.h1[0], -e2.h1[1]], d = h[0]*h2[0] + h[1]*h2[1]; if(d > bd){ bd = d; nx = {e:e2, fw:f2}; } }
+    if(!nx) return {dead:true, pts}; // the track ends: buffers
+    e = nx.e; fw = nx.fw; const Q = fw ? e.pts : e.pts.slice().reverse(); for(let i = 1; i < Q.length; i++){ go += dist(pts.at(-1), Q[i]); pts.push(Q[i]); } }
+  return {dead:false}; }
 // a train's platform at a station: its track, where it stops (the middle; at a terminus a train's length from the
 // buffers), and which end faces the neighbouring station (`nb`: where it comes from, or goes to)
-function platInfo(t, crs, nb){ const pl = t.plats?.[crs] || t.platG?.[crs], path = pl && platPath(crs, pl); if(!path || path.len < 30) return null;
-  const o = nb && RAIL.byCrs[nb], nbEnd = o ? (dist(path.pts[0], o.p) < dist(path.pts.at(-1), o.p) ? 0 : 1) : 0;
-  const T = t.ahead, term = T && (T[0][0] === crs || T.at(-1)[0] === crs); let f = 0.5;
-  if(term && o){ const half = Math.min(path.len/2, 105)/path.len; f = nbEnd === 1 ? half : 1 - half; }
+function platInfo(t, crs, nb){ const pl = t.plats?.[crs] || t.platG?.[crs]; let path = pl && platPath(crs, pl); if(!path || path.len < 30) return null;
+  const end = S => { const o = S && RAIL.byCrs[S]; return o ? (dist(path.pts[0], o.p) < dist(path.pts.at(-1), o.p) ? 0 : 1) : null; }, nbEnd = end(nb) ?? 0;
+  // where it stands: against the buffers at a dead-end platform; at a through platform its front at the end it leaves
+  // by (towards its next stop, or away from where it came from); the middle of a platform shorter than the train
+  const T = t.ahead || [], j = T.findIndex(a => a[0] === crs), P = j > 0 ? T[j-1][0] : null, N = j >= 0 && j < T.length - 1 ? T[j+1][0] : null;
+  const pk = platKind(crs, pl, path.pts), dead = pk === 'end' ? RAIL.platD?.get(crs + '|' + pl) : null; if(dead != null && RAIL.platX?.get(crs + '|' + pl)){ path = RAIL.platX.get(crs + '|' + pl); }
+  const half = Math.min(path.len/2, 102)/path.len;
+  let front = dead ?? (N ? end(N) : P ? (end(P) === 0 ? 1 : end(P) === 1 ? 0 : null) : null), f = 0.5;
+  if(front === 0) f = half; else if(front === 1) f = 1 - half;
   return {path, pl, f, nbEnd}; }
 // d metres from where it stops, towards the neighbouring station (null once that is off the platform)
 function platAt(I, d){ const f = I.f + (I.nbEnd === 1 ? d : -d)/I.path.len; if(f < 0 || f > 1) return null; return Object.assign(along(I.path, f), {path:I.path, plat:I.pl}); }
@@ -1588,7 +1608,8 @@ function placeTrain0(t){
   t.cur = next; t.curArr = arr; t.curPrev = prev; // (the train card reads these)
   if(!l.stops[next]) return null;
   // National Rail boards list a train from that station on: until it is nearly there we don't know where it is, so it isn't shown
-  if(t.rail && (!prev || prev === next) && arr - n > 90000) return null;
+  // (Darwin's trains list their whole run: one at its first station, with its platform known, waits there, up to 30 minutes before it leaves)
+  if(t.rail && (!prev || prev === next) && arr - n > 90000 && !(t.dw && t.ahead?.[0]?.[0] === next && t.ahead[0][1] === arr && t.plats?.[next] && arr - n < 30*60000)) return null;
   const at = () => { const s = snapAt(l, next); return s.wait ? null : s; }; // (null while the track there is loading)
   if(!prev || prev === next || !l.stops[prev]) return at();
   let path = trackPath(l, prev, next); if(!path) return at();
@@ -1737,7 +1758,8 @@ function frame(ts, sync){
   if(PV.z >= 15.5 && SHOW_ICONS){ ctx.font = '600 10.5px system-ui, sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.lineWidth = 3; let n = 0; const placed = [];
     for(const [l, items] of byLine){ if(l.mode === 'bus') continue; for(const [t, x, y, , , , , , , hw] of items){ if(n++ > 40) break;
       if(dim && !l.pinned) continue; const st = l.stops[t.cur || t.next]; if(!st) continue; const sec = Math.max(0, Math.round(((t.curArr ?? t.arr) - now())/1000));
-      const txt = `→ ${cleanName(st.n).replace(/ \(.*\)$/, '')} ${sec < 30 ? 'due' : Math.round(sec/60) + ' min'}`, ty = y + hw + 10;
+      const wait = t.rail && t.ahead && t.ahead.length > 1 && t.ahead[0][0] === t.cur && t.ahead[0][1] === t.curArr, dest = wait && (t.towards || RAIL.byCrs[t.ahead.at(-1)[0]]?.n || ''); // (waiting at the station it starts from)
+      const txt = wait ? `${cleanName(dest).replace(/ \(.*\)$/, '')} · ${sec < 30 ? 'leaving' : 'leaves in ' + Math.round(sec/60) + ' min'}` : `→ ${cleanName(st.n).replace(/ \(.*\)$/, '')} ${sec < 30 ? 'due' : Math.round(sec/60) + ' min'}`, ty = y + hw + 10;
       const tw = ctx.measureText(txt).width, box = [x - tw/2 - 3, ty - 8, x + tw/2 + 3, ty + 8]; if(placed.some(q => box[0] < q[2] && box[2] > q[0] && box[1] < q[3] && box[3] > q[1])) continue; placed.push(box);
       ctx.strokeStyle = dark ? 'rgba(0,0,0,.85)' : 'rgba(255,255,255,.95)'; ctx.strokeText(txt, x, ty); ctx.fillStyle = dark ? '#eee' : '#333'; ctx.fillText(txt, x, ty); } }
     ctx.textAlign = 'start'; }
@@ -1952,7 +1974,7 @@ async function refreshRail(){
       for(const k of tr.gks) gk.set(k, key);
       if(!t){ t = {key, rail:true}; trains.set(key, t); }
       const plats = {...(t && t.plats)}; for(const c of calls) if(c[3]) plats[c[0]] = c[3]; /* (with any the boards gave) */
-      Object.assign(t, {line:l.id, ahead:calls.map(c => [c[0], c[1]]), plats, prev:calls[0][0], next:calls[1][0], arr:calls[1][1],
+      Object.assign(t, {dw:RAIL.src === 'darwin', line:l.id, ahead:calls.map(c => [c[0], c[1]]), plats, prev:calls[0][0], next:calls[1][0], arr:calls[1][1],
         towards:tr.dest || '', loc:tr.reason || '', seen:t0}); seen.add(key);
     }
     RAIL.gk = gk;
