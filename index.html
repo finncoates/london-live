@@ -1434,7 +1434,8 @@ function trkRoute0(loose, A, B, corridor, goalPl, kind = 'r', avoid = [], hand =
       if(d < bd){ bd = d; sd = (dx*ey - dy*ex)/Math.sqrt(L2); } } return [sd*111320, bd*111320]; };
   const dir0 = (() => { const a = P[0], b = P[Math.min(P.length - 1, 3)], x = (b[1]-a[1])*kx, y = b[0]-a[0], l = Math.hypot(x, y) || 1; return [x/l, y/l]; })();
   const dir1 = (() => { const a = P[Math.max(0, P.length - 4)], b = P.at(-1), x = (b[1]-a[1])*kx, y = b[0]-a[0], l = Math.hypot(x, y) || 1; return [x/l, y/l]; })();
-  const near = (q, r) => trkNear(q, r).filter(e => e.kind === kind).map(e => ({e, o:trkOn(e, q)})).filter(x => x.o && x.o.d <= r);
+  const kOK = e => e.kind === kind || line && line !== 'nr' && e.lines && e.lines.includes(line); // (its own line on another kind of track: the District to Wimbledon, the Bakerloo past Queen's Park, on Network Rail's)
+  const near = (q, r) => trkNear(q, r).filter(kOK).map(e => ({e, o:trkOn(e, q)})).filter(x => x.o && x.o.d <= r);
   // where it sets off: a track at A going the train's way
   const mine = e => !line || !e.lines || e.lines.includes(line);
   const st0 = near(A, R0).map(({e, o}) => ({e, o, f:o.se*dir0[0] + o.sn*dir0[1], at:e.cum[o.i-1] + dist(e.pts[o.i-1], o.p)}));
@@ -1460,7 +1461,7 @@ function trkRoute0(loose, A, B, corridor, goalPl, kind = 'r', avoid = [], hand =
   let got = null, n = 0;
   while(heap.length && n++ < 30000){ const x = pop(); if(x.done){ got = x; break; } const sk = x.e.k0 + x.e.k1 + x.e.len + (x.fw ? '+' : '-'); if(cost.has(sk)) continue; cost.set(sk, x.c);
     const node = x.fw ? x.e.k1 : x.e.k0, h = x.fw ? x.e.h1 : [-x.e.h0[0], -x.e.h0[1]];
-    for(const e2 of TRK.adj.get(node) || []){ if(e2 === x.e || e2.kind !== kind) continue; const fw = e2.k0 === node, h2 = fw ? e2.h0 : [-e2.h1[0], -e2.h1[1]];
+    for(const e2 of TRK.adj.get(node) || []){ if(e2 === x.e || !kOK(e2)) continue; const fw = e2.k0 === node, h2 = fw ? e2.h0 : [-e2.h1[0], -e2.h1[1]];
       if(h[0]*h2[0] + h[1]*h2[1] < 0.6) continue; // through the points the way they lie: no reversing, no hairpins
       const g = goals.get(e2); if(g && (g.fw == null || g.fw === fw)) push({c:x.c + (fw ? g.at : e2.len - g.at), e:e2, fw, prev:x, end:g.at, done:true});
       push({c:x.c + e2.len*w(e2)*bad(e2, fw), e:e2, fw, prev:x}); } }
