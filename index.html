@@ -658,6 +658,7 @@ function viewNow(){
   return PV = {z, zi, k:2**(z - zi), ox:r.x - w[0], oy:r.y - w[1]};
 }
 const scr = p => { const w = world(p, PV.z); return {x:w[0] + PV.ox, y:w[1] + PV.oy}; };
+window.__scr = p => scr(p); // (tests: where a point is on screen)
 // cached line shapes are built in world pixels relative to a nearby origin: raw world pixels pass 2^24 from zoom 17 up,
 // where the canvas (32-bit floats) loses them and the lines vanish. The origin moves (and caches rebuild) after 150 km.
 const ORG = {p:null, id:0};
@@ -4703,8 +4704,11 @@ function renderFollow(){
   if(t && !trains.has(t.key)){ const u = refollow(t); if(u){ FW.t = t = u; HL.clear(); HL.add(u.key); el.dataset.k = ''; } }
   if(!t || !trains.has(t.key)){ el.hidden = true; el.dataset.k = ''; if(FW.ride) setRide(false); return; }
   if(!LIVE.on){ // the original one-line bar
-    if(FW.ride) setRide(false); const x = trainText(t); el.hidden = false; el.classList.remove('tc'); el.dataset.k = ''; el.style.removeProperty('--c');
-    el.innerHTML = `<span class="sw" style="background:${ink(x.colour)}"></span><span class="ft"><b>Following ${esc(x.line)}</b> ${esc(x.to)}<small>${esc(x.next)}</small></span><button type="button" id="fwStop">Stop</button>`;
+    if(FW.ride) setRide(false); const x = trainText(t), l0 = BY[t.line]; el.hidden = false; el.classList.remove('tc'); el.dataset.k = ''; el.style.removeProperty('--c');
+    // then: the next few stops after the next one, with when (and the platform at the next, where it's known)
+    const nx = t.cur || t.next, pl = t.plats?.[nx] && !t.pass?.has(nx) ? String(t.plats[nx]).replace(/^0+(?=\d)/, '') : '', ah = (t.ahead || []).filter(a => a[1] > now() - 20000 && !t.pass?.has(a[0])), i0 = ah.findIndex(a => a[0] === nx);
+    const then = l0 ? (i0 >= 0 ? ah.slice(i0 + 1, i0 + 4) : []).map(a => lstName(l0, a[0]) && `${lstName(l0, a[0])} ${fmtDue(a[1])}`).filter(Boolean) : [];
+    el.innerHTML = `<span class="sw" style="background:${ink(x.colour)}"></span><span class="ft"><b>Following ${esc(x.line)}</b> ${esc(x.to)}<small>${esc(x.next)}${pl ? ' · platform ' + esc(pl) : ''}</small>${then.length ? `<small class="then">Then ${esc(then.join(' · '))}</small>` : ''}</span><button type="button" id="fwStop">Stop</button>`;
     if(FW.tour){ const c = $('tourcap'); c.hidden = false; c.innerHTML = `<b style="color:${boardCol ? boardCol(x.colour) : x.colour}">${esc(x.line)}</b>${esc(x.to)}<small>${esc(x.next)}</small>`; }
     return; }
   const x = trainText(t), l = BY[t.line]; el.hidden = false; el.classList.add('tc');
