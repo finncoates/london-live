@@ -930,6 +930,7 @@ function renderOff(zi, T, k){
   if(typeof drawNRWorld === 'function') drawNRWorld(g, zi, W); // National Rail underneath
   for(const {l, n:cnt, path} of LPATHS.values()){
     const op = lineStyle(l).opacity; if(!op) continue;
+    if(zi >= TRK.Z && TRK.lines.has(l.id) && trkLinesHere()) continue; // drawn along its real tracks instead (drawTracks)
     // solid lines always; service problems are shown in the legend and station cards
     const bg = l.mode === 'bus' && !l.pinned; // background bus routes: thin and light
     const boat = l.mode === 'river' || l.mode === 'cable'; // boats & cable car: thin, see-through, dotted
@@ -956,7 +957,7 @@ function renderOff(zi, T, k){
   }
   OFF = {canvas:c, zi, box, odpr, sig:offSig()}; linesSig = ''; // force the on-screen copy to update
 }
-const offSig = () => [dark, MAP_STYLE, QUIET_ON, LAYOUT, SHOW_ST, SF_ON, !!LIFTMAP, lpathSig, typeof NRNET !== 'undefined' && nrLondon() ? 'nr' + NRNET.n + ':' + (map.getZoom() >= 13 && SHOW_ST ? nrOnlyStations().length : 0) : '', ...ACTIVE.map(l => lineStyle(l).opacity + ':' + (STATUS.get(l.id)?.lv || 0))].join();
+const offSig = () => [TRK.lines.size, trkLinesHere(), dark, MAP_STYLE, QUIET_ON, LAYOUT, SHOW_ST, SF_ON, !!LIFTMAP, lpathSig, typeof NRNET !== 'undefined' && nrLondon() ? 'nr' + NRNET.n + ':' + (map.getZoom() >= 13 && SHOW_ST ? nrOnlyStations().length : 0) : '', ...ACTIVE.map(l => lineStyle(l).opacity + ':' + (STATUS.get(l.id)?.lv || 0))].join();
 function drawLines(){
   if(!ov.getProjection() || !PV) return;
   if(!LANES) buildLanes();
@@ -1180,6 +1181,10 @@ function project(path, p){
   }
   return best;
 }
+// distance along a path of a point projected onto it (project's {i, k}); the point s metres along it (as project gives)
+const sAlong = (P, o) => o ? P.cum[o.i-1] + (P.cum[o.i] - P.cum[o.i-1])*o.k : 0;
+function sAt(P, d){ const c = P.cum, p = P.pts; let i = 1; while(i < c.length - 1 && c[i] < d) i++; const k = Math.min(1, Math.max(0, (d - c[i-1])/((c[i] - c[i-1]) || 1)));
+  return {p:[p[i-1][0] + (p[i][0]-p[i-1][0])*k, p[i-1][1] + (p[i][1]-p[i-1][1])*k], a:p[i-1], b:p[i], i, k}; }
 function along(path, f){ // fraction 0..1 -> {p, a, b}
   const t = f*path.len, c = path.cum, p = path.pts;
   let i=1; while(i<c.length-1 && c[i]<t) i++;
@@ -1390,11 +1395,11 @@ async function refresh(){
 // entrance (from OpenStreetMap; the trains standing there are on the same tracks)
 // ---------- every track (cities/osm_tracks.py): the rail map draws one line per corridor; a four-track main line
 // (Brockley) is four tracks here. From zoom 15 they are drawn, and each train runs on the track for its direction ----------
-const TRK = {sq:new Map(), Z:15};
+const TRK = {sq:new Map(), Z:15, lines:new Set(), lineBox:[51.2, -0.65, 51.8, 0.4]}; // lines: TfL lines whose tracks are known (drawn on them, not on the map's line, from zoom 15; inside lineBox)
 const trkHere = () => !document.body.classList.contains('abroad') && !MODES_OFF.has('rail') || nrLondon(); // Britain (its tracks: cities/tracks/)
 function trkSquare(i, j){ const k = i + '_' + j; let v = TRK.sq.get(k);
-  if(v === undefined){ TRK.sq.set(k, null); fetch('cities/tracks/' + k + '.json').then(r => r.ok ? r.json() : []).then(L => TRK.sq.set(k, (L || []).map(([d, pts, kd = 'r']) => {
-      let a = 90, b = -90, c = 180, e = -180; for(const q of pts){ if(q[0] < a) a = q[0]; if(q[0] > b) b = q[0]; if(q[1] < c) c = q[1]; if(q[1] > e) e = q[1]; } return trkEdge({d, pts, bb:[a, b, c, e], kind:kd[0], tun:kd[1] === 't'}); })))
+  if(v === undefined){ TRK.sq.set(k, null); fetch('cities/tracks/' + k + '.json').then(r => r.ok ? r.json() : []).then(L => TRK.sq.set(k, (L || []).map(([d, pts, kd = 'r', ln]) => { if(ln) for(const x of ln) TRK.lines.add(x);
+      let a = 90, b = -90, c = 180, e = -180; for(const q of pts){ if(q[0] < a) a = q[0]; if(q[0] > b) b = q[0]; if(q[1] < c) c = q[1]; if(q[1] > e) e = q[1]; } return trkEdge({d, pts, bb:[a, b, c, e], kind:kd[0], tun:kd[1] === 't', lines:ln || null}); })))
       .catch(() => TRK.sq.set(k, [])); return null; }
   return v; }
 function trkNear(p, r){ const out = [], m = r/111320, i0 = Math.floor((p[0] - m)*10), i1 = Math.floor((p[0] + m)*10), j0 = Math.floor((p[1] - m*1.7)*10), j1 = Math.floor((p[1] + m*1.7)*10);
@@ -1412,7 +1417,7 @@ function trkEdge(e){ const P = e.pts, k0 = tkey(P[0]), k1 = tkey(P.at(-1)), id =
 // to its platform at the next station (or, not known, a track at that station's platforms), never reversing through
 // points, keeping to each track's direction where mapped and to the left-hand track of the corridor (Britain).
 // corridor: the rail map's path between the two stations (the way the train goes, roughly). → {pts, cum, len} or null
-function trkRoute(A, B, corridor, goalPl, kind = 'r', avoid = [], hand = 1){ // avoid: platforms of stations it runs through without calling (it takes the line without platforms: the fast line)
+function trkRoute(A, B, corridor, goalPl, kind = 'r', avoid = [], hand = 1, line = null){ // avoid: platforms of stations it runs through without calling (it takes the line without platforms: the fast line)
   const R0 = kind === 's' ? 120 : kind === 'l' ? 60 : 40; // (deep Tube platforms lie well off the station's point)
   const P = corridor.pts; let la0 = 90, la1 = -90, lo0 = 180, lo1 = -180; for(const q of P){ la0 = Math.min(la0, q[0]); la1 = Math.max(la1, q[0]); lo0 = Math.min(lo0, q[1]); lo1 = Math.max(lo1, q[1]); }
   if(la1 - la0 > 0.25 || lo1 - lo0 > 0.4) return null; // long hops: the map's own line
@@ -1428,10 +1433,12 @@ function trkRoute(A, B, corridor, goalPl, kind = 'r', avoid = [], hand = 1){ // 
   const start = near(A, R0).flatMap(({e, o}) => { const f = o.se*dir0[0] + o.sn*dir0[1]; if(Math.abs(f) < 0.5) return []; const fw = f > 0, at = e.cum[o.i-1] + dist(e.pts[o.i-1], o.p);
     return [{e, fw, at, o}]; });
   // where it is going: its platform's track, else the tracks along that station's platforms, else tracks at B
-  const goalOK = e => { if(goalPl){ const m = along({pts:e.pts, cum:e.cum, len:e.len}, 0.5).p; let bd = Infinity; for(let i = 1; i < goalPl.length; i++) bd = Math.min(bd, segDist(m, goalPl[i-1], goalPl[i])); return bd < 4; } return true; };
+  const GP = goalPl && (Array.isArray(goalPl[0][0]) ? goalPl : [goalPl]); // (one platform, or any of several)
+  const goalOK = e => { if(GP){ const m = along({pts:e.pts, cum:e.cum, len:e.len}, 0.5).p; return GP.some(g => { for(let i = 1; i < g.length; i++) if(segDist(m, g[i-1], g[i]) < 4) return true; return false; }); } return true; };
   const goals = new Map(); for(const {e, o} of near(B, goalPl ? 260 : R0 + 20)){ const f = o.se*dir1[0] + o.sn*dir1[1]; if(Math.abs(f) < 0.5 || !goalOK(e)) continue; goals.set(e, {fw:f > 0, at:e.cum[o.i-1] + dist(e.pts[o.i-1], o.p)}); }
   if(!start.length || !goals.size) return null;
   const cost = new Map(), memo = new Map(), w = e => { let m = memo.get(e); if(m == null){ const mid = e.pts[Math.floor(e.pts.length/2)], [sd, d] = side(mid); m = d > 400 ? 50 : (sd*hand < -1.5 ? 3 : 1);
+    if(line && e.lines && !e.lines.includes(line)) m *= 4; // another line's track (the Northern's Bank and Charing Cross branches, the District beside the Piccadilly)
     if(avoid.length && avoid.some(q => Math.abs(q[0][0] - mid[0]) < 0.004 && q.some((x, i) => i && segDist(mid, q[i-1], x) < 4))) m *= 2.5; memo.set(e, m); } return m; };
   const heap = [], push = x => { heap.push(x); let i = heap.length - 1; while(i){ const j = (i - 1) >> 1; if(heap[j].c <= x.c) break; heap[i] = heap[j]; i = j; } heap[i] = x; };
   const pop = () => { const top = heap[0], x = heap.pop(); if(heap.length){ let i = 0; for(;;){ let j = 2*i + 1; if(j >= heap.length) break; if(j + 1 < heap.length && heap[j+1].c < heap[j].c) j++; if(heap[j].c >= x.c) break; heap[i] = heap[j]; i = j; } heap[i] = x; } return top; };
@@ -1473,7 +1480,16 @@ function drawTracks(ctx, s){
   for(let i = Math.floor(sw.lat()*10); i <= Math.floor(ne.lat()*10); i++) for(let j = Math.floor(sw.lng()*10); j <= Math.floor(ne.lng()*10); j++){ const L = trkSquare(i, j); if(!L) continue;
     for(const t of L){ if(seen.has(t) || !on[t.kind] || t.bb[1] < sw.lat() || t.bb[0] > ne.lat() || t.bb[3] < sw.lng() || t.bb[2] > ne.lng()) continue; seen.add(t);
       const P = t.tun ? tun : open; t.pts.forEach((q, k) => { const w = scr(q); k ? P.lineTo(w.x, w.y) : P.moveTo(w.x, w.y); }); } }
-  ctx.stroke(open); ctx.globalAlpha *= 0.4; ctx.setLineDash([4, 3]); ctx.stroke(tun); ctx.restore(); } // (in tunnels: fainter, dashed)
+  ctx.stroke(open); ctx.globalAlpha *= 0.4; ctx.setLineDash([4, 3]); ctx.stroke(tun); ctx.setLineDash([]); ctx.globalAlpha = window.DIM_TRAINS ? 0.15 : 1;
+  // London's lines in their colours along their real tracks (the map's own line, drawn from the network, is put away here)
+  if(trkLinesHere()){ const Wl = Math.max(3, lineW()*0.75); ctx.lineCap = 'round';
+    for(const t of seen){ if(!t.lines) continue; const on = t.lines.filter(x => BY[x] && lineStyle(BY[x]).opacity > 0); if(!on.length) continue;
+      const S = t.pts.map(scr), w = Wl/on.length;
+      on.forEach((x, n) => { const off = (n - (on.length - 1)/2)*w; ctx.strokeStyle = ink(BY[x].colour); ctx.globalAlpha = lineStyle(BY[x]).opacity*(window.DIM_TRAINS ? 0.3 : 1); ctx.lineWidth = w;
+        ctx.beginPath(); S.forEach((q, i) => { const a = S[Math.max(0, i - 1)], b = S[Math.min(S.length - 1, i + 1)], dx = b.x - a.x, dy = b.y - a.y, L = Math.hypot(dx, dy) || 1, x2 = q.x - dy/L*off, y2 = q.y + dx/L*off; i ? ctx.lineTo(x2, y2) : ctx.moveTo(x2, y2); }); ctx.stroke(); }); } }
+  ctx.restore(); } // (in tunnels: fainter, dashed)
+// zoomed in on London, where the lines' tracks are known: lines drawn on them
+function trkLinesHere(){ if(!PV || PV.zi < TRK.Z || !TRK.lines.size) return false; const c = map.getCenter(), B = TRK.lineBox; return !!c && c.lat() > B[0] && c.lat() < B[2] && c.lng() > B[1] && c.lng() < B[3]; }
 // the track a train at p, travelling (east, north) = (ve, vn), runs on: the way trains use it where OSM says, else
 // Britain's left-hand running (the nearest track on its left); it keeps its track while that one still runs alongside
 function trkFor(t, p, ve, vn){
@@ -1520,9 +1536,20 @@ function platPath(crs, pl){ const P = RAIL.plats && RAIL.plats[crs]; if(!P) retu
   const n = String(pl).match(/^\d+/)?.[0], q = P[pl] || (n && n !== pl ? P[n] : null) || (n && P[Object.keys(P).find(k => k.match(/^\d+/)?.[0] === n)]); if(!q) return null; // "1" where 1A/1B are mapped (New Street), "5A" where only 5 is
   const c = RAIL.platC || (RAIL.platC = new Map()), k = crs + '|' + pl; if(c.has(k)) return c.get(k);
   const cum = [0]; for(let i = 1; i < q.length; i++) cum.push(cum[i-1] + dist(q[i-1], q[i])); const r = {pts:q, cum, len:cum.at(-1), plat:true}; c.set(k, r); return r; }
+// a station's platforms that suit a train: 'end' (dead ends: where its run ends), 'through' (the track runs on past
+// both ends), null (any) → [[name, points], ...]; undefined while the tracks there load
+function platsFor(crs, want){ const P = RAIL.plats?.[crs]; if(!P) return []; const all = Object.entries(P).filter(([k]) => PLAT_OK.test(k)); if(!want) return all;
+  const ks = all.map(([k, q]) => [k, q, platKind(crs, k, q)]); if(ks.some(x => x[2] === undefined)) return undefined;
+  const m = ks.filter(x => x[2] === want).map(x => [x[0], x[1]]); return m.length ? m : all; }
+function platKind(crs, k, q){ const C = RAIL.platK || (RAIL.platK = new Map()), key = crs + '|' + k; if(C.has(key)) return C.get(key);
+  const runsOn = (E, F) => { const L = dist(E, F) || 1, X = [E[0] + (E[0] - F[0])*40/L, E[1] + (E[1] - F[1])*40/L]; // 40 m beyond the platform's end
+    for(let i = Math.floor((X[0] - 0.001)*10); i <= Math.floor((X[0] + 0.001)*10); i++) for(let j = Math.floor((X[1] - 0.0015)*10); j <= Math.floor((X[1] + 0.0015)*10); j++) if(trkSquare(i, j) === null) return undefined;
+    return trkNear(X, 12).some(e => e.kind === 'r' && (trkOn(e, X)?.d ?? 99) < 8); };
+  const a = runsOn(q[0], q[1]), b = runsOn(q.at(-1), q.at(-2)); if(a === undefined || b === undefined) return undefined;
+  const v = a && b ? 'through' : 'end'; C.set(key, v); return v; }
 // a train's platform at a station: its track, where it stops (the middle; at a terminus a train's length from the
 // buffers), and which end faces the neighbouring station (`nb`: where it comes from, or goes to)
-function platInfo(t, crs, nb){ const pl = t.plats && t.plats[crs], path = pl && platPath(crs, pl); if(!path || path.len < 30) return null;
+function platInfo(t, crs, nb){ const pl = t.plats?.[crs] || t.platG?.[crs], path = pl && platPath(crs, pl); if(!path || path.len < 30) return null;
   const o = nb && RAIL.byCrs[nb], nbEnd = o ? (dist(path.pts[0], o.p) < dist(path.pts.at(-1), o.p) ? 0 : 1) : 0;
   const T = t.ahead, term = T && (T[0][0] === crs || T.at(-1)[0] === crs); let f = 0.5;
   if(term && o){ const half = Math.min(path.len/2, 105)/path.len; f = nbEnd === 1 ? half : 1 - half; }
@@ -1541,7 +1568,7 @@ async function platBoards(){
       if(best){ best.plats ||= {}; best.plats[crs] ||= String(sv.platform).toUpperCase(); } } } }
 setInterval(() => platBoards().catch(() => {}), 30000); setTimeout(() => platBoards().catch(() => {}), 6000);
 function placeTrain(t){
-  const r = placeTrain0(t); t.onPlat = null; if(!r || !t.rail || !t.plats || !RAIL.plats) return r;
+  const r = placeTrain0(t); t.onPlat = null; if(!r || !t.rail || !(t.plats || t.platG) || !RAIL.plats) return r;
   const T = t.ahead || [], f = t.f ?? 0, L = r.path ? r.path.len : 0, nbOf = S => { const j = T.findIndex(a => a[0] === S); return (T[j - 1] || T[j + 1] || [])[0]; };
   // standing at a station (arrived, waiting to leave, or at the end of its run)
   if(!r.path || f >= 0.999 || (f <= 0.001 && t.curPrev)){ const S = !r.path || f >= 0.999 ? t.cur : t.curPrev, I = platInfo(t, S, nbOf(S)), p = I && platAt(I, 0);
@@ -1566,9 +1593,14 @@ function placeTrain0(t){
   if(!prev || prev === next || !l.stops[prev]) return at();
   let path = trackPath(l, prev, next); if(!path) return at();
   const KS = t.rail ? 'r' : {tube:'s', dlr:'l', overground:'r', elizabeth:'r'}[l.mode], mc = map.getCenter();
-  if(KS && PV && PV.z >= TRK.Z - 1 && trkHere() && mc && Math.abs(path.pts[0][0] - mc.lat()) < 0.05 && Math.abs(path.pts[0][1] - mc.lng()) < 0.08){ const rk = prev + '>' + next + '|' + (t.plats?.[next] || '') + '|' + (t.plats?.[prev] || '');
-    if(!t.rt || t.rt.k !== rk){ const A = (t.plats?.[prev] && platPath(prev, t.plats[prev])) ? along(platPath(prev, t.plats[prev]), 0.5).p : path.pts[0], gp = t.plats?.[next] && platPath(next, t.plats[next]);
-      const B = gp ? along(gp, 0.5).p : path.pts.at(-1), r = trkRoute(A, B, path, gp ? gp.pts : null, KS, t.rail ? passedPlats(path, prev, next) : []); if(r !== undefined) t.rt = {k:rk, r}; } // (undefined: its tracks still loading: asked again next frame)
+  if(KS && PV && PV.z >= TRK.Z - 1 && trkHere() && mc && Math.abs(path.pts[0][0] - mc.lat()) < 0.05 && Math.abs(path.pts[0][1] - mc.lng()) < 0.08){
+    const plA = t.plats?.[prev] || t.platG?.[prev], plB = t.plats?.[next], rk = prev + '>' + next + '|' + (plB || '') + '|' + (plA || '');
+    if(!t.rt || t.rt.k !== rk){ const pa = plA && platPath(prev, plA), was = !pa && t.rt?.r && t.rt.k.split('|')[0].endsWith('>' + prev) ? t.rt.r.pts.at(-1) : null; // (where its last stretch ended: it sets off from there)
+      const A = pa ? along(pa, 0.5).p : was || path.pts[0], gp = plB && platPath(next, plB);
+      // its platform there not known: one that suits it (a dead end where its run ends, a through platform where it runs on), whichever its way in reaches
+      const T = t.ahead, ends = t.rail && !t.tt && T && T.at(-1)[0] === next, on = t.rail && T && T.findIndex(a => a[0] === next) < T.length - 1, cand = !gp && t.rail && RAIL.plats?.[next] ? platsFor(next, ends ? 'end' : on ? 'through' : null) : null;
+      const B = gp ? along(gp, 0.5).p : path.pts.at(-1), r = cand === undefined ? undefined : trkRoute(A, B, path, gp ? gp.pts : cand && cand.length ? cand.map(c => c[1]) : null, KS, t.rail ? passedPlats(path, prev, next) : [], 1, t.rail ? null : l.id);
+      if(r !== undefined){ t.rt = {k:rk, r}; if(r && cand && cand.length){ const e = r.pts.at(-1), hit = cand.find(([, q]) => q.some((x, i) => i && segDist(e, q[i-1], x) < 5)); if(hit) (t.platG ||= {})[next] = hit[0]; } } } // (undefined: its tracks still loading: asked again next frame)
   }
   if(KS && t.rt && t.rt.r && t.rt.k.startsWith(prev + '>' + next + '|') && PV && PV.z >= TRK.Z - 1) path = t.rt.r; /* (PV: the view isn't set on the first refresh) */
   const remain = (arr - n)/1000;
@@ -1624,20 +1656,31 @@ function frame(ts, sync){
     const l = BY[t.line]; if(!l.on || !shown(l) || wall - t.seen > (t.rail ? 150000 : REFRESH*1.5)) continue;
     if(GPS_OFF.has(modeKey(l.mode)) && !HL.has(t.key)) continue; // that kind's vehicles switched off (its lines may stay)
     const pos = placeTrain(t); if(!pos) continue;
-    // ease the displayed position, then put it back onto the line so it never cuts corners
-    if(!t.d || dist(t.d, pos.p) > 3000) t.d = pos.p.slice();
-    else { t.d[0]+= (pos.p[0]-t.d[0])*k; t.d[1]+= (pos.p[1]-t.d[1])*k; }
-    let on = pos;
-    if(pos.path){ on = project(pos.path, t.d); t.d = on.p.slice(); }
-    else t.d = pos.p.slice();
+    // moved along its path by distance, never sideways or backwards: a new estimate further on is caught up at up to
+    // ~200 km/h (no leap); one behind is waited for (the train stands; after 45 s it's put where it is); a stretch is
+    // run to its end before the next begins
+    let on = pos, PP = pos.path;
+    if(pos.path && pos.path.cum){ const P = pos.path, sT = sAlong(P, project(P, pos.p)); let m = t.mv;
+      if(!m || m.path !== P){ const o = t.d && project(P, t.d), od = o ? dist(o.p, t.d) : Infinity;
+        const carry = m && m.path && !m.path.plat && m.s < m.path.len - 2 && dist(m.path.pts.at(-1), P.pts[0]) < 150 && od > 15 ? {path:m.path, s:m.s} : null; // (the last stretch, not yet run to its end)
+        m = t.mv = {path:P, s:carry ? 0 : od < 600 ? sAlong(P, o) : sT, carry, hold:0, off:!carry && od >= 3 && od < 600 ? [t.d[0] - o.p[0], t.d[1] - o.p[1]] : null}; } // (onto a path beside it, e.g. the map's line → its real track: glides across)
+      const togo = (m.carry ? m.carry.path.len - m.carry.s : 0) + sT - m.s;
+      if(togo > 2500 || togo < -2500) { m.s = sT; m.carry = null; }
+      else if(togo >= 0 || P.plat){ m.hold = 0; let st = Math.sign(togo)*Math.min(Math.abs(togo)*k*1.5, 55*dt) + (togo > 0 ? Math.min(togo, 2*dt) : 0); // (eased; at most 55 m/s)
+        if(m.carry){ m.carry.s += st; if(m.carry.s >= m.carry.path.len){ st = m.carry.s - m.carry.path.len; m.carry = null; } else st = 0; } m.s = Math.max(0, Math.min(P.len, m.s + st)); }
+      else { m.hold ||= wall; if(wall - m.hold > 45000){ m.s = sT; m.carry = null; m.hold = 0; } } // behind: it waits
+      PP = m.carry ? m.carry.path : P; on = sAt(PP, m.carry ? m.carry.s : m.s); t.d = on.p.slice();
+      if(m.off){ const oM = Math.hypot(m.off[0]*111320, m.off[1]*111320*Math.cos(t.d[0]*rad)) || 1, f = Math.min(oM, Math.min(55*dt, Math.max(oM*(1 - Math.exp(-dt/0.8)), 8*dt)))/oM; m.off[0] *= 1 - f; m.off[1] *= 1 - f; t.d[0] += m.off[0]; t.d[1] += m.off[1]; if(Math.abs(m.off[0]) + Math.abs(m.off[1]) < 2e-7) m.off = null; } }
+    else { t.mv = null; if(!t.d || dist(t.d, pos.p) > 3000) t.d = pos.p.slice(); else { t.d[0]+= (pos.p[0]-t.d[0])*k; t.d[1]+= (pos.p[1]-t.d[1])*k; }
+      if(pos.path){ on = project(pos.path, t.d); t.d = on.p.slice(); } else t.d = pos.p.slice(); }
     let ang = t.ang ?? 0;
     if(on.a && on.b){ const dx=(on.b[1]-on.a[1])*cosLat, dy=on.a[0]-on.b[0]; if(dx||dy) ang=Math.atan2(dy,dx); }
     // the rectangle looks the same both ways round, so turn it the short way (mod 180°)
     let dA = Math.atan2(Math.sin(ang-(t.ang??ang)), Math.cos(ang-(t.ang??ang)));
     if(dA > Math.PI/2) dA -= Math.PI; else if(dA < -Math.PI/2) dA += Math.PI;
     t.ang = (t.ang??ang) + dA*ka;
-    let c = scr(t.d), lane = pos.path && pos.path.real ? null : trainLane(t, l), TK = null;
-    if(t.rail && PV.z >= TRK.Z && !t.onPlat && on.a && on.b && !(pos.path && pos.path.real)){ TK = trkFor(t, t.d, (on.b[1]-on.a[1])*cosLat, on.b[0]-on.a[0]); // on the track for its direction
+    let c = scr(t.d), lane = PP && PP.real ? null : trainLane(t, l), TK = null;
+    if(t.rail && PV.z >= TRK.Z && !t.onPlat && on.a && on.b && !(PP && (PP.real || PP.plat))){ TK = trkFor(t, t.d, (on.b[1]-on.a[1])*cosLat, on.b[0]-on.a[0]); // on the track for its direction
       if(TK){ const o = t.trkO || (t.trkO = [0, 0]); o[0] += (TK.p[0] - t.d[0] - o[0])*0.2; o[1] += (TK.p[1] - t.d[1] - o[1])*0.2; c = scr([t.d[0] + o[0], t.d[1] + o[1]]); lane = null;
         const a2 = Math.atan2(-TK.sn, TK.se); let dA = Math.atan2(Math.sin(a2 - t.ang), Math.cos(a2 - t.ang)); if(dA > Math.PI/2) dA -= Math.PI; else if(dA < -Math.PI/2) dA += Math.PI; t.ang += dA*ka; } }
     if(!TK && t.trkO){ t.trkO[0] *= 0.8; t.trkO[1] *= 0.8; if(Math.abs(t.trkO[0]) + Math.abs(t.trkO[1]) < 1e-6) t.trkO = null; else { const w = scr([t.d[0] + t.trkO[0], t.d[1] + t.trkO[1]]); c.x = w.x; c.y = w.y; } }
@@ -1649,8 +1692,8 @@ function frame(ts, sync){
     const r = [c.x+ux+vx, c.y+uy+vy, c.x+ux-vx, c.y+uy-vy, c.x-ux-vx, c.y-uy-vy, c.x-ux+vx, c.y-uy+vy];
     // bent along the track: the stretch of the path the train covers (life-size length when zoomed in)
     let body = null;
-    if(pos.path && on.i && hl*mpp < pos.path.len*0.9 && c.x > -60 && c.y > -60 && c.x < s.x + 60 && c.y < s.y + 60){ const P = pos.path.pts, C = pos.path.cum, s0 = C[on.i-1] + (C[on.i]-C[on.i-1])*on.k, half = hl*mpp;
-      const a0 = Math.max(0, s0 - half), a1 = Math.min(pos.path.len, s0 + half);
+    if(PP && on.i && hl*mpp < PP.len*0.9 && c.x > -60 && c.y > -60 && c.x < s.x + 60 && c.y < s.y + 60){ const P = PP.pts, C = PP.cum, s0 = C[on.i-1] + (C[on.i]-C[on.i-1])*on.k, half = hl*mpp;
+      const a0 = Math.max(0, s0 - half), a1 = Math.min(PP.len, s0 + half);
       let j0 = on.i; while(j0 > 1 && C[j0-1] > a0) j0--; let j1 = on.i; while(j1 < C.length-1 && C[j1] < a1) j1++; // just the points around the train
       const at = (d0, j) => { const f = (d0 - C[j-1])/((C[j]-C[j-1]) || 1); return [P[j-1][0] + (P[j][0]-P[j-1][0])*f, P[j-1][1] + (P[j][1]-P[j-1][1])*f]; };
       const pts = [at(a0, j0)]; for(let j = j0; j < j1; j++) if(C[j] > a0 && C[j] < a1) pts.push(P[j]); pts.push(at(a1, j1));
@@ -3328,7 +3371,8 @@ async function refreshTT(){
       if(code === 'XX' && col && /^[0-9a-f]{6}$/i.test(col)) l.colour = '#' + col;
       for(const c of [a, z]) if(!l.stops[c]) l.stops[c] = RAIL.byCrs[c];
       const key = 'nr:tt:' + trip; let t = trains.get(key); if(!t){ t = {key, rail:true, tt:true}; trains.set(key, t); }
-      Object.assign(t, {line:l.id, ahead:[[a, dep], [z, arr]], prev:a, next:z, arr, towards:t.towards || '', loc:'Position from the timetable', seen:now}); n++; }
+      const plats = {...t.plats}; if(from[4] && !plats[a]) plats[a] = String(from[4]).toUpperCase(); if(to[4] && !plats[z]) plats[z] = String(to[4]).toUpperCase(); // its booked platforms (the live one, once known, stays)
+      Object.assign(t, {line:l.id, ahead:[[a, dep], [z, arr]], prev:a, next:z, arr, plats, towards:t.towards || '', loc:'Position from the timetable', seen:now}); n++; }
     TTV.n = n; TTV.at = now; RAIL.ttN = n;
     if(RAIL.state === 'live'){ RAIL.msg = `${RAIL.liveN || 0} trains${RAIL.src === 'darwin' ? ' (Darwin)' : ''}${n ? ' · ' + n + ' more from the timetable' : ''}`; if(typeof renderRailStatus === 'function') renderRailStatus(); }
     for(const l of ACTIVE) if(l.rail) l.count = 0; for(const t of trains.values()) if(t.rail && BY[t.line]) BY[t.line].count++;
@@ -3545,6 +3589,7 @@ window.__platAbroad = () => [...GPS.list.values()].filter(g => g.v.plat).map(g =
 window.__routes = () => { let on = 0, none = 0, wait = 0; for(const t of trains.values()) if(t.d && (t.rail || /tube|dlr|overground|elizabeth/.test(BY[t.line]?.mode))){ if(t.rt?.r) on++; else if(t.rt) none++; else wait++; } return {routed:on, noRoute:none, waiting:wait}; };
 window.__rptsN = () => { let r = 0, n = 0; for(const g of GPS.list.values()) if(g.v.train){ n++; if(g.v.rpts) r++; } return {trains:n, onTracks:r}; };
 window.__platOn = () => [...trains.values()].filter(t => t.onPlat).map(t => t.onPlat);
+window.__trains = () => trains; window.__TRK = TRK; window.__platsFor = (c, w) => platsFor(c, w);
 window.__rideState = () => ({key:FW.t && FW.t.key, ride:FW.ride, d:FW.t && FW.t.d, c:(c => c && [c.lat(), c.lng()])(map.getCenter())});
 window.__rekey = () => { const t = FW.t; if(!t) return null; const k = t.key + ':new'; trains.delete(t.key); trains.set(k, Object.assign({}, t, {key:k})); return k; };
 window.__gf = () => ({stops:GF.stops && GF.stops.length, trip:GF.trip, firstT:GF.stops && GF.stops[0] && new Date(GF.stops[0].t).toISOString(), lastT:GF.stops && GF.stops.at(-1) && new Date(GF.stops.at(-1).t).toISOString(), id:GF.id, on:GF.on, p:(g => g && gpsPos(g, Date.now()))(gfVehicle()), c:(c => c && [c.lat(), c.lng()])(map.getCenter())});

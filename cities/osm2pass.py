@@ -4,23 +4,23 @@
 #   from osm2pass import read
 #   ways, nodes = read(pbf, keep_way, keep_node)
 #     keep_way(tags) -> anything (kept with the way) or None;  keep_node(tags) -> anything or None
-#     ways: [(info, [(lat, lon, node id), ...]), ...]   nodes: [(info, lat, lon, node id), ...]
+#     ways: [(info, [(lat, lon, node id), ...]), ...] (+ the way's id: with_id)   nodes: [(info, lat, lon, node id), ...]
 import osmium
 from osmium.filter import KeyFilter, IdFilter
-def read(pbf, keep_way, keep_node=None, keys=('railway', 'public_transport')):
+def read(pbf, keep_way, keep_node=None, keys=('railway', 'public_transport'), with_id=False):
     raw, nodes = [], []
     for o in osmium.FileProcessor(pbf, osmium.osm.NODE | osmium.osm.WAY).with_filter(KeyFilter(*keys)):
         if o.is_way():
             info = keep_way(o.tags)
-            if info is not None: raw.append((info, [n.ref for n in o.nodes]))
+            if info is not None: raw.append((info, [n.ref for n in o.nodes], o.id))
         elif keep_node is not None and o.location.valid():
             info = keep_node(o.tags)
             if info is not None: nodes.append((info, o.location.lat, o.location.lon, o.id))
-    need = {r for _, refs in raw for r in refs}; loc = {}
+    need = {r for _, refs, _ in raw for r in refs}; loc = {}
     if need:
         for n in osmium.FileProcessor(pbf, osmium.osm.NODE).with_filter(IdFilter(need)):
             if n.location.valid(): loc[n.id] = (n.location.lat, n.location.lon)
     ways = []
-    for info, refs in raw:
-        if all(r in loc for r in refs): ways.append((info, [(loc[r][0], loc[r][1], r) for r in refs]))
+    for info, refs, wid in raw:
+        if all(r in loc for r in refs): ways.append((info, [(loc[r][0], loc[r][1], r) for r in refs]) + ((wid,) if with_id else ()))
     return ways, nodes
