@@ -32,6 +32,9 @@ if LINES:
     for r in osmium.FileProcessor(pbf, osmium.osm.RELATION).with_filter(osmium.filter.KeyFilter('route')):
         if r.tags.get('route') not in ('subway', 'light_rail', 'train', 'tram', 'railway'): continue
         ln = line_of(r.tags)
+        # nr: a main-line service's track (Southern, Southeastern, GWR, Eurostar…; not TfL's own lines), so a track a
+        # line shares with main-line trains is shown as shared, and main-line trains keep off TfL's own
+        if not ln and r.tags.get('route') == 'train' and 'Transport for London' not in r.tags.get('operator', '') and r.tags.get('network', '') not in ('London Overground', '') or not ln and r.tags.get('route') == 'train' and r.tags.get('network') == 'Eurostar': ln = 'nr'
         if ln: [WL.setdefault(m.ref, set()).add(ln) for m in r.members if m.type == 'w']
     print(len(WL), 'ways on', len({x for v in WL.values() for x in v}), 'lines')
 class H: ways = []

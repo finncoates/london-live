@@ -70,7 +70,7 @@ export class Darwin {
       const pl = platOf(L.plat); if(pl !== undefined) l.plat = pl; } // its platform (null: kept from the public)
     t.updated = Date.now(); t.v = (t.v || 0) + 1; }
   // every train running now (or about to), with its stations and their times: the shape the map's rail engine takes
-  //  {id, op, opCode, dest, destCrs, calls:[[CRS, ms, actual 0/1], …]}   (only points that are stations with a CRS code)
+  //  {id, op, opCode, dest, destCrs, calls:[[CRS, ms, actual 0/1(, platform(, 1: passes without stopping))], …]}   (only points that are stations with a CRS code)
   calls(tiplocs, now = Date.now(), bbox = null, names = {}){
     const out = [], at = this._at && this._atFor === tiplocs ? this._at : (this._atFor = tiplocs, this._at = Object.fromEntries(Object.values(tiplocs).filter(v => v[2]).map(v => [v[2], v])));
     const inBox = c => { const x = at[c[0]]; return x && x[0] >= bbox[0] && x[0] <= bbox[2] && x[1] >= bbox[1] && x[1] <= bbox[3]; };
@@ -82,7 +82,7 @@ export class Darwin {
         for(const l of t.locs){ if(l.can) continue;
           const sched = l.ptd || l.pta || l.wtd || l.wta || l.wtp, ms = toMs((l.at || l.et || sched || '').slice(0, 8), t.ssd, prevMs);
           if(ms == null) continue; prevMs = ms; pts.push({tpl:l.tpl, ms, actual:!!l.at, kind:l.k, plat:l.plat}); }
-        const calls = []; for(const p of pts){ const x = tiplocs[p.tpl]; if(x && x[2] && (!calls.length || calls[calls.length-1][0] !== x[2])) calls.push(p.plat ? [x[2], p.ms, p.actual ? 1 : 0, p.plat] : [x[2], p.ms, p.actual ? 1 : 0]); }
+        const calls = []; for(const p of pts){ const x = tiplocs[p.tpl]; if(x && x[2] && (!calls.length || calls[calls.length-1][0] !== x[2])) calls.push(p.kind === 'PP' ? [x[2], p.ms, p.actual ? 1 : 0, p.plat || null, 1] : p.plat ? [x[2], p.ms, p.actual ? 1 : 0, p.plat] : [x[2], p.ms, p.actual ? 1 : 0]); } // (a station it only passes: marked, 5th)
         C = {v:t.v, tl:tiplocs, live:pts.some(p => p.actual), first:pts.length > 1 ? pts[0].ms : null, last:pts.length > 1 ? pts[pts.length - 1].ms : null, calls}; CALLS.set(t, C); }
       if(C.first == null || C.last < now - 10*60e3 || C.first > now + 30*60e3) continue; // finished, or not yet started
       const calls = C.calls; if(calls.length < 2) continue;
