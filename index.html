@@ -1315,12 +1315,16 @@ async function refresh(){
     for(let i=1;i<seq.length;i++) learn(l, seq[i-1].S, seq[i].S, seq[i].timeToStation - seq[i-1].timeToStation);
     // Already at/leaving a stop (often the origin terminus, which has no previous stop):
     // treat the following stop as next, so the train sits at this one until it departs.
-    while(seq.length > 1 && seq[0].timeToStation <= 0) seq.shift();
+    const was = []; while(seq.length > 1 && seq[0].timeToStation <= 0) was.push(seq.shift());
     let first = seq[0];
     // Rail feeds list timetabled trips at their starting station long before they leave: if the
     // following station is much further off than the run time, the train isn't really there yet.
     if(seq[1] && seq[1].timeToStation - first.timeToStation > segTime(l, first.S, seq[1].S) + 300) continue;
     let prev = routeCtx(l, first.S, seq[1]?.S || first.D, first.direction)?.prev || null;
+    // its next stop a while off and it was just at the station next to it (an Elizabeth line train turned back at
+    // Paddington, its return listed): it waits there, not on the far side of the line ('Liverpool Street → Bond Street')
+    if(first.timeToStation > 300 && was.length){ const fp = l.stops[first.S]?.p, near = was.filter(w => l.stops[w.S]).sort((a, b) => dist(l.stops[a.S].p, fp) - dist(l.stops[b.S].p, fp))[0];
+      if(near && fp && dist(l.stops[near.S].p, fp) < 4000 && (!prev || !l.stops[prev] || dist(l.stops[near.S].p, fp) < dist(l.stops[prev].p, fp) - 200)) prev = near.S; }
     if(!prev && seq[1]){ prev = first.S; first = seq[1]; } // at its origin: wait there until it departs
     if(!prev && first.timeToStation > 120) continue;          // not started yet / in a siding
     if(prev && first.timeToStation > segTime(l, prev, first.S) + 600) continue; // too far out to place
