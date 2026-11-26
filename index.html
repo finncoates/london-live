@@ -1419,7 +1419,9 @@ function trkEdge(e){ const P = e.pts, k0 = tkey(P[0]), k1 = tkey(P.at(-1)), id =
 // to its platform at the next station (or, not known, a track at that station's platforms), never reversing through
 // points, keeping to each track's direction where mapped and to the left-hand track of the corridor (Britain).
 // corridor: the rail map's path between the two stations (the way the train goes, roughly). → {pts, cum, len} or null
-function trkRoute(A, B, corridor, goalPl, kind = 'r', avoid = [], hand = 1, line = null){ // avoid: platforms of stations it runs through without calling (it takes the line without platforms: the fast line)
+// (first strictly; failing that, a track turning across its way at either end may be taken: Baker Street's Jubilee)
+function trkRoute(...a){ const r = trkRoute0(false, ...a); return r === null ? trkRoute0(true, ...a) : r; }
+function trkRoute0(loose, A, B, corridor, goalPl, kind = 'r', avoid = [], hand = 1, line = null){ // avoid: platforms of stations it runs through without calling (it takes the line without platforms: the fast line)
   const R0 = kind === 's' || line === 'elizabeth' ? 120 : kind === 'l' ? 60 : 40; // (deep Tube and Elizabeth line platforms lie well off the station's point)
   const P = corridor.pts; let la0 = 90, la1 = -90, lo0 = 180, lo1 = -180; for(const q of P){ la0 = Math.min(la0, q[0]); la1 = Math.max(la1, q[0]); lo0 = Math.min(lo0, q[1]); lo1 = Math.max(lo1, q[1]); }
   if(la1 - la0 > 0.25 || lo1 - lo0 > 0.4) return null; // long hops: the map's own line
@@ -1433,12 +1435,17 @@ function trkRoute(A, B, corridor, goalPl, kind = 'r', avoid = [], hand = 1, line
   const dir1 = (() => { const a = P[Math.max(0, P.length - 4)], b = P.at(-1), x = (b[1]-a[1])*kx, y = b[0]-a[0], l = Math.hypot(x, y) || 1; return [x/l, y/l]; })();
   const near = (q, r) => trkNear(q, r).filter(e => e.kind === kind).map(e => ({e, o:trkOn(e, q)})).filter(x => x.o && x.o.d <= r);
   // where it sets off: a track at A going the train's way
-  const start = near(A, R0).flatMap(({e, o}) => { const f = o.se*dir0[0] + o.sn*dir0[1]; if(Math.abs(f) < 0.5) return []; const fw = f > 0, at = e.cum[o.i-1] + dist(e.pts[o.i-1], o.p);
-    return [{e, fw, at, o}]; });
+  const mine = e => !line || !e.lines || e.lines.includes(line);
+  const st0 = near(A, R0).map(({e, o}) => ({e, o, f:o.se*dir0[0] + o.sn*dir0[1], at:e.cum[o.i-1] + dist(e.pts[o.i-1], o.p)}));
+  // (none of its own tracks pointing its way: a track turning across it, Baker Street's Jubilee, either way, the cheaper wins)
+  const across = loose;
+  const start = st0.flatMap(({e, o, f, at}) => Math.abs(f) >= 0.5 ? [{e, fw:f > 0, at, o}] : across && mine(e) ? [{e, fw:true, at, o}, {e, fw:false, at, o}] : []);
   // where it is going: its platform's track, else the tracks along that station's platforms, else tracks at B
   const GP = goalPl && (Array.isArray(goalPl[0][0]) ? goalPl : [goalPl]); // (one platform, or any of several)
   const goalOK = e => { if(GP){ const m = along({pts:e.pts, cum:e.cum, len:e.len}, 0.5).p; return GP.some(g => { for(let i = 1; i < g.length; i++) if(segDist(m, g[i-1], g[i]) < 4) return true; return false; }); } return true; };
-  const goals = new Map(); for(const {e, o} of near(B, goalPl ? 260 : R0 + 20)){ const f = o.se*dir1[0] + o.sn*dir1[1]; if(Math.abs(f) < 0.5 || !goalOK(e)) continue; goals.set(e, {fw:f > 0, at:e.cum[o.i-1] + dist(e.pts[o.i-1], o.p)}); }
+  const gl0 = near(B, goalPl ? 260 : R0 === 120 ? 240 : R0 + 20).filter(({e}) => goalOK(e)).map(({e, o}) => ({e, f:o.se*dir1[0] + o.sn*dir1[1], at:e.cum[o.i-1] + dist(e.pts[o.i-1], o.p)})); // (deep lines: Baker Street's Jubilee platforms are 200 m from the station's point)
+  const acrossB = loose, goals = new Map();
+  for(const {e, f, at} of gl0) if(Math.abs(f) >= 0.5) goals.set(e, {fw:f > 0, at}); else if(acrossB && mine(e)) goals.set(e, {fw:null, at}); // (a track turning across its way in: either way)
   if(!start.length || !goals.size) return null;
   const cost = new Map(), memo = new Map(), w = e => { let m = memo.get(e); if(m == null){ const mid = e.pts[Math.floor(e.pts.length/2)], [sd, d] = side(mid); m = d > 400 ? 50 : (sd*hand < -1.5 ? 3 : 1);
     if(line && e.lines && !e.lines.includes(line)) m *= 4; // another line's track (the Northern's Bank and Charing Cross branches, the District beside the Piccadilly)
@@ -1447,14 +1454,14 @@ function trkRoute(A, B, corridor, goalPl, kind = 'r', avoid = [], hand = 1, line
   const pop = () => { const top = heap[0], x = heap.pop(); if(heap.length){ let i = 0; for(;;){ let j = 2*i + 1; if(j >= heap.length) break; if(j + 1 < heap.length && heap[j+1].c < heap[j].c) j++; if(heap[j].c >= x.c) break; heap[i] = heap[j]; i = j; } heap[i] = x; } return top; };
   const bad = (e, fw) => e.d && (fw ? e.d < 0 : e.d > 0) ? 20 : 1; // against the way trains use it
   for(const s0 of start){ const rest = s0.fw ? s0.e.len - s0.at : s0.at, g = goals.get(s0.e);
-    if(g && g.fw === s0.fw && (s0.fw ? g.at >= s0.at : g.at <= s0.at)) push({c:Math.abs(g.at - s0.at), e:s0.e, fw:s0.fw, prev:null, s0, end:g.at, done:true});
+    if(g && (g.fw == null || g.fw === s0.fw) && (s0.fw ? g.at >= s0.at : g.at <= s0.at)) push({c:Math.abs(g.at - s0.at), e:s0.e, fw:s0.fw, prev:null, s0, end:g.at, done:true});
     push({c:rest*w(s0.e)*bad(s0.e, s0.fw), e:s0.e, fw:s0.fw, prev:null, s0}); }
   let got = null, n = 0;
   while(heap.length && n++ < 30000){ const x = pop(); if(x.done){ got = x; break; } const sk = x.e.k0 + x.e.k1 + x.e.len + (x.fw ? '+' : '-'); if(cost.has(sk)) continue; cost.set(sk, x.c);
     const node = x.fw ? x.e.k1 : x.e.k0, h = x.fw ? x.e.h1 : [-x.e.h0[0], -x.e.h0[1]];
     for(const e2 of TRK.adj.get(node) || []){ if(e2 === x.e || e2.kind !== kind) continue; const fw = e2.k0 === node, h2 = fw ? e2.h0 : [-e2.h1[0], -e2.h1[1]];
       if(h[0]*h2[0] + h[1]*h2[1] < 0.6) continue; // through the points the way they lie: no reversing, no hairpins
-      const g = goals.get(e2); if(g && g.fw === fw) push({c:x.c + (fw ? g.at : e2.len - g.at), e:e2, fw, prev:x, end:g.at, done:true});
+      const g = goals.get(e2); if(g && (g.fw == null || g.fw === fw)) push({c:x.c + (fw ? g.at : e2.len - g.at), e:e2, fw, prev:x, end:g.at, done:true});
       push({c:x.c + e2.len*w(e2)*bad(e2, fw), e:e2, fw, prev:x}); } }
   if(!got) return null;
   // the points along it: the piece it sets off on (from where it stands), every piece after, the last up to its stop
@@ -1654,6 +1661,7 @@ function placeTrain0(t){
       let r = LW && !L ? null : cand === undefined ? undefined : trkRoute(A2, B, C, !last ? null : gp ? gp.pts : cand && cand.length ? cand.map(c => c[1]) : null, KS, avoid, 1, t.rail ? 'nr' : l.id);
       if(r === null && (gp || cand?.length) && last && !(LW && !L)) r = trkRoute(A2, C.pts.at(-1), C, null, KS, avoid, 1, t.rail ? 'nr' : l.id); // (no way to its platform in the map: the best track there)
       if(r && L) r = stitchLong(path, L, r);
+      if(r === null) t.rtWhy = {A:A2, B, n:C.pts.length, len:Math.round(C.len), first:C.pts[0], last:C.pts.at(-1), gp:!!gp, cand:cand?.length || 0}; // (why not: for checking)
       if(r !== undefined){ t.rt = {k:rk, r}; if(r && cand && cand.length){ const e = r.pts.at(-1), hit = cand.find(([, q]) => q.some((x, i) => i && segDist(e, q[i-1], x) < 5)); if(hit) (t.platG ||= {})[next] = hit[0]; } } } // (undefined: its tracks still loading: asked again next frame)
   }
   if(KS && t.rt && t.rt.r && t.rt.k.startsWith(prev + '>' + next + '|') && PV && PV.z >= TRK.Z - 1) path = t.rt.r; /* (PV: the view isn't set on the first refresh) */
