@@ -4708,7 +4708,9 @@ async function openBoard(st){
   BOARD_ST = st; clearInterval(boardTimer); $('board').hidden = false; document.body.classList.add('boardon');
   try{ const u = new URL(location); u.searchParams.set('board', st.name); history.replaceState(null, '', u); }catch(e){}
   const draw = async () => {
-    const all = (await Promise.all([...st.ids].slice(0, 5).map(id => /^[A-Z]{3}$/.test(id) ? railArrivals(id).then(L => L.filter(a => !a.cancelled)) : get(`/StopPoint/${id}/Arrivals`).catch(() => [])))).flat().filter(a => st.lines.has(a.lineId) || a.rail);
+    { const s2 = typeof findStation === 'function' && findStation(st.name); if(s2 && s2.ids.size > st.ids.size){ STATIONS = null; st = findStation(st.name) || s2; } } // (opened from a link before National Rail's trains were in: its rail code joins later)
+    const ids = [...st.ids].sort((a, b) => /^[A-Z]{3}$/.test(b) - /^[A-Z]{3}$/.test(a)); // (its National Rail board first: five ids at most are asked)
+    const all = (await Promise.all(ids.slice(0, 5).map(id => /^[A-Z]{3}$/.test(id) ? railArrivals(id).then(L => L.filter(a => !a.cancelled)) : get(`/StopPoint/${id}/Arrivals`).catch(() => [])))).flat().filter(a => st.lines.has(a.lineId) || a.rail);
     const seen = new Set();
     const rows = all.sort((a, b) => a.timeToStation - b.timeToStation)
       .filter(a => !(a.destinationNaptanId && st.ids.has(a.destinationNaptanId))) /* (one ending its run here isn't a departure) */.filter(a => { const k = a.vehicleId + a.lineId + a.platformName; if(seen.has(k)) return false; seen.add(k); return true; }).slice(0, 9);
