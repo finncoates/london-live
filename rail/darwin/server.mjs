@@ -26,12 +26,13 @@ const names = Object.fromEntries(JSON.parse(fs.readFileSync(path.join(here, '..'
 const D = new Darwin(), env = process.env;
 const SNAP = path.join(here, 'state.json');
 
-// survive restarts: the trains seen so far are saved every minute
+// survive restarts: the trains seen so far are saved every 5 minutes (every minute, the whole day's trains as one
+// string kept a 500 MB machine swapping)
 try{ const s = JSON.parse(fs.readFileSync(SNAP, 'utf8')); for(const t of s) D.trains.set(t.rid, t); console.log('restored', D.trains.size, 'trains'); }catch(e){}
 // a fresh start knows only fragments of the trains already running (their timetables come when they set off): until
 // it has seen a couple of hours, the map keeps using station boards. A restart with saved state is ready at once.
 const READY_AT = Date.now() + ([...D.trains.values()].filter(t => !t.partial).length > 500 ? 0 : 2*3600e3);
-setInterval(() => { D.prune(); try{ fs.writeFileSync(SNAP + '.tmp', JSON.stringify([...D.trains.values()])); fs.renameSync(SNAP + '.tmp', SNAP); }catch(e){ console.warn('save', e.message); } }, 60000);
+setInterval(() => { D.prune(); try{ fs.writeFileSync(SNAP + '.tmp', JSON.stringify([...D.trains.values()])); fs.renameSync(SNAP + '.tmp', SNAP); }catch(e){ console.warn('save', e.message); } }, 300000);
 
 // testing without Kafka: DARWIN_REPLAY=file of Push Port messages (one per line) is read in at the start
 if(env.DARWIN_REPLAY){ try{ for(const line of fs.readFileSync(env.DARWIN_REPLAY, 'utf8').split(/\n(?=<|\{)/)) if(line.trim()) D.ingest(line); console.log('replayed', D.msgs, 'messages,', D.trains.size, 'trains'); }catch(e){ console.warn('replay', e.message); } }
@@ -86,7 +87,7 @@ http.createServer((req, res) => {
     ferries:{on:!!env.AISSTREAM_KEY, status:AIS.status, ships:AIS.list(null).length, messages:AIS.msgs},
     feeds:Object.fromEntries([...FEEDS].map(([id, F]) => [id, {name:F.cfg.name, cc:F.cfg.cc || null, box:F.cfg.box || F.box || null, tt:F.cfg.tt || null, ttModes:F.cfg.ttModes || null, vehicles:F.vehicles.length, routes:F.routes.size, trips:F.trips.size, timetable:F.routesAt ? new Date(F.routesAt).toISOString() : F.routesLoading || null, timetableError:F.routesErr || null, at:F.at ? new Date(F.at).toISOString() : null, error:F.error}]))});
   if(u.pathname === '/ferries') return send(200, {at:Date.now(), ships:AIS.list(bbox)});
-  if(u.pathname === '/rt'){ const F = FEEDS.get(u.searchParams.get('feed')); if(!F) return send(404, {error:'no such feed (on)'}); F.wanted = Date.now(); if(Date.now() - (F.at || 0) > 45000) F.poll(); /* (someone's looking: polled at once if its data is old, then every 30 s) */ return send(200, {feed:F.cfg.id, name:F.cfg.name, at:F.at, error:F.error, vehicles:F.list(bbox)}); }
+  if(u.pathname === '/rt'){ const F = FEEDS.get(u.searchParams.get('feed')); if(!F) return send(404, {error:'no such feed (on)'}); F.wanted = Date.now(); if(Date.now() - (F.at || 0) > 45000 || F.tripsOut) F.poll(); /* (someone's looking: polled at once if its data is old, then every 30 s) */ return send(200, {feed:F.cfg.id, name:F.cfg.name, at:F.at, error:F.error, vehicles:F.list(bbox)}); }
   if(u.pathname === '/trains'){
     if(Date.now() < READY_AT) return send(200, {generatedAt:new Date().toISOString(), source:'darwin', warming:true, readyAt:new Date(READY_AT).toISOString(), trains:[]});
     return send(200, {generatedAt:new Date().toISOString(), source:'darwin', trains:D.calls(tiplocs, Date.now(), bbox, names).filter(t => t.op || t.dest)}); }

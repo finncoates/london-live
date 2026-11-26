@@ -92,17 +92,19 @@ export class Feed {
       console.log(this.cfg.id, 'routes from disk:', this.routes.size, 'trips:', this.trips.size); this.routesAt = st.mtimeMs; this.routesErr = null; return true; }catch(e){ return false; } }
   async _toDisk(){ try{ const fn = this.cacheFile(); await fsp.mkdir(path.dirname(fn), {recursive:true});
       await fsp.writeFile(fn + '.tmp', JSON.stringify({routes:[...this.routes], trips:[...this.trips]})); await fsp.rename(fn + '.tmp', fn); }catch(e){ console.warn(this.cfg.id, 'cache', e.message); } }
+  _idle(){ if(this.trips.size && Date.now() - (this.wanted || 0) > 1800000){ this.trips = new Map(); this.tripsOut = true; } } // (not looked at: its trips wait on disk)
   async _loadRoutes(){
-    if(!this.loadedOnce){ this.loadedOnce = true; if(await this._fromDisk()) return; }
+    if(!this.loadedOnce){ this.loadedOnce = true; if(await this._fromDisk()){ this._idle(); return; } }
     try{ const f = await zipFiles(this.sub(this.cfg.gtfs), ['routes.txt', 'agency.txt', ...(this.cfg.trips === true ? ['trips.txt'] : [])], this.cfg.gtfsHeaders ? this.headers() : {}, {whole:!!this.cfg.gtfsWhole});
       const ag = new Map((f['agency.txt'] ? csv(f['agency.txt']) : []).map(a => [a.agency_id, a.agency_name]));
       this.routes = new Map(csv(f['routes.txt'] || '').map(r => [r.route_id, {name:r.route_short_name || r.route_long_name || '', kind:kindOf(r.route_type),
         col:/^[0-9a-f]{6}$/i.test(r.route_color || '') ? '#' + r.route_color : null, op:ag.get(r.agency_id) || (ag.size === 1 ? [...ag.values()][0] : '') || ''}]));
       if(f['trips.txt']){ this.trips = new Map(); this.trips = tripRoutes(f['trips.txt']); } // a feed that gives only the trip: its route from the timetable
-      console.log(this.cfg.id, 'routes:', this.routes.size, 'trips:', this.trips.size); this.routesAt = Date.now(); this.routesErr = null; if(this.routes.size) this._toDisk(); }
+      console.log(this.cfg.id, 'routes:', this.routes.size, 'trips:', this.trips.size); this.routesAt = Date.now(); this.routesErr = null; if(this.routes.size){ await this._toDisk(); this._idle(); } }
     catch(e){ console.warn(this.cfg.id, 'routes', e.message); this.routesErr = e.message; } finally{ this.routesLoading = false; } }
   async poll(){ if(this.polling) return; this.polling = true;
-    try{ const r = await fetch(this.sub(this.cfg.url), {headers:{...UA, ...this.headers()}, signal:AbortSignal.timeout(30000)});
+    try{ if(this.tripsOut && Date.now() - (this.wanted || 0) < 300000){ this.tripsOut = false; if(!(await this._fromDisk())) this.loadRoutes().catch(() => {}); } // looked at again: its trips back from disk
+      const r = await fetch(this.sub(this.cfg.url), {headers:{...UA, ...this.headers()}, signal:AbortSignal.timeout(30000)});
       if(!r.ok) throw new Error('HTTP ' + r.status);
       const m = GTFSRT.FeedMessage.decode(new Uint8Array(await r.arrayBuffer())), now = Date.now(), out = [];
       for(const e of m.entity){ const v = e.vehicle; if(!v?.position) continue;
@@ -121,5 +123,8 @@ export class Feed {
   run(){ const d = Math.random()*60000; // first polls spread over a minute (many feeds)
     // polled every 30 s only while someone is looking (asked for in the last 5 minutes); otherwise every 10 minutes, to
     // keep its area and health current. 148 feeds polled flat out saturated the small machine: answers took 6–20 s
-    setTimeout(() => { this.poll(); setInterval(() => { const idle = Date.now() - (this.wanted || 0) > 300000; if(idle && this.at && Date.now() - this.at < 600000) return; this.poll(); }, (this.cfg.every || 30)*1000); }, d); this.loadRoutes().catch(() => {}); setInterval(() => this.loadRoutes(), 24*3600000); }
+    setTimeout(() => { this.poll(); setInterval(() => { const idle = Date.now() - (this.wanted || 0) > 300000;
+      // nobody has looked for half an hour: its trips (most of the server's memory, ~150 feeds on a 500 MB machine) go; read back from disk when wanted
+      if(Date.now() - (this.wanted || 0) > 1800000 && this.trips.size && !this.routesLoading){ this.trips = new Map(); this.tripsOut = true; }
+      if(idle && this.at && Date.now() - this.at < 600000) return; this.poll(); }, (this.cfg.every || 30)*1000); }, d); this.loadRoutes().catch(() => {}); setInterval(() => this.loadRoutes(), 24*3600000); }
 }

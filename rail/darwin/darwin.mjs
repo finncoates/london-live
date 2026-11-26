@@ -88,7 +88,7 @@ export class Darwin {
     return out; }
   prune(now = Date.now()){ // forget trains long finished
     for(const [rid, t] of this.trains){ const last = t.locs.at(-1); const ms = last && toMs((last.at || last.et || last.wta || last.wtp || last.wtd || '').slice(0, 8), t.ssd);
-      if(ms != null && ms < now - 3*3600e3) this.trains.delete(rid); } }
+      if(ms != null && ms < now - 1.5*3600e3) this.trains.delete(rid); } }
 }
 // a TS location's platform: <plat platsup="true" conf="true">7</plat> (XML) or the same as JSON; suppressed ones
 // (platsup / cisPlatsup: not to be shown to the public) are dropped
