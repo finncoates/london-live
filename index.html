@@ -1444,14 +1444,15 @@ function trkRoute0(loose, A, B, corridor, goalPl, kind = 'r', avoid = [], hand =
   const near = (q, r) => trkNear(q, r).filter(kOK).map(e => ({e, o:trkOn(e, q)})).filter(x => x.o && x.o.d <= r);
   // where it sets off: a track at A going the train's way
   const mine = e => !line || !e.lines || e.lines.includes(line);
-  const st0 = near(A, R0).map(({e, o}) => ({e, o, f:o.se*dir0[0] + o.sn*dir0[1], at:e.cum[o.i-1] + dist(e.pts[o.i-1], o.p)}));
+  const ownL = e => line && line !== 'nr' && e.lines && e.lines.includes(line), wider = (q, r) => { const n = near(q, r); return n.some(x => ownL(x.e)) || !line || line === 'nr' ? n : n.concat(near(q, 150).filter(x => ownL(x.e))); }; // (none of its own line close by: its line's tracks a little further off, Willesden Junction's high level)
+  const st0 = wider(A, R0).map(({e, o}) => ({e, o, f:o.se*dir0[0] + o.sn*dir0[1], at:e.cum[o.i-1] + dist(e.pts[o.i-1], o.p)}));
   // (none of its own tracks pointing its way: a track turning across it, Baker Street's Jubilee, either way, the cheaper wins)
   const across = loose;
   const start = st0.flatMap(({e, o, f, at}) => Math.abs(f) >= 0.5 ? [{e, fw:f > 0, at, o}] : across && mine(e) ? [{e, fw:true, at, o}, {e, fw:false, at, o}] : []);
   // where it is going: its platform's track, else the tracks along that station's platforms, else tracks at B
   const GP = goalPl && (Array.isArray(goalPl[0][0]) ? goalPl : [goalPl]); // (one platform, or any of several)
   const goalOK = e => { if(GP){ const m = along({pts:e.pts, cum:e.cum, len:e.len}, 0.5).p; return GP.some(g => { for(let i = 1; i < g.length; i++) if(segDist(m, g[i-1], g[i]) < 4) return true; return false; }); } return true; };
-  const gl0 = near(B, goalPl ? 260 : R0 === 120 ? 240 : R0 + 20).filter(({e}) => goalOK(e)).map(({e, o}) => ({e, f:o.se*dir1[0] + o.sn*dir1[1], at:e.cum[o.i-1] + dist(e.pts[o.i-1], o.p)})); // (deep lines: Baker Street's Jubilee platforms are 200 m from the station's point)
+  const gl0 = wider(B, goalPl ? 260 : R0 === 120 ? 240 : R0 + 20).filter(({e}) => goalOK(e)).map(({e, o}) => ({e, f:o.se*dir1[0] + o.sn*dir1[1], at:e.cum[o.i-1] + dist(e.pts[o.i-1], o.p)})); // (deep lines: Baker Street's Jubilee platforms are 200 m from the station's point)
   const acrossB = loose, goals = new Map();
   for(const {e, f, at} of gl0) if(Math.abs(f) >= 0.5) goals.set(e, {fw:f > 0, at}); else if(acrossB && mine(e)) goals.set(e, {fw:null, at}); // (a track turning across its way in: either way)
   if(!start.length || !goals.size) return null;
