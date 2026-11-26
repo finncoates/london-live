@@ -1629,7 +1629,12 @@ function inViewM(a, b){ const B = map.getBounds(); if(!B) return false; const sw
 const STOPP = new Map(); // (a TfL stop's point, found once: asked every frame for every train)
 function stopP(S){ if(!S) return null; const r = RAIL.byCrs?.[S]; if(r) return r.p; const c = STOPP.get(S); if(c) return c; for(const l of ACTIVE) if(l.stops?.[S]){ STOPP.set(S, l.stops[S].p); return l.stops[S].p; } return null; }
 // d metres from where it stops, towards the neighbouring station (null once that is off the platform)
-function platAt(I, d){ const f = I.f + (I.nbEnd === 1 ? d : -d)/I.path.len; if(f < 0 || f > 1) return null; return Object.assign(along(I.path, f), {path:I.path, plat:I.pl}); }
+// mv: 'in' (coming in: d shrinks to 0), 'out' (leaving: d grows): the path handed back runs the way the train moves (a
+// train is moved forward along its path only: one the other way round sent it to the stop at once, then back to where
+// it really was, then on again: London Bridge, platform 9)
+const PREV = new WeakMap(), platRev = P => { let r = PREV.get(P); if(!r){ const pts = P.pts.slice().reverse(), cum = [0]; for(let i = 1; i < pts.length; i++) cum.push(cum[i-1] + dist(pts[i-1], pts[i])); r = {pts, cum, len:cum.at(-1), plat:true}; PREV.set(P, r); } return r; };
+function platAt(I, d, mv){ const f = I.f + (I.nbEnd === 1 ? d : -d)/I.path.len; if(f < 0 || f > 1) return null; const back = mv === 'in' ? I.nbEnd === 1 : mv === 'out' ? I.nbEnd !== 1 : false;
+  return Object.assign(along(I.path, f), {path:back ? platRev(I.path) : I.path, plat:I.pl}); }
 // zoomed in on stations with mapped platforms: their departure boards give each train's platform; matched to the
 // trains by where they call next and when (within 3 minutes)
 async function platBoards(){
@@ -1645,11 +1650,11 @@ function placeTrain(t){
   const r = placeTrain0(t); t.onPlat = null; if(!r || !(t.plats || t.platG) || !RAIL.plats) return r;
   const T = t.ahead || [], f = t.f ?? 0, L = r.path ? r.path.len : 0, nbOf = S => { const j = T.findIndex(a => a[0] === S); return (T[j - 1] || T[j + 1] || [])[0]; };
   // standing at a station (arrived, waiting to leave, or at the end of its run)
-  if(!r.path || f >= 0.999 || (f <= 0.001 && t.curPrev)){ const S = !r.path || f >= 0.999 ? t.cur : t.curPrev, I = !t.pass?.has(S) && platInfo(t, S, nbOf(S)), p = I && platAt(I, 0);
+  if(!r.path || f >= 0.999 || (f <= 0.001 && t.curPrev)){ const S = !r.path || f >= 0.999 ? t.cur : t.curPrev, I = !t.pass?.has(S) && platInfo(t, S, nbOf(S)), p = I && platAt(I, 0, S === t.cur ? 'in' : 'out');
     if(p){ t.onPlat = S + ' ' + p.plat; return p; } return r; }
   // coming in: the last stretch along its platform's track; going out: the first
-  const In = !t.pass?.has(t.cur) && platInfo(t, t.cur, t.curPrev), pin = In && platAt(In, (1 - f)*L); if(pin){ t.onPlat = t.cur + ' ' + pin.plat; return pin; }
-  const Out = t.curPrev && !t.pass?.has(t.curPrev) && platInfo(t, t.curPrev, t.cur), pout = Out && platAt(Out, f*L); if(pout){ t.onPlat = t.curPrev + ' ' + pout.plat; return pout; }
+  const In = !t.pass?.has(t.cur) && platInfo(t, t.cur, t.curPrev), pin = In && platAt(In, (1 - f)*L, 'in'); if(pin){ t.onPlat = t.cur + ' ' + pin.plat; return pin; }
+  const Out = t.curPrev && !t.pass?.has(t.curPrev) && platInfo(t, t.curPrev, t.cur), pout = Out && platAt(Out, f*L, 'out'); if(pout){ t.onPlat = t.curPrev + ' ' + pout.plat; return pout; }
   return r; }
 function placeTrain0(t){
   const l = BY[t.line], n = now();
@@ -1744,7 +1749,8 @@ function frame(ts, sync){
     if(pos.path && pos.path.cum){ const P = pos.path, sT = pos.s != null ? pos.s : sAlong(P, project(P, pos.p)); let m = t.mv;
       if(!m || m.path !== P){ const o = t.d && project(P, t.d), od = o ? dist(o.p, t.d) : Infinity;
         const carry = m && m.path && !m.path.plat && m.s < m.path.len - 2 && dist(m.path.pts.at(-1), P.pts[0]) < 150 && od > 15 ? {path:m.path, s:m.s} : null; // (the last stretch, not yet run to its end)
-        m = t.mv = {path:P, s:carry ? 0 : od < 600 ? sAlong(P, o) : sT, carry, hold:0, off:!carry && od >= 3 && od < 600 ? [t.d[0] - o.p[0], t.d[1] - o.p[1]] : null}; } // (onto a path beside it, e.g. the map's line → its real track: glides across)
+        const ce = carry && project(P, m.path.pts.at(-1)), c0 = ce && dist(ce.p, m.path.pts.at(-1)) < 60 ? sAlong(P, ce) : 0; // (the last stretch ends part way along this one, at a platform's middle: it carries on from there, not from this one's start)
+        m = t.mv = {path:P, s:carry ? c0 : od < 600 ? sAlong(P, o) : sT, carry, hold:0, off:!carry && od >= 3 && od < 600 ? [t.d[0] - o.p[0], t.d[1] - o.p[1]] : null}; } // (onto a path beside it, e.g. the map's line → its real track: glides across)
       const togo = (m.carry ? m.carry.path.len - m.carry.s : 0) + sT - m.s;
       off = Math.abs(togo) > CATCH_M || !!m.off && Math.hypot(m.off[0]*111320, m.off[1]*70000) > 15; // (catching up, held back, or gliding across onto its track: not where it really is)
       if(togo > 2500 || togo < -2500) { m.s = sT; m.carry = null; t.fx = wall + 2500; }
@@ -1828,7 +1834,7 @@ function frame(ts, sync){
       if(dim && !l.pinned) continue; const nx = t.pass?.has(t.cur) && t.ahead ? t.ahead.find(a => a[1] >= (t.curArr ?? 0) && !t.pass.has(a[0])) : null; // (the next station it stops at)
       const st = l.stops[nx ? nx[0] : t.cur || t.next]; if(!st) continue; const sec = Math.max(0, Math.round(((nx ? nx[1] : t.curArr ?? t.arr) - now())/1000));
       const wait = t.rail && t.ahead && t.ahead.length > 1 && t.ahead[0][0] === t.cur && t.ahead[0][1] === t.curArr, dest = wait && (t.towards || RAIL.byCrs[t.ahead.at(-1)[0]]?.n || ''); // (waiting at the station it starts from)
-      const txt = wait ? `${cleanName(dest).replace(/ \(.*\)$/, '')} · ${sec < 30 ? 'leaving' : 'leaves in ' + Math.round(sec/60) + ' min'}` : `→ ${cleanName(st.n).replace(/ \(.*\)$/, '')} ${sec < 30 ? 'due' : Math.round(sec/60) + ' min'}`, ty = y + hw + 10;
+      const txt = wait ? `${cleanName(dest).replace(/ \(.*\)$/, '')} · ${sec < 30 ? 'leaving' : 'leaves in ' + Math.round(sec/60) + ' min'}` : !nx && arrivedAt(t) ? `At ${cleanName(st.n).replace(/ \(.*\)$/, '')}` /* (there already: not 'due') */ : `→ ${cleanName(st.n).replace(/ \(.*\)$/, '')} ${sec < 30 ? 'due' : Math.round(sec/60) + ' min'}`, ty = y + hw + 10;
       const tw = ctx.measureText(txt).width, box = [x - tw/2 - 3, ty - 8, x + tw/2 + 3, ty + 8]; if(placed.some(q => box[0] < q[2] && box[2] > q[0] && box[1] < q[3] && box[3] > q[1])) continue; placed.push(box);
       ctx.strokeStyle = dark ? 'rgba(0,0,0,.85)' : 'rgba(255,255,255,.95)'; ctx.strokeText(txt, x, ty); ctx.fillStyle = dark ? '#eee' : '#333'; ctx.fillText(txt, x, ty); } }
     ctx.textAlign = 'start'; }
@@ -1917,7 +1923,7 @@ function showTip(e){
   tip.innerHTML = `<div class="tt-h">${symbol(l.mode, l.colour, 20)}<b>${esc(l.name)}${l.mode==='bus'?' bus':l.mode==='tube'?' line':''}</b></div>
     ${HL.has(t.key) ? '<div class="tt-you">Your train</div>' : ''}
     ${t.towards ? `<div>To <b>${esc(t.towards)}</b></div>` : ''}
-    <div>Next stop: ${esc(l.stops[t.cur||t.next]?.n||'?')} · ${secs<30?'due':Math.round(secs/60)+' min'}</div>
+    ${arrivedAt(t) ? `<div>At ${esc(l.stops[arrivedAt(t)]?.n || '?')}${t.ahead && t.ahead.at(-1)?.[0] === arrivedAt(t) ? ' · end of its run' : ''}</div>` : `<div>Next stop: ${esc(l.stops[t.cur||t.next]?.n||'?')} · ${secs<30?'due':Math.round(secs/60)+' min'}</div>`}
     ${lateText(t) ? `<div>${lateHtml(t)}</div>` : ''}
     ${t.loc ? `<div class="tt-m">${esc(t.loc)}</div>` : ''}
     ${num ? `<div class="tt-m">${esc(num)}</div>` : ''}`;
@@ -4695,11 +4701,13 @@ const FW = {t:null, last:0, tour:Q.get('tour') === '1', tourAt:0, ride:false, zo
 const LIVE = {on:Q.get('live') ? Q.get('live') === '1' : pref('liveMode', '0') === '1'};
 const AR_OK = Q.get('ar') === 'sim' || (matchMedia('(pointer:coarse)').matches && !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia));
 const LOOK_MODES = new Set(['tube', 'elizabeth', 'dlr']); // the lines that run under the streets
+// the station a train is standing at now (its stretch run to the end: arrived, or calling), else null
+const arrivedAt = t => { const S = t.cur || t.next; return S && (t.f ?? 0) >= 0.999 && (t.fk || '').endsWith('>' + S) ? S : null; };
 // how late a National Rail train is (Darwin: at its next stop, against the public timetable): '' when not known
 const lateText = t => t.late == null || !t.rail ? '' : t.late >= 1 ? t.late + ' min late' : t.late <= -2 ? -t.late + ' min early' : 'On time';
 const lateHtml = t => { const x = lateText(t); return x ? `<span class="st ${t.late >= 5 ? 'st2' : t.late >= 1 ? 'st1' : 'st0'}">${esc(x)}</span>` : ''; };
 const trainText = t => { const l = BY[t.line];
-  return {line:l.name + (['tube','elizabeth','overground'].includes(l.mode) ? ' line' : ''), to:t.towards ? 'to ' + cleanName(t.towards) : '', next:l.stops[t.cur || t.next] ? 'next: ' + l.stops[t.cur || t.next].n : '', colour:l.colour}; };
+  return {line:l.name + (['tube','elizabeth','overground'].includes(l.mode) ? ' line' : ''), to:t.towards ? 'to ' + cleanName(t.towards) : '', next:l.stops[t.cur || t.next] ? (arrivedAt(t) ? 'at ' : 'next: ') + l.stops[t.cur || t.next].n : '', colour:l.colour}; };
 // Tube platform depths from TfL's station depth table (FOI-0493-2223, built by cities/tube_depths.py):
 // {station: [ground height above sea level, {line id: platform height above sea level}]}, in metres
 let DEPTHS = null, depthsReq = null;
