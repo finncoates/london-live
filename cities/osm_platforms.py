@@ -43,8 +43,9 @@ def keep_way(t):
     if rw == 'platform_edge': return ('e', refs(t.get('ref')))
     if rw != 'platform' and t.get('public_transport') != 'platform': return None
     if t.get('train') == 'no' or t.get('subway') == 'yes' or t.get('tram') == 'yes' or t.get('light_rail') == 'yes' or t.get('bus') == 'yes' or t.get('highway') == 'bus_stop': return None
-    if rw != 'platform' and t.get('train') != 'yes': return None
-    return ('p', refs(t.get('ref') or t.get('local_ref')))
+    r = refs(t.get('ref') or t.get('local_ref'))
+    if rw != 'platform' and t.get('train') != 'yes' and not r: return None # (a numbered one counts: Zürich's 1-15; only one beside a track is used)
+    return ('p', r)
 def keep_node(t):
     if not OSM_ST or t.get('railway') not in ('station', 'halt') or not t.get('name') or t.get('station') in SKIP or t.get('subway') == 'yes' or t.get('usage') in ('tourism', 'heritage'): return None
     if t.get('light_rail') == 'yes' and t.get('train') != 'yes': return None
@@ -163,8 +164,8 @@ for s in ST:
     # 1. numbered tracks (best): cut to the station's platforms, or 300 m round the station
     for t in tr:
         if not t['ref'] or len(t['ref']) > 4: continue
-        if zone: keep = [p for p in t['m'] if any(abs(p[0]-q[0]) < 25 and abs(p[1]-q[1]) < 25 for q in zone[::2])]
-        else: keep = [p for p in t['m'] if math.hypot(*p) < 300]
+        keep = [p for p in t['m'] if any(abs(p[0]-q[0]) < 25 and abs(p[1]-q[1]) < 25 for q in zone[::2])] if zone else []
+        if len(keep) < 3 and t['ref'] not in res: keep = [p for p in t['m'] if math.hypot(*p) < 300] # (its platform isn't mapped)
         if len(keep) >= 3 and math.hypot(keep[-1][0]-keep[0][0], keep[-1][1]-keep[0][1]) > 40:
             old = res.get(t['ref'])
             if not old or old is not None and len(keep) > len(old): res[t['ref']] = keep
