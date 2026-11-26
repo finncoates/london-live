@@ -3480,9 +3480,14 @@ async function refreshTT(){ if(document.hidden) return;
     TTV.ferries = new Map(); for(const r of res) for(const s of r?.vehicles || []) if(/FERRY/.test(s[0]) && s[9] && s[6] > now && !TTV.ferries.has(s[8])){ const pts = decodePoly(s[9]); if(pts.length > 1) TTV.ferries.set(s[8], {s, pts}); }
     const segs = new Map(); for(const r of res) for(const s of r?.vehicles || []) if(s[8] && !segs.has(s[8])) segs.set(s[8], s); // a stretch shows up in every tile it crosses
     // trains a live board already places: their stretches (station pairs, ± 3 min)
-    const liveSeg = new Set(); for(const t of trains.values()) if(t.rail && !t.tt && t.ahead) for(let i = 1; i < t.ahead.length; i++) liveSeg.add(t.ahead[i-1][0] + '>' + t.ahead[i][0] + '@' + Math.round(t.ahead[i][1]/180000));
+    // (by the stations it calls at: the ones it only passes left out, as the timetable leaves them out)
+    const calling = t => t.pass ? t.ahead.filter(a => !t.pass.has(a[0])) : t.ahead;
+    const liveSeg = new Set(); for(const t of trains.values()) if(t.rail && !t.tt && t.ahead){ const A = calling(t); for(let i = 1; i < A.length; i++) liveSeg.add(A[i-1][0] + '>' + A[i][0] + '@' + Math.round(A[i][1]/180000)); }
     // (and a live train running late: the same operator on the same stretch within 8 minutes, nearest first, one each)
-    const liveOp = new Map(); for(const t of trains.values()) if(t.rail && !t.tt && t.ahead) for(let i = 1; i < t.ahead.length; i++){ const k = t.line + '|' + t.ahead[i-1][0] + '>' + t.ahead[i][0]; (liveOp.get(k) || liveOp.set(k, []).get(k)).push({at:t.ahead[i][1], used:false}); }
+    const liveOp = new Map(); for(const t of trains.values()) if(t.rail && !t.tt && t.ahead){ const A = calling(t); for(let i = 1; i < A.length; i++){ const k = t.line + '|' + A[i-1][0] + '>' + A[i][0]; (liveOp.get(k) || liveOp.set(k, []).get(k)).push({at:A[i][1], used:false}); } }
+    // (and one whose stops before differ from the timetable's (calling at Vauxhall in one, running through in the
+    // other): the same operator due at the same next stop within 3 minutes, one each)
+    const liveNx = new Map(); for(const t of trains.values()) if(t.rail && !t.tt && t.ahead) for(const [S, at] of calling(t).slice(1)){ const k = t.line + '|' + S; (liveNx.get(k) || liveNx.set(k, []).get(k)).push({at, used:false}); }
     let n = 0;
     // a station without a National Rail code (Northern Ireland, and a few others): known by where it is
     const where = st => { if(st[1] && RAIL.byCrs[st[1]] && !RAIL.byCrs[st[1]].foreign) return st[1];
@@ -3496,7 +3501,8 @@ async function refreshTT(){ if(document.hidden) return;
       const a = where(from), z = where(to); if(a === z) continue;
       if([-1, 0, 1].some(d => liveSeg.has(a + '>' + z + '@' + (Math.round(arr/180000) + d)))){ trains.delete('nr:tt:' + trip); continue; } // on a live board already (and since: the timetable copy goes)
       { const pre0 = /^([A-Z]{2})\d+$/.exec(name)?.[1], code0 = TT_OP[name] || TT_OP[name.replace(/ (Railway|Trains)$/i, '')] || (pre0 && TT_NAME[pre0] ? pre0 : 'XX'), L = liveOp.get('nr-' + code0 + '|' + a + '>' + z);
-        const m = L && L.filter(x => !x.used && Math.abs(x.at - arr) < 8*60000).sort((x, y) => Math.abs(x.at - arr) - Math.abs(y.at - arr))[0]; if(m){ m.used = true; trains.delete('nr:tt:' + trip); continue; } } // (running late: the same train)
+        const m = L && L.filter(x => !x.used && Math.abs(x.at - arr) < 8*60000).sort((x, y) => Math.abs(x.at - arr) - Math.abs(y.at - arr))[0]; if(m){ m.used = true; trains.delete('nr:tt:' + trip); continue; }
+        const N = liveNx.get('nr-' + code0 + '|' + z), m2 = N && N.filter(x => !x.used && Math.abs(x.at - arr) < 3*60000).sort((x, y) => Math.abs(x.at - arr) - Math.abs(y.at - arr))[0]; if(m2){ m2.used = true; trains.delete('nr:tt:' + trip); continue; } } // (running late, or by another way: the same train)
       const pre = /^([A-Z]{2})\d+$/.exec(name)?.[1]; // "SR962300": an operator code and a train number
       if(/^(LO|XR)$/.test(TT_OP[name] || TT_OP[name.replace(/ (Railway|Trains)$/i, '')] || pre || '') && tflOn){ trains.delete('nr:tt:' + trip); continue; } // (TfL's own, as above)
       const code = TT_OP[name] || TT_OP[name.replace(/ (Railway|Trains)$/i, '')] || (pre && TT_NAME[pre] ? pre : 'XX'), l = railLine(code === 'XX' ? 'TT' : code, code === 'XX' ? 'National Rail' : TT_NAME[code]);
