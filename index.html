@@ -162,7 +162,7 @@ body.dark #simnote{background:#1f2a44;color:#c6dafc}
 @media (max-width:700px), (max-height:500px){#grab{display:block;width:100%;height:18px;margin:-10px 0 2px;padding:0;border:0;background:none;cursor:pointer}
   #grab::before{content:'';display:block;width:40px;height:5px;margin:6px auto 0;border-radius:3px;background:var(--edge)}
   body.sheetMin #mModes, body.sheetMin #busNote, body.sheetMin #nrbox, body.sheetMin #lgAll, body.sheetMin #legend{display:none!important}
-  @media (max-width:700px){body.sheetMin #howto{display:none!important}}} /* (a phone's folded panel: the how-to card waits until it's opened) */
+  @media (max-width:700px){body.sheetMin #howto, body.sheetMin #news{display:none!important}}} /* (a phone's folded panel: the how-to card waits until it's opened) */
 #status{font-size:13px;color:var(--mute);margin:-4px 0 10px}
 #status b{color:var(--ink)}
 .search{position:relative;margin-bottom:10px}
@@ -389,8 +389,9 @@ button.lnk{border:0;background:none;padding:0;color:var(--acc);font-weight:600;f
   </div>
   <div id="plane" role="dialog" aria-label="Plane" hidden></div>
   <div id="news" role="status" hidden><b>New on the map</b>
-    <ul><li><b>Directions</b> (↱): plan a journey anywhere in Europe, drawn on the map</li><li>Tap a departure for an <b>alert</b> 2 minutes before it leaves</li>
-    <li>The menu: switch each kind's vehicles, lines, stops and numbers on their own</li><li>Munich, Hamburg, Vienna, Rome, Milan, Barcelona and Madrid drawn on the track</li><li><b>Planes</b> ✈ overhead, live: switch them on in the menu</li><li>London: trains wait at their real <b>platform</b></li></ul>
+    <ul><li>London: every train on its <b>own track</b>, Tube and Elizabeth line in their tunnels, main-line trains on the fast or slow lines they really use</li>
+    <li><b>Shared tracks</b> shown (the Overground beside Southern at Brockley) · trains wait at their <b>platform</b> before they leave</li>
+    <li>Follow a train: its <b>platform</b>, the next stops and any delays on its line</li><li>Search copes with typos (“padington”) · trains show sooner when you open the map</li></ul>
     <div class="hb"><button type="button" id="newsOk">OK</button></div></div>
   <div id="howto" hidden><b>How to read the map</b>
     <ul><li><i class="hv live"></i>Solid: where the vehicle really is (live GPS)</li><li><i class="hv sched"></i>Pale with a coloured edge: placed from the timetable (with live delays where the network shares them)</li>
@@ -5145,7 +5146,7 @@ if(LANG !== 'en'){ const li = $('howto').querySelectorAll('li'); if(li[2]) li[2]
 try{ if(!localStorage.getItem('howtoSeen') && !document.body.classList.contains('kiosk')) $('howto').hidden = false; }catch(e){}
 $('howOk').onclick = () => { $('howto').hidden = true; try{ localStorage.setItem('howtoSeen', '1'); localStorage.setItem('newsSeen', NEWS_ID); }catch(e){} };
 // what's new, once, for people who have been here before (a first visit gets the how-to card instead)
-const NEWS_ID = '2026-11-25b';
+const NEWS_ID = '2026-11-26';
 try{ if(localStorage.getItem('howtoSeen') && localStorage.getItem('newsSeen') !== NEWS_ID && !document.body.classList.contains('kiosk')) $('news').hidden = false; }catch(e){}
 $('newsOk').onclick = () => { $('news').hidden = true; try{ localStorage.setItem('newsSeen', NEWS_ID); }catch(e){} };
 let installEv = null;
