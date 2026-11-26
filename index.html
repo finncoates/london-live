@@ -1272,6 +1272,8 @@ setInterval(() => {
 }, 5000);
 let failStreak = 0, anonSeq = 0;
 
+// where a train is going: TfL's 'Check Front of Train' (no destination set yet) is no destination
+const towardsOf = p => { const x = p.towards || p.destinationName || ''; return /check front of train/i.test(x) ? '' : x; };
 async function refresh(){
   // abroad, London's trains aren't on screen: TfL isn't asked (each call counts against everyone's shared limit, and
   // Bordeaux showed 'Live train data error: 429 /Line/london-cable-car' in its panel)
@@ -1339,7 +1341,7 @@ async function refresh(){
     // predicted time has passed (the feed is ~60 s old, so that happens all the time)
     const ahead = seq.slice(seq.indexOf(first), seq.indexOf(first)+4).map(p => [p.S, Date.parse(p.expectedArrival)]);
     const plats = {}; for(const p of seq){ const m = /platform\s*([0-9]+[A-Z]?|[A-Z])\b/i.exec(p.platformName || ''); if(m) plats[p.S] = m[1].toUpperCase(); } // ("Westbound - Platform 1")
-    out.push({key, plats, line:l.id, next:first.S, prev, arr:ahead[0][1], ahead, towards:first.towards||first.destinationName||'', loc:first.currentLocation||'', ...(DEBUG?{raw:list.map(p=>[p.S,p.D,p.timeToStation,p.direction,p.destinationNaptanId])}:{})});
+    out.push({key, plats, line:l.id, next:first.S, prev, arr:ahead[0][1], ahead, towards:towardsOf(first), loc:first.currentLocation||'', ...(DEBUG?{raw:list.map(p=>[p.S,p.D,p.timeToStation,p.direction,p.destinationNaptanId])}:{})});
   }
 
   // 2. Trains without a vehicle id (all of DLR, some Metropolitan): every train shows up at
@@ -1367,7 +1369,7 @@ async function refresh(){
       if(used[i] || p.timeToStation > run + 90) return;
       const m = /platform\s*([0-9]+[A-Z]?|[A-Z])\b/i.exec(p.platformName || '');
       out.push({key:null, anon:true, plats:m ? {[S]:m[1].toUpperCase()} : {}, line:lineId, next:S, prev, arr:Date.parse(p.expectedArrival),
-        towards:p.towards||p.destinationName||'', loc:p.currentLocation||''});
+        towards:towardsOf(p), loc:p.currentLocation||''});
     });
   }
   // No ids, so follow each anonymous train by matching it to the nearest one from the last refresh.
