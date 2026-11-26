@@ -3498,5 +3498,35 @@
 "#7E8BA3",
 "#97A6BF"
 ]
+},
+{
+"id": "arrets-horaires-et-circuits-des-289c83",
+"name": "Île d'Yeu ferry",
+"box": [
+46.865,
+-2.231,
+46.913,
+-2.108
+],
+"url": "cities/fr-n-arrets-horaires-et-circuits-des-289c83.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
+},
+{
+"id": "arrets-horaires-et-parcours-theo-180fcf",
+"name": "Île d'Aix ferry",
+"box": [
+45.984,
+-1.204,
+46.029,
+-1.089
+],
+"url": "cities/fr-n-arrets-horaires-et-parcours-theo-180fcf.json",
+"bus": [
+"#7E8BA3",
+"#97A6BF"
+]
 }
 ]
