@@ -14,8 +14,12 @@ const LOC_KINDS = ['OR', 'OPOR', 'IP', 'OPIP', 'PP', 'DT', 'OPDT'];
 
 // "HH:MM(:SS)" on the day `ssd` (YYYY-MM-DD, UK local) → epoch ms; `after` (ms): roll to the next day if it would go backwards
 const LDN = new Intl.DateTimeFormat('en-GB', {timeZone:'Europe/London', hourCycle:'h23', year:'numeric', month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit'});
-function londonOffsetMin(utcMs){ const p = Object.fromEntries(LDN.formatToParts(new Date(utcMs)).map(x => [x.type, x.value]));
-  const asUtc = Date.UTC(+p.year, +p.month - 1, +p.day, +p.hour, +p.minute); return Math.round((asUtc - Math.floor(utcMs/60000)*60000)/60000); }
+// (the UK's offset changes only on the hour: worked out once an hour, not for each of the day's ~600,000 times; the
+// time-zone formatter for every one made a request for London's trains take 19 s on the small server)
+const OFF = new Map();
+function londonOffsetMin(utcMs){ const h = Math.floor(utcMs/3600e3); let o = OFF.get(h); if(o !== undefined) return o;
+  const p = Object.fromEntries(LDN.formatToParts(new Date(h*3600e3)).map(x => [x.type, x.value]));
+  o = Math.round((Date.UTC(+p.year, +p.month - 1, +p.day, +p.hour, +p.minute) - h*3600e3)/60000); if(OFF.size > 5000) OFF.clear(); OFF.set(h, o); return o; }
 export function toMs(hhmm, ssd, after){
   if(!hhmm || !ssd) return null; const [h, m, s] = hhmm.split(':').map(Number); if(!isFinite(h) || !isFinite(m)) return null;
   const [Y, M, D] = ssd.split('-').map(Number); const guess = Date.UTC(Y, M - 1, D, h, m, s || 0);
