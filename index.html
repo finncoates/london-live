@@ -516,7 +516,9 @@ const store = {
   get(k){ try{ const v=JSON.parse(localStorage.getItem(k)); return v && v.exp>Date.now() ? v.d : null }catch(e){ return null } },
   set(k,d,ms){ try{ localStorage.setItem(k, JSON.stringify({d,exp:Date.now()+ms})) }catch(e){} }
 };
+const PREF = new Map(); // requests started early (the first live arrivals, while the lines' shapes load): path → {p, at}
 async function get(path){
+  { const x = PREF.get(path); if(x){ PREF.delete(path); if(Date.now() - x.at < 20000) return x.p; } }
   if(window.__tflRelay && !KEY){ try{ const r = await fetch(window.__tflRelay + path, {signal:AbortSignal.timeout(15000)}); if(r.ok) return r.json(); }catch(e){} } // shared copy via the relay (TfL: 500 calls a minute for everyone); else straight to TfL
   const url = API + path + (KEY ? (path.includes('?')?'&':'?') + KEY : '');
   let r; try{ r = await fetch(url, {signal:AbortSignal.timeout(15000)}); }catch(e){ health('tfl', false); throw e; } // (a request that never answers no longer holds up the next refresh)
@@ -1031,7 +1033,7 @@ async function loadLine(l){
   const TRACKS = l.mode === 'bus' || l.rail ? null : await TRACKS_P;
   let d = l.mode === 'bus' ? null : store.get('seq2:'+l.id); // bus routes are big: not kept in local storage
   if(!d && l.mode !== 'bus'){ // baked into the site (tools/tfl_bake.py): no TfL calls just to draw the lines
-    try{ const r = await fetch('cities/tfl/' + l.id + '.json'); if(r.ok){ const b = await r.json(); for(const s of Object.values(b.stops)){ s.n = cleanName(s.raw); delete s.raw; } d = b; store.set('seq2:'+l.id, d, 7*864e5); } }catch(e){} }
+    try{ const r = await fetch('cities/tfl/' + l.id + '.json'); if(r.ok){ const b = await r.json(); for(const s of Object.values(b.stops)){ s.n = cleanName(s.raw); delete s.raw; } d = b; l.baked = true; store.set('seq2:'+l.id, d, 7*864e5); } }catch(e){} }
   if(!d){
     const [o, i] = await Promise.all([
       get(`/Line/${l.id}/Route/Sequence/outbound`),
@@ -2056,7 +2058,7 @@ async function railArrivals(crs){
       .filter(a => a.timeToStation < 3600);
   }catch(e){ return []; }
 }
-railHealth();
+RAIL.healthP = railHealth(); // (the first live arrivals wait for it: through the relay's shared copy, not straight to TfL)
 if(RAIL.relay){
   // moved to another part of the country: poll that area's stations straight away
   setTimeout(() => { if(typeof map !== 'undefined' && map.addListener) map.addListener('idle', () => { if(RAIL.stations && railHubs().key !== RAIL.region && map.getZoom() >= 9) refreshRail(); }); }, 3000); }
@@ -5169,12 +5171,16 @@ if(DEBUG) window.LLT = {nrTrackPath, esChain, refreshTT, TTV, follow:(t, z) => f
 (async () => {
   let ok = 0;
   const queue = ACTIVE.slice();
+  // the first live arrivals asked for now, alongside the shapes, not after them (the trains show a second or two sooner)
+  if(!document.body.classList.contains('abroad')){ const ids = ACTIVE.filter(l => shown(l) && !l.rail).map(l => l.id);
+    const relayKnown = Promise.race([RAIL.healthP || Promise.resolve(), sleep(3000)]).catch(() => {});
+    for(let i = 0; i < ids.length; i += 8){ const path = `/Line/${ids.slice(i, i + 8).join(',')}/Arrivals`, p = relayKnown.then(() => get(path)); p.catch(() => {}); PREF.set(path, {p, at:Date.now()}); } }
   await Promise.all([0,1,2,3,4].map(async () => { // first visit only: line shapes are cached for a week
     for(let l; (l = queue.shift()); ){
       const cached = !!store.get('seq2:'+l.id);
       try{ await loadLine(l); ok++; $('status').textContent = `Loading lines… ${ok}/${ACTIVE.length}`; }
       catch(e){ $('err').textContent = 'Could not load ' + l.name + ': ' + e.message; }
-      if(!cached) await sleep(80);
+      if(!cached && !l.baked) await sleep(80); // (asked of TfL itself: gently; the site's own copies, cities/tfl/, at once)
     }
   }));
   STATIONS = null; renderModeChips(); renderLegend();
