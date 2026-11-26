@@ -3666,7 +3666,7 @@ function vlistFill(){ const box = document.getElementById('vlist'); if(!box || !
     return `<li>${v.tfl || !v.id ? txt : `<button type="button" class="vl" data-vid="${esc(v.id)}">${txt}</button>`}</li>`; }).join(''); } // (a button: its card, its stops and Follow, from the keyboard too)
 document.getElementById('vlist')?.addEventListener('toggle', vlistFill); setInterval(vlistFill, 10000);
 window.__GPSL = () => GPS.list; window.__gpsPos = (g, t) => gpsPos(g, t);
-window.__testVeh = kind => { for(const g of GPS.list.values()) if((!kind || vkind(g.v) === kind) && String(g.v.id).startsWith('tf:') && g.v.trip){ openGFollow(g); GF.on = true; renderGFollow(); return g.v.id; } return null; };
+window.__testVeh = kind => { for(const pass of [0, 1]) for(const g of GPS.list.values()) if((!kind || vkind(g.v) === kind) && (pass || String(g.v.id).startsWith('tf:')) && g.v.trip){ openGFollow(g); GF.on = true; renderGFollow(); return g.v.id; } return null; }; // (a timetable one first; else a live one: Bordeaux's trams are all live now)
 window.__frames = () => MOVING.frames || 0;
 window.__testRide = () => { for(const t of trains.values()) if(t.d && !t.rail && t.line){ setLive(true); follow(t, 15); setRide(true); return t.key; } return null; };
 // tools: give the trains calling at a station platforms (as Darwin would), then read where they stand
@@ -3712,13 +3712,15 @@ function ttTick(){ if(!TTV.ferries || !TRAINS_ON || inTfLArea([map.getCenter().l
   const liveKinds = new Set(); for(const [k, g] of GPS.list) if(k.startsWith('la:')) liveKinds.add(g.v.kind || 'bus'); // what the city's live feed actually has (Amsterdam's has no metro, Rotterdam's does)
   // live vehicles here, by kind and line: a timetable vehicle with a live twin nearby (same kind and line, within ~1.2 km,
   // allowing for delays) isn't shown, whichever feed the two come from (Bordeaux's trams: TBM live, the region's timetable)
-  const liveAt = new Map(); for(const [k, g] of GPS.list) if((k.startsWith('la:') || k.startsWith('es:') || k.startsWith('no:')) && g.v.line){ const key = vkind(g.v) + '|' + String(g.v.line).toLowerCase(); (liveAt.get(key) || liveAt.set(key, []).get(key)).push(g.to || [g.v.lat, g.v.lon]); }
+  const liveAt = new Map(); for(const [k, g] of GPS.list) if((k.startsWith('la:') || k.startsWith('es:') || k.startsWith('no:')) && g.v.line){ const key = vkind(g.v) + '|' + String(g.v.line).toLowerCase(); (liveAt.get(key) || liveAt.set(key, []).get(key)).push(g); }
   const best = ttPlace(now + 2000); // where each will be when this glide ends: moved at a steady speed (linear), it is where the timetable says, all the time, not surging and slowing every 2 s
   for(const [trip, {s, p, A, B, plat, real}] of best){ const [, col, name, from, to, dep, arr] = s;
     if(TTV.esLive && Date.now() - TTV.esLive < 120000 && /RENFE-?Cercan|Rodalies|Cercan/i.test(trip)) continue;
     if(SRV.shipsAt && Date.now() - SRV.shipsAt < 120000 && /FERRY/.test(s[0]) && [...GPS.list].some(([k, g]) => k.startsWith('ais:') && dist(g.to || [g.v.lat, g.v.lon], p) < 600)) continue; // a ship live by AIS right there instead (only then: Bordeaux's river shuttles have no AIS, and all ferries vanished whenever any ship was tracked)
+    { const lk = liveAt.get(kind0(s[0]) + '|' + String(name || '').toLowerCase()); let tw = null, td = 1200;
+      if(lk) for(const lg of lk){ const q = lg.to || [lg.v.lat, lg.v.lon]; if(Math.abs(q[0] - p[0]) < 0.011 && Math.abs(q[1] - p[1]) < 0.016){ const d = dist(q, p); if(d < td){ td = d; tw = lg; } } }
+      if(tw){ if(!tw.v.trip){ tw.v.trip = trip; tw.v.ttTrip = true; if(!tw.v.dest) tw.v.dest = (TRIPI.get(trip)?.dest || to[0]); } continue; } } // (its live twin shown instead, lent its trip: a live tram tapped lists its next stops)
     if(TTV.cityLive && Date.now() - TTV.cityLive.at < 120000 && liveKinds.has(/FERRY/.test(s[0]) ? 'ferry' : /BUS|COACH/.test(s[0]) ? 'bus' : /TRAM/.test(s[0]) ? 'tram' : /SUBWAY|METRO/.test(s[0]) ? 'metro' : 'train') && LIVE_ABROAD.some(x => Date.now() - (TTV.live?.get(x[0])?.at || 0) < 120000 && x[4].test(trip) && (x[5] || /BUS/).test(s[0]))) continue; // that city's buses (and trams) are live // shown live by Renfe instead (its line is still drawn)
-    { const lk = liveAt.get(kind0(s[0]) + '|' + String(name || '').toLowerCase()); if(lk && lk.some(q => Math.abs(q[0] - p[0]) < 0.011 && Math.abs(q[1] - p[1]) < 0.016 && dist(q, p) < 1200)) continue; }
     const id = 'tf:' + trip; seen.add(id); let g = GPS.list.get(id);
     const m = s[0], kind = /FERRY/.test(m) ? 'ferry' : /BUS|COACH/.test(m) ? 'bus' : /TRAM/.test(m) ? 'tram' : /SUBWAY|METRO/.test(m) ? 'metro' : 'train';
     const fid = s[8].split('_')[2] || '', feed = FEEDN[fid] != null ? FEEDN[fid] : fid.replace(/^[a-z]{2}-/, '').replace(/[-_]+/g, ' ').replace(/(^|[\s'’])(\p{Ll})/gu, (m, a, c) => a + c.toUpperCase()) /* (\b\w made 'Kraków' 'KrakóW') */.replace(/\bSncf\b/, 'SNCF').replace(/\bRatp\b/, 'RATP').replace(/\bFor\b/, 'for'); // the timetable it comes from (Transport for Ireland, SNCF…)
@@ -3854,8 +3856,8 @@ function gfVehicle(){ if(!GF.id) return null; for(const g of GPS.list.values()) 
 // following: the map kept on the vehicle every frame (smooth, as Ride along), and where it is remembered for a takeover
 function gfCenter(){ if(!GF.id) return; const g = gfVehicle(); if(!g) return; const p = gpsPos(g, Date.now()); if(!p || !isFinite(p[0])) return;
   GF.lastP = p; GF.line = g.v.line; GF.kind = vkind(g.v); if(!GF.on) return; const c = map.getCenter(); if(c && dist([c.lat(), c.lng()], p) > 1.5) map.setCenter(LL(p)); }
-function openGFollow(g){ const v = g.v; if(GF.id === v.id) return; GF.id = v.id; GF.lastP = gpsPos(g, Date.now()); GF.line = v.line; GF.kind = vkind(v); // (known at once: a timetable tram hidden for its live twin is taken over by it) GF.on = false; GF.stops = null; GF.alerts = null; GF.dest = ''; GF.trip = v.trip || null; GF.lost = 0;
-  renderGFollow(); if(GF.trip && String(v.id).startsWith('tf:')) loadGFStops(GF.trip); }
+function openGFollow(g){ const v = g.v; if(GF.id === v.id) return; GF.id = v.id; GF.lastP = gpsPos(g, Date.now()); GF.line = v.line; GF.kind = vkind(v); /* (known at once: a timetable tram hidden for its live twin is taken over by it) */ GF.on = false; GF.stops = null; GF.alerts = null; GF.dest = ''; GF.trip = v.trip || null; GF.lost = 0;
+  renderGFollow(); if(GF.trip && (String(v.id).startsWith('tf:') || v.ttTrip)) loadGFStops(GF.trip); } // (a live vehicle lent its timetable twin's trip: that trip's stops too)
 async function loadGFStops(trip, again){
   try{ const j = await (await fetch(TRS() + '/api/v5/trip?tripId=' + encodeURIComponent(trip), {signal:AbortSignal.timeout(10000)})).json(); if(GF.trip !== trip) return;
     const L = j.legs?.[0]; if(!L) return; GF.dest = L.headsign || L.to?.name || '';
