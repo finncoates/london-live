@@ -2096,10 +2096,10 @@ async function railArrivals(crs){
   if(!railOn() || !/^[A-Z]{3}$/.test(crs)) return [];
   try{
     const b = await railBoard(crs), now = Date.now();
-    return (b.services || []).filter(s => !s.cancelled).map(s => { const here = s.calls.find(c => c.crs === crs) || {}; const l = railLine(s.opCode, s.operator);
+    return (b.services || []).map(s => { const here = s.calls.find(c => c.crs === crs) || {}; const l = railLine(s.opCode, s.operator); // (cancelled ones too: said so on the board)
       const late = here.st && here.t && here.t !== here.st;
       return {lineId:l.id, vehicleId:s.id, timeToStation:Math.max(0, Math.round(((here.ms || now) - now)/1000)), destinationName:s.destination || '',
-        towards:s.destination || '', platformName:s.platform ? 'Platform ' + s.platform : '', rail:true, late, scheduled:here.st, reason:s.reason}; })
+        towards:s.destination || '', platformName:s.platform ? 'Platform ' + s.platform : '', rail:true, late, scheduled:here.st, exp:here.t, note:here.note, cancelled:!!s.cancelled, reason:s.reason}; })
       .filter(a => a.timeToStation < 3600);
   }catch(e){ return []; }
 }
@@ -2782,7 +2782,7 @@ async function openCityStation(hit){
         const hm = t => String(Math.floor(t/3600) % 24).padStart(2, '0') + ':' + String(Math.floor(t/60) % 60).padStart(2, '0');
         note = later < Infinity ? `No departures in the next 90 minutes; the next is at ${hm(later)} (timetable).` : 'No more departures today (timetable).';
       } else if(url === 'nr'){ // National Rail: live departures through the relay once the rail data key is set
-        if(typeof railOn === 'function' && railOn()){ const arr = await railArrivals(st[0]);
+        if(typeof railOn === 'function' && railOn()){ const arr = (await railArrivals(st[0])).filter(a => !a.cancelled);
           rows = arr.map(a => { const l = BY[a.lineId]; return {when:now + a.timeToStation*1000, cat:'Trains', html:row(l ? ink(l.colour) : '#5D6670', a.destinationName, (l ? l.name : 'National Rail') + (a.platformName ? ' · ' + a.platformName : ''), Math.round(a.timeToStation/60))}; }); }
         else note = 'Live National Rail departures switch on once the rail data key is added to the relay. The station and its lines are shown now.';
       } else if(/helsinki\.json/.test(url)) note = 'Live departures for HSL metro and trams need a free HSL key; the vehicles on the map are live.';
@@ -4680,7 +4680,7 @@ async function goStation(st){
       .map(a => { const l = BY[a.lineId], bus = !l && a.modeName === 'bus' || l?.mode === 'bus', m = Math.round(a.timeToStation/60), col = l ? ink(l.colour) : '#DC241F';
         const name = l ? l.name : a.lineName || a.lineId;
         return {when:now + a.timeToStation*1000, cat:bus ? 'Buses' : CAT[l?.mode] || CAT[a.modeName] || 'Trains',
-          html:`<li${(a.vehicleId || '').trim() && !/^0+$/.test((a.vehicleId || '').trim()) ? ` data-veh="${esc(a.lineId)}|${esc((a.vehicleId || '').trim())}"` : ''}><span class="sw" style="background:${col}"></span><span class="to">${esc(cleanName(a.towards || a.destinationName || '') || name)}<small>${esc(bus ? 'Bus ' + name + (a.stationName ? ' · ' + a.stationName : '') : name)}${a.platformName && !bus ? ' · ' + esc(a.platformName) : ''}</small></span><b>${m < 1 ? 'due' : m + ' min'}</b></li>`}; });
+          html:`<li${(a.vehicleId || '').trim() && !/^0+$/.test((a.vehicleId || '').trim()) ? ` data-veh="${esc(a.lineId)}|${esc((a.vehicleId || '').trim())}"` : ''}><span class="sw" style="background:${col}"></span><span class="to">${esc(cleanName(a.towards || a.destinationName || '') || name)}<small>${esc(bus ? 'Bus ' + name + (a.stationName ? ' · ' + a.stationName : '') : name)}${a.platformName && !bus ? ' · ' + esc(a.platformName) : ''}${a.rail ? (a.cancelled ? ' · <span class="st st2">Cancelled</span>' : a.late && a.exp ? ` · <span class="st st1">${esc(a.exp)}, due ${esc(a.scheduled)}</span>` : a.note ? ` · <span class="st st1">${esc(a.note)}</span>` : '') : ''}</small></span><b>${a.cancelled ? '–' : m < 1 ? 'due' : m + ' min'}</b></li>`}; }); // (National Rail: cancelled, or late: its expected time and booked one)
     if(box.hidden) return;
     box.innerHTML = head0x() + (rows.length ? depGroups(rows) : '<div class="muted">No departures listed right now.</div>');
   };
@@ -4706,7 +4706,7 @@ async function openBoard(st){
   BOARD_ST = st; clearInterval(boardTimer); $('board').hidden = false; document.body.classList.add('boardon');
   try{ const u = new URL(location); u.searchParams.set('board', st.name); history.replaceState(null, '', u); }catch(e){}
   const draw = async () => {
-    const all = (await Promise.all([...st.ids].slice(0, 5).map(id => /^[A-Z]{3}$/.test(id) ? railArrivals(id) : get(`/StopPoint/${id}/Arrivals`).catch(() => [])))).flat().filter(a => st.lines.has(a.lineId) || a.rail);
+    const all = (await Promise.all([...st.ids].slice(0, 5).map(id => /^[A-Z]{3}$/.test(id) ? railArrivals(id).then(L => L.filter(a => !a.cancelled)) : get(`/StopPoint/${id}/Arrivals`).catch(() => [])))).flat().filter(a => st.lines.has(a.lineId) || a.rail);
     const seen = new Set();
     const rows = all.sort((a, b) => a.timeToStation - b.timeToStation)
       .filter(a => { const k = a.vehicleId + a.lineId + a.platformName; if(seen.has(k)) return false; seen.add(k); return true; }).slice(0, 9);
