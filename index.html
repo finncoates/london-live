@@ -592,7 +592,7 @@ function mapStyles(){
   return s.length ? s : null;
 }
 const map = new google.maps.Map(document.getElementById('map'), {
-  center:{lat:HOME[0][0], lng:HOME[0][1]}, zoom:Math.round(HOME[1]), disableDefaultUI:true, zoomControl:false,
+  center:{lat:HOME[0][0], lng:HOME[0][1] - (VIEW.length === 3 || innerWidth <= 700 ? 0 : 176*360/(256*2**Math.round(HOME[1])))}, zoom:Math.round(HOME[1]), // (a computer: London in the middle of the map you can see, beside the panel) disableDefaultUI:true, zoomControl:false,
   clickableIcons:false, gestureHandling:'greedy', styles:mapStyles()});
 const LL = p => ({lat:p[0], lng:p[1]});
 // Small layer helpers so the rest of the code reads like before
