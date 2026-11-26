@@ -4712,7 +4712,7 @@ function renderFollow(){
     // then: the next few stops after the next one, with when (and the platform at the next, where it's known)
     const nx = t.cur || t.next, pl = t.plats?.[nx] && !t.pass?.has(nx) ? String(t.plats[nx]).replace(/^0+(?=\d)/, '') : '', ah = (t.ahead || []).filter(a => a[1] > now() - 20000 && !t.pass?.has(a[0])), i0 = ah.findIndex(a => a[0] === nx);
     const then = l0 ? (i0 >= 0 ? ah.slice(i0 + 1, i0 + 4) : []).map(a => lstName(l0, a[0]) && `${lstName(l0, a[0])} ${fmtDue(a[1])}`).filter(Boolean) : [];
-    el.innerHTML = `<span class="sw" style="background:${ink(x.colour)}"></span><span class="ft"><b>Following ${esc(x.line)}</b> ${esc(x.to)}<small>${esc(x.next)}${pl ? ' · platform ' + esc(pl) : ''}</small>${then.length ? `<small class="then">Then ${esc(then.join(' · '))}</small>` : ''}</span><button type="button" id="fwStop">Stop</button>`;
+    el.innerHTML = `<span class="sw" style="background:${ink(x.colour)}"></span><span class="ft"><b>Following ${esc(x.line)}</b> ${esc(x.to)}<small>${esc(x.next)}${pl ? ' · platform ' + esc(pl) : ''}</small>${(st => st && st.lv ? `<small><span class="st st${st.lv}">${esc(st.text)}</span></small>` : '')(lineStatus(t.line))}${then.length ? `<small class="then">Then ${esc(then.join(' · '))}</small>` : ''}</span><button type="button" id="fwStop">Stop</button>`;
     if(FW.tour){ const c = $('tourcap'); c.hidden = false; c.innerHTML = `<b style="color:${boardCol ? boardCol(x.colour) : x.colour}">${esc(x.line)}</b>${esc(x.to)}<small>${esc(x.next)}</small>`; }
     return; }
   const x = trainText(t), l = BY[t.line]; el.hidden = false; el.classList.add('tc');
