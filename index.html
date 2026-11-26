@@ -4674,7 +4674,8 @@ async function goStation(st){
     head = head0x();
     if(!busStops) busStops = get(`/StopPoint?lat=${st.p[0]}&lon=${st.p[1]}&radius=250&stopTypes=NaptanPublicBusCoachTram&modes=bus`).then(r => (r.stopPoints || []).slice(0, 6).map(x => x.naptanId)).catch(() => []);
     const bs = await busStops;
-    const all = (await Promise.all([...[...st.ids].slice(0, 5).map(id => /^[A-Z]{3}$/.test(id) ? railArrivals(id) : get(`/StopPoint/${id}/Arrivals`).catch(() => [])),
+    { const s2 = findStation(st.name); if(s2 && s2.ids.size > st.ids.size && dist(s2.p, st.p) < 600) st = s2; } // (opened from a link before National Rail's trains were in: its rail code joins later)
+    const all = (await Promise.all([...[...st.ids].sort((a, b) => /^[A-Z]{3}$/.test(b) - /^[A-Z]{3}$/.test(a)).slice(0, 5).map(id => /^[A-Z]{3}$/.test(id) ? railArrivals(id) : get(`/StopPoint/${id}/Arrivals`).catch(() => [])),
       ...bs.map(id => get(`/StopPoint/${id}/Arrivals`).catch(() => []))])).flat()
       .filter(a => st.lines.has(a.lineId) || a.rail || a.modeName === 'bus');
     const seen = new Set(), now = Date.now(), rows = all.sort((a, b) => a.timeToStation - b.timeToStation)
