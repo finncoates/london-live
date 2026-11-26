@@ -1533,7 +1533,8 @@ function trkShareHere(){ if(!PV || PV.zi < TRK.Z) return false; const c = map.ge
 function trkFor(t, p, ve, vn){
   const now = performance.now(); if(t.trkAt && now - t.trkAt < 400 && t.trk){ const q = trkOn(t.trk, p); if(q && q.d < 45) return Object.assign(q, {t:t.trk}); }
   t.trkAt = now; const L = Math.hypot(ve, vn) || 1, ux = ve/L, uy = vn/L, kx = Math.cos(p[0]*rad), cand = [];
-  for(const tr of trkNear(p, 45)){ if(tr.kind !== 'r') continue; const q = trkOn(tr, p); if(!q || q.d > 45) continue;
+  let NC = t.nearC; if(!NC || !NC.list.length || dist(NC.p, p) > 35) NC = t.nearC = {p:p.slice(), list:trkNear(p, 80).filter(tr => tr.kind === 'r')}; // (the pieces near it, kept until it has moved 35 m: every square's pieces were scanned for every train)
+  for(const tr of NC.list){ const q = trkOn(tr, p); if(!q || q.d > 45) continue;
     const dot = q.se*ux + q.sn*uy; if(Math.abs(dot) < 0.85) continue; // not alongside
     if(tr.d && dot*tr.d < 0) continue; // trains run the other way on it
     const side = -uy*((q.p[1] - p[1])*111320*kx) + ux*((q.p[0] - p[0])*111320); // + : left of the way it travels (east, north)·(−uy, ux)
