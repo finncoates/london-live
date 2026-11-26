@@ -161,7 +161,8 @@ body.dark #simnote{background:#1f2a44;color:#c6dafc}
 @media (max-height:500px) and (min-width:701px){#panel{width:320px;padding:10px 12px;max-height:calc(100% - 16px);top:8px;left:8px} #grab{margin:-6px 0 0!important}} /* phone on its side: a slimmer panel that can shrink too */
 @media (max-width:700px), (max-height:500px){#grab{display:block;width:100%;height:18px;margin:-10px 0 2px;padding:0;border:0;background:none;cursor:pointer}
   #grab::before{content:'';display:block;width:40px;height:5px;margin:6px auto 0;border-radius:3px;background:var(--edge)}
-  body.sheetMin #mModes, body.sheetMin #busNote, body.sheetMin #sbox, body.sheetMin #nrbox, body.sheetMin #lgAll, body.sheetMin #legend{display:none!important}}
+  body.sheetMin #mModes, body.sheetMin #busNote, body.sheetMin #sbox, body.sheetMin #nrbox, body.sheetMin #lgAll, body.sheetMin #legend{display:none!important}
+  @media (max-width:700px){body.sheetMin #howto{display:none!important}}} /* (a phone's folded panel: the how-to card waits until it's opened) */
 #status{font-size:13px;color:var(--mute);margin:-4px 0 10px}
 #status b{color:var(--ink)}
 .search{position:relative;margin-bottom:10px}
@@ -550,7 +551,7 @@ const MAP_ENGINE = Q.get('map') === 'google' ? 'google' : 'maplibre';
 function loadMapLibre(){
   const add = (tag, attrs) => new Promise((res, rej) => { const e = Object.assign(document.createElement(tag), attrs); e.onload = res; e.onerror = () => rej(new Error('Could not load the map')); document.head.appendChild(e); });
   return Promise.all([add('link', {rel:'stylesheet', href:'https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css'}), add('script', {src:'https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js'})])
-    .then(() => add('script', {src:'maplibre-google.js?v=3'})).then(() => window.installMapLibreAsGoogle()); }
+    .then(() => add('script', {src:'maplibre-google.js?v=4'})).then(() => window.installMapLibreAsGoogle()); }
 
 // ---------- map ----------
 const savedTheme = (() => { try{ return localStorage.getItem('theme'); }catch(e){ return null; } })();
@@ -4363,7 +4364,10 @@ function syncMapMenu(){
 }
 const sheetMin = on => { document.body.classList.toggle('sheetMin', on); $('grab').setAttribute('aria-expanded', String(!on)); $('grab').setAttribute('aria-label', on ? 'Show more of the panel' : 'Show less of the panel'); try{ localStorage.setItem('sheetMin', on ? '1' : '0'); }catch(e){} };
 $('grab').onclick = () => sheetMin(!document.body.classList.contains('sheetMin'));
-try{ if(localStorage.getItem('sheetMin') === '1') sheetMin(true); }catch(e){}
+// (and a swipe on the panel's top edge: down folds it, up opens it)
+{ let y0 = null; const top = () => $('grab'); top().addEventListener('touchstart', e => { y0 = e.touches[0].clientY; }, {passive:true});
+  top().addEventListener('touchend', e => { if(y0 == null) return; const dy = e.changedTouches[0].clientY - y0; y0 = null; if(Math.abs(dy) > 25){ e.preventDefault(); sheetMin(dy > 0); } }); }
+try{ const v = localStorage.getItem('sheetMin'); if(v === '1' || v === null && matchMedia('(max-width:700px)').matches && !Q.get('kiosk')) sheetMin(true); }catch(e){} // (a phone starts with the map big: the panel folded to title, count and search)
 $('bMap').onclick = () => { const m = $('mapMenu'); m.hidden = !m.hidden; $('bMap').setAttribute('aria-expanded', !m.hidden); syncMapMenu(); };
 $('mapMenu').addEventListener('click', e => { const b = e.target.closest('[data-ms]'); if(!b) return;
   MAP_STYLE = b.dataset.ms; try{ localStorage.setItem('mapStyle', MAP_STYLE); }catch(x){} applyTheme(); syncMapMenu(); });
@@ -4499,8 +4503,20 @@ function searchNrElsewhere(text, have){
 function searchPlaces(text){ const q = text.trim().toLowerCase(); if(q.length < 3) return []; const here = cityHere(), out = [];
   CATALOG.forEach((ct, i) => ct.countries.forEach((co, j) => co.cities.forEach((ci, k) => { const n = ci.name.toLowerCase(); if((n === q || (q.length >= 4 && n.startsWith(q))) && !(here && here[0] === i && here[1] === j && here[2] === k && map.getZoom() >= 11)) out.push({placeHit:true, ci, country:co.name, exact:n === q}); })));
   return out.sort((a, b) => b.exact - a.exact).slice(0, 2); }
-$('q').addEventListener('input', () => { const away = document.body.classList.contains('away'), L = searchLines($('q').value), S = away ? searchCityStations($('q').value) : searchStations($('q').value);
-  SR.items = [...searchPlaces($('q').value), ...L, ...S, ...(away || L.length + S.length >= 6 ? [] : searchNrElsewhere($('q').value, S))].slice(0, 8); SR.sel = SR.items.length ? 0 : -1;
+// a misspelt name ('padington', 'kings cros'): the nearest station name within a letter or two, searched instead
+function editDist(a, b, lim){ if(Math.abs(a.length - b.length) > lim) return lim + 1; let p = Array.from({length:b.length + 1}, (_, j) => j), pp = null;
+  for(let i = 1; i <= a.length; i++){ const c = [i]; let lo = i; for(let j = 1; j <= b.length; j++){ c[j] = Math.min(p[j] + 1, c[j-1] + 1, p[j-1] + (a[i-1] === b[j-1] ? 0 : 1));
+      if(pp && i > 1 && j > 1 && a[i-1] === b[j-2] && a[i-2] === b[j-1]) c[j] = Math.min(c[j], pp[j-2] + 1); lo = Math.min(lo, c[j]); } // (two letters swapped: one slip)
+    if(lo > lim) return lim + 1; pp = p; p = c; } return p[b.length]; }
+function spellFix(text, away){ const q = text.trim().toLowerCase(); if(q.length < 4 || /\d/.test(q)) return null; const lim = q.length >= 8 ? 2 : 1;
+  const names = away ? [...cityData().flatMap(d => (d.stations || []).map(st => stName(st[1]))), ...(RAIL.stations || []).map(x => x[1])] : [...(STATIONS || []).map(s => s.name), ...(RAIL.stations || []).map(x => x[1])];
+  let best = null, bd = lim + 1;
+  for(const n0 of names){ const n = String(n0).toLowerCase(); for(let w = 0; w < n.length; w = n.indexOf(' ', w) + 1 || n.length){ if(w && n[w-1] !== ' ') continue;
+      for(const L of [q.length - 1, q.length, q.length + 1]){ const c = n.slice(w, w + L); if(c.length < L) continue; const d = editDist(q, c, bd - 1 < 0 ? 0 : bd); if(d < bd){ bd = d; best = c; } } } }
+  return bd <= lim && best && best !== q ? best : null; }
+$('q').addEventListener('input', () => { const away = document.body.classList.contains('away'); let qv = $('q').value, L = searchLines(qv), S = away ? searchCityStations(qv) : searchStations(qv);
+  if(!L.length && !S.length){ const f = spellFix(qv, away); if(f){ qv = f; S = away ? searchCityStations(f) : searchStations(f); } } // (a slip of the keyboard: what it was probably meant to be)
+  SR.items = [...searchPlaces(qv), ...L, ...S, ...(away || L.length + S.length >= 6 ? [] : searchNrElsewhere(qv, S))].slice(0, 8); SR.sel = SR.items.length ? 0 : -1;
   if(GEO.q === $('q').value.trim()) mergeGeo(); else renderResults(); geoSearch($('q').value); });
 // any stop, street or place in Europe (Transitous' search, nearest first): after what's on this map, so typing
 // 'Gare de Lyon' or 'Dam' works from anywhere
@@ -4509,7 +4525,8 @@ function geoSearch(text){ clearTimeout(GEO.t); const q = text.trim(); if(q.lengt
   GEO.t = setTimeout(async () => { const c = map.getCenter();
     try{ const j = await (await fetch(`${TRS()}/api/v1/geocode?text=${encodeURIComponent(q)}${c ? `&place=${c.lat().toFixed(1)},${c.lng().toFixed(1)}` : ''}`, {signal:AbortSignal.timeout(8000)})).json();
       if($('q').value.trim() !== q) return; GEO.q = q;
-      GEO.items = (Array.isArray(j) ? j : []).filter(x => x && x.name && isFinite(x.lat) && isFinite(x.lon)).slice(0, 8).map(x => ({geoHit:true, type:x.type, name:x.name, id:x.id, lat:x.lat, lon:x.lon, modes:x.modes || [],
+      const tc = n => n.length > 4 && n === n.toUpperCase() && /[A-Z]/.test(n) ? n.toLowerCase().replace(/(^|[\s\-/(])([a-z])/g, (m, a, b) => a + b.toUpperCase()) : n; // ('PADDINGTON UND' → 'Paddington Und')
+      GEO.items = (Array.isArray(j) ? j : []).filter(x => x && x.name && isFinite(x.lat) && isFinite(x.lon) && (!c || dist([c.lat(), c.lng()], [x.lat, x.lon]) < 1500e3)).slice(0, 8).map(x => ({geoHit:true, type:x.type, name:tc(x.name), id:x.id, lat:x.lat, lon:x.lon, modes:x.modes || [],
         area:[...new Set((x.areas || []).map(a => a.name).filter(n => n && n !== x.name))].slice(-2).reverse().join(', ')}));
       mergeGeo(); }catch(e){} }, 350); }
 function mergeGeo(){ const local = SR.items.filter(x => !x.geoHit), names = new Set(local.map(x => String(x.name || x.st?.[1] || x.ci?.name || '').toLowerCase()));

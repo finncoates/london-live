@@ -36,7 +36,7 @@
       this.ml = new maplibregl.Map({container:div, style:this.styleName === 'sat' ? SAT : TILES + this.styleName, center:ll(o.center), zoom:(o.zoom ?? 11) - 1,
         attributionControl:{compact:true}, dragRotate:false, pitchWithRotate:false, maxPitch:0, fadeDuration:150, renderWorldCopies:false});
       this.ml.touchZoomRotate.disableRotation(); this.ml.keyboard.disableRotation();
-      this.ready = false; this.ml.on('load', () => { this.ready = true; });
+      this.ready = false; this.ml.on('load', () => { this.ready = true; if(innerWidth <= 700) div.querySelector('.maplibregl-ctrl-attrib')?.classList.remove('maplibregl-compact-show'); }); // (phones: the credits behind their (i), not across the map)
       this.ml.on('style.load', () => this._styleTweaks()); // once per style (setting layer properties must not re-trigger it)
     }
     _parse(id){ this.look = id || 'light'; const [base, q] = this.look.split('+'); this.quiet = q === 'quiet'; this.base = base;
