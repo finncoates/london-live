@@ -4151,7 +4151,8 @@ const gOff = v => GPS_OFF.has(v.coach ? 'coach' : vkind(v)); // coaches have the
 const stopsOff = () => GPS_OFF.has('stops') || STOPS_OFF.has('bus'); // bus stop markers (London and the rest of the UK)
 const EX = {path:[]}; // [continent, country, city] indexes
 function cityHere(){ const c = map.getCenter(); if(!c) return null; const p = [c.lat(), c.lng()]; let best = null, bd = Infinity;
-  CATALOG.forEach((ct, i) => ct.countries.forEach((co, j) => co.cities.forEach((ci, k) => { const d = dist(p, ci.at); const lim = ci.at[2] <= 7 ? 600000 : 40000; if(d < lim && d < bd){ bd = d; best = [i, j, k]; } })));
+  const ccOf = co => co.cc || (co.flag && [...co.flag].length === 2 ? [...co.flag].map(ch => String.fromCharCode(ch.codePointAt(0) - 0x1F1E6 + 97)).join('') : ''); // ('🇧🇪' → 'be')
+  CATALOG.forEach((ct, i) => ct.countries.forEach((co, j) => co.cities.forEach((ci, k) => { const d = dist(p, ci.at); const lim = ci.at[2] <= 7 ? 600000 : 40000; if(d < lim && d < bd && (ci.at[2] > 7 || inCountry(ccOf(co), p))){ bd = d; best = [i, j, k]; } }))); // (a whole country: only inside it, not 'Belgium' over the Channel)
   return best; }
 // London's switches (and Buses/National Rail everywhere) vs. vehicle kinds abroad
 const exCity = () => { const [a, b, c] = EX.path; return CATALOG[a]?.countries[b]?.cities[c] || null; };
