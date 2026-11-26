@@ -1441,7 +1441,11 @@ function trkEdge(e){ const P = e.pts, k0 = tkey(P[0]), k1 = tkey(P.at(-1)), id =
 // points, keeping to each track's direction where mapped and to the left-hand track of the corridor (Britain).
 // corridor: the rail map's path between the two stations (the way the train goes, roughly). → {pts, cum, len} or null
 // (first strictly; failing that, a track turning across its way at either end may be taken: Baker Street's Jubilee)
-function trkRoute(...a){ const r = trkRoute0(false, ...a); return r === null ? trkRoute0(true, ...a) : r; }
+function trkRoute(...a){ let r = trkRoute0(false, ...a); if(r === null) r = trkRoute0(true, ...a);
+  // (still none, and the map's line between them isn't a straight hop: once more against a straight one, which
+  // leaves the way round to the tracks: the DLR's loop out of Stratford International, Lewisham to Hither Green)
+  if(r === null && a[2] && a[2].pts.length > 3){ const [A, B] = [a[0], a[1]], L = dist(a[2].pts[0], a[2].pts.at(-1)); r = trkRoute0(true, A, B, {pts:[a[2].pts[0], a[2].pts.at(-1)], cum:[0, L], len:Math.max(L, a[2].len)}, ...a.slice(3)); }
+  return r; }
 function trkRoute0(loose, A, B, corridor, goalPl, kind = 'r', avoid = [], hand = 1, line = null){ // avoid: platforms of stations it runs through without calling (it takes the line without platforms: the fast line)
   const R0 = kind === 's' || line === 'elizabeth' ? 120 : kind === 'l' ? 60 : 40; // (deep Tube and Elizabeth line platforms lie well off the station's point)
   const P = corridor.pts; let la0 = 90, la1 = -90, lo0 = 180, lo1 = -180; for(const q of P){ la0 = Math.min(la0, q[0]); la1 = Math.max(la1, q[0]); lo0 = Math.min(lo0, q[1]); lo1 = Math.max(lo1, q[1]); }
