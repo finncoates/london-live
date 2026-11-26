@@ -24,6 +24,8 @@ def line_of(t):
     if 'Docklands' in nw or name.startswith('dlr'): return 'dlr'
     if 'elizabeth line' in name or ref == 'Elizabeth': return 'elizabeth'
     if 'London Trams' in nw or 'Tramlink' in nw: return 'tram'
+    if 'Tyne and Wear Metro' in nw or 'tyne and wear metro' in name: return 'tw-metro' # (beyond London: the systems that share track with main-line trains, Pelaw–Sunderland)
+    if 'Supertram' in nw or 'supertram' in name or 'tram train' in name or 'tram-train' in name: return 'supertram' # (Sheffield's tram-train to Rotherham)
     for o in OVER:
         if o in name or o == ref.lower(): return o
     return None

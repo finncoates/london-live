@@ -1404,7 +1404,9 @@ async function refresh(){
 // entrance (from OpenStreetMap; the trains standing there are on the same tracks)
 // ---------- every track (cities/osm_tracks.py): the rail map draws one line per corridor; a four-track main line
 // (Brockley) is four tracks here. From zoom 15 they are drawn, and each train runs on the track for its direction ----------
-const TRK = {sq:new Map(), Z:15, lines:new Set(), lineBox:[51.2, -0.65, 51.8, 0.4]}; // lines: TfL lines whose tracks are known (drawn on them, not on the map's line, from zoom 15; inside lineBox)
+const TRK = {sq:new Map(), Z:15, lines:new Set(), lineBox:[51.2, -0.65, 51.8, 0.4],
+  // beyond London: systems sharing track with main-line trains, shown on those stretches only (Pelaw–Sunderland, Sheffield–Rotherham)
+  shareBoxes:[[54.85, -1.75, 55.10, -1.30], [53.33, -1.55, 53.46, -1.28]], shareCol:{'tw-metro':'#E8A800', supertram:'#7A3E9D'}}; // lines: TfL lines whose tracks are known (drawn on them, not on the map's line, from zoom 15; inside lineBox)
 const trkHere = () => !document.body.classList.contains('abroad') && !MODES_OFF.has('rail') || nrLondon(); // Britain (its tracks: cities/tracks/)
 function trkSquare(i, j){ const k = i*4096 + j; let v = TRK.sq.get(k); // (a number, not a string: asked thousands of times a frame)
   if(v === undefined){ TRK.sq.set(k, null); fetch('cities/tracks/' + i + '_' + j + '.json').then(r => r.ok ? r.json() : []).then(L => TRK.sq.set(k, (L || []).map(([d, pts, kd = 'r', ln]) => { if(ln) for(const x of ln) TRK.lines.add(x);
@@ -1447,14 +1449,14 @@ function trkRoute0(loose, A, B, corridor, goalPl, kind = 'r', avoid = [], hand =
   const ownL = e => line && line !== 'nr' && e.lines && e.lines.includes(line), wider = (q, r) => { const n = near(q, r); return n.some(x => ownL(x.e)) || !line || line === 'nr' ? n : n.concat(near(q, 150).filter(x => ownL(x.e))); }; // (none of its own line close by: its line's tracks a little further off, Willesden Junction's high level)
   const st0 = wider(A, R0).map(({e, o}) => ({e, o, f:o.se*dir0[0] + o.sn*dir0[1], at:e.cum[o.i-1] + dist(e.pts[o.i-1], o.p)}));
   // (none of its own tracks pointing its way: a track turning across it, Baker Street's Jubilee, either way, the cheaper wins)
-  const across = loose;
-  const start = st0.flatMap(({e, o, f, at}) => Math.abs(f) >= 0.5 ? [{e, fw:f > 0, at, o}] : across && mine(e) ? [{e, fw:true, at, o}, {e, fw:false, at, o}] : []);
+  const across = loose, straight = P.length <= 3; // (a straight hop between stations: which way a track sets off says nothing, so either, the shorter real way wins)
+  const start = st0.flatMap(({e, o, f, at}) => straight && mine(e) ? [{e, fw:true, at, o}, {e, fw:false, at, o}] : Math.abs(f) >= 0.5 ? [{e, fw:f > 0, at, o}] : across && mine(e) ? [{e, fw:true, at, o}, {e, fw:false, at, o}] : []);
   // where it is going: its platform's track, else the tracks along that station's platforms, else tracks at B
   const GP = goalPl && (Array.isArray(goalPl[0][0]) ? goalPl : [goalPl]); // (one platform, or any of several)
   const goalOK = e => { if(GP){ const m = along({pts:e.pts, cum:e.cum, len:e.len}, 0.5).p; return GP.some(g => { for(let i = 1; i < g.length; i++) if(segDist(m, g[i-1], g[i]) < 4) return true; return false; }); } return true; };
   const gl0 = wider(B, goalPl ? 260 : R0 === 120 ? 240 : R0 + 20).filter(({e}) => goalOK(e)).map(({e, o}) => ({e, f:o.se*dir1[0] + o.sn*dir1[1], at:e.cum[o.i-1] + dist(e.pts[o.i-1], o.p)})); // (deep lines: Baker Street's Jubilee platforms are 200 m from the station's point)
   const acrossB = loose, goals = new Map();
-  for(const {e, f, at} of gl0) if(Math.abs(f) >= 0.5) goals.set(e, {fw:f > 0, at}); else if(acrossB && mine(e)) goals.set(e, {fw:null, at}); // (a track turning across its way in: either way)
+  for(const {e, f, at} of gl0) if(straight && mine(e)) goals.set(e, {fw:null, at}); else if(Math.abs(f) >= 0.5) goals.set(e, {fw:f > 0, at}); else if(acrossB && mine(e)) goals.set(e, {fw:null, at}); // (a track turning across its way in: either way)
   if(!start.length || !goals.size) return null;
   const cost = new Map(), memo = new Map(), w = e => { let m = memo.get(e); if(m == null){ const mid = e.pts[Math.floor(e.pts.length/2)], [sd, d] = side(mid); m = d > 400 ? 50 : (sd*hand < -1.5 ? 3 : 1);
     if(line && e.lines && !e.lines.includes(line)) m *= 4; // another line's track (the Northern's Bank and Charing Cross branches, the District beside the Piccadilly)
@@ -1483,7 +1485,7 @@ function trkRoute0(loose, A, B, corridor, goalPl, kind = 'r', avoid = [], hand =
   // merged steps from neighbouring squares share a point: drop doubles
   const pts = out.filter((q, i) => !i || q[0] !== out[i-1][0] || q[1] !== out[i-1][1]); if(pts.length < 2) return null;
   const cum = [0]; for(let i = 1; i < pts.length; i++) cum.push(cum[i-1] + dist(pts[i-1], pts[i])); const len = cum.at(-1);
-  if(len > corridor.len*1.6 + 300) return null; // a detour: something's missing in the map
+  if(len > corridor.len*(corridor.pts.length <= 3 ? 2.4 : 1.6) + 300) return null; // a detour: something's missing in the map (a straight hop between stations says little of the real way round: looser, the DLR's loop from Stratford International)
   return {pts, cum, len, real:true}; }
 // A stretch too long to route whole (Paddington–Reading, St Pancras–Leicester): the part of it within a window around
 // the view (0.2° × 0.34°, by 0.1° cells, so trains share it), routed on its tracks, the rest the map's line
@@ -1510,16 +1512,20 @@ function drawTracks(ctx, s){
       const P = t.tun ? tun : open; t.pts.forEach((q, k) => { const w = scr(q); k ? P.lineTo(w.x, w.y) : P.moveTo(w.x, w.y); }); } }
   ctx.stroke(open); ctx.globalAlpha *= 0.4; ctx.setLineDash([4, 3]); ctx.stroke(tun); ctx.setLineDash([]); ctx.globalAlpha = window.DIM_TRAINS ? 0.15 : 1;
   // London's lines in their colours along their real tracks (the map's own line, drawn from the network, is put away here)
-  if(trkLinesHere()){ const Wl = Math.max(3, lineW()*0.75); ctx.lineCap = 'round';
-    for(const t of seen){ if(!t.lines) continue; const on = t.lines.filter(x => BY[x] && lineStyle(BY[x]).opacity > 0); if(!on.length) continue;
+  const LH = trkLinesHere(), SH = !LH && trkShareHere();
+  if(LH || SH){ const Wl = Math.max(3, lineW()*0.75); ctx.lineCap = 'round';
+    const colOf = x => BY[x] ? ink(BY[x].colour) : TRK.shareCol[x], opOf = x => BY[x] ? lineStyle(BY[x]).opacity : 1;
+    for(const t of seen){ if(!t.lines) continue; if(SH && !(t.lines.includes('nr') && t.lines.some(x => TRK.shareCol[x]))) continue; // (beyond London: the shared stretches only; the system's own line is drawn already)
+      const on = t.lines.filter(x => (BY[x] || SH && TRK.shareCol[x]) && opOf(x) > 0 && x !== 'nr'); if(!on.length) continue;
       const S = t.pts.map(scr), sh = t.lines.includes('nr'), w = (sh ? Wl*0.5 : Wl)/on.length;
       // shared with main-line trains (the Windrush line on Brockley's outer pair, the Elizabeth line out to Shenfield): a rail track with the line's colour down its middle
       if(sh){ ctx.strokeStyle = dark ? '#7c848e' : '#8f969f'; ctx.globalAlpha = window.DIM_TRAINS ? 0.3 : 1; ctx.lineWidth = Wl; ctx.beginPath(); S.forEach((q, i) => i ? ctx.lineTo(q.x, q.y) : ctx.moveTo(q.x, q.y)); ctx.stroke(); }
-      on.forEach((x, n) => { const off = (n - (on.length - 1)/2)*w; ctx.strokeStyle = ink(BY[x].colour); ctx.globalAlpha = lineStyle(BY[x]).opacity*(window.DIM_TRAINS ? 0.3 : 1); ctx.lineWidth = w;
+      on.forEach((x, n) => { const off = (n - (on.length - 1)/2)*w; ctx.strokeStyle = colOf(x); ctx.globalAlpha = opOf(x)*(window.DIM_TRAINS ? 0.3 : 1); ctx.lineWidth = w;
         ctx.beginPath(); S.forEach((q, i) => { const a = S[Math.max(0, i - 1)], b = S[Math.min(S.length - 1, i + 1)], dx = b.x - a.x, dy = b.y - a.y, L = Math.hypot(dx, dy) || 1, x2 = q.x - dy/L*off, y2 = q.y + dx/L*off; i ? ctx.lineTo(x2, y2) : ctx.moveTo(x2, y2); }); ctx.stroke(); }); } }
   ctx.restore(); } // (in tunnels: fainter, dashed)
 // zoomed in on London, where the lines' tracks are known: lines drawn on them
 function trkLinesHere(){ if(!PV || PV.zi < TRK.Z || !TRK.lines.size) return false; const c = map.getCenter(), B = TRK.lineBox; return !!c && c.lat() > B[0] && c.lat() < B[2] && c.lng() > B[1] && c.lng() < B[3]; }
+function trkShareHere(){ if(!PV || PV.zi < TRK.Z) return false; const c = map.getCenter(); return !!c && TRK.shareBoxes.some(B => c.lat() > B[0] && c.lat() < B[2] && c.lng() > B[1] && c.lng() < B[3]); }
 // the track a train at p, travelling (east, north) = (ve, vn), runs on: the way trains use it where OSM says, else
 // Britain's left-hand running (the nearest track on its left); it keeps its track while that one still runs alongside
 function trkFor(t, p, ve, vn){
