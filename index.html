@@ -1469,6 +1469,15 @@ function trkRoute(A, B, corridor, goalPl, kind = 'r', avoid = [], hand = 1, line
   const cum = [0]; for(let i = 1; i < pts.length; i++) cum.push(cum[i-1] + dist(pts[i-1], pts[i])); const len = cum.at(-1);
   if(len > corridor.len*1.6 + 300) return null; // a detour: something's missing in the map
   return {pts, cum, len, real:true}; }
+// A stretch too long to route whole (Paddington–Reading, St Pancras–Leicester): the part of it within a window around
+// the view (0.2° × 0.34°, by 0.1° cells, so trains share it), routed on its tracks, the rest the map's line
+const longHop = P => { let la0 = 90, la1 = -90, lo0 = 180, lo1 = -180; for(const q of P){ la0 = Math.min(la0, q[0]); la1 = Math.max(la1, q[0]); lo0 = Math.min(lo0, q[1]); lo1 = Math.max(lo1, q[1]); } return la1 - la0 > 0.25 || lo1 - lo0 > 0.4; };
+function clipLong(path, cl){ const P = path.pts, ok = q => Math.abs(q[0] - cl[0]) < 0.1 && Math.abs(q[1] - cl[1]) < 0.17; let i0 = -1, i1 = -1;
+  for(let i = 0; i < P.length; i++) if(ok(P[i])){ if(i0 < 0) i0 = i; i1 = i; }
+  if(i0 < 0 || i1 - i0 < 1) return null; const pts = P.slice(i0, i1 + 1), cum = [0]; for(let i = 1; i < pts.length; i++) cum.push(cum[i-1] + dist(pts[i-1], pts[i]));
+  return {i0, i1, sub:{pts, cum, len:cum.at(-1)}}; }
+function stitchLong(path, L, r){ const pts = path.pts.slice(0, L.i0).concat(r.pts, path.pts.slice(L.i1 + 1)), cum = [0]; for(let i = 1; i < pts.length; i++) cum.push(cum[i-1] + dist(pts[i-1], pts[i]));
+  return {pts, cum, len:cum.at(-1), real:true}; }
 // the platforms of the stations a train passes between two of its stops without calling at them
 function passedPlats(path, prev, next){ const out = [], P = path.pts; let la0 = 90, la1 = -90, lo0 = 180, lo1 = -180; for(const q of P){ la0 = Math.min(la0, q[0]); la1 = Math.max(la1, q[0]); lo0 = Math.min(lo0, q[1]); lo1 = Math.max(lo1, q[1]); }
   for(const crs in RAIL.plats || {}){ if(crs === prev || crs === next) continue; const st = RAIL.byCrs[crs]; if(!st || st.p[0] < la0 - 0.002 || st.p[0] > la1 + 0.002 || st.p[1] < lo0 - 0.003 || st.p[1] > lo1 + 0.003) continue;
@@ -1625,14 +1634,17 @@ function placeTrain0(t){
   let path = trackPath(l, prev, next); if(!path) return at();
   const KS = t.rail ? 'r' : {tube:'s', dlr:'l', overground:'r', elizabeth:'r'}[l.mode], mc = map.getCenter();
   if(KS && PV && PV.z >= TRK.Z - 1 && trkHere() && mc && inViewM(path.pts[0], path.pts.at(-1))){
-    const plA = t.plats?.[prev] || t.platG?.[prev], plB = t.plats?.[next], rk = prev + '>' + next + '|' + (plB || '') + '|' + (plA || '');
+    const plA = t.plats?.[prev] || t.platG?.[prev], plB = t.plats?.[next], LW = longHop(path.pts) ? [Math.round(mc.lat()*10)/10, Math.round(mc.lng()*10)/10] : null, rk = prev + '>' + next + '|' + (plB || '') + '|' + (plA || '') + (LW ? '|w' + LW : '');
     if(!t.rt || t.rt.k !== rk){ const pa = plA && platPath(prev, plA), was = !pa && t.rt?.r && t.rt.k.split('|')[0].endsWith('>' + prev) ? t.rt.r.pts.at(-1) : null; // (where its last stretch ended: it sets off from there)
       const A = pa ? along(pa, 0.5).p : was || path.pts[0], gp = plB && platPath(next, plB);
       // its platform there not known: one that suits it (a dead end where its run ends, a through platform where it runs on), whichever its way in reaches
       const T = t.ahead, ends = t.rail && !t.tt && T && T.at(-1)[0] === next, on = t.rail && T && T.findIndex(a => a[0] === next) < T.length - 1, cand = !gp && t.rail && RAIL.plats?.[next] && !t.pass?.has(next) ? platsFor(next, ends ? 'end' : on ? 'through' : null) : null;
       const avoid = t.rail ? passedPlats(path, prev, next).concat(...[prev, next].filter(S => t.pass?.has(S) && !t.plats?.[S] && RAIL.plats?.[S]).map(S => Object.values(RAIL.plats[S]))) : [];
-      const B = gp ? along(gp, 0.5).p : path.pts.at(-1); let r = cand === undefined ? undefined : trkRoute(A, B, path, gp ? gp.pts : cand && cand.length ? cand.map(c => c[1]) : null, KS, avoid, 1, t.rail ? 'nr' : l.id);
-      if(r === null && gp) r = trkRoute(A, path.pts.at(-1), path, null, KS, avoid, 1, t.rail ? 'nr' : l.id); // (no way to its platform in the map: the best track there)
+      const L = LW && clipLong(path, LW), C = L ? L.sub : path, last = !L || L.i1 === path.pts.length - 1; // (a long stretch: the part near the view)
+      const A2 = L && L.i0 > 0 ? C.pts[0] : A, B = !last ? C.pts.at(-1) : gp ? along(gp, 0.5).p : path.pts.at(-1);
+      let r = LW && !L ? null : cand === undefined ? undefined : trkRoute(A2, B, C, !last ? null : gp ? gp.pts : cand && cand.length ? cand.map(c => c[1]) : null, KS, avoid, 1, t.rail ? 'nr' : l.id);
+      if(r === null && gp && last && !(LW && !L)) r = trkRoute(A2, C.pts.at(-1), C, null, KS, avoid, 1, t.rail ? 'nr' : l.id); // (no way to its platform in the map: the best track there)
+      if(r && L) r = stitchLong(path, L, r);
       if(r !== undefined){ t.rt = {k:rk, r}; if(r && cand && cand.length){ const e = r.pts.at(-1), hit = cand.find(([, q]) => q.some((x, i) => i && segDist(e, q[i-1], x) < 5)); if(hit) (t.platG ||= {})[next] = hit[0]; } } } // (undefined: its tracks still loading: asked again next frame)
   }
   if(KS && t.rt && t.rt.r && t.rt.k.startsWith(prev + '>' + next + '|') && PV && PV.z >= TRK.Z - 1) path = t.rt.r; /* (PV: the view isn't set on the first refresh) */
