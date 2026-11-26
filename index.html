@@ -1561,8 +1561,8 @@ function drawPlatNums(ctx, s){
   ctx.restore(); }
 // a station's platform as a path (cached): {pts, cum, len}
 function platPath(crs, pl){ const P = RAIL.plats && RAIL.plats[crs]; if(!P) return null;
-  const n = String(pl).match(/^\d+/)?.[0], q = P[pl] || (n && n !== pl ? P[n] : null) || (n && P[Object.keys(P).find(k => k.match(/^\d+/)?.[0] === n)]); if(!q) return null; // "1" where 1A/1B are mapped (New Street), "5A" where only 5 is
-  const c = RAIL.platC || (RAIL.platC = new Map()), k = crs + '|' + pl; if(c.has(k)) return c.get(k);
+  const c = RAIL.platC || (RAIL.platC = new Map()), k = crs + '|' + pl; if(c.has(k)) return c.get(k); // (asked every frame for every train: the answer kept)
+  const n = String(pl).match(/^\d+/)?.[0], q = P[pl] || (n && n !== pl ? P[n] : null) || (n && P[Object.keys(P).find(k => k.match(/^\d+/)?.[0] === n)]); if(!q){ c.set(k, null); return null; } // "1" where 1A/1B are mapped (New Street), "5A" where only 5 is
   const cum = [0]; for(let i = 1; i < q.length; i++) cum.push(cum[i-1] + dist(q[i-1], q[i])); const r = {pts:q, cum, len:cum.at(-1), plat:true}; c.set(k, r); return r; }
 // a station's platforms that suit a train: 'end' (dead ends: where its run ends), 'through' (the track runs on past
 // both ends), null (any) → [[name, points], ...]; undefined while the tracks there load
@@ -1597,7 +1597,7 @@ function tflOnlyPlat(q){ const mid = q[Math.floor(q.length/2)], near = trkNear(m
   return near.length > 0 && near.every(e => e.lines && !e.lines.includes('nr')); }
 // a Tube train's platform, only if it is on its own line's track (TfL's platform numbers and OpenStreetMap's can differ:
 // London Bridge's Northern line "2" is a Jubilee line platform in the map) — else it stands on its own line's track
-function platPathL(crs, pl, line){ const r = platPath(crs, pl); if(!r || !line || !TRK.lines.has(line)) return r;
+function platPathL(crs, pl, line){ const r = platPath(crs, pl); if(!r || !line || !TRK.lines.has(line) || !PV || PV.z < TRK.Z - 1) return r; // (zoomed out: no check, no tracks fetched for it)
   const c = RAIL.platL || (RAIL.platL = new Map()), k = crs + '|' + pl + '|' + line; if(c.has(k)) return c.get(k) ? r : null;
   const mid = along(r, 0.5).p, near = trkNear(mid, 40); if(!near.length) return r; // (its tracks still loading)
   const ok = near.some(e => e.lines && e.lines.includes(line) && (trkOn(e, mid)?.d ?? 99) < 12); c.set(k, ok); return ok ? r : null; }
@@ -1615,7 +1615,8 @@ function platInfo(t, crs, nb){ const pl = t.plats?.[crs] || t.platG?.[crs]; let 
 function inViewM(a, b){ const B = map.getBounds(); if(!B) return false; const sw = B.getSouthWest(), ne = B.getNorthEast(), my = (ne.lat() - sw.lat())*0.2, mx = (ne.lng() - sw.lng())*0.2;
   const ok = q => q && q[0] > sw.lat() - my && q[0] < ne.lat() + my && q[1] > sw.lng() - mx && q[1] < ne.lng() + mx; return ok(a) || ok(b); }
 // a station's position: National Rail's, or a TfL line's stop (by its code)
-function stopP(S){ if(!S) return null; const r = RAIL.byCrs?.[S]; if(r) return r.p; for(const l of ACTIVE) if(l.stops?.[S]) return l.stops[S].p; return null; }
+const STOPP = new Map(); // (a TfL stop's point, found once: asked every frame for every train)
+function stopP(S){ if(!S) return null; const r = RAIL.byCrs?.[S]; if(r) return r.p; const c = STOPP.get(S); if(c) return c; for(const l of ACTIVE) if(l.stops?.[S]){ STOPP.set(S, l.stops[S].p); return l.stops[S].p; } return null; }
 // d metres from where it stops, towards the neighbouring station (null once that is off the platform)
 function platAt(I, d){ const f = I.f + (I.nbEnd === 1 ? d : -d)/I.path.len; if(f < 0 || f > 1) return null; return Object.assign(along(I.path, f), {path:I.path, plat:I.pl}); }
 // zoomed in on stations with mapped platforms: their departure boards give each train's platform; matched to the
