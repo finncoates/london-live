@@ -1420,7 +1420,7 @@ function trkEdge(e){ const P = e.pts, k0 = tkey(P[0]), k1 = tkey(P.at(-1)), id =
 // points, keeping to each track's direction where mapped and to the left-hand track of the corridor (Britain).
 // corridor: the rail map's path between the two stations (the way the train goes, roughly). → {pts, cum, len} or null
 function trkRoute(A, B, corridor, goalPl, kind = 'r', avoid = [], hand = 1, line = null){ // avoid: platforms of stations it runs through without calling (it takes the line without platforms: the fast line)
-  const R0 = kind === 's' ? 120 : kind === 'l' ? 60 : 40; // (deep Tube platforms lie well off the station's point)
+  const R0 = kind === 's' || line === 'elizabeth' ? 120 : kind === 'l' ? 60 : 40; // (deep Tube and Elizabeth line platforms lie well off the station's point)
   const P = corridor.pts; let la0 = 90, la1 = -90, lo0 = 180, lo1 = -180; for(const q of P){ la0 = Math.min(la0, q[0]); la1 = Math.max(la1, q[0]); lo0 = Math.min(lo0, q[1]); lo1 = Math.max(lo1, q[1]); }
   if(la1 - la0 > 0.25 || lo1 - lo0 > 0.4) return null; // long hops: the map's own line
   let wait = false; for(let i = Math.floor((la0 - 0.004)*10); i <= Math.floor((la1 + 0.004)*10); i++) for(let j = Math.floor((lo0 - 0.006)*10); j <= Math.floor((lo1 + 0.006)*10); j++) if(trkSquare(i, j) === null) wait = true; // (every square asked for at once)
@@ -1578,7 +1578,13 @@ function trkOut(E, F, kk = 'r'){
   return {dead:false}; }
 // a train's platform at a station: its track, where it stops (the middle; at a terminus a train's length from the
 // buffers), and which end faces the neighbouring station (`nb`: where it comes from, or goes to)
-function platInfo(t, crs, nb){ const pl = t.plats?.[crs] || t.platG?.[crs]; let path = pl && platPath(crs, pl); if(!path || path.len < 30) return null;
+// a Tube train's platform, only if it is on its own line's track (TfL's platform numbers and OpenStreetMap's can differ:
+// London Bridge's Northern line "2" is a Jubilee line platform in the map) — else it stands on its own line's track
+function platPathL(crs, pl, line){ const r = platPath(crs, pl); if(!r || !line || !TRK.lines.has(line)) return r;
+  const c = RAIL.platL || (RAIL.platL = new Map()), k = crs + '|' + pl + '|' + line; if(c.has(k)) return c.get(k) ? r : null;
+  const mid = along(r, 0.5).p, near = trkNear(mid, 40); if(!near.length) return r; // (its tracks still loading)
+  const ok = near.some(e => e.lines && e.lines.includes(line) && (trkOn(e, mid)?.d ?? 99) < 12); c.set(k, ok); return ok ? r : null; }
+function platInfo(t, crs, nb){ const pl = t.plats?.[crs] || t.platG?.[crs]; let path = pl && platPathL(crs, pl, t.rail ? null : t.line); if(!path || path.len < 30) return null;
   const end = S => { const o = stopP(S); return o ? (dist(path.pts[0], o) < dist(path.pts.at(-1), o) ? 0 : 1) : null; }, nbEnd = end(nb) ?? 0;
   // where it stands: against the buffers at a dead-end platform; at a through platform its front at the end it leaves
   // by (towards its next stop, or away from where it came from); the middle of a platform shorter than the train
@@ -1635,8 +1641,8 @@ function placeTrain0(t){
   const KS = t.rail ? 'r' : {tube:'s', dlr:'l', overground:'r', elizabeth:'r'}[l.mode], mc = map.getCenter();
   if(KS && PV && PV.z >= TRK.Z - 1 && trkHere() && mc && inViewM(path.pts[0], path.pts.at(-1))){
     const plA = t.plats?.[prev] || t.platG?.[prev], plB = t.plats?.[next], LW = longHop(path.pts) ? [Math.round(mc.lat()*10)/10, Math.round(mc.lng()*10)/10] : null, rk = prev + '>' + next + '|' + (plB || '') + '|' + (plA || '') + (LW ? '|w' + LW : '');
-    if(!t.rt || t.rt.k !== rk){ const pa = plA && platPath(prev, plA), was = !pa && t.rt?.r && t.rt.k.split('|')[0].endsWith('>' + prev) ? t.rt.r.pts.at(-1) : null; // (where its last stretch ended: it sets off from there)
-      const A = pa ? along(pa, 0.5).p : was || path.pts[0], gp = plB && platPath(next, plB);
+    if(!t.rt || t.rt.k !== rk){ const pa = plA && platPathL(prev, plA, t.rail ? null : l.id), was = !pa && t.rt?.r && t.rt.k.split('|')[0].endsWith('>' + prev) ? t.rt.r.pts.at(-1) : null; // (where its last stretch ended: it sets off from there)
+      const A = pa ? along(pa, 0.5).p : was || path.pts[0], gp = plB && platPathL(next, plB, t.rail ? null : l.id);
       // its platform there not known: one that suits it (a dead end where its run ends, a through platform where it runs on), whichever its way in reaches
       const T = t.ahead, ends = t.rail && !t.tt && T && T.at(-1)[0] === next, on = t.rail && T && T.findIndex(a => a[0] === next) < T.length - 1, cand = !gp && t.rail && RAIL.plats?.[next] && !t.pass?.has(next) ? platsFor(next, ends ? 'end' : on ? 'through' : null) : null;
       const avoid = t.rail ? passedPlats(path, prev, next).concat(...[prev, next].filter(S => t.pass?.has(S) && !t.plats?.[S] && RAIL.plats?.[S]).map(S => Object.values(RAIL.plats[S]))) : [];
