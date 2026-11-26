@@ -4678,7 +4678,7 @@ async function goStation(st){
       ...bs.map(id => get(`/StopPoint/${id}/Arrivals`).catch(() => []))])).flat()
       .filter(a => st.lines.has(a.lineId) || a.rail || a.modeName === 'bus');
     const seen = new Set(), now = Date.now(), rows = all.sort((a, b) => a.timeToStation - b.timeToStation)
-      .filter(a => { const k = a.vehicleId + a.lineId + a.platformName; if(seen.has(k)) return false; seen.add(k); return true; })
+      .filter(a => !(a.destinationNaptanId && st.ids.has(a.destinationNaptanId))) /* (one ending its run here isn't a departure) */.filter(a => { const k = a.vehicleId + a.lineId + a.platformName; if(seen.has(k)) return false; seen.add(k); return true; })
       .map(a => { const l = BY[a.lineId], bus = !l && a.modeName === 'bus' || l?.mode === 'bus', m = Math.round(a.timeToStation/60), col = l ? ink(l.colour) : '#DC241F';
         const name = l ? l.name : a.lineName || a.lineId;
         return {when:now + a.timeToStation*1000, cat:bus ? 'Buses' : CAT[l?.mode] || CAT[a.modeName] || 'Trains',
@@ -4711,7 +4711,7 @@ async function openBoard(st){
     const all = (await Promise.all([...st.ids].slice(0, 5).map(id => /^[A-Z]{3}$/.test(id) ? railArrivals(id).then(L => L.filter(a => !a.cancelled)) : get(`/StopPoint/${id}/Arrivals`).catch(() => [])))).flat().filter(a => st.lines.has(a.lineId) || a.rail);
     const seen = new Set();
     const rows = all.sort((a, b) => a.timeToStation - b.timeToStation)
-      .filter(a => { const k = a.vehicleId + a.lineId + a.platformName; if(seen.has(k)) return false; seen.add(k); return true; }).slice(0, 9);
+      .filter(a => !(a.destinationNaptanId && st.ids.has(a.destinationNaptanId))) /* (one ending its run here isn't a departure) */.filter(a => { const k = a.vehicleId + a.lineId + a.platformName; if(seen.has(k)) return false; seen.add(k); return true; }).slice(0, 9);
     const bad = [...st.lines].map(id => [BY[id], lineStatus(id)]).filter(([, s]) => s && s.lv);
     $('board').innerHTML = `<h2><span>${esc(st.name)}</span><small id="bclock">${new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}</small></h2>
       <div class="bl">${[...st.lines].map(id => `<i style="background:${boardCol(BY[id].colour)}"></i>`).join('')}</div>
