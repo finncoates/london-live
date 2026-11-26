@@ -1735,8 +1735,8 @@ function frame(ts, sync){
     const item = [t, c.x, c.y, c.x, c.y, r, cs, sn, hl, hw, body]; drawn.push(item);
     if(!byLine.has(l)) byLine.set(l, []); byLine.get(l).push(item);
   }
+  drawPlatNums(ctx, s); // zoomed right in: each platform's track and number (under the lines' colours, which run through them)
   drawTracks(ctx, s); // zoomed in: every track
-  drawPlatNums(ctx, s); // zoomed right in: each platform's number at its end
   fanLondon(drawn, mpp); // trains piled at a station (a terminus, an interchange): side by side, as on their platforms
   // "Show trains" off: no train shapes (your own train, if any, still shows)
   if(!SHOW_ICONS){ for(let i = drawn.length-1; i >= 0; i--) if(!HL.has(drawn[i][0].key)) drawn.splice(i, 1);
@@ -1980,7 +1980,7 @@ async function refreshRail(){
     // the Overground's and Elizabeth line's trains come as TfL's own lines (their colours, platforms and tracks): not again as National Rail
     const tflRid = new Set(); for(const k of trains.keys()){ const m = /^(elizabeth|liberty|lioness|mildmay|suffragette|weaver|windrush):(\d+)$/.exec(k); if(m) tflRid.add(m[2]); }
     for(const tr of kept){
-      if((tr.opCode === 'LO' || tr.opCode === 'XR') && (tflRid.has(String(tr.id)) || tflRid.size > 20)){ trains.delete('nr:' + tr.id); continue; }
+      if(tflRid.has(String(tr.id)) || (tr.opCode === 'LO' || tr.opCode === 'XR') && (BY.windrush || BY.elizabeth || tflRid.size > 20)){ trains.delete('nr:' + tr.id); continue; } // (London's map has their lines: TfL's copies come)
       const l = railLine(tr.opCode, tr.op);
       const calls = tr.calls.filter(c => RAIL.byCrs[c[0]]); if(calls.length < 2 || calls.at(-1)[1] < t0 - 120000) continue;
       for(const [crs] of calls) if(!l.stops[crs]){ l.stops[crs] = RAIL.byCrs[crs]; newStops = true; }
@@ -3403,7 +3403,7 @@ async function refreshTT(){
       const ab = (st[2] < 50.9 || st[3] > 1.9) && typeof abroadAt === 'function' && abroadAt(st[0]); // Eurostar's stations abroad: on its lines through the tunnel
       if(ab){ const k = 'F' + st[0].toLowerCase().replace(/[^a-z]+/g, ''); RAIL.byCrs[k] ||= {n:st[0].replace(/-/g, ' '), p:ab, foreign:true}; return k; }
       const k = 'X' + st[2].toFixed(4) + ',' + st[3].toFixed(4); RAIL.byCrs[k] ||= {n:st[0].replace(/ Train Station$/, ''), p:[st[2], st[3]]}; return k; };
-    const tflOn = [...trains.keys()].some(k => /^(elizabeth|windrush|mildmay):/.test(k)); // (TfL's Overground and Elizabeth line here)
+    const tflOn = !!(BY.windrush || BY.elizabeth) || [...trains.keys()].some(k => /^(elizabeth|windrush|mildmay):/.test(k)); // (TfL's Overground and Elizabeth line here)
     for(const [trip, s] of segs){ const [mode, col, name0, from, to, dep, arr] = s;
       if(/FERRY/.test(mode) || arr < now - 30000 || TT_TFL.test(name0)) continue;
       const name = /eurostar/i.test(trip) ? 'Eurostar' : /^SR\d/.test(name0) ? 'ScotRail' : /^TfW/i.test(name0) ? 'TfW' : name0 === 'rail' && from[2] > 54 && from[3] < -5.4 ? 'NI Railways' : name0;
