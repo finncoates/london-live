@@ -4184,7 +4184,7 @@ function applyRegion(){
   // 'Blanmont' for Belgium); close to an Explore city, its name (Kyoto, not 'Live map'; Larnaca, not 'Ayia Napa')
   if(away && map.getZoom() >= 5){ const h = cityHere(), z = map.getZoom(); if(h){ const co = CATALOG[h[0]].countries[h[1]], ci = co.cities[h[2]], p0 = [c.lat(), c.lng()];
       if(z < 9) $('ttl').textContent = co.name + ' live';
-      else if(ci.at[2] > 7 && dist(p0, ci.at) < 8000){ const nm = ci.name.replace(/\s*\(.*\)$/, ''); if(!$('ttl').textContent.toLowerCase().includes(nm.toLowerCase().slice(0, 5))) $('ttl').textContent = nm + ' live'; } } }
+      else if(ci.at[2] > 7 && dist(p0, ci.at) < 8000){ const nm = ci.name.replace(/\s*\(.*\)$/, ''), cur = $('ttl').textContent.toLowerCase(); if(!cur.includes(nm.toLowerCase().slice(0, 5)) || cur.startsWith(nm.toLowerCase() + '-')) $('ttl').textContent = nm + ' live'; } /* ('Liège-Carré', a station: Liège) */ } }
   document.title = !away ? 'London Live Trains' : $('ttl').textContent.replace(/(^|[\s\-'’])(\p{Ll})/gu, (m, a, c) => a + c.toUpperCase()); // the browser tab says where too (words start after a space or hyphen: \b split 'Zürich' into 'ZüRich')
   { const t = $('ttl'), fit = m => { t.style.fontSize = ''; for(let f = 17; f >= m && t.scrollWidth > t.clientWidth + 1; f--) t.style.fontSize = f + 'px'; return t.scrollWidth <= t.clientWidth + 1; };
     if(!fit(14) && / map$/.test(t.textContent)){ t.textContent = t.textContent.replace(/ map$/, ''); fit(13); } } // long names shrink a little rather than being cut off
