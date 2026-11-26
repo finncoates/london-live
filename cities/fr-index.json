@@ -120,21 +120,6 @@
 ]
 },
 {
-"id": "liepaja",
-"name": "Liepāja",
-"box": [
-56.453,
-20.97,
-56.636,
-21.129
-],
-"url": "cities/lv-liepaja.json",
-"bus": [
-"#7E8BA3",
-"#97A6BF"
-]
-},
-{
 "id": "rezekne",
 "name": "Rēzekne",
 "box": [
@@ -1587,6 +1572,10 @@
 "bus": [
 "#7E8BA3",
 "#97A6BF"
+],
+"urls": [
+"cities/fr-n-fr-200052264-t0014-0000-1-19aa15.json",
+"cities/fr-n-offre-de-transport-solea-et-tram-d65762.json"
 ]
 },
 {
@@ -1659,21 +1648,6 @@
 4.316
 ],
 "url": "cities/fr-n-offre-de-transport-du-reseau-gra-5b472c.json",
-"bus": [
-"#7E8BA3",
-"#97A6BF"
-]
-},
-{
-"id": "n-offre-de-transport-solea-et-tram-d65762",
-"name": "Mulhouse Alsace Agglomération",
-"box": [
-47.665,
-7.071,
-47.889,
-7.574
-],
-"url": "cities/fr-n-offre-de-transport-solea-et-tram-d65762.json",
 "bus": [
 "#7E8BA3",
 "#97A6BF"
@@ -3489,44 +3463,20 @@
 "name": "Barcelona",
 "box": [
 41.284,
-2.027,
-41.515,
-2.259
+1.9,
+41.58,
+2.27
 ],
 "url": "cities/es-barcelona.json",
 "bus": [
 "#7E8BA3",
 "#97A6BF"
-]
-},
-{
-"id": "barcelona-tram",
-"name": "Barcelona",
-"box": [
-41.337,
-2.023,
-41.412,
-2.173
 ],
-"url": "cities/es-barcelona-tram.json",
-"bus": [
-"#7E8BA3",
-"#97A6BF"
-]
-},
-{
-"id": "barcelona-trambesos",
-"name": "Barcelona",
-"box": [
-41.368,
-2.137,
-41.46,
-2.263
-],
-"url": "cities/es-barcelona-trambesos.json",
-"bus": [
-"#7E8BA3",
-"#97A6BF"
+"urls": [
+"cities/es-barcelona.json",
+"cities/es-barcelona-tram.json",
+"cities/es-barcelona-trambesos.json",
+"cities/es-barcelona-fgc.json"
 ]
 },
 {
