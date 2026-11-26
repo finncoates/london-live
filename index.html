@@ -1578,6 +1578,9 @@ function trkOut(E, F, kk = 'r'){
   return {dead:false}; }
 // a train's platform at a station: its track, where it stops (the middle; at a terminus a train's length from the
 // buffers), and which end faces the neighbouring station (`nb`: where it comes from, or goes to)
+// a platform on a track only TfL's lines use (Farringdon's Elizabeth line A and B): never a main-line train's
+function tflOnlyPlat(q){ const mid = q[Math.floor(q.length/2)], near = trkNear(mid, 15).filter(e => (trkOn(e, mid)?.d ?? 99) < 6);
+  return near.length > 0 && near.every(e => e.lines && !e.lines.includes('nr')); }
 // a Tube train's platform, only if it is on its own line's track (TfL's platform numbers and OpenStreetMap's can differ:
 // London Bridge's Northern line "2" is a Jubilee line platform in the map) — else it stands on its own line's track
 function platPathL(crs, pl, line){ const r = platPath(crs, pl); if(!r || !line || !TRK.lines.has(line)) return r;
@@ -1644,12 +1647,12 @@ function placeTrain0(t){
     if(!t.rt || t.rt.k !== rk){ const pa = plA && platPathL(prev, plA, t.rail ? null : l.id), was = !pa && t.rt?.r && t.rt.k.split('|')[0].endsWith('>' + prev) ? t.rt.r.pts.at(-1) : null; // (where its last stretch ended: it sets off from there)
       const A = pa ? along(pa, 0.5).p : was || path.pts[0], gp = plB && platPathL(next, plB, t.rail ? null : l.id);
       // its platform there not known: one that suits it (a dead end where its run ends, a through platform where it runs on), whichever its way in reaches
-      const T = t.ahead, ends = t.rail && !t.tt && T && T.at(-1)[0] === next, on = t.rail && T && T.findIndex(a => a[0] === next) < T.length - 1, cand = !gp && t.rail && RAIL.plats?.[next] && !t.pass?.has(next) ? platsFor(next, ends ? 'end' : on ? 'through' : null) : null;
+      const T = t.ahead, ends = t.rail && !t.tt && T && T.at(-1)[0] === next, on = t.rail && T && T.findIndex(a => a[0] === next) < T.length - 1, cand = !gp && t.rail && RAIL.plats?.[next] && !t.pass?.has(next) ? platsFor(next, ends ? 'end' : on ? 'through' : null)?.filter(c => !tflOnlyPlat(c[1])) : null;
       const avoid = t.rail ? passedPlats(path, prev, next).concat(...[prev, next].filter(S => t.pass?.has(S) && !t.plats?.[S] && RAIL.plats?.[S]).map(S => Object.values(RAIL.plats[S]))) : [];
       const L = LW && clipLong(path, LW), C = L ? L.sub : path, last = !L || L.i1 === path.pts.length - 1; // (a long stretch: the part near the view)
       const A2 = L && L.i0 > 0 ? C.pts[0] : A, B = !last ? C.pts.at(-1) : gp ? along(gp, 0.5).p : path.pts.at(-1);
       let r = LW && !L ? null : cand === undefined ? undefined : trkRoute(A2, B, C, !last ? null : gp ? gp.pts : cand && cand.length ? cand.map(c => c[1]) : null, KS, avoid, 1, t.rail ? 'nr' : l.id);
-      if(r === null && gp && last && !(LW && !L)) r = trkRoute(A2, C.pts.at(-1), C, null, KS, avoid, 1, t.rail ? 'nr' : l.id); // (no way to its platform in the map: the best track there)
+      if(r === null && (gp || cand?.length) && last && !(LW && !L)) r = trkRoute(A2, C.pts.at(-1), C, null, KS, avoid, 1, t.rail ? 'nr' : l.id); // (no way to its platform in the map: the best track there)
       if(r && L) r = stitchLong(path, L, r);
       if(r !== undefined){ t.rt = {k:rk, r}; if(r && cand && cand.length){ const e = r.pts.at(-1), hit = cand.find(([, q]) => q.some((x, i) => i && segDist(e, q[i-1], x) < 5)); if(hit) (t.platG ||= {})[next] = hit[0]; } } } // (undefined: its tracks still loading: asked again next frame)
   }
