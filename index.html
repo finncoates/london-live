@@ -554,7 +554,7 @@ const MAP_ENGINE = Q.get('map') === 'google' ? 'google' : 'maplibre';
 function loadMapLibre(){
   const add = (tag, attrs) => new Promise((res, rej) => { const e = Object.assign(document.createElement(tag), attrs); e.onload = res; e.onerror = () => rej(new Error('Could not load the map')); document.head.appendChild(e); });
   return Promise.all([add('link', {rel:'stylesheet', href:'https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css'}), add('script', {src:'https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js'})])
-    .then(() => add('script', {src:'maplibre-google.js?v=4'})).then(() => window.installMapLibreAsGoogle()); }
+    .then(() => add('script', {src:'maplibre-google.js?v=5'})).then(() => window.installMapLibreAsGoogle()); }
 
 // ---------- map ----------
 const savedTheme = (() => { try{ return localStorage.getItem('theme'); }catch(e){ return null; } })();
@@ -1405,8 +1405,8 @@ async function refresh(){
 // (Brockley) is four tracks here. From zoom 15 they are drawn, and each train runs on the track for its direction ----------
 const TRK = {sq:new Map(), Z:15, lines:new Set(), lineBox:[51.2, -0.65, 51.8, 0.4]}; // lines: TfL lines whose tracks are known (drawn on them, not on the map's line, from zoom 15; inside lineBox)
 const trkHere = () => !document.body.classList.contains('abroad') && !MODES_OFF.has('rail') || nrLondon(); // Britain (its tracks: cities/tracks/)
-function trkSquare(i, j){ const k = i + '_' + j; let v = TRK.sq.get(k);
-  if(v === undefined){ TRK.sq.set(k, null); fetch('cities/tracks/' + k + '.json').then(r => r.ok ? r.json() : []).then(L => TRK.sq.set(k, (L || []).map(([d, pts, kd = 'r', ln]) => { if(ln) for(const x of ln) TRK.lines.add(x);
+function trkSquare(i, j){ const k = i*4096 + j; let v = TRK.sq.get(k); // (a number, not a string: asked thousands of times a frame)
+  if(v === undefined){ TRK.sq.set(k, null); fetch('cities/tracks/' + i + '_' + j + '.json').then(r => r.ok ? r.json() : []).then(L => TRK.sq.set(k, (L || []).map(([d, pts, kd = 'r', ln]) => { if(ln) for(const x of ln) TRK.lines.add(x);
       let a = 90, b = -90, c = 180, e = -180; for(const q of pts){ if(q[0] < a) a = q[0]; if(q[0] > b) b = q[0]; if(q[1] < c) c = q[1]; if(q[1] > e) e = q[1]; } return trkEdge({d, pts, bb:[a, b, c, e], kind:kd[0], tun:kd[1] === 't', lines:ln || null}); })))
       .catch(() => TRK.sq.set(k, [])); return null; }
   return v; }
@@ -1679,7 +1679,7 @@ function placeTrain0(t){
   // trains don't reverse: if a prediction slips, hold position instead of sliding back
   const sk = prev+'>'+next;
   if(t.fk === sk && f < t.f) f = t.f; else { t.fk = sk; t.f = f; }
-  return Object.assign(along(path, f), {path});
+  return Object.assign(along(path, f), {path, s:Math.max(0, Math.min(1, f))*path.len}); // (s: how far along it, so it needn't be found again)
 }
 
 // ---------- drawing ----------
@@ -1730,7 +1730,7 @@ function frame(ts, sync){
     // ~200 km/h (no leap); one behind is waited for (the train stands; after 45 s it's put where it is); a stretch is
     // run to its end before the next begins
     let on = pos, PP = pos.path;
-    if(pos.path && pos.path.cum){ const P = pos.path, sT = sAlong(P, project(P, pos.p)); let m = t.mv;
+    if(pos.path && pos.path.cum){ const P = pos.path, sT = pos.s != null ? pos.s : sAlong(P, project(P, pos.p)); let m = t.mv;
       if(!m || m.path !== P){ const o = t.d && project(P, t.d), od = o ? dist(o.p, t.d) : Infinity;
         const carry = m && m.path && !m.path.plat && m.s < m.path.len - 2 && dist(m.path.pts.at(-1), P.pts[0]) < 150 && od > 15 ? {path:m.path, s:m.s} : null; // (the last stretch, not yet run to its end)
         m = t.mv = {path:P, s:carry ? 0 : od < 600 ? sAlong(P, o) : sT, carry, hold:0, off:!carry && od >= 3 && od < 600 ? [t.d[0] - o.p[0], t.d[1] - o.p[1]] : null}; } // (onto a path beside it, e.g. the map's line → its real track: glides across)

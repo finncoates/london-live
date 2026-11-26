@@ -44,7 +44,8 @@
     getDiv(){ return this.div; }
     getCenter(){ const c = this.pend?.center || this.ml.getCenter(); return new LatLng(c.lat ?? c[1], c.lng ?? c[0]); }
     getZoom(){ return Math.round((this.pend?.zoom ?? this.ml.getZoom()) + 1); } // Google gives whole zoom levels
-    getBounds(){ const b = this.ml.getBounds(), r = new LatLngBounds(); r.s = b.getSouth(); r.n = b.getNorth(); r.w = b.getWest(); r.e = b.getEast(); return r; }
+    getBounds(){ const t = this.ml.transform, k = t.center.lng + ',' + t.center.lat + ',' + t.zoom + ',' + t.width + ',' + t.height; // (asked many times a frame: kept until the view moves)
+      if(this._bk === k && this._bb) return this._bb; const b = this.ml.getBounds(), r = new LatLngBounds(); r.s = b.getSouth(); r.n = b.getNorth(); r.w = b.getWest(); r.e = b.getEast(); this._bk = k; this._bb = r; return r; }
     // panTo and setZoom right after each other make one smooth move (not two that cancel each other)
     _later(k, v){ (this.pend ||= {})[k] = v; if(this.pend.t) return; this.pend.t = true;
       queueMicrotask(() => { const p = this.pend; this.pend = null; const c = this.ml.getCenter(), far = p.center && Math.hypot(p.center.lat - c.lat, (p.center.lng - c.lng)*Math.cos(c.lat*Math.PI/180)) > 3; // another city: jump, don't slide
