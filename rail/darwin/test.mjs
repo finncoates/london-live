@@ -81,3 +81,9 @@ test('RDM JSON topic: the Pport as JSON inside "bytes"', () => {
   const inner = {ts:'2026-11-23T20:38:54Z', version:'18.0', uR:{updateOrigin:'Trust', TS:{rid:'202611236702128', uid:'C02128', ssd:'2026-11-23', Location:{tpl:'LEEDSWJ', wtp:'20:17:30', pass:{at:'20:38'}}}}};
   D.ingest(Buffer.from(JSON.stringify({destination:{name:'x'}, messageType:'bytes', bytes:JSON.stringify(inner)})));
   assert.equal(D.msgs, 1); assert.equal(D.trains.size, 1); assert.equal(D.trains.get('202611236702128').locs[0].at, '20:38'); });
+test('how late it is at its next calling station, against the public timetable', () => {
+  const D = new Darwin(); D.ingest(sched); D.ingest(ts);
+  const [t] = D.calls(TPL, Date.parse('2026-11-23T15:25:00Z'), null, NAMES); assert.equal(t.late, 2); // Milton Keynes: expected 15:38, booked 15:36
+  const [u] = D.calls(TPL, Date.parse('2026-11-23T15:05:00Z'), null, NAMES); assert.equal(u.late, 2); // Watford next: 15:17 for 15:15
+  const D2 = new Darwin(); D2.ingest(sched); const [v] = D2.calls(TPL, Date.parse('2026-11-23T15:05:00Z'), null, NAMES); assert.equal(v.late, null); // no running reports: not known
+});

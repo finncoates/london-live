@@ -81,16 +81,19 @@ export class Darwin {
       if(!C || C.v !== t.v || C.tl !== tiplocs){ let prevMs = null; const pts = [];
         for(const l of t.locs){ if(l.can) continue;
           const sched = l.ptd || l.pta || l.wtd || l.wta || l.wtp, ms = toMs((l.at || l.et || sched || '').slice(0, 8), t.ssd, prevMs);
-          if(ms == null) continue; prevMs = ms; pts.push({tpl:l.tpl, ms, actual:!!l.at, kind:l.k, plat:l.plat}); }
-        const calls = []; for(const p of pts){ const x = tiplocs[p.tpl]; if(x && x[2] && (!calls.length || calls[calls.length-1][0] !== x[2])) calls.push(p.kind === 'PP' ? [x[2], p.ms, p.actual ? 1 : 0, p.plat || null, 1] : p.plat ? [x[2], p.ms, p.actual ? 1 : 0, p.plat] : [x[2], p.ms, p.actual ? 1 : 0]); } // (a station it only passes: marked, 5th)
-        C = {v:t.v, tl:tiplocs, live:pts.some(p => p.actual), first:pts.length > 1 ? pts[0].ms : null, last:pts.length > 1 ? pts[pts.length - 1].ms : null, calls}; CALLS.set(t, C); }
+          if(ms == null) continue; const pub = (l.at || l.et) && (l.ptd || l.pta), pm = pub ? toMs(pub.slice(0, 8), t.ssd, prevMs) : null; // (late: against the public timetable, where it calls)
+          prevMs = ms; pts.push({tpl:l.tpl, ms, actual:!!l.at, kind:l.k, plat:l.plat, late:pm != null ? Math.round(((ms - pm + 18*3600e3) % 86400e3 - 18*3600e3)/60000) : null}); } // (a day either way folded back: 12 min late across midnight is 12, not 1,452)
+        const calls = [], late = []; for(const p of pts){ const x = tiplocs[p.tpl]; if(x && x[2] && (!calls.length || calls[calls.length-1][0] !== x[2]) && late.push(p.late)) calls.push(p.kind === 'PP' ? [x[2], p.ms, p.actual ? 1 : 0, p.plat || null, 1] : p.plat ? [x[2], p.ms, p.actual ? 1 : 0, p.plat] : [x[2], p.ms, p.actual ? 1 : 0]); } // (a station it only passes: marked, 5th)
+        C = {v:t.v, tl:tiplocs, live:pts.some(p => p.actual), first:pts.length > 1 ? pts[0].ms : null, last:pts.length > 1 ? pts[pts.length - 1].ms : null, calls, late}; CALLS.set(t, C); }
       if(C.first == null || C.last < now - 10*60e3 || C.first > now + 30*60e3) continue; // finished, or not yet started
       const calls = C.calls; if(calls.length < 2) continue;
       if(bbox){ // the stretch the train is on now must touch the box
         let i = calls.findIndex(c => c[1] > now); if(i < 0) i = calls.length - 1; const a = calls[Math.max(0, i - 1)], b = calls[i];
         if(!inBox(a) && !inBox(b)) continue; }
       const last = t.locs.filter(l => !l.can).at(-1), dx = last && tiplocs[last.tpl];
-      out.push({id:t.rid, op:TOC[t.toc] || t.toc || '', opCode:t.toc || '', dest:dx && names[dx[2]] || '', destCrs:dx && dx[2] || null, headcode:t.trainId || '', live:C.live, calls});
+      // minutes late: at its next calling station (else the last one known), against the public timetable; null: not known
+      let ni = calls.findIndex(c => c[1] > now && !c[4]); if(ni < 0) ni = calls.length - 1; let lt = null; for(let j = ni; j >= 0 && lt == null; j--) lt = C.late[j]; for(let j = ni + 1; j < calls.length && lt == null; j++) lt = C.late[j];
+      out.push({id:t.rid, op:TOC[t.toc] || t.toc || '', opCode:t.toc || '', dest:dx && names[dx[2]] || '', destCrs:dx && dx[2] || null, headcode:t.trainId || '', live:C.live, late:lt, calls});
     }
     return out; }
   prune(now = Date.now()){ // forget trains long finished
