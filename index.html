@@ -5122,9 +5122,15 @@ $('plSwap').onclick = () => { const a = PL.from || {me:true, name:'My location'}
   $('plFrom').value = PL.from.me ? '' : PL.from.name; $('plTo').value = PL.to.me ? 'My location' : PL.to.name; planGo(); };
 for(const id of ['plFrom', 'plTo']) $(id).addEventListener('input', () => { PL.field = id; const q = $(id).value.trim(); clearTimeout(PL.t); if(q.length < 3){ $('plSug').hidden = true; return; }
   PL.t = setTimeout(async () => { const c = map.getCenter(); try{ const j = await (await fetch(`${TRS()}/api/v1/geocode?text=${encodeURIComponent(q)}&place=${c.lat().toFixed(1)},${c.lng().toFixed(1)}`, {signal:AbortSignal.timeout(8000)})).json();
-      if($(id).value.trim() !== q) return; PL.sug = (Array.isArray(j) ? j : []).filter(x => isFinite(x.lat)).slice(0, 6).map(x => ({name:x.name, lat:x.lat, lon:x.lon, area:[...new Set((x.areas || []).map(a => a.name).filter(n => n && n !== x.name))].slice(-2).reverse().join(', '), type:x.type}));
-      PL.sugMe = id === 'plFrom'; $('plSug').innerHTML = (PL.sugMe ? [{me:true, name:'My location'}] : []).concat(PL.sug).map((x, i) => `<li role="option" data-i="${i}">${esc(x.name)}${x.area ? `<small>${esc(x.area)}</small>` : ''}</li>`).join('');
-      $('plSug').hidden = false; }catch(e){} }, 300); });
+      if($(id).value.trim() !== q) return; const all = (Array.isArray(j) ? j : []).filter(x => isFinite(x.lat)), m0 = [c.lat(), c.lng()], near = all.filter(x => dist(m0, [x.lat, x.lon]) < 1500e3); // (not another continent's Brighton, unless nothing nearer matches)
+      const seen = new Set(); PL.sug = (near.length ? near : all).map(x => ({name:x.name, lat:x.lat, lon:x.lon, area:[...new Set((x.areas || []).map(a => a.name).filter(n => n && n !== x.name))].slice(-2).reverse().join(', '), type:x.type})).filter(x => { const k = x.name + '|' + x.area; if(seen.has(k)) return false; seen.add(k); return true; }).slice(0, 6);
+      PL.sugMe = id === 'plFrom'; PL.sel = PL.sugMe && PL.sug.length ? 1 : 0; planSug(); $('plSug').hidden = false; }catch(e){} }, 300); });
+// the suggestions, the chosen one marked (the top match: Enter takes it; arrows move)
+function planSug(){ $('plSug').innerHTML = (PL.sugMe ? [{me:true, name:'My location'}] : []).concat(PL.sug).map((x, i) => `<li role="option" data-i="${i}" class="${i === PL.sel ? 'on' : ''}" aria-selected="${i === PL.sel}">${esc(x.name)}${x.area ? `<small>${esc(x.area)}</small>` : ''}</li>`).join(''); }
+for(const id of ['plFrom', 'plTo']) $(id).addEventListener('keydown', e => { if($('plSug').hidden || PL.field !== id) return; const n = (PL.sugMe ? 1 : 0) + (PL.sug || []).length; if(!n) return;
+  if(e.key === 'ArrowDown' || e.key === 'ArrowUp'){ e.preventDefault(); PL.sel = ((PL.sel ?? 0) + (e.key === 'ArrowDown' ? 1 : n - 1)) % n; planSug(); }
+  else if(e.key === 'Enter'){ e.preventDefault(); const li = $('plSug').querySelector(`li[data-i="${PL.sel ?? 0}"]`); if(li) li.click(); }
+  else if(e.key === 'Escape'){ $('plSug').hidden = true; } });
 $('plSug').addEventListener('click', e => { const li = e.target.closest('li'); if(!li) return; const L = (PL.sugMe ? [{me:true, name:'My location'}] : []).concat(PL.sug), x = L[+li.dataset.i]; if(!x) return;
   if(PL.field === 'plFrom'){ PL.from = x; $('plFrom').value = x.me ? '' : x.name; } else { PL.to = x; $('plTo').value = x.name; } $('plSug').hidden = true; planGo(); });
 async function planGo(){ if(!PL.to) return; const seq = ++PL.seq; $('plRes').innerHTML = '<div class="muted">Finding ways…</div>';
@@ -5137,13 +5143,15 @@ async function planGo(){ if(!PL.to) return; const seq = ++PL.seq; $('plRes').inn
     if(!PL.its.length){ $('plRes').innerHTML = `<div class="muted">No way found by public transport${j.direct?.length ? ` (walking takes ${mins(j.direct[0].duration*1000)} min)` : ''}.</div>`; PL.draw = null; return; }
     pickIt(0); }
   catch(e){ if(seq === PL.seq) $('plRes').innerHTML = '<div class="muted">Journeys couldn’t be found right now.</div>'; } }
+// a leg's name: the line ('Victoria', '172'), or for a train numbered like TL383900 (a timetable's train number) its operator
+const legName = L => { const n = L.routeShortName || L.displayName || ''; return /^[A-Z]{2}\d{4,}$/.test(n) && (L.agencyName || L.routeLongName) ? (L.agencyName || L.routeLongName) : n; };
 function renderPlan(){
   $('plRes').innerHTML = PL.its.map((it, i) => { const s = Date.parse(it.startTime), e = Date.parse(it.endTime);
-    const pills = it.legs.map(L => legKind(L.mode) === 'walk' ? `<span class="wk">🚶${mins(Date.parse(L.endTime) - Date.parse(L.startTime))}</span>` : `<span class="lp" style="background:${legCol(L)}">${esc(L.routeShortName || L.displayName || KNAME[legKind(L.mode)] || '')}</span>`).join('<span class="wk">›</span>');
+    const pills = it.legs.map(L => legKind(L.mode) === 'walk' ? `<span class="wk">🚶${mins(Date.parse(L.endTime) - Date.parse(L.startTime))}</span>` : `<span class="lp" style="background:${legCol(L)}">${esc(legName(L) || KNAME[legKind(L.mode)] || '')}</span>`).join('<span class="wk">›</span>');
     const body = i === PL.sel ? `<ol>${it.legs.map(L => { const k = legKind(L.mode), a = Date.parse(L.startTime), b = Date.parse(L.endTime), stops = (L.intermediateStops || []).length + 1, late = L.realTime && L.scheduledStartTime ? Math.round((a - Date.parse(L.scheduledStartTime))/60000) : 0;
         const toName = !L.to?.name || /^(END|START)$/i.test(L.to.name) ? PL.to?.name || '' : L.to.name, head = !L.headsign || /^[A-Z]{4}$/.test(L.headsign) ? L.tripTo?.name || L.to?.name || '' : L.headsign; // (the place you asked for, not 'END'; an RER mission code like VACK: its terminus)
         return k === 'walk' ? `<li class="walk" style="--c:#8a8f98">Walk ${mins(b - a)} min to ${esc(toName)}</li>`
-          : `<li style="--c:${legCol(L)}"><b>${esc(KNAME[k] || '')} ${esc(L.routeShortName || L.displayName || '')}</b> towards ${esc(head)}
+          : `<li style="--c:${legCol(L)}"><b>${esc(KNAME[k] || '')} ${esc(legName(L) || '')}</b> towards ${esc(head)}
             <small>${hm2(a)} ${esc(L.from?.name || '')} → ${hm2(b)} ${esc(L.to?.name || '')} · ${stops} stop${stops > 1 ? 's' : ''}${L.realTime ? (late >= 2 ? ` · ${late} min late` : ' · live') : ''}</small>${L.tripId && GPS.list.has('tf:' + L.tripId) ? `<span role="button" tabindex="0" data-follow="${esc(L.tripId)}">Follow it</span>` : ''}</li>`; }).join('')}</ol>` : '';
     return `<button type="button" class="it ${i === PL.sel ? 'on' : ''}" data-it="${i}"><b>${hm2(s)} – ${hm2(e)}</b> · ${mins(e - s)} min${it.transfers ? ` · ${it.transfers} change${it.transfers > 1 ? 's' : ''}` : ''}<div class="legs">${pills}</div>${body}</button>`; }).join(''); }
 function pickIt(i){ PL.sel = i; const it = PL.its[i]; renderPlan(); if(!it) return;
