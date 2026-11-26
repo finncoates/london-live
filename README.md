@@ -20,14 +20,19 @@ no tracking.
   Ireland and more, plus Toronto and Japan). Lines are drawn along the real track, and vehicles are live where the
   operator publishes positions, otherwise placed from the timetable with live delays where those are shared.
 
-Solid vehicles are live positions; pale ones with a coloured edge are placed from the timetable. The full city-by-city
+In London every train runs on its own track: Tube and Elizabeth line trains in their tunnels, main-line trains on the
+fast or slow lines they really use, each standing at its real platform; tracks shared by a TfL line and main-line trains
+are drawn as such (Brockley), as are the Tyne and Wear Metro's at Sunderland and Sheffield's tram-train.
+
+Solid vehicles are live positions; pale ones with a coloured edge are placed from the timetable; a see-through one is
+catching up with where a new report says it really is. The full city-by-city
 picture is in [COVERAGE.md](COVERAGE.md).
 
 ## What you can do
 
 - **Tap a stop** for its next departures (live where available), with operators' notices about works and diversions.
-- **Tap a vehicle** for its next stops and how late it is, and **Follow** it; in London, **Ride along** keeps the map on
-  your train.
+- **Tap a vehicle** for its next stops, its platform and how late it is (National Rail trains: minutes behind the
+  timetable, from Darwin), and **Follow** it; in London, **Ride along** keeps the map on your train.
 - **Directions:** plan a journey from where you are to any stop or place in Europe, drawn on the map, with the
   vehicles you'd ride highlighted.
 - **Search** any stop, street or place in Europe; **save stops** (☆) for one-tap departures; **share** a link to a stop
