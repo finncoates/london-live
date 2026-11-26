@@ -2413,7 +2413,7 @@ async function srvSetup(){
   try{ const bx = Object.values(SRV.feeds).map(f => f.box).filter(Boolean); if(bx.length) localStorage.setItem('srvBoxes', JSON.stringify(bx)); }catch(e){}
   if(SRV.added){ SRV.added = false; setTimeout(() => refreshGps().catch(() => {}), 50); } } // new live feeds: show their vehicles now, not at the next refresh
 // live ferries (AIS, from the server): every passenger ship and fast ferry in view, where it really is
-async function refreshShips(){
+async function refreshShips(){ if(document.hidden) return; // (a tab out of sight: nothing fetched; all of it again on coming back)
   if(!SRV.ferries || !TRAINS_ON || GPS_OFF.has('ferry') || map.getZoom() < 7) return;
   const b = fetchBounds(); if(!b) return; const sw = b.getSouthWest(), ne = b.getNorthEast();
   try{ const j = await (await fetch(`${RAIL.relay}/srv/ferries?bbox=${[sw.lat(), sw.lng(), ne.lat(), ne.lng()].map(x => x.toFixed(2)).join(',')}`, {signal:AbortSignal.timeout(10000)})).json();
@@ -2778,7 +2778,7 @@ async function refreshCoaches(p, z){
 }
 // a live feed that failed: say so in words (not 'signal timed out'); vehicles already on the map stay until the next try
 const feedErr = (e, who) => /abort|time|fetch|network|HTTP 5/i.test(e && e.message || '') ? `${who} is slow to answer right now · trying again shortly` : `${who}: ${e && e.message || 'not available right now'}`;
-async function refreshGps(){
+async function refreshGps(){ if(document.hidden) return;
   const c = map.getCenter(), p = [c.lat(), c.lng()], z = map.getZoom(); await loadCityLines(p).catch(() => {}); // the city's timetable first, so its trams show straight away
   if(inFinland(p) && (!TRAINS_ON || z < 5)){ gpsOnly(); hslStop(); BUS.note = ''; renderBusNote(); return; }
   if(inFinland(p) && TRAINS_ON && z >= 5){ // whole-country view works: only a few hundred trains
@@ -3384,7 +3384,7 @@ function ttGet(path){ const now = Date.now(), hit = TT_CACHE.get(path) || (path.
   const p = railGet(path); TT_CACHE.set(path, {at:now, p}); p.then(() => health('tt', true), () => { TT_CACHE.delete(path); health('tt', false); });
   if(TT_CACHE.size > 300) for(const [k, v] of TT_CACHE) if(now - v.at > 60000) TT_CACHE.delete(k);
   return p; }
-async function refreshTT(){
+async function refreshTT(){ if(document.hidden) return;
   const c0 = map.getCenter(), world = c0 && ['world', 'norway'].includes(regionOf([c0.lat(), c0.lng()])); // beyond the places with their own feeds (France, Ireland…): everything from the timetable
   if(TTV.busy || !RAIL.relay || RAIL.relay === 'demo' || !TRAINS_ON || map.getZoom() < (world ? 5 : 8)) return;
   if(!world && (!railOn() || MODES_OFF.has('rail') || !RAIL.stations)) return;
@@ -5199,6 +5199,7 @@ if(DEBUG) window.LLT = {nrTrackPath, esChain, refreshTT, TTV, follow:(t, z) => f
   else if(Q.get('near') === '1') $('bFit').click(); // home-screen shortcut "Near me"
   else if(LIVE.on && pinnedStation() && !Q.get('view') && !AUTO.on && !Q.get('kiosk')){ const st = findStation(pinnedStation()); if(st) goStation(st); } // Live mode: the pinned station
   for(;;){
+    if(document.hidden){ await sleep(5000); continue; } // (out of sight: TfL not asked; coming back fetches at once)
     let good = false;
     try{ good = await refresh(); }catch(e){ $('err').textContent = 'Error: ' + e.message; console.error(e); }
     await sleep(good ? REFRESH : Math.min(REFRESH*8, REFRESH*2**Math.min(3, failStreak)));
