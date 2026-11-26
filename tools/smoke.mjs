@@ -8,6 +8,12 @@ import path from 'path';
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..'), PORT = 8799;
 const EDGE = ['C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe', 'C:/Program Files/Microsoft/Edge/Application/msedge.exe', 'C:/Program Files/Google/Chrome/Application/chrome.exe'];
 const exe = (await import('fs')).default; const browserPath = process.env.BROWSER || EDGE.find(p => exe.existsSync(p));
+// code swallowed by a comment: '// note) x = 1; y()' on one line runs nothing after the '//' (it hid a vehicle card's
+// reset and station names' outline for weeks). Comments mid-line before more code are written /* … */.
+{ const bad = []; for(const f of ['index.html', 'maplibre-google.js']) exe.readFileSync(path.join(ROOT, f), 'utf8').split('\n').forEach((l, i) => { const j = l.indexOf('// ');
+    if(j < 0 || l.slice(Math.max(0, j - 1), j + 2).includes('://')) return; const m = l.slice(j).match(/\)\s+((?:if|for|const|let|return|await)\b.*|[A-Za-z_$][\w$.\[\]']*\s*(?:=|\+=)[^=].*|[A-Za-z_$][\w$.]*\(.*\);.*)$/);
+    if(m && m[1].includes(';')) bad.push(`${f}:${i + 1}: ${l.slice(j, j + 100)}`); });
+  if(bad.length){ console.log('FAIL code after a // comment on the same line (never runs):\n  ' + bad.join('\n  ')); process.exit(1); } }
 // timetable trams/metros/boats over 300 m from their drawn line (none expected; the relay may be down or the hour quiet:
 // no vehicles is not a failure). Waits while the timetable hasn't arrived yet.
 const offTrack = s => s.offLine == null || !s.offLine.n ? 'WAIT timetable' : s.offLine.of > Math.max(1, s.offLine.n*0.02) ? `${s.offLine.of} of ${s.offLine.n} timetable vehicles off their line` : null;
