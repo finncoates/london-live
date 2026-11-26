@@ -12,7 +12,7 @@
 #      side, the numbers running across the station the way its other platforms' do): the track(s) beside it
 import sys as _s; _s.stdout.reconfigure(encoding='utf-8', errors='replace')
 import sys, os, json, math, re, osmium
-pbf, stf, outf = sys.argv[1], sys.argv[2], sys.argv[3]
+pbf, stf, outf = sys.argv[1], sys.argv[2], sys.argv[3]; METRO = len(sys.argv) > 4 and sys.argv[4] == 'metro' # (metro: the Tube's and DLR's platforms and tracks too, for TfL's stations)
 R = 6371000.0
 FL = math.floor
 G = 0.01 # ~1 km grid of stations, to keep only what is near one
@@ -37,14 +37,14 @@ TRAIN = {'rail'} # national rail; metro and tram platforms are a later step
 # what each way is (read in two passes: osm2pass.py), and the stations (from OSM itself, for countries with no list)
 def keep_way(t):
     rw = t.get('railway')
-    if rw == 'rail':
-        if t.get('service') in ('yard', 'spur') or t.get('usage') in ('industrial', 'military'): return None
-        return ('t', (t.get('railway:track_ref') or '').strip().upper())
+    if rw == 'rail' or METRO and rw in ('subway', 'light_rail'):
+        if t.get('service') in (('yard', 'spur', 'siding') if METRO else ('yard', 'spur')) or t.get('usage') in ('industrial', 'military'): return None
+        return ('t', ((t.get('railway:track_ref') or '').strip().upper(), rw))
     if rw == 'platform_edge': return ('e', refs(t.get('ref')))
     if rw != 'platform' and t.get('public_transport') != 'platform': return None
-    if t.get('train') == 'no' or t.get('subway') == 'yes' or t.get('tram') == 'yes' or t.get('light_rail') == 'yes' or t.get('bus') == 'yes' or t.get('highway') == 'bus_stop': return None
+    if (t.get('train') == 'no' or t.get('subway') == 'yes') and not METRO or t.get('tram') == 'yes' or t.get('light_rail') == 'yes' and not METRO or t.get('bus') == 'yes' or t.get('highway') == 'bus_stop': return None
     r = refs(t.get('ref') or t.get('local_ref'))
-    if rw != 'platform' and t.get('train') != 'yes' and not r: return None # (a numbered one counts: Zürich's 1-15; only one beside a track is used)
+    if rw != 'platform' and t.get('train') != 'yes' and t.get('subway') != 'yes' and t.get('light_rail') != 'yes' and not r: return None # (a numbered one counts: Zürich's 1-15; only one beside a track is used)
     return ('p', r)
 def keep_node(t):
     if not OSM_ST or t.get('railway') not in ('station', 'halt') or not t.get('name') or t.get('station') in SKIP or t.get('subway') == 'yes' or t.get('usage') in ('tourism', 'heritage'): return None
@@ -59,7 +59,7 @@ h = H()
 for (kind, v), pp in WAYS:
     pts = [(a, b) for a, b, _ in pp]
     if len(pts) < 2 or not any(near_station(*q) for q in pts[::max(1, len(pts)//4)] + [pts[-1]]): continue
-    if kind == 't': h.tracks.append({'pts':pts, 'ref':v})
+    if kind == 't': h.tracks.append({'pts':pts, 'ref':v[0], 'rw':v[1]})
     elif kind == 'e': h.edges.append({'pts':pts, 'refs':v})
     else: h.plats.append({'pts':pts, 'refs':v})
 for x in h.tracks + h.plats + h.edges: x['bb'] = (min(p[0] for p in x['pts']), max(p[0] for p in x['pts']), min(p[1] for p in x['pts']), max(p[1] for p in x['pts']))
@@ -124,7 +124,7 @@ out = {}
 for s in ST:
     to, back = local(s)
     def nearby(P, r): return any(abs(p[0]) < r and abs(p[1]) < r for p in P[::max(1, len(P)//6)] + [P[-1]])
-    tr = [dict(t, m=dens([to(p) for p in t['pts']])) for t in cand('t', s) if close(t, s, 0.0065)]
+    tr = [dict(t, m=dens([to(p) for p in t['pts']])) for t in cand('t', s) if close(t, s, 0.0065) and (not METRO or (t['rw'] != 'rail') == s[0].startswith('940G'))] # (metro: a Tube/DLR station's own tracks, not the main line's beside it)
     tr = [t for t in tr if nearby(t['m'], 700)]
     if not tr: continue
     pls = [dict(p, m=dens([to(q) for q in p['pts']], 3)) for p in cand('p', s) if close(p, s, 0.0045)]; pls = [p for p in pls if nearby(p['m'], 500)]
