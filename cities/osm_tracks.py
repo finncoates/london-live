@@ -53,12 +53,58 @@ def rdp(P, eps):
 use = {}
 for d, p, kd, _ in h.ways:
     for k, (_, _, n) in enumerate(p): use[n] = use.get(n, 0) + (1 if 0 < k < len(p) - 1 else 2)
-tiles = {}; pieces = 0
+PCS = [] # [d, points, kind, lines, (end node, end node), all points]
 for d, p, kd, ln in h.ways:
     cut = [0] + [k for k in range(1, len(p) - 1) if use[p[k][2]] >= 2] + [len(p) - 1]
     for a0, a1 in zip(cut, cut[1:]):
-        seg = [(a, b) for a, b, _ in p[a0:a1 + 1]]; q = [[a, b] for a, b in rdp(seg, 1.0/111320)]; pieces += 1 # ~1 m
-        for key in {(math.floor(a*10), math.floor(b*10)) for a, b in seg}: tiles.setdefault(key, []).append([d, q, kd] + ([ln] if ln else []))
+        seg = [(a, b) for a, b, _ in p[a0:a1 + 1]]; q = [[a, b] for a, b in rdp(seg, 1.0/111320)]
+        PCS.append([d, q, kd, list(ln), (p[a0][2], p[a1][2]), seg])
+pieces = len(PCS)
+# OSM's route relations often list one direction's tunnel only: the other one gets its line here, so the line is drawn
+# (and its trains run) on both. 1. a Tube or DLR track running alongside one of a line, within 35 m for most of its
+# length, is that line's; 2. any piece whose two ends both join that line's pieces (a gap, a crossover) is too
+if LINES:
+    G = {} # ~50 m cells: tagged Tube/DLR points
+    def cell(a, b): return (int(a*2000), int(b*1300))
+    for P in PCS:
+        if P[3] and P[2][0] in 'sl':
+            for a, b in P[5][::1] + [P[5][-1]]: G.setdefault(cell(a, b), []).append((a, b, P[2][0], P[3]))
+    def dens_ll(S, step=20):
+        out = [S[0]]
+        for (a, b), (c, e) in zip(S, S[1:]):
+            n = max(1, int(math.hypot((c-a)*111320, (e-b)*69000)/step)); out += [(a + (c-a)*i/n, b + (e-b)*i/n) for i in range(1, n + 1)]
+        return out
+    n1 = 0
+    for P in PCS:
+        if P[3] or P[2][0] not in 'sl': continue
+        S = dens_ll(P[5]); hits = {}
+        for a, b in S:
+            c0 = cell(a, b); best, near = 35, () # (the nearest tagged track's lines: the District's twin, not the Piccadilly beside it)
+            for x in (-1, 0, 1):
+                for y in (-1, 0, 1):
+                    for (la, lo, k, ln) in G.get((c0[0]+x, c0[1]+y), []):
+                        dd = math.hypot((la-a)*111320, (lo-b)*69000)
+                        if k == P[2][0] and dd < best: best, near = dd, ln
+            for l in near: hits[l] = hits.get(l, 0) + 1
+        got = sorted(l for l, c in hits.items() if c >= 0.8*len(S))
+        if got: P[3] = got; n1 += 1
+    n2 = 0
+    for _ in range(4):
+        at = {}
+        for P in PCS:
+            for nd in P[4]: at.setdefault(nd, []).append(P)
+        ch = 0
+        for P in PCS:
+            if P[3]: continue
+            A = set(l for Q in at[P[4][0]] if Q is not P and Q[2][0] == P[2][0] for l in Q[3]); B = set(l for Q in at[P[4][1]] if Q is not P and Q[2][0] == P[2][0] for l in Q[3])
+            both = sorted(A & B)
+            if both and len(P[5]) and math.hypot((P[5][0][0]-P[5][-1][0])*111320, (P[5][0][1]-P[5][-1][1])*69000) < 3000: P[3] = both; ch += 1
+        n2 += ch
+        if not ch: break
+    print(n1, 'tracks given their line by the one beside them,', n2, 'by both ends')
+tiles = {}
+for d, q, kd, ln, _, seg in PCS:
+    for key in {(math.floor(a*10), math.floor(b*10)) for a, b in seg}: tiles.setdefault(key, []).append([d, q, kd] + ([ln] if ln else []))
 # merged with what a square already has (a square on a border gets both countries' tracks; a rebuild adds nothing twice)
 for (i, j), v in tiles.items():
     f = os.path.join(out, f'{i}_{j}.json'); old = json.load(open(f)) if os.path.exists(f) else []
