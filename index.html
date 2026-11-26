@@ -1245,7 +1245,7 @@ async function refreshStatus(){
       const top = ss[0] || {lv:0, text:'Good service'};
       // reasons: drop the "Line name:" prefix and duplicates
       const reasons = [...new Set(ss.map(s => s.reason.replace(/^[^:]{2,40}:\s*/, '')).filter(Boolean))];
-      STATUS.set(l.id, {lv:top.lv, text:top.lv ? top.text : 'Good service', reasons});
+      STATUS.set(l.id, {lv:top.lv, text:top.lv ? top.text : 'Good service', reasons, whole:ss.length > 0 && ss.every(x => /^(Suspended|Closed|Service Closed|Planned Closure)$/i.test(x.text))}); // (whole: the entire line out of service)
     }
     window.onStatus && onStatus();
   }catch(e){ console.warn('status', e.message); }
@@ -1778,7 +1778,7 @@ function frame(ts, sync){
       if(m.off){ const oM = Math.hypot(m.off[0]*111320, m.off[1]*111320*Math.cos(t.d[0]*rad)) || 1, f = Math.min(oM, Math.min(55*dt, Math.max(oM*(1 - Math.exp(-dt/0.8)), 8*dt)))/oM; m.off[0] *= 1 - f; m.off[1] *= 1 - f; t.d[0] += m.off[0]; t.d[1] += m.off[1]; if(Math.abs(m.off[0]) + Math.abs(m.off[1]) < 2e-7) m.off = null; } }
     else { t.mv = null; off = !!t.d && dist(t.d, pos.p) > CATCH_M; if(!t.d || dist(t.d, pos.p) > 3000){ if(t.d) t.fx = wall + 2500; t.d = pos.p.slice(); } else { t.d[0]+= (pos.p[0]-t.d[0])*k; t.d[1]+= (pos.p[1]-t.d[1])*k; }
       if(pos.path){ on = project(pos.path, t.d); t.d = on.p.slice(); } else t.d = pos.p.slice(); }
-    { const tg = off || wall < (t.fx || 0) ? FADE_A : 1; t.fa = (t.fa ?? 1) + (tg - (t.fa ?? 1))*Math.min(1, dt*4); } // see-through while catching up (eased in and out)
+    { const tg = off || wall < (t.fx || 0) || !t.rail && STATUS.get(t.line)?.whole ? FADE_A : 1; /* (its whole line suspended: TfL still lists it, but it may not be running) */ t.fa = (t.fa ?? 1) + (tg - (t.fa ?? 1))*Math.min(1, dt*4); } // see-through while catching up (eased in and out)
     let ang = t.ang ?? 0;
     if(on.a && on.b){ const dx=(on.b[1]-on.a[1])*cosLat, dy=on.a[0]-on.b[0]; if(dx||dy) ang=Math.atan2(dy,dx); }
     // the rectangle looks the same both ways round, so turn it the short way (mod 180°)
@@ -1942,6 +1942,7 @@ function showTip(e){
     ${t.towards ? `<div>To <b>${esc(t.towards)}</b></div>` : ''}
     ${arrivedAt(t) ? `<div>At ${esc(l.stops[arrivedAt(t)]?.n || '?')}${t.ahead && t.ahead.at(-1)?.[0] === arrivedAt(t) ? ' · end of its run' : ''}</div>` : `<div>Next stop: ${esc(l.stops[t.cur||t.next]?.n||'?')} · ${secs<30?'due':Math.round(secs/60)+' min'}</div>`}
     ${lateText(t) ? `<div>${lateHtml(t)}</div>` : ''}
+    ${!t.rail && STATUS.get(t.line)?.whole ? `<div class="tt-m">${esc(STATUS.get(t.line).text)} line: this train may not be in service</div>` : ''}
     ${t.loc ? `<div class="tt-m">${esc(t.loc)}</div>` : ''}
     ${num ? `<div class="tt-m">${esc(num)}</div>` : ''}`;
   tip.style.display='block';
