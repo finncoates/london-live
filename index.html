@@ -1281,7 +1281,8 @@ async function refresh(){
   res.forEach((r,i) => { if(r.status==='fulfilled') preds = preds.concat(r.value); else { err = r.reason; chunks[i].forEach(id => failed.add(id)); } });
   if(err){
     failStreak++;
-    $('err').textContent = 'Live train data error: ' + err.message + (err.status===429 ? (KEY ? ' — rate limited, or the app_key is invalid' : ' — rate limited; add ?app_key= (free from api-portal.tfl.gov.uk)') : '') + ' (retrying)';
+    // (one failed batch is usually gone by the next refresh: said only when it happens twice running, in plain words)
+    if(failStreak >= 2) $('err').textContent = (err.status === 429 ? 'TfL is limiting requests just now' : navigator.onLine === false ? 'No connection' : 'Some live TfL data isn’t arriving') + ': ' + (failed.size === ids.length ? 'trains shown where they were last reported' : 'some lines show where their trains were last reported') + ' · retrying' + (Q.has('debug') ? ' (' + err.message + ')' : '');
     if(failed.size === ids.length) return false;
   } else { failStreak = 0; $('err').textContent = ''; }
   if(preds.length) LAST_OK = Date.now();
