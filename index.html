@@ -161,7 +161,7 @@ body.dark #simnote{background:#1f2a44;color:#c6dafc}
 @media (max-height:500px) and (min-width:701px){#panel{width:320px;padding:10px 12px;max-height:calc(100% - 16px);top:8px;left:8px} #grab{margin:-6px 0 0!important}} /* phone on its side: a slimmer panel that can shrink too */
 @media (max-width:700px), (max-height:500px){#grab{display:block;width:100%;height:18px;margin:-10px 0 2px;padding:0;border:0;background:none;cursor:pointer}
   #grab::before{content:'';display:block;width:40px;height:5px;margin:6px auto 0;border-radius:3px;background:var(--edge)}
-  body.sheetMin #mModes, body.sheetMin #busNote, body.sheetMin #sbox, body.sheetMin #nrbox, body.sheetMin #lgAll, body.sheetMin #legend{display:none!important}
+  body.sheetMin #mModes, body.sheetMin #busNote, body.sheetMin #nrbox, body.sheetMin #lgAll, body.sheetMin #legend{display:none!important}
   @media (max-width:700px){body.sheetMin #howto{display:none!important}}} /* (a phone's folded panel: the how-to card waits until it's opened) */
 #status{font-size:13px;color:var(--mute);margin:-4px 0 10px}
 #status b{color:var(--ink)}
@@ -404,6 +404,8 @@ button.lnk{border:0;background:none;padding:0;color:var(--acc);font-weight:600;f
   <div id="station" role="region" aria-label="Stop or station" hidden></div>
   <div id="follow" hidden></div>
   <div id="gfollow" role="region" aria-label="Vehicle" hidden></div>
+  <div id="err"></div>
+  <div id="sbox"></div><!-- (lines with problems: near the top, not under every switch) -->
   <div id="mapMenu" class="mapmenu" hidden>
     <label class="mm-row ldn-only"><span>Live mode <span class="st st1" style="vertical-align:1px">New</span><small>Tap a train for its speed, depth underground, next stops and distance from you; ride along with it; pin a station; and on phones, Look down to see the Tube under your feet through the camera.</small></span><input type="checkbox" id="mLive" class="switch"></label>
     <div class="mm-row"><span>Map style</span>
@@ -417,11 +419,9 @@ button.lnk{border:0;background:none;padding:0;color:var(--acc);font-weight:600;f
   </div>
   <div class="chips" id="mModes" aria-label="Show transport types"></div>
   <div id="busNote" class="muted" hidden style="font-size:12px;margin:-2px 0 6px"></div>
-  <div id="sbox"></div>
   <div class="lgall" id="lgAll"><button type="button" data-all="1">Show all lines</button><button type="button" data-all="0">Hide all</button></div>
   <div id="legend"></div>
   <details id="vlist"><summary>What's moving here, as a list</summary><p class="muted" id="vlistNote" style="font-size:12px;margin:4px 0"></p><ol id="vlistOl" aria-live="polite"></ol></details>
-  <div id="err"></div>
 </div>
 <div id="tip"></div>
 <div id="clock"></div>
