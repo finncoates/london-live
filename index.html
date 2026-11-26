@@ -1936,7 +1936,7 @@ function showTip(e){
   const vid = t.anon ? '' : t.key.slice(t.line.length + 1);
   const num = !vid ? '' : l.mode==='bus' ? `Bus ${vid}` : l.mode==='tube' ? `Train ${vid}` : '';
   tip.innerHTML = `<div class="tt-h">${symbol(l.mode, l.colour, 20)}<b>${esc(l.name)}${l.mode==='bus'?' bus':l.mode==='tube'?' line':''}</b></div>
-    ${HL.has(t.key) ? '<div class="tt-you">Your train</div>' : ''}
+    ${HL.has(t.key) ? `<div class="tt-you">${T('Following')}</div>` : ''}
     ${t.towards ? `<div>To <b>${esc(t.towards)}</b></div>` : ''}
     ${arrivedAt(t) ? `<div>At ${esc(l.stops[arrivedAt(t)]?.n || '?')}${t.ahead && t.ahead.at(-1)?.[0] === arrivedAt(t) ? ' · end of its run' : ''}</div>` : `<div>Next stop: ${esc(l.stops[t.cur||t.next]?.n||'?')} · ${secs<30?'due':Math.round(secs/60)+' min'}</div>`}
     ${lateText(t) ? `<div>${lateHtml(t)}</div>` : ''}
