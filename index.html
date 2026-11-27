@@ -521,7 +521,10 @@ const store = {
   set(k,d,ms){ try{ localStorage.setItem(k, JSON.stringify({d,exp:Date.now()+ms})) }catch(e){} }
 };
 const PREF = new Map(); // requests started early (the first live arrivals, while the lines' shapes load): path → {p, at}
-async function get(path){
+/* TfL sometimes sends the text "null" as a bus's "towards" (London Bridge's buses read "null", 27 Nov 2026): cleaned once here */
+const tflClean = j => { if(Array.isArray(j)) for(const a of j) if(a && a.towards === 'null') a.towards = ''; return j; };
+const get = path => get0(path).then(tflClean);
+async function get0(path){
   { const x = PREF.get(path); if(x){ PREF.delete(path); if(Date.now() - x.at < 20000) return x.p; } }
   if(window.__tflRelay && !KEY){ try{ const r = await fetch(window.__tflRelay + path, {signal:AbortSignal.timeout(15000)}); if(r.ok) return r.json(); }catch(e){} } // shared copy via the relay (TfL: 500 calls a minute for everyone); else straight to TfL
   const url = API + path + (KEY ? (path.includes('?')?'&':'?') + KEY : '');
@@ -4681,7 +4684,7 @@ async function goStation(st){
       ...bs.map(id => get(`/StopPoint/${id}/Arrivals`).catch(() => []))])).flat()
       .filter(a => st.lines.has(a.lineId) || a.rail || a.modeName === 'bus');
     const seen = new Set(), now = Date.now(), rows = all.sort((a, b) => a.timeToStation - b.timeToStation)
-      .filter(a => !(a.destinationNaptanId && st.ids.has(a.destinationNaptanId))) /* (one ending its run here isn't a departure) */.filter(a => { const k = a.vehicleId + a.lineId + a.platformName; if(seen.has(k)) return false; seen.add(k); return true; })
+      .filter(a => !(a.destinationNaptanId && st.ids.has(a.destinationNaptanId)) && !(a.modeName === 'bus' && cleanName(a.destinationName || '') === st.name)) /* (one ending its run here isn't a departure; a bus gives only the name) */.filter(a => { const k = a.vehicleId + a.lineId + a.platformName; if(seen.has(k)) return false; seen.add(k); return true; })
       .map(a => { const l = BY[a.lineId], bus = !l && a.modeName === 'bus' || l?.mode === 'bus', m = Math.round(a.timeToStation/60), col = l ? ink(l.colour) : '#DC241F';
         const name = l ? l.name : a.lineName || a.lineId;
         return {when:now + a.timeToStation*1000, cat:bus ? 'Buses' : CAT[l?.mode] || CAT[a.modeName] || 'Trains',
@@ -4716,7 +4719,7 @@ async function openBoard(st){
     const all = (await Promise.all(ids.slice(0, 5).map(id => /^[A-Z]{3}$/.test(id) ? railArrivals(id).then(L => L.filter(a => !a.cancelled)) : get(`/StopPoint/${id}/Arrivals`).catch(() => [])))).flat().filter(a => st.lines.has(a.lineId) || a.rail);
     const seen = new Set();
     const rows = all.sort((a, b) => a.timeToStation - b.timeToStation)
-      .filter(a => !(a.destinationNaptanId && st.ids.has(a.destinationNaptanId))) /* (one ending its run here isn't a departure) */.filter(a => { const k = a.vehicleId + a.lineId + a.platformName; if(seen.has(k)) return false; seen.add(k); return true; }).slice(0, 9);
+      .filter(a => !(a.destinationNaptanId && st.ids.has(a.destinationNaptanId)) && !(a.modeName === 'bus' && cleanName(a.destinationName || '') === st.name)) /* (one ending its run here isn't a departure; a bus gives only the name) */.filter(a => { const k = a.vehicleId + a.lineId + a.platformName; if(seen.has(k)) return false; seen.add(k); return true; }).slice(0, 9);
     const bad = [...st.lines].map(id => [BY[id], lineStatus(id)]).filter(([, s]) => s && s.lv);
     $('board').innerHTML = `<h2><span>${esc(st.name)}</span><small id="bclock">${new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}</small></h2>
       <div class="bl">${[...st.lines].map(id => `<i style="background:${boardCol(BY[id].colour)}"></i>`).join('')}</div>
