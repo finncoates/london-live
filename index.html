@@ -1728,8 +1728,8 @@ function placeTrain0(t){
   if(KS && t.rt && t.rt.r && t.rt.k.startsWith(prev + '>' + next + '|') && PV && PV.z >= TRK.Z - 1) path = t.rt.r; /* (PV: the view isn't set on the first refresh) */
   /* Darwin's time at a station it calls at is when it LEAVES: it gets there a dwell sooner and stands at the platform till then (not there just as it is due out); where its run ends, or a station it runs through, the time is when it is there */
   const ai = t.rail && t.ahead ? t.ahead.findIndex(a => a[0] === next && a[1] === arr) : -1, hop = ai > 0 ? (arr - t.ahead[ai-1][1])/1000 : 0;
-  const W = t.dw && ai > 0 && ai < t.ahead.length - 1 && !t.pass?.has(next) ? Math.min(DWELL.rail, hop/3) : 0, remain = (arr - n)/1000 - W;
-  const segT = ai > 0 ? Math.max(30, hop - W - (t.dw ? 0 : DWELL.rail/2)) : segTime(l, prev, next);
+  const W = ai > 0 && ai < t.ahead.length - 1 && !t.pass?.has(next) ? Math.min(DWELL.rail, hop/3) : 0, remain = (arr - n)/1000 - W; /* (the boards' times, without Darwin, are departures too) */
+  const segT = ai > 0 ? Math.max(30, hop - W) : segTime(l, prev, next);
   let f = Math.min(1, Math.max(0, 1 - remain/segT));
   // trains don't reverse: if a prediction slips, hold position instead of sliding back
   const sk = prev+'>'+next;
@@ -3629,6 +3629,7 @@ function ttSnap0(kind, name, p){
     if(!NRNET.tiles.has(t)){ NRNET.tiles.set(t, null); fetch('cities/nr/' + t + '.json').then(r => r.ok ? r.json() : []).then(j => { NRNET.tiles.set(t, j); NRNET.n++; }).catch(() => NRNET.tiles.set(t, [])); continue; }
     for(const pts of NRNET.tiles.get(t) || []) look(pts, 2500); }
   return best; }
+const TT_DWELL = {train:40000, metro:20000, tram:15000}; /* ms: a stop's dwell where the timetable gives none (buses and boats: as given) */
 const TT_VMAX = m => /HIGHSPEED/.test(m) ? 70 : /RAIL|COACH/.test(m) ? 35 : /SUBWAY|METRO/.test(m) ? 16 : /TRAM/.test(m) ? 11 : /FERRY/.test(m) ? 9 : 9; // m/s
 // a timetable train with no shape (TER Évreux–Paris is one straight hour-long line): routed once along the rail
 // network's track between its two stops and remembered. Snapped point by point to the nearest track instead, it hopped
@@ -3698,7 +3699,10 @@ function ttPlace(now){ TTV.railBudget = 1;
     const was = TTV.lastP?.get(trip), near = c => Math.min(...c.map(e => Math.min(dist(was, e.pts[0]), dist(was, e.pts.at(-1)))));
     const ch = was && cand.length > 1 ? cand.reduce((b, c) => near(c) < near(b) ? c : b) : cand.reduce((b, c) => off(c) < off(b) ? c : b); // (one journey id in two places at once: stay with the one it was on)
     // anchors (time, distance along the chain) at every stop; equal times collapse to their middle distance
-    const raw = []; let D = 0; for(const e of ch){ raw.push([e.s[5], D]); D += e.pts.cum.at(-1); raw.push([e.s[6], D]); }
+    /* a stop the timetable gives one time for (arriving and leaving the same minute: most metros, many trains): there a dwell sooner, so it stands at the platform, not through it without stopping */
+    const raw = []; let D = 0; ch.forEach((e, j) => { const nx = ch[j+1], k = kind0(e.s[0]), w0 = TT_DWELL[k] || 0; let t1 = e.s[6];
+      if(nx && w0 && nx.s[5] - t1 < 5000 && dist(e.pts.at(-1), e.s[4].slice(2)) < 150) t1 -= Math.min(w0, (e.s[6] - e.s[5])/4);
+      raw.push([e.s[5], D]); D += e.pts.cum.at(-1); raw.push([t1, D]); });
     const an = []; for(let i = 0; i < raw.length; ){ let j = i; while(j + 1 < raw.length && raw[j+1][0] <= raw[i][0]) j++; an.push([raw[i][0], (raw[i][1] + raw[j][1])/2, raw[i][1], raw[j][1]]); i = j + 1; }
     const v = TT_VMAX(ch[0].s[0]); // the ends: a zero-time run there is travelled at cruising speed
     if(an[0][3] > an[0][2]){ const a = an[0]; an.unshift([a[0] - (a[3] - a[2])/2/v*1000, a[2]]); }
