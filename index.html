@@ -1243,12 +1243,12 @@ async function refreshStatus(){
     const res = await get(`/Line/${ids.join(',')}/Status`);
     STATUS.clear();
     for(const l of res){
-      const ss = (l.lineStatuses || []).map(s => s.statusSeverity === 20 ? {lv:0, night:true, text:'Closed for the night', reason:''} /* (TfL's nightly "Service Closed": not a problem, and the last trains still run) */ : {lv:SEV_LEVEL(s.statusSeverity), text:s.statusSeverityDescription, reason:(s.reason||'').trim()});
+      const ss = (l.lineStatuses || []).map(s => s.statusSeverity === 20 ? {lv:0, night:true, text:'Closed for the night', reason:''} /* (TfL's nightly "Service Closed": not a problem; trains still listed are drawn see-through) */ : {lv:SEV_LEVEL(s.statusSeverity), text:s.statusSeverityDescription, reason:(s.reason||'').trim()});
       ss.sort((a, b) => b.lv - a.lv);
       const top = ss[0] || {lv:0, text:'Good service'};
       // reasons: drop the "Line name:" prefix and duplicates
       const reasons = [...new Set(ss.map(s => s.reason.replace(/^[^:]{2,40}:\s*/, '')).filter(Boolean))];
-      STATUS.set(l.id, {lv:top.lv, night:!top.lv && ss.some(x => x.night), text:top.lv ? top.text : ss.some(x => x.night) ? 'Closed for the night' : 'Good service', reasons, whole:ss.length > 0 && ss.every(x => /^(Suspended|Closed|Service Closed|Planned Closure)$/i.test(x.text))}); // (whole: the entire line out of service)
+      STATUS.set(l.id, {lv:top.lv, night:!top.lv && ss.some(x => x.night), text:top.lv ? top.text : ss.some(x => x.night) ? 'Closed for the night' : 'Good service', reasons, whole:ss.length > 0 && ss.every(x => x.night || /^(Suspended|Closed|Service Closed|Planned Closure)$/i.test(x.text))}); // (whole: the entire line out of service)
     }
     window.onStatus && onStatus();
   }catch(e){ console.warn('status', e.message); }
@@ -1945,7 +1945,7 @@ function showTip(e){
     ${t.towards ? `<div>To <b>${esc(t.towards)}</b></div>` : ''}
     ${arrivedAt(t) ? `<div>At ${esc(l.stops[arrivedAt(t)]?.n || '?')}${t.ahead && t.ahead.at(-1)?.[0] === arrivedAt(t) ? ' · end of its run' : ''}</div>` : `<div>Next stop: ${esc(l.stops[t.cur||t.next]?.n||'?')} · ${secs<30?'due':Math.round(secs/60)+' min'}</div>`}
     ${lateText(t) ? `<div>${lateHtml(t)}</div>` : ''}
-    ${!t.rail && STATUS.get(t.line)?.whole ? `<div class="tt-m">${esc(STATUS.get(t.line).text)} line: this train may not be in service</div>` : ''}
+    ${!t.rail && STATUS.get(t.line)?.whole ? `<div class="tt-m">${STATUS.get(t.line).night ? 'Line closed for the night: this may be an empty train going to its depot' : esc(STATUS.get(t.line).text) + ' line: this train may not be in service'}</div>` : ''}
     ${t.loc ? `<div class="tt-m">${esc(t.loc)}</div>` : ''}
     ${num ? `<div class="tt-m">${esc(num)}</div>` : ''}`;
   tip.style.display='block';
