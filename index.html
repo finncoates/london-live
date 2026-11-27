@@ -3822,7 +3822,9 @@ function ttTick(){ if(!TTV.ferries || !TRAINS_ON || inTfLArea([map.getCenter().l
     g.v = v; g.seen = now; }
   // one missing for an update (its stretch between two answers, a twin check) is held where it was for 8 s rather than
   // removed: removed, it came back a moment later as a new vehicle somewhere else, which looked like a jump
-  for(const [k, g] of [...GPS.list]) if(k.startsWith('tf:')){ if(seen.has(k)){ g.miss = 0; continue; } g.miss ||= now; if(now - g.miss > 8000) GPS.list.delete(k); } }
+  for(const [k, g] of [...GPS.list]) if(k.startsWith('tf:')){ if(seen.has(k)){ g.miss = 0; continue; } g.miss ||= now; if(now - g.miss > 8000) GPS.list.delete(k); }
+  /* the first vehicles are on the map: the count shown now, not "Loading…" until the slowest area's timetable is in (Paris: 20 s) */
+  if(seen.size && document.body.classList.contains('away') && (/^Loading/.test($('status').textContent) || TTV.busy && now - (TTV.stAt || 0) > 3000) && typeof onTrainsUpdate === 'function'){ TTV.stAt = now; onTrainsUpdate(0); } } /* (and every 3 s while the rest come in) */
 setInterval(ttTick, 2000);
 // start as soon as the relay is known (not when the street map has finished loading, which can take seconds), and again after each move
 setInterval(refreshTT, 60000); for(const ms of [600, 1500, 3000, 6000, 20000]) setTimeout(refreshTT, ms);
