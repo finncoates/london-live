@@ -1240,18 +1240,18 @@ async function refreshStatus(){
     const res = await get(`/Line/${ids.join(',')}/Status`);
     STATUS.clear();
     for(const l of res){
-      const ss = (l.lineStatuses || []).map(s => ({lv:SEV_LEVEL(s.statusSeverity), text:s.statusSeverityDescription, reason:(s.reason||'').trim()}));
+      const ss = (l.lineStatuses || []).map(s => s.statusSeverity === 20 ? {lv:0, night:true, text:'Closed for the night', reason:''} /* (TfL's nightly "Service Closed": not a problem, and the last trains still run) */ : {lv:SEV_LEVEL(s.statusSeverity), text:s.statusSeverityDescription, reason:(s.reason||'').trim()});
       ss.sort((a, b) => b.lv - a.lv);
       const top = ss[0] || {lv:0, text:'Good service'};
       // reasons: drop the "Line name:" prefix and duplicates
       const reasons = [...new Set(ss.map(s => s.reason.replace(/^[^:]{2,40}:\s*/, '')).filter(Boolean))];
-      STATUS.set(l.id, {lv:top.lv, text:top.lv ? top.text : 'Good service', reasons, whole:ss.length > 0 && ss.every(x => /^(Suspended|Closed|Service Closed|Planned Closure)$/i.test(x.text))}); // (whole: the entire line out of service)
+      STATUS.set(l.id, {lv:top.lv, night:!top.lv && ss.some(x => x.night), text:top.lv ? top.text : ss.some(x => x.night) ? 'Closed for the night' : 'Good service', reasons, whole:ss.length > 0 && ss.every(x => /^(Suspended|Closed|Service Closed|Planned Closure)$/i.test(x.text))}); // (whole: the entire line out of service)
     }
     window.onStatus && onStatus();
   }catch(e){ console.warn('status', e.message); }
 }
 const lineStatus = id => STATUS.get(id) || null;
-const statusBadge = (id, short) => { const s = lineStatus(id); if(!s || !s.lv) return '';
+const statusBadge = (id, short) => { const s = lineStatus(id); if(s?.night) return `<span class="st st3" title="Closed for the night">${short ? 'Night' : 'Closed for the night'}</span>`; if(!s || !s.lv) return '';
   return `<span class="st st${s.lv}" title="${esc(s.reasons[0] || s.text)}">${esc(short ? ['', 'Delays', 'Severe', 'Closed'][s.lv] : s.text)}</span>`; };
 setTimeout(refreshStatus, 1500); setInterval(refreshStatus, 120000);
 
@@ -2189,7 +2189,8 @@ let sboxOpen = false;
 function renderStatusBox(){
   const bad = ACTIVE.filter(l => l.mode !== 'bus' && lineStatus(l.id)?.lv).sort((a, b) => lineStatus(b.id).lv - lineStatus(a.id).lv);
   if(!STATUS.size){ $('sbox').innerHTML = ''; return; }
-  $('sbox').innerHTML = !bad.length ? '<div class="sb ok">✓ Good service on all lines</div>'
+  const nightN = ACTIVE.filter(l => l.mode !== 'bus' && lineStatus(l.id)?.night).length;
+  $('sbox').innerHTML = !bad.length ? `<div class="sb ok">✓ ${nightN ? `No problems reported · ${nightN} line${nightN > 1 ? 's' : ''} closed for the night` : 'Good service on all lines'}</div>`
     : `<button type="button" class="sb" id="sbT" aria-expanded="${sboxOpen}"><b>${bad.length} line${bad.length > 1 ? 's' : ''} with problems</b><span>${sboxOpen ? 'Hide' : 'Details'}</span></button>`
       + (sboxOpen ? `<div class="sbl">${bad.map(l => { const s = lineStatus(l.id); return `<div class="sbi"><div class="sbh"><span class="sw" style="background:${ink(l.colour)}"></span><b>${esc(l.name)}</b>${statusBadge(l.id)}</div>${s.reasons.map(r => `<p>${esc(r)}</p>`).join('')}</div>`; }).join('')}</div>` : '');
 }
