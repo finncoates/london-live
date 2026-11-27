@@ -522,7 +522,7 @@ const store = {
 };
 const PREF = new Map(); // requests started early (the first live arrivals, while the lines' shapes load): path → {p, at}
 /* TfL sometimes sends the text "null" as a bus's "towards" (London Bridge's buses read "null", 27 Nov 2026): cleaned once here */
-const tflClean = j => { if(Array.isArray(j)) for(const a of j) if(a && a.towards === 'null') a.towards = ''; return j; };
+const tflClean = j => { if(Array.isArray(j)) for(const a of j) if(a && (a.towards === 'null' || /^check front of train$/i.test(a.towards || ''))) a.towards = ''; return j; }; /* (and its "Check Front of Train": no destination given) */
 const get = path => get0(path).then(tflClean);
 async function get0(path){
   { const x = PREF.get(path); if(x){ PREF.delete(path); if(Date.now() - x.at < 20000) return x.p; } }
@@ -1234,7 +1234,7 @@ function learn(l, a, b, diff){
 
 // ---------- service status (TfL) ----------
 // level: 0 good, 1 minor delays etc., 2 severe / part closure, 3 closed / suspended
-const STATUS = new Map();
+const STATUS = new Map(); let statusIn; const STATUS_IN = new Promise(r => statusIn = r); /* (a station card opened from a link waits for it, up to 4 s) */
 const SEV_LEVEL = s => [1,2,4,16,20].includes(s) ? 3 : [3,5,6,11].includes(s) ? 2 : [10,18,19].includes(s) ? 0 : 1;
 const LEVEL_NAME = ['Good service', 'Minor delays', 'Severe delays', 'Closed'];
 async function refreshStatus(){
@@ -1250,7 +1250,7 @@ async function refreshStatus(){
       const reasons = [...new Set(ss.map(s => s.reason.replace(/^[^:]{2,40}:\s*/, '')).filter(Boolean))];
       STATUS.set(l.id, {lv:top.lv, night:!top.lv && ss.some(x => x.night), text:top.lv ? top.text : ss.some(x => x.night) ? 'Closed for the night' : 'Good service', reasons, whole:ss.length > 0 && ss.every(x => x.night || /^(Suspended|Closed|Service Closed|Planned Closure)$/i.test(x.text))}); // (whole: the entire line out of service)
     }
-    window.onStatus && onStatus();
+    window.onStatus && onStatus(); statusIn();
   }catch(e){ console.warn('status', e.message); }
 }
 const lineStatus = id => STATUS.get(id) || null;
@@ -4631,7 +4631,10 @@ async function stationExtras(st, naptan){
   let html = '';
   try{ if(Date.now() - LIFTS.at > 600000){ LIFTS.list = await get('/Disruptions/Lifts/v2/'); LIFTS.at = Date.now(); }
     const ids = new Set(st.ids); for(const x of LIFTS.list) if(ids.has(x.stationUniqueId)) html += `<div class="st-lift">♿ ${esc(x.message.replace(/^[^:]{2,60}:\s*/, '').replace(/\s*Call us on.*$/i, ''))}</div>`; }catch(e){}
-  if(naptan) try{
+  if(!STATUS.size) await Promise.race([STATUS_IN, sleep(4000)]);
+  const tfl = [...st.lines].filter(id => STATUS.has(id));
+  if(tfl.length && tfl.every(id => STATUS.get(id).night)) html += `<div class="st-crowd"><b>Closed for the night</b>${st.ids && [...st.ids].some(id => /^[A-Z]{3}$/.test(id)) ? ' <span class="muted">(its Tube and TfL lines)</span>' : ''}</div>`; /* (not "Quiet right now") */
+  else if(naptan) try{
     const [live, prof] = await Promise.all([get(`/crowding/${naptan}/Live`).catch(() => null), get(`/crowding/${naptan}`).catch(() => null)]);
     const now = new Date();
     const ld = new Intl.DateTimeFormat('en-GB', {timeZone:'Europe/London', weekday:'short', hour:'2-digit', minute:'2-digit', hourCycle:'h23'}).formatToParts(now), get_ = t => ld.find(x => x.type === t)?.value;
@@ -4688,7 +4691,7 @@ async function goStation(st){
       .map(a => { const l = BY[a.lineId], bus = !l && a.modeName === 'bus' || l?.mode === 'bus', m = Math.round(a.timeToStation/60), col = l ? ink(l.colour) : '#DC241F';
         const name = l ? l.name : a.lineName || a.lineId;
         return {when:now + a.timeToStation*1000, cat:bus ? 'Buses' : CAT[l?.mode] || CAT[a.modeName] || 'Trains',
-          html:`<li${(a.vehicleId || '').trim() && !/^0+$/.test((a.vehicleId || '').trim()) ? ` data-veh="${esc(a.lineId)}|${esc((a.vehicleId || '').trim())}"` : ''}><span class="sw" style="background:${col}"></span><span class="to">${esc(cleanName(a.towards || a.destinationName || '') || name)}<small>${esc(bus ? 'Bus ' + name + (a.stationName ? ' · ' + a.stationName : '') : name)}${a.platformName && !bus ? ' · ' + esc(a.platformName) : ''}${a.rail ? (a.cancelled ? ' · <span class="st st2">Cancelled</span>' : a.late && a.exp ? ` · <span class="st st1">${esc(a.exp)}, due ${esc(a.scheduled)}</span>` : a.note ? ` · <span class="st st1">${esc(a.note)}</span>` : '') : ''}</small></span><b>${a.cancelled ? '–' : m < 1 ? 'due' : m + ' min'}</b></li>`}; }); // (National Rail: cancelled, or late: its expected time and booked one)
+          html:`<li${(a.vehicleId || '').trim() && !/^0+$/.test((a.vehicleId || '').trim()) ? ` data-veh="${esc(a.lineId)}|${esc((a.vehicleId || '').trim())}"` : ''}><span class="sw" style="background:${col}"></span><span class="to">${esc(cleanName(a.towards || a.destinationName || '') || name)}<small>${esc(bus ? 'Bus ' + name + (a.stationName ? ' · ' + a.stationName : '') : name)}${a.platformName && !bus ? ' · ' + esc(a.platformName) : ''}${!a.rail && !bus && STATUS.get(a.lineId)?.whole ? ` · <span class="st st3">${STATUS.get(a.lineId).night ? 'Line closed for the night' : 'Line suspended'}: may not run</span>` : ''}${a.rail ? (a.cancelled ? ' · <span class="st st2">Cancelled</span>' : a.late && a.exp ? ` · <span class="st st1">${esc(a.exp)}, due ${esc(a.scheduled)}</span>` : a.note ? ` · <span class="st st1">${esc(a.note)}</span>` : '') : ''}</small></span><b>${a.cancelled ? '–' : m < 1 ? 'due' : m + ' min'}</b></li>`}; }); // (National Rail: cancelled, or late: its expected time and booked one)
     if(box.hidden) return;
     box.innerHTML = head0x() + (rows.length ? depGroups(rows) : '<div class="muted">No departures listed right now.</div>');
   };
