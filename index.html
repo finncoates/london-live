@@ -1421,6 +1421,13 @@ async function refresh(){
 // entrance (from OpenStreetMap; the trains standing there are on the same tracks)
 // ---------- every track (cities/osm_tracks.py): the rail map draws one line per corridor; a four-track main line
 // (Brockley) is four tracks here. From zoom 15 they are drawn, and each train runs on the track for its direction ----------
+/* a train whose line colour is a grey close to the tracks' grey (the Jubilee's silver) vanished on its track: drawn
+   lighter on the dark map and darker on the light one (27 Nov 2026) */
+const TRAIN_INK = new Map();
+const trainInk = c => { const k = c + dark; let v = TRAIN_INK.get(k); if(v) return v; v = c;
+  const m = /^#([0-9a-f]{6})$/i.exec(c || ''); if(m){ const n = parseInt(m[1], 16), r = n >> 16, g = n >> 8 & 255, b = n & 255, mx = Math.max(r, g, b), mn = Math.min(r, g, b);
+    if(mx - mn < 40 && mx > 100 && mx < 190) v = dark ? '#dfe3e6' : '#4d555c'; }
+  TRAIN_INK.set(k, v); return v; };
 const CATCH_M = 150, FADE_A = 0.35; // a vehicle this far (m) from where it really is, catching up, is drawn this see-through
 const TRK = {sq:new Map(), Z:15, lines:new Set(), lineBox:[51.2, -0.65, 51.8, 0.4],
   // beyond London: systems sharing track with main-line trains, shown on those stretches only (Pelaw–Sunderland, Sheffield–Rotherham)
@@ -1835,7 +1842,7 @@ function frame(ts, sync){
     ctx.lineWidth = 1;
     for(const [l, items] of byLine){
       ctx.globalAlpha = (dim && !l.pinned ? (LF.id ? 0.15 : 0.3) : 1)*mul;
-      ctx.fillStyle = ctx.strokeStyle = l.colour==='#000000'&&dark ? '#e6e6e6' : l.colour;
+      ctx.fillStyle = ctx.strokeStyle = l.colour==='#000000'&&dark ? '#e6e6e6' : trainInk(l.colour);
       ctx.beginPath(); for(const d of items) if(!d[10]) rect(d[5]); ctx.fill(); if(!LOW) ctx.stroke(); // stroke rounds the corners
       ctx.lineCap = 'butt'; for(const d of items) if(d[10]){ ctx.beginPath(); d[10].forEach((q, i) => i ? ctx.lineTo(q[0], q[1]) : ctx.moveTo(q[0], q[1])); ctx.lineWidth = d[9]*2; ctx.stroke(); } ctx.lineWidth = 1;
       if(PARALLEL.has(l.mode)){ // centre stripe, like the line itself
