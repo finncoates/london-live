@@ -4723,12 +4723,13 @@ async function openBoard(st){
     const seen = new Set();
     const rows = all.sort((a, b) => a.timeToStation - b.timeToStation)
       .filter(a => !(a.destinationNaptanId && st.ids.has(a.destinationNaptanId)) && !(a.modeName === 'bus' && cleanName(a.destinationName || '') === st.name)) /* (one ending its run here isn't a departure; a bus gives only the name) */.filter(a => { const k = a.vehicleId + a.lineId + a.platformName; if(seen.has(k)) return false; seen.add(k); return true; }).slice(0, 9);
+    if(!STATUS.size) await Promise.race([STATUS_IN, sleep(4000)]);
     const bad = [...st.lines].map(id => [BY[id], lineStatus(id)]).filter(([, s]) => s && s.lv);
     $('board').innerHTML = `<h2><span>${esc(st.name)}</span><small id="bclock">${new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}</small></h2>
       <div class="bl">${[...st.lines].map(id => `<i style="background:${boardCol(BY[id].colour)}"></i>`).join('')}</div>
       ${rows.length ? `<ol>${rows.map(a => { const l = BY[a.lineId], m = Math.round(a.timeToStation/60);
-        return `<li><span class="c" style="background:${boardCol(l.colour)}"></span><span class="d">${esc(cleanName(a.destinationName || a.towards || l.name))}<small>${esc(l.name)}${a.platformName ? ' · ' + esc(a.platformName.replace(/^.*- /, '')) : ''}</small></span><b>${m < 1 ? 'Due' : m + ' min'}</b></li>`; }).join('')}</ol>` : '<div class="msg">No trains listed right now</div>'}
-      ${bad.map(([l, s]) => `<div class="msg">⚠ ${esc(l.name)}: ${esc(s.text)}</div>`).join('')}`;
+        return `<li><span class="c" style="background:${boardCol(l.colour)}"></span><span class="d">${esc(cleanName(a.destinationName || a.towards || l.name))}<small>${esc(l.name)}${a.platformName ? ' · ' + esc(a.platformName.replace(/^.*- /, '')) : ''}${!a.rail && STATUS.get(a.lineId)?.whole ? ' · may not run' : ''}</small></span><b>${m < 1 ? 'Due' : m + ' min'}</b></li>`; }).join('')}</ol>` : '<div class="msg">No trains listed right now</div>'}
+      ${bad.map(([l, s]) => `<div class="msg">⚠ ${esc(l.name)}: ${esc(s.text)}</div>`).join('')}${[...st.lines].some(id => lineStatus(id)?.night) ? `<div class="msg">${esc([...st.lines].filter(id => lineStatus(id)?.night).map(id => BY[id].name).join(', '))}: closed for the night</div>` : ''}`;
   };
   await draw(); boardTimer = setInterval(draw, 20000);
 }
