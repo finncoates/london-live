@@ -25,7 +25,8 @@ fast or slow lines they really use, each standing at its real platform; tracks s
 are drawn as such (Brockley), as are the Tyne and Wear Metro's at Sunderland and Sheffield's tram-train.
 
 Solid vehicles are live positions; pale ones with a coloured edge are placed from the timetable; a see-through one is
-catching up with where a new report says it really is. The full city-by-city
+catching up with where a new report says it really is, or is on a line that is suspended or closed for the night (TfL
+sometimes still lists parked trains then). The full city-by-city
 picture is in [COVERAGE.md](COVERAGE.md).
 
 ## What you can do
