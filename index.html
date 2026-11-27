@@ -3489,7 +3489,7 @@ async function refreshTT(){ if(document.hidden) return;
       // stop: the vehicle leapt a kilometre ahead every minute, Paris's metro 8 at École Militaire): kept until the new
       // answer covers now or it ends. Where the new answer does cover now (a delay came in), the old copy goes at once.
       const nowT = Date.now(), covers = new Set(); for(const [k, e] of TTV.ferries) if(fresh.has(k) && e.s[5] <= nowT + 5000 && e.s[6] >= nowT) covers.add(e.s[8]);
-      for(const [k, e] of [...TTV.ferries]) if(!fresh.has(k) && !failed.has(e.tk)){ if(!covers.has(e.s[8]) && e.s[5] <= nowT && e.s[6] >= nowT - 20000) continue; TTV.ferries.delete(k); } // (an area that failed this time keeps what it had)
+      for(const [k, e] of [...TTV.ferries]) if(!fresh.has(k) && !failed.has(e.tk)){ if(!covers.has(e.s[8]) && e.s[5] <= nowT && e.s[6] >= nowT - (kind0(e.s[0]) === 'train' ? 180000 : 20000)) continue; TTV.ferries.delete(k); } // (an area that failed this time keeps what it had)
       TTV.n = TTV.ferries.size; TTV.at = now; TTV.world = true; TTV.allFailed = failed.size >= tiles.length;
       BUS.note = (TTV.esLive && Date.now() - TTV.esLive < 120000 ? `${TTV.esN} Renfe trains live · ` : '') + (TTV.cityLive && Date.now() - TTV.cityLive.at < 120000 ? `${TTV.cityLive.n} ${TTV.cityLive.name} ${TTV.cityLive.name === 'Toronto' ? 'buses and streetcars' : TTV.cityLive.what || 'buses'} live · ` : '') + `${TTV.n} ${zq < 7 ? 'high-speed and intercity trains' : zq < 9 ? 'trains' : 'trains, trams' + (zq >= 14 ? ', buses' : '') + ' and ferries'} here${(() => { let r = 0; for(const e of TTV.ferries.values()) if(e.s[7]) r++; const k = TTV.ferries.size ? Math.round(r/TTV.ferries.size*100) : 0; return k >= 10 ? `, placed from the timetable with live delays for ${k}% of them` : ', placed from the timetable'; })()} (Transitous open data${(TTV.esLive && Date.now() - TTV.esLive < 120000) || (TTV.cityLive && Date.now() - TTV.cityLive.at < 120000) ? '' : '; no GPS positions here yet'})${zq < 7 ? ' · zoom in for regional trains' : zq < 9 ? ' · zoom in for trams and metros' : zq < (CITYL.cur?.bus ? 13 : 14) ? ' · zoom in for buses' : ''}`;
       if(!TTV.n){ const c = map.getCenter(), h = (new Date().getUTCHours() + Math.round(c.lng()/15) + 24) % 24; // rough local hour from longitude
@@ -3695,7 +3695,7 @@ function ttPlace(now){ TTV.railBudget = 1;
       const last = cur && cur.at(-1);
       if(last && last.s[6] <= e.s[5] + 60000 && dist(last.pts.at(-1), e.pts[0]) < 400) cur.push(e); else chains.push(cur = [e]); }
     const off = c => now < c[0].s[5] ? c[0].s[5] - now : now > c.at(-1).s[6] ? now - c.at(-1).s[6] : 0; // the chain it's on now, else the nearest
-    const cand = chains.filter(c => off(c) <= 60000); if(!cand.length) continue;
+    const cand = chains.filter(c => off(c) <= (kind0(c[0].s[0]) !== 'train' ? 60000 : now < c[0].s[5] ? 240000 : 180000)); if(!cand.length) continue; /* (a train stands at its platform: up to 4 min before it leaves, as far ahead as the timetable answer reaches, and 3 min after it gets in) */
     const was = TTV.lastP?.get(trip), near = c => Math.min(...c.map(e => Math.min(dist(was, e.pts[0]), dist(was, e.pts.at(-1)))));
     const ch = was && cand.length > 1 ? cand.reduce((b, c) => near(c) < near(b) ? c : b) : cand.reduce((b, c) => off(c) < off(b) ? c : b); // (one journey id in two places at once: stay with the one it was on)
     // anchors (time, distance along the chain) at every stop; equal times collapse to their middle distance
