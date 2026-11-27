@@ -1726,8 +1726,10 @@ function placeTrain0(t){
       if(r !== undefined){ t.rt = {k:rk, r}; if(r && cand && cand.length){ const e = r.pts.at(-1), hit = cand.find(([, q]) => q.some((x, i) => i && segDist(e, q[i-1], x) < 5)); if(hit) (t.platG ||= {})[next] = hit[0]; } } } // (undefined: its tracks still loading: asked again next frame)
   }
   if(KS && t.rt && t.rt.r && t.rt.k.startsWith(prev + '>' + next + '|') && PV && PV.z >= TRK.Z - 1) path = t.rt.r; /* (PV: the view isn't set on the first refresh) */
-  const remain = (arr - n)/1000;
-  const segT = t.rail && t.ahead ? (() => { const i = t.ahead.findIndex(a => a[0] === next && a[1] === arr); return i > 0 ? Math.max(30, (arr - t.ahead[i-1][1])/1000 - DWELL.rail/2) : segTime(l, prev, next); })() : segTime(l, prev, next);
+  /* Darwin's time at a station it calls at is when it LEAVES: it gets there a dwell sooner and stands at the platform till then (not there just as it is due out); where its run ends, or a station it runs through, the time is when it is there */
+  const ai = t.rail && t.ahead ? t.ahead.findIndex(a => a[0] === next && a[1] === arr) : -1, hop = ai > 0 ? (arr - t.ahead[ai-1][1])/1000 : 0;
+  const W = t.dw && ai > 0 && ai < t.ahead.length - 1 && !t.pass?.has(next) ? Math.min(DWELL.rail, hop/3) : 0, remain = (arr - n)/1000 - W;
+  const segT = ai > 0 ? Math.max(30, hop - W - (t.dw ? 0 : DWELL.rail/2)) : segTime(l, prev, next);
   let f = Math.min(1, Math.max(0, 1 - remain/segT));
   // trains don't reverse: if a prediction slips, hold position instead of sliding back
   const sk = prev+'>'+next;
