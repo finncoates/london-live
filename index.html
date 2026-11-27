@@ -1680,7 +1680,7 @@ function placeTrain(t){
   const r = placeTrain0(t); t.onPlat = null;
   // a TfL train whose stop before isn't given (an Elizabeth line train due in at Paddington's main line), its platform not
   // known: a free platform whose track the line uses, not the network map's line there (it lay across the station)
-  if(r && !r.path && !t.rail && t.cur && RAIL.plats?.[t.cur] && !t.plats?.[t.cur] && !t.platG?.[t.cur] && PV && PV.z >= TRK.Z - 1){
+  if(r && !r.path && !t.rail && t.cur && RAIL.plats?.[t.cur] && !t.plats?.[t.cur] && !t.platG?.[t.cur] && PV && PV.z >= TRK.Z - 1 && !(t.pgTry > Date.now() - 5000)){ t.pgTry = Date.now(); /* (tried every 5 s at most: it looks through every train) */
     const used = new Set(); for(const x of trains.values()) if(x !== t && x.onPlat) used.add(x.onPlat);
     const pl = Object.keys(RAIL.plats[t.cur]).find(k => PLAT_OK.test(k) && !used.has(t.cur + ' ' + k) && platPathL(t.cur, k, t.line) && RAIL.platL?.get(t.cur + '|' + k + '|' + t.line) === true);
     if(pl) (t.platG ||= {})[t.cur] = pl; }
