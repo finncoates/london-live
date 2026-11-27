@@ -19,6 +19,9 @@ no tracking.
   Belgium, Switzerland, Germany, Poland, Czechia, Portugal, Spain, Italy, Austria, the Nordic and Baltic countries,
   Ireland and more, plus Toronto and Japan). Lines are drawn along the real track, and vehicles are live where the
   operator publishes positions, otherwise placed from the timetable with live delays where those are shared.
+  Trains, metros and trams placed this way stop at each station: they get there before the time they leave and wait
+  at the platform (a timetable often gives one time for both), and trains abroad wait at their first station for a few
+  minutes before they leave and at their last after they get in.
 
 In London every train runs on its own track: Tube and Elizabeth line trains in their tunnels, main-line trains on the
 fast or slow lines they really use, each standing at its real platform; tracks shared by a TfL line and main-line trains
