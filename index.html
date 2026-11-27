@@ -1579,7 +1579,7 @@ function trkOn(tr, p){ const P = tr.pts, kx = Math.cos(p[0]*rad); let best = nul
 const PLAT_OK = /^([0-9]{1,3}[A-Z]?|[A-Z]{1,2}[0-9]{0,2})$/; // a platform's name (7, 7A, B, A1), not a running line's ("5 UP")
 function drawPlatNums(ctx, s){
   if(PV.z < 15 || STOPS_OFF.has('train') || !SHOW_ST) return;
-  const SS = []; for(const crs in RAIL.plats || {}){ const st = RAIL.byCrs[crs]; if(st) SS.push({p:st.p, pl:RAIL.plats[crs]}); } // London (and Britain)
+  const SS = []; for(const crs in RAIL.plats || {}){ const st = RAIL.byCrs[crs]; if(st) SS.push({p:st.p, pl:RAIL.plats[crs], crs}); } // London (and Britain)
   { const b = map.getBounds(); if(b && typeof platSquare === 'function'){ const sw = b.getSouthWest(), ne = b.getNorthEast(); // abroad: the squares in view
       for(let la = Math.floor(sw.lat()); la <= Math.floor(ne.lat()); la++) for(let lo = Math.floor(sw.lng()); lo <= Math.floor(ne.lng()); lo++){ const L = platSquare(la + 0.5, lo + 0.5); if(L) SS.push(...L); } } }
   ctx.save(); ctx.font = '700 10px system-ui, sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.lineJoin = 'round';
@@ -1587,7 +1587,10 @@ function drawPlatNums(ctx, s){
   // the tracks: one per platform (the network map draws a station's few through lines; a station has a track at every platform)
   ctx.lineCap = 'butt'; ctx.lineWidth = Math.max(2, lineW()*0.55); ctx.strokeStyle = dark ? '#6f7680' : '#9aa1aa';
   for(const st of SS){ const c = scr(st.p); if(c.x < -700 || c.y < -700 || c.x > s.x + 700 || c.y > s.y + 700) continue;
-    for(const pl in st.pl){ if(!PLAT_OK.test(pl)) continue; const q = st.pl[pl]; ctx.beginPath(); q.forEach((pt, i) => { const w = scr(pt); i ? ctx.lineTo(w.x, w.y) : ctx.moveTo(w.x, w.y); }); ctx.stroke(); } }
+    for(const pl in st.pl){ if(!PLAT_OK.test(pl)) continue; let q = st.pl[pl];
+      /* a dead-end platform: its track on to the buffers too (OSM's platform 5-8 at Paddington stops 250 m short, and the shed's tracks are mapped as a tunnel, so drawn faint: the trains there looked off any track) */
+      if(st.crs && PV.z >= TRK.Z && platKind(st.crs, pl, q) === 'end'){ const X = RAIL.platX?.get(st.crs + '|' + pl); if(X) q = X.pts; }
+      ctx.beginPath(); q.forEach((pt, i) => { const w = scr(pt); i ? ctx.lineTo(w.x, w.y) : ctx.moveTo(w.x, w.y); }); ctx.stroke(); } }
   if(PV.z < 16.5){ ctx.restore(); return; }
   const PNB = []; for(const st of SS){ const c = scr(st.p); if(c.x < -500 || c.y < -500 || c.x > s.x + 500 || c.y > s.y + 500) continue;
     for(const pl in st.pl){ if(!PLAT_OK.test(pl)) continue; const q = st.pl[pl], A = q[0], B = q.at(-1), e = dist(A, st.p) < dist(B, st.p), E = e ? A : B, F = e ? q[1] : q.at(-2);
@@ -1674,7 +1677,14 @@ async function platBoards(){
       if(best){ best.plats ||= {}; best.plats[crs] ||= String(sv.platform).toUpperCase(); } } } }
 setInterval(() => platBoards().catch(() => {}), 30000); setTimeout(() => platBoards().catch(() => {}), 6000);
 function placeTrain(t){
-  const r = placeTrain0(t); t.onPlat = null; if(!r || !(t.plats || t.platG) || !RAIL.plats) return r;
+  const r = placeTrain0(t); t.onPlat = null;
+  // a TfL train whose stop before isn't given (an Elizabeth line train due in at Paddington's main line), its platform not
+  // known: a free platform whose track the line uses, not the network map's line there (it lay across the station)
+  if(r && !r.path && !t.rail && t.cur && RAIL.plats?.[t.cur] && !t.plats?.[t.cur] && !t.platG?.[t.cur] && PV && PV.z >= TRK.Z - 1){
+    const used = new Set(); for(const x of trains.values()) if(x !== t && x.onPlat) used.add(x.onPlat);
+    const pl = Object.keys(RAIL.plats[t.cur]).find(k => PLAT_OK.test(k) && !used.has(t.cur + ' ' + k) && platPathL(t.cur, k, t.line) && RAIL.platL?.get(t.cur + '|' + k + '|' + t.line) === true);
+    if(pl) (t.platG ||= {})[t.cur] = pl; }
+  if(!r || !(t.plats || t.platG) || !RAIL.plats) return r;
   const T = t.ahead || [], f = t.f ?? 0, L = r.path ? r.path.len : 0, nbOf = S => { const j = T.findIndex(a => a[0] === S); return (T[j - 1] || T[j + 1] || [])[0]; };
   // standing at a station (arrived, waiting to leave, or at the end of its run)
   if(!r.path || f >= 0.999 || (f <= 0.001 && t.curPrev)){ const S = !r.path || f >= 0.999 ? t.cur : t.curPrev, I = !t.pass?.has(S) && platInfo(t, S, nbOf(S)), p = I && platAt(I, 0, S === t.cur ? 'in' : 'out');
