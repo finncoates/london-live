@@ -21,7 +21,9 @@ no tracking.
   operator publishes positions, otherwise placed from the timetable with live delays where those are shared.
   Trains, metros and trams placed this way stop at each station: they get there before the time they leave and wait
   at the platform (a timetable often gives one time for both), and trains abroad wait at their first station for a few
-  minutes before they leave and at their last after they get in.
+  minutes before they leave and at their last after they get in. Zoomed in on a station abroad, its own list of trains
+  fills in the ones waiting there (Zürich HB's platforms), each at its platform, against the buffers at a dead end;
+  where the timetable doesn't name a platform (France), a free one of that station's is used.
 
 In London every train runs on its own track: Tube and Elizabeth line trains in their tunnels, main-line trains on the
 fast or slow lines they really use, each standing at its real platform; tracks shared by a TfL line and main-line trains

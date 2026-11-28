@@ -3658,6 +3658,7 @@ function platAbroad(stop){ // stop: [name, code, lat, lon, platform] → {pts, c
   PLATEU.path.set(key, r); if(PLATEU.path.size > 4000) PLATEU.path.clear(); return r; }
 function ttPlace(now){ TTV.railBudget = 1;
   const byTrip = new Map(); for(const e of TTV.ferries.values()){ const t = e.s[8]; (byTrip.get(t) || byTrip.set(t, []).get(t)).push(e); }
+  for(const e of STD.es.values()){ const t = e.s[8]; (byTrip.get(t) || byTrip.set(t, []).get(t)).push({s:e.s, pts:e.pts}); } /* (trains standing at a station: from its departures and arrivals) */
   const out = new Map();
   for(const [trip, es] of byTrip){
     // a stretch crossing tiles comes as overlapping pieces (the relay clips each to its tile, its times rescaled by
@@ -3672,16 +3673,16 @@ function ttPlace(now){ TTV.railBudget = 1;
         if(cur) m.push(cur); }
       // a whole stretch (its path reaching both stops): the city's own line where there is one; a path far longer
       // than the hop (a timetable shape that wanders through sidings) becomes the straight hop
-      for(const e of m){ const A = e.s[3].slice(2), B = e.s[4].slice(2); if(dist(e.pts[0], A) > 150 || dist(e.pts.at(-1), B) > 150) continue;
+      for(const e of m){ if(e.s[10]){ e.real = e.s[10] === 'plat'; continue; } const A = e.s[3].slice(2), B = e.s[4].slice(2); if(dist(e.pts[0], A) > 150 || dist(e.pts.at(-1), B) > 150) continue;
         const kind = /TRAM/.test(e.s[0]) ? 'tram' : /SUBWAY|METRO/.test(e.s[0]) ? 'metro' : /RAIL|LONG_DISTANCE/.test(e.s[0]) ? 'train' : 'other';
         if(kind === 'train' && e.real){ continue; } // (already on its tracks)
         if(kind === 'train' && PV && PV.z >= TRK.Z - 1){ const mc = map.getCenter(); if(mc && inViewM(A, B)){
-          const rk = trip + '|' + A + '|' + B + '|' + (e.s[4][4] || ''), R = TTV.rt || (TTV.rt = new Map()); let r = R.get(rk);
-          if(r === undefined){ const pa = platAbroad(e.s[3]), pb = platAbroad(e.s[4]), cc = (e.s[8].split('_')[2] || '').slice(0, 2);
+          const sa = STD.plOf.get(trip + '|' + e.s[3][0]), sb = STD.plOf.get(trip + '|' + e.s[4][0]), rk = trip + '|' + A + '|' + B + '|' + (e.s[4][4] || '') + (sa ? '|a' : '') + (sb ? '|b' : ''), R = TTV.rt || (TTV.rt = new Map()); let r = R.get(rk); /* (sa, sb: the platform it stands at there, from the station's own list) */
+          if(r === undefined){ const pa = platAbroad(e.s[3]) || sa, pb = platAbroad(e.s[4]) || sb, cc = (e.s[8].split('_')[2] || '').slice(0, 2);
             let L = 0; for(let i = 1; i < e.pts.length; i++) L += dist(e.pts[i-1], e.pts[i]);
             const hand = /^(fr|be|ch|it|se|pt|gb|lu)$/.test(cc) ? 1 : -1, cor = {pts:e.pts.length > 1 ? e.pts : [A, B], len:L || dist(A, B)};
-            r = trkRoute(pa ? along(pa, 0.5).p : A, pb ? along(pb, 0.5).p : B, cor, pb ? pb.pts : null, 'r', [], hand);
-            if(r === null && pb) r = trkRoute(pa ? along(pa, 0.5).p : A, B, cor, null, 'r', [], hand); // (no way to that platform: a neighbouring station's, or not joined up in the map: the best track there)
+            r = trkRoute(pa ? along(pa, platStand(pa)).p : A, pb ? along(pb, platStand(pb)).p : B, cor, pb ? pb.pts : null, 'r', [], hand);
+            if(r === null && pb) r = trkRoute(pa ? along(pa, platStand(pa)).p : A, B, cor, null, 'r', [], hand); // (no way to that platform: a neighbouring station's, or not joined up in the map: the best track there)
             if(r !== undefined){ R.set(rk, r); if(R.size > 3000) R.clear(); } }
           if(r){ e.pts = r.pts.slice(); e.real = true; continue; } } } // its own tracks, through the points to its platform
         const cp = cityPath(kind, e.s[2], A, B); if(cp){ e.pts = cp; continue; }
@@ -3701,7 +3702,7 @@ function ttPlace(now){ TTV.railBudget = 1;
     // anchors (time, distance along the chain) at every stop; equal times collapse to their middle distance
     /* a stop the timetable gives one time for (arriving and leaving the same minute: most metros, many trains): there a dwell sooner, so it stands at the platform, not through it without stopping */
     const raw = []; let D = 0; ch.forEach((e, j) => { const nx = ch[j+1], k = kind0(e.s[0]), w0 = TT_DWELL[k] || 0; let t1 = e.s[6];
-      if(nx && w0 && nx.s[5] - t1 < 5000 && dist(e.pts.at(-1), e.s[4].slice(2)) < 150) t1 -= Math.min(w0, (e.s[6] - e.s[5])/4);
+      if(nx && w0 && !nx.s[10] && nx.s[5] - t1 < 5000 && dist(e.pts.at(-1), e.s[4].slice(2)) < 150) t1 -= Math.min(w0, (e.s[6] - e.s[5])/4);
       raw.push([e.s[5], D]); D += e.pts.cum.at(-1); raw.push([t1, D]); });
     const an = []; for(let i = 0; i < raw.length; ){ let j = i; while(j + 1 < raw.length && raw[j+1][0] <= raw[i][0]) j++; an.push([raw[i][0], (raw[i][1] + raw[j][1])/2, raw[i][1], raw[j][1]]); i = j + 1; }
     const v = TT_VMAX(ch[0].s[0]); // the ends: a zero-time run there is travelled at cruising speed
@@ -3826,6 +3827,53 @@ function ttTick(){ if(!TTV.ferries || !TRAINS_ON || inTfLArea([map.getCenter().l
   /* the first vehicles are on the map: the count shown now, not "Loading…" until the slowest area's timetable is in (Paris: 20 s) */
   if(seen.size && document.body.classList.contains('away') && (/^Loading/.test($('status').textContent) || TTV.busy && now - (TTV.stAt || 0) > 3000) && typeof onTrainsUpdate === 'function'){ TTV.stAt = now; onTrainsUpdate(0); } } /* (and every 3 s while the rest come in) */
 setInterval(ttTick, 2000);
+// Trains standing at a station abroad: the timetable's moving stretches (4 minutes ahead) leave out a train that waits
+// longer (Zürich HB looked nearly empty), so the main stations in view are asked for their trains: one between arriving
+// and leaving, one that starts here (up to 10 min before it leaves) and one that ends here (8 min after it gets in),
+// each at its platform where the timetable names one
+const STD = {es:new Map(), plOf:new Map(), box:'', stops:[], busy:false, at:0};
+// where a train stands at a platform abroad: against the buffers at a dead end (its front ~100 m in, as in London), else
+// the middle; worked out from the tracks once they are in
+const PEND = new WeakMap();
+function platStand(P){ let d = PEND.get(P); if(d === undefined){ if(!P.pts || P.pts.length < 2) return 0.5; const a = trkOut(P.pts[0], P.pts[1]), b = trkOut(P.pts.at(-1), P.pts.at(-2)); if(a === undefined || b === undefined) return 0.5;
+    d = a.dead && !b.dead ? 0 : b.dead && !a.dead ? 1 : null; PEND.set(P, d); }
+  const h = Math.min(P.len/2, 102)/P.len; return d === 0 ? h : d === 1 ? 1 - h : 0.5; }
+// its platform not in the timetable (France's): a free one of that station's, the same for a train each time (else the
+// trains waiting there all stood on one spot, drawn as one); not shown as its platform
+function stdGuess(stop, tid, used){ const L = platSquare(stop[2], stop[3]); if(!L) return null; let st = null, bd = 450;
+  let bn = 0; for(const x of L){ const n = Object.keys(x.pl).length; if(n > bn && dist(x.p, [stop[2], stop[3]]) < bd){ bn = n; st = x; } } if(!st) return null; /* (the main hall: the one with most platforms, not the RER's under it) */
+  const ks = Object.keys(st.pl).filter(k => PLAT_OK.test(k) && st.pl[k].length > 1).sort((a, b) => (parseInt(a) || 999) - (parseInt(b) || 999) || a.localeCompare(b)); if(!ks.length) return null;
+  let h = 0; for(const c of tid) h = (h*31 + c.charCodeAt(0)) >>> 0;
+  for(let i = 0; i < ks.length; i++){ const k = ks[(h + i) % ks.length], id = st.p + '|' + k; if(used.has(id)) continue; used.add(id);
+    const q = st.pl[k], cum = [0]; for(let j = 1; j < q.length; j++) cum.push(cum[j-1] + dist(q[j-1], q[j])); return cum.at(-1) >= 30 ? {pts:q, cum, len:cum.at(-1)} : null; }
+  return null; }
+const STD_MODES = 'HIGHSPEED_RAIL,LONG_DISTANCE,REGIONAL_FAST_RAIL,REGIONAL_RAIL,SUBURBAN,NIGHT_RAIL,RAIL';
+async function stdRefresh(){
+  if(STD.busy || !TRAINS_ON || document.hidden || !PV || PV.z < 14 || !TTV.world){ if(PV && PV.z < 13 && STD.es.size) STD.es.clear(); return; }
+  const c = map.getCenter(), b = map.getBounds(); if(!c || !b) return; const C = [c.lat(), c.lng()];
+  if(inTfLArea(C) || (C[0] > 49.8 && C[0] < 61 && C[1] > -8.5 && C[1] < 2)) return; // (Britain: Darwin's trains, at their platforms already)
+  if(Date.now() - STD.at < 55000 && STD.box === Math.round(C[0]*200) + ',' + Math.round(C[1]*200)) return;
+  STD.busy = true;
+  try{ const sw = b.getSouthWest(), ne = b.getNorthEast(), box = Math.round(C[0]*200) + ',' + Math.round(C[1]*200), j = u => fetch(TRS() + u, {signal:AbortSignal.timeout(15000)}).then(r => r.ok ? r.json() : null).catch(() => null);
+    if(box !== STD.box){ const L = await j(`/api/v1/map/stops?min=${sw.lat().toFixed(4)},${sw.lng().toFixed(4)}&max=${ne.lat().toFixed(4)},${ne.lng().toFixed(4)}`) || [];
+      const seen = new Set(); STD.stops = L.filter(x => (x.modes || []).some(m => /RAIL|SUBURBAN|LONG_DISTANCE/.test(m)) && !seen.has(x.name) && seen.add(x.name))
+        .sort((x, y) => (y.importance || 0) - (x.importance || 0)).slice(0, 3); STD.box = box; }
+    const now = Date.now(), min = t => new Date(Math.floor(t/60000)*60000).toISOString(), es = new Map(), usedPl = new Set();
+    for(const st of STD.stops){ const q = `/api/v5/stoptimes?stopId=${encodeURIComponent(st.stopId)}&mode=${STD_MODES}`;
+      const [dep, arr] = await Promise.all([j(q + `&time=${min(now - 15*60000)}&n=50`), j(q + `&time=${min(now)}&arriveBy=true&n=25`)]);
+      for(const x of [...(dep?.stopTimes || []), ...(arr?.stopTimes || [])]){ const P = x.place || {}, tid = x.tripId; if(!tid || P.cancelled) continue;
+        const a = P.arrival ? Date.parse(P.arrival) : null, d = P.departure ? Date.parse(P.departure) : null;
+        const t0 = a ?? (d != null ? d - 10*60000 : null), t1 = d ?? (a != null ? a + 8*60000 : null); if(t0 == null || t1 - t0 < 40000 || t1 < now - 60000 || t0 > now + 5*60000) continue;
+        const tk = P.track || P.scheduledTrack, stop = [P.name || st.name, null, +P.lat, +P.lon]; if(tk) stop.push(String(tk).trim());
+        const pa = platAbroad(stop) || stdGuess(stop, tid, usedPl), f = pa ? platStand(pa) : 0.5, pts = pa ? [along(pa, Math.max(0, f - 0.08)).p, along(pa, Math.min(1, f + 0.08)).p] : [[stop[2], stop[3]], [stop[2] + 1e-6, stop[3]]];
+        if(pa){ STD.plOf.set(tid + '|' + stop[0], pa); if(STD.plOf.size > 3000) STD.plOf.clear(); }
+        es.set(tid + '|' + st.stopId, {end:d == null, start:a == null, s:[x.mode, x.routeColor || null, x.displayName || x.routeShortName || '', stop, stop, t0, t1, x.realTime ? 1 : 0, tid, null, pa ? 'plat' : 'stop'], pts}); } }
+    /* one that ends here and one that starts from the same platform while it is still there: the same train turning back, drawn once (as the one leaving) */
+    const byPl = new Map(); for(const [k, e] of es){ const tk = e.s[3][4]; if(!tk) continue; const pk = e.s[3][0] + '|' + tk; (byPl.get(pk) || byPl.set(pk, []).get(pk)).push([k, e]); }
+    for(const L of byPl.values()) for(const [k, e] of L) if(e.end && L.some(([, f]) => f.start && f.s[5] < e.s[6] && f.s[6] > e.s[5])) es.delete(k);
+    STD.es = es; STD.at = now; }
+  finally { STD.busy = false; } }
+setInterval(() => stdRefresh().catch(() => {}), 5000);
 // start as soon as the relay is known (not when the street map has finished loading, which can take seconds), and again after each move
 setInterval(refreshTT, 60000); for(const ms of [600, 1500, 3000, 6000, 20000]) setTimeout(refreshTT, ms);
 map.addListener('idle', () => { clearTimeout(TTV.t); TTV.t = setTimeout(refreshTT, 500); });
