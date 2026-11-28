@@ -24,7 +24,7 @@
 //   GET /vehicles?src=bods&bbox=minLon,minLat,maxLon,maxLat → live bus positions (England)
 //   GET /vehicles?src=coach → every long-distance coach in England (National Express, Megabus, FlixBus…)
 //   GET /vehicles?src=tfe       → Edinburgh buses and trams
-//   GET /vehicles?src=gdansk|tallinn|vilnius → those cities' buses and trams (open data, no key; they don't allow browsers directly)
+//   GET /vehicles?src=gdansk|tallinn|vilnius|warsaw → those cities' buses and trams (open data, no key; they don't allow browsers directly)
 //   GET /vehicles?src=gdstop&id=<ZTM stop id> → a Gdańsk stop's next departures
 //   GET /metrolink              → Manchester Metrolink departures by stop
 //   GET /tfl/<TfL API path>     → TfL's answer, shared by every visitor (cached briefly); optional secret TFL_KEY
@@ -189,7 +189,8 @@ async function vehicles(url, env, ctx){
     return {src, vehicles:parseTfe(await r.json())};
   });
   const OPEN = {gdansk:['https://ckan2.multimediagdansk.pl/gpsPositions?v=2', parseGdansk], tallinn:['https://transport.tallinn.ee/gps.txt', parseTallinn],
-    vilnius:['https://www.stops.lt/vilnius/gps_full.txt', parseVilnius], renfe:['https://gtfsrt.renfe.com/vehicle_positions.json', parseRenfe]};
+    vilnius:['https://www.stops.lt/vilnius/gps_full.txt', parseVilnius], renfe:['https://gtfsrt.renfe.com/vehicle_positions.json', parseRenfe],
+    warsaw:['https://mkuran.pl/gtfs/warsaw/vehicles.json', parseWarsaw]};
   if(OPEN[src]) return cached(src, 15, ctx, async () => {
     const r = await fetch(OPEN[src][0], {signal:AbortSignal.timeout(8000)}); if(!r.ok) throw fail(src + ': HTTP ' + r.status, 502);
     return {src, vehicles:OPEN[src][1](await r.text())};
@@ -236,7 +237,7 @@ async function vehicles(url, env, ctx){
       return {src, vehicles:out};
     });
   }
-  if(src !== 'bods') throw fail('src must be bods, coach, stop, gdstop, bustimes, tfe, gdansk, tallinn or vilnius', 400);
+  if(src !== 'bods') throw fail('src must be bods, coach, stop, gdstop, bustimes, tfe, gdansk, tallinn, vilnius or warsaw', 400);
   if(!env.BODS_KEY) throw fail('BODS_KEY secret is not set on the worker', 503);
   // bounding box, rounded so nearby viewers share the cache; at most ~0.5° × 0.35° (a city)
   const b = (url.searchParams.get('bbox') || '').split(',').map(Number);
@@ -305,6 +306,10 @@ function parseTallinn(txt){
     dest:a[9] || '', lat:+a[3]/1e6, lon:+a[2]/1e6, brg:a[5] === '' ? null : +a[5], t:null, tram:a[0] === '3'}));
 }
 // Vilnius: CSV with a header (Transportas, Marsrutas, ..., Ilguma = lon×1e6, Platuma = lat×1e6, Azimutas, ..., KryptiesPavadinimas)
+// Warsaw: every ZTM bus and tram (mkuran.pl's open feed from the city's API: {time, positions:[{id, lat, lon, bearing, timestamp, trip_id "date:line:..."}]})
+function parseWarsaw(txt){ const j = JSON.parse(txt);
+  return (j.positions || []).filter(v => v.lat && v.lon).map(v => { const line = String(v.trip_id || '').split(':')[1] || '', tram = /^\d{1,2}$/.test(line);
+    return {id:'waw:' + v.id, line, op:'Warsaw ' + (tram ? 'tram' : 'bus'), dest:'', lat:+v.lat, lon:+v.lon, brg:v.bearing != null ? Math.round(+v.bearing) : null, t:v.timestamp ? Date.parse(v.timestamp) : null, tram}; }); }
 function parseVilnius(txt){
   const rows = txt.trim().split('\n').map(l => l.split(',')), h = rows.shift() || [], ix = n => h.indexOf(n);
   const I = {type:ix('Transportas'), route:ix('Marsrutas'), car:ix('MasinosNumeris'), lon:ix('Ilguma'), lat:ix('Platuma'), az:ix('Azimutas'), late:ix('NuokrypisSekundemis'), dest:ix('KryptiesPavadinimas')};
