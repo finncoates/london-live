@@ -2570,11 +2570,11 @@ function alongHop(d, pt, i, f){
 }
 function schedVehicles(){
   const sets = cityData().filter(d => d.sched); if(!sets.length || !TRAINS_ON){ for(const k of [...GPS.list.keys()]) if(k.startsWith('sch:')) GPS.list.delete(k); return; }
-  const P = Object.fromEntries(new Intl.DateTimeFormat('en-GB', {timeZone:'Europe/London', year:'numeric', month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit', second:'2-digit', hourCycle:'h23'}).formatToParts(new Date()).map(x => [x.type, x.value]));
-  const today = P.year + P.month + P.day, sec = +P.hour*3600 + +P.minute*60 + +P.second, y = new Date(Date.now() - 864e5);
-  const Q2 = Object.fromEntries(new Intl.DateTimeFormat('en-GB', {timeZone:'Europe/London', year:'numeric', month:'2-digit', day:'2-digit'}).formatToParts(y).map(x => [x.type, x.value])), yday = Q2.year + Q2.month + Q2.day;
+  const clock = tz => { const P = Object.fromEntries(new Intl.DateTimeFormat('en-GB', {timeZone:tz, year:'numeric', month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit', second:'2-digit', hourCycle:'h23'}).formatToParts(new Date()).map(x => [x.type, x.value]));
+    const Q2 = Object.fromEntries(new Intl.DateTimeFormat('en-GB', {timeZone:tz, year:'numeric', month:'2-digit', day:'2-digit'}).formatToParts(new Date(Date.now() - 864e5)).map(x => [x.type, x.value]));
+    return [P.year + P.month + P.day, +P.hour*3600 + +P.minute*60 + +P.second, Q2.year + Q2.month + Q2.day]; }; /* (each timetable in its own zone: Madrid's Metro is an hour ahead of London) */
   const out = [];
-  for(const d of sets){ const S = d.sched; if(d.op === 'Edinburgh Trams' && LIVE_TRAMS.seen && Date.now() - LIVE_TRAMS.seen < 120000 && LIVE_TRAMS.n >= (LIVE_TRAMS.sn || 0)*0.6) continue; // live GPS trams instead (when the live feed has most of them)
+  for(const d of sets){ const S = d.sched, [today, sec, yday] = clock(S.tz || 'Europe/London'); if(d.op === 'Edinburgh Trams' && LIVE_TRAMS.seen && Date.now() - LIVE_TRAMS.seen < 120000 && LIVE_TRAMS.n >= (LIVE_TRAMS.sn || 0)*0.6) continue; // live GPS trams instead (when the live feed has most of them)
     for(const [day, t] of [[today, sec], [yday, sec + 86400]]){ const li = schedDay(S, day); if(li == null) continue;
       for(const [pi, t0] of S.lists[li]){ const pt = S.patterns[pi], el = t - t0; if(el < 0 || el > pt.off[pt.off.length-1]) continue;
         let i = 1; while(i < pt.off.length - 1 && pt.off[i] < el) i++;
@@ -2928,7 +2928,7 @@ async function refreshGps(){ if(document.hidden) return;
     catch(e){ BUS.note = feedErr(e, rc[2] + '’s live feed'); }
     GPS.busy = false; renderBusNote(); return;
   }
-  if(regionOf(p) === 'world'){ gpsOnly('tf:', 'es:', 'la:');
+  if(regionOf(p) === 'world'){ gpsOnly('tf:', 'es:', 'la:', 'sch:'); /* (sch: a city's own timetable abroad, Madrid's Metro: it was cleared here as soon as it was placed) */
     for(const [nm, bx, url0, parse, , , cc, src] of LIVE_ABROAD) if((!src || RAIL.liveSrc?.has(src)) && p[0] > bx[0] && p[0] < bx[2] && p[1] > bx[1] && p[1] < bx[3] && z >= 11 && TRAINS_ON && (!cc || inCountry(cc, p))){ // (a feed's rectangle can overlap a border: the Netherlands' covers Ghent) // a city with its own live feed (buses hidden by the Buses switch as usual)
       try{ const url = typeof url0 === 'function' ? url0() : url0, j = await (await bfetch(url, {signal:AbortSignal.timeout(15000)})).json(), vs = parse(j); gpsMerge({vehicles:vs}, 'la:');
         const kinds = [...new Set(vs.map(v => v.kind === 'tram' ? 'trams' : v.kind === 'metro' ? 'metros' : v.kind === 'ferry' ? 'boats' : v.kind === 'train' ? 'trains' : 'buses'))];
@@ -3775,7 +3775,7 @@ function vlistFill(){ const box = document.getElementById('vlist'); if(!box || !
 document.getElementById('vlist')?.addEventListener('toggle', vlistFill); setInterval(vlistFill, 10000);
 window.__GPSL = () => GPS.list; window.__gpsPos = (g, t) => gpsPos(g, t);
 window.__testVeh = kind => { for(const pass of [0, 1]) for(const g of GPS.list.values()) if((!kind || vkind(g.v) === kind) && (pass || String(g.v.id).startsWith('tf:')) && g.v.trip){ openGFollow(g); GF.on = true; renderGFollow(); return g.v.id; } return null; }; // (a timetable one first; else a live one: Bordeaux's trams are all live now)
-window.__frames = () => MOVING.frames || 0;
+window.__frames = () => MOVING.frames || 0; window.__sched = () => { schedVehicles(); return cityData().map(d => [d.url, !!d.sched]); };
 window.__testRide = () => { for(const t of trains.values()) if(t.d && !t.rail && t.line){ setLive(true); follow(t, 15); setRide(true); return t.key; } return null; };
 // tools: give the trains calling at a station platforms (as Darwin would), then read where they stand
 window.__platGive = crs => { const P = Object.keys(RAIL.plats?.[crs] || {}); let k = 0; for(const t of trains.values()) if(t.rail && t.ahead && t.ahead.some(a => a[0] === crs)) t.plats = {...t.plats, [crs]:P[k++ % P.length]}; return {plats:P.length, given:k}; };
