@@ -2554,6 +2554,8 @@ function projLine(P, q){ const kx = Math.cos(q[0]*rad)*111320; let best = null;
 function alongHop(d, pt, i, f){
   const a = pt.stops[i-1], b = pt.stops[i], hops = pt._hops || (pt._hops = []);
   let h = hops[i];
+  if(h === undefined && pt.sh != null && d.sched?.shapes){ /* a bus: along its own road shape, from one stop's point on it to the next's */ const S = d.sched, Q = (S._sh ||= [])[pt.sh] || (S._sh[pt.sh] = decodePoly(S.shapes[pt.sh])), j0 = pt.si[i-1], j1 = pt.si[i];
+    if(Q && j1 > j0){ const pts = [a, ...Q.slice(j0 + 1, j1), b], cum = [0]; for(let k = 1; k < pts.length; k++) cum.push(cum[k-1] + dist(pts[k-1], pts[k])); h = hops[i] = {pts, cum}; } }
   if(h === undefined){ h = hops[i] = null;
     for(const l of (d.lines || []).slice().sort((x, y) => (y.name === pt.line) - (x.name === pt.line))){ if(l.kind !== (pt.kind || 'tram')) continue;
       const pa = projLine(l.pts, a), pb = projLine(l.pts, b); if(!pa || !pb || pa.d > 120 || pb.d > 120) continue;
@@ -2574,7 +2576,8 @@ function schedVehicles(){
     const Q2 = Object.fromEntries(new Intl.DateTimeFormat('en-GB', {timeZone:tz, year:'numeric', month:'2-digit', day:'2-digit'}).formatToParts(new Date(Date.now() - 864e5)).map(x => [x.type, x.value]));
     return [P.year + P.month + P.day, +P.hour*3600 + +P.minute*60 + +P.second, Q2.year + Q2.month + Q2.day]; }; /* (each timetable in its own zone: Madrid's Metro is an hour ahead of London) */
   const out = [];
-  for(const d of sets){ const S = d.sched, [today, sec, yday] = clock(S.tz || 'Europe/London'); if(d.op === 'Edinburgh Trams' && LIVE_TRAMS.seen && Date.now() - LIVE_TRAMS.seen < 120000 && LIVE_TRAMS.n >= (LIVE_TRAMS.sn || 0)*0.6) continue; // live GPS trams instead (when the live feed has most of them)
+  for(const d of sets){ const S = d.sched, [today, sec, yday] = clock(S.tz || 'Europe/London');
+    if(!S.lists && S.listsD) S.lists = S.listsD.map(o => { const a = []; for(const pi in o){ let t = 0; for(const x of o[pi].split(',')){ t += parseInt(x, 36); a.push([+pi, t]); } } return a; }); /* (start times kept compact in the file: Madrid's EMT, ~38,000 a weekday) */ if(d.op === 'Edinburgh Trams' && LIVE_TRAMS.seen && Date.now() - LIVE_TRAMS.seen < 120000 && LIVE_TRAMS.n >= (LIVE_TRAMS.sn || 0)*0.6) continue; // live GPS trams instead (when the live feed has most of them)
     for(const [day, t] of [[today, sec], [yday, sec + 86400]]){ const li = schedDay(S, day); if(li == null) continue;
       for(const [pi, t0] of S.lists[li]){ const pt = S.patterns[pi], el = t - t0; if(el < 0 || el > pt.off[pt.off.length-1]) continue;
         let i = 1; while(i < pt.off.length - 1 && pt.off[i] < el) i++;
