@@ -1645,6 +1645,14 @@ function platPathL(crs, pl, line){ const r = platPath(crs, pl); if(!r || !line |
   const c = RAIL.platL || (RAIL.platL = new Map()), k = crs + '|' + pl + '|' + line; if(c.has(k)) return c.get(k) ? r : null;
   const mid = along(r, 0.5).p, near = trkNear(mid, 40); if(!near.length) return r; // (its tracks still loading)
   const ok = near.some(e => e.lines && e.lines.includes(line) && (trkOn(e, mid)?.d ?? 99) < 12); c.set(k, ok); return ok ? r : null; }
+// a train whose run starts here, its platform not given yet (the boards name it later): one of the station's dead-end
+// platforms, free and the same each time, so it stands and sets off on the terminating side (London Bridge: it ran out
+// on the northern through tracks, then leapt to the southern ones once its platform came)
+function originPlat(t, crs){ if(t.plats?.[crs] || t.platG?.[crs] || !RAIL.plats?.[crs] || t.ogTry > Date.now() - 5000) return; t.ogTry = Date.now();
+  const c = platsFor(crs, 'end'); if(!c || !c.length) return; const ok = c.filter(x => !tflOnlyPlat(x[1])); if(!ok.length) return;
+  const used = new Set(); for(const x of trains.values()) if(x !== t){ const pl = x.plats?.[crs] || x.platG?.[crs]; if(pl && x.ahead?.some(a => a[0] === crs && Math.abs(a[1] - (t.ahead?.[0]?.[1] || 0)) < 20*60000)) used.add(pl); if(x.onPlat?.startsWith(crs + ' ')) used.add(x.onPlat.slice(crs.length + 1)); }
+  let h = 0; for(const ch of t.key) h = (h*31 + ch.charCodeAt(0)) >>> 0;
+  for(let i = 0; i < ok.length; i++){ const k = ok[(h + i) % ok.length][0]; if(!used.has(k)){ (t.platG ||= {})[crs] = k; return; } } }
 function platInfo(t, crs, nb){ const pl = t.plats?.[crs] || t.platG?.[crs]; let path = pl && platPathL(crs, pl, t.rail ? null : t.line); if(!path || path.len < 30) return null;
   const end = S => { const o = stopP(S); return o ? (dist(path.pts[0], o) < dist(path.pts.at(-1), o) ? 0 : 1) : null; }, nbEnd = end(nb) ?? 0;
   // where it stands: against the buffers at a dead-end platform; at a through platform its front at the end it leaves
@@ -1710,6 +1718,7 @@ function placeTrain0(t){
   // (Darwin's trains list their whole run: one at its first station, with its platform known, waits there, up to 30 minutes before it leaves)
   if(t.rail && (!prev || prev === next) && arr - n > 90000 && !(t.dw && t.ahead?.[0]?.[0] === next && t.ahead[0][1] === arr && t.plats?.[next] && arr - n < 30*60000)) return null;
   const at = () => { const s = snapAt(l, next); return s.wait ? null : s; }; // (null while the track there is loading)
+  if(t.rail && t.ahead?.[0]?.[0] && (prev === t.ahead[0][0] || (!prev || prev === next) && next === t.ahead[0][0])) originPlat(t, t.ahead[0][0]);
   if(!prev || prev === next || !l.stops[prev]) return at();
   let path = trackPath(l, prev, next); if(!path) return at();
   const KS = t.rail ? 'r' : {tube:'s', dlr:'l', overground:'r', elizabeth:'r'}[l.mode], mc = map.getCenter();
