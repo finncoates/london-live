@@ -1424,6 +1424,9 @@ async function refresh(){
 /* a train whose line colour is a grey close to the tracks' grey (the Jubilee's silver) vanished on its track: drawn
    lighter on the dark map and darker on the light one (27 Nov 2026) */
 const TRAIN_INK = new Map();
+const SHADE_INK = new Map(), shadeInk = c => { const dk = document.body.classList.contains('dark'), k = c + dk; let v = SHADE_INK.get(k); if(v) return v;
+  const m = /^#?([0-9a-f]{6})$/i.exec(String(c).trim()); if(!m){ SHADE_INK.set(k, c); return c; } const n = parseInt(m[1], 16), ch = [n >> 16, n >> 8 & 255, n & 255].map(x => Math.round(dk ? x + (255 - x)*0.35 : x*0.62));
+  v = '#' + ch.map(x => x.toString(16).padStart(2, '0')).join(''); SHADE_INK.set(k, v); if(SHADE_INK.size > 400) SHADE_INK.clear(); return v; };
 const trainInk = c => { const k = c + dark; let v = TRAIN_INK.get(k); if(v) return v; v = c;
   const m = /^#([0-9a-f]{6})$/i.exec(c || ''); if(m){ const n = parseInt(m[1], 16), r = n >> 16, g = n >> 8 & 255, b = n & 255, mx = Math.max(r, g, b), mn = Math.min(r, g, b);
     if(mx - mn < 40 && mx > 100 && mx < 190) v = dark ? '#dfe3e6' : '#4d555c'; }
@@ -1997,7 +2000,7 @@ const abroadAt = n => { const k = String(n || '').toLowerCase().normalize('NFD')
 RAIL.railKey = null; // null = not checked yet
 const railOn = () => !!RAIL.relay && (RAIL.relay === 'demo' || RAIL.railKey === true);
 async function railHealth(){ if(!RAIL.relay) return; if(RAIL.relay === 'demo'){ setTimeout(refreshRail, 2500); RAIL.timer = setInterval(refreshRail, 60000); return; }
-  try{ const h = await (await fetch(RAIL.relay + '/health', {signal:AbortSignal.timeout(8000)})).json(); RAIL.railKey = !!(h.rail ?? h.configured); RAIL.darwin = !!h.darwin; window.__tflRelay = h.tfl ? RAIL.relay + '/tfl' : null; setTimeout(() => { try{ refreshTT(); }catch(e){} }, 0); }catch(e){ RAIL.railKey = false; } // (timetable vehicles as soon as the relay answers, not at the next timer) // (TfL data through the relay: one shared copy for everyone)
+  try{ const h = await (await fetch(RAIL.relay + '/health', {signal:AbortSignal.timeout(8000)})).json(); RAIL.railKey = !!(h.rail ?? h.configured); RAIL.liveSrc = new Set(h.live || ['warsaw']); /* (the cities the relay serves live: a new one switches on once the relay has it) */ RAIL.darwin = !!h.darwin; window.__tflRelay = h.tfl ? RAIL.relay + '/tfl' : null; setTimeout(() => { try{ refreshTT(); }catch(e){} }, 0); }catch(e){ RAIL.railKey = false; } // (timetable vehicles as soon as the relay answers, not at the next timer) // (TfL data through the relay: one shared copy for everyone)
   if(typeof renderModeChips === 'function') renderModeChips(); if(typeof renderRailStatus === 'function') renderRailStatus();
   if(railOn() && !RAIL.timer){ refreshRail(); RAIL.timer = setInterval(refreshRail, 60000); } }
 // which stations to poll: London's termini/hubs in London, elsewhere the 25 nearest stations to the view
@@ -2462,13 +2465,19 @@ async function bostonVehicles(){
 // keep only the vehicles of the source being shown (switching country drops the last one's)
 const GPS_SRC = ['fi:', 'hsl:', 'no:', 'us:', 'de:', 'sch:', 'co:', 'tf:', 'es:', 'la:', 'ais:']; // (es: Renfe live; la: other live city feeds abroad)
 // Live city feeds abroad that browsers can read directly (no key): [name, box minLat,minLon,maxLat,maxLon, url, parse → vehicles, timetable trips they replace]
+// a city's live buses and trams through the relay (open feeds that don't let browsers in, or come as GTFS-realtime): trams in
+// their line's colour, as drawn; that network's timetable twins hidden (rx: its trips), its metro and trains still from the timetable
+function relayLive(nm, src, bx, rx){ return [nm, bx, () => RAIL.relay + '/vehicles?src=' + src,
+  j => { const tl = cityData().flatMap(d => d.lines).filter(l => l.kind === 'tram'), tc = n => tl.find(l => String(l.name) === String(n))?.colour || '#C8102E';
+    return (j.vehicles || []).map(v => ({...v, id:'la:' + v.id, kind:v.tram ? 'tram' : 'bus', col:v.tram ? tc(v.line) : null, brg:v.brg != null ? ((v.brg % 360) + 360) % 360 : null, t:v.t || Date.now()})); }, rx, /BUS|TRAM/, null, src]; }
 const LIVE_ABROAD = [ // (Rennes: STAR's own API has a daily limit shared by every visitor, so it comes through the server's GTFS-realtime feed instead)
   ['Toronto', [43.55, -79.75, 43.95, -79.05], 'https://retro.umoiq.com/service/publicJSONFeed?command=vehicleLocations&a=ttc&t=0', // TTC streetcars (500s) and buses
   j => (j.vehicle || []).map(v => { const tram = +v.routeTag >= 500 && +v.routeTag < 600; return {id:'la:ttc:' + v.id, line:v.routeTag, op:'TTC', dest:'', lat:+v.lat, lon:+v.lon, brg:v.heading != null && +v.heading >= 0 ? +v.heading : null, speed:v.speedKmHr != null ? +v.speedKmHr : null, t:Date.now() - (+v.secsSinceReport || 0)*1000, kind:tram ? 'tram' : 'bus', tram, col:tram ? '#DA251D' : null}; }), /ttc/i, /BUS|TRAM/],
   ['Carris Metropolitana', [38.4, -9.55, 39.1, -8.6], 'https://api.carrismetropolitana.pt/v2/vehicles', // Lisbon's region-wide buses (open, live GPS); the city's own Carris isn't in it
   j => (Array.isArray(j) ? j : []).filter(v => v.lat != null && v.lon != null).map(v => { const ts = +v.timestamp || 0; return {id:'la:cm:' + v.id, line:String(v.line_id || ''), op:'Carris Metropolitana', dest:'', lat:+v.lat, lon:+v.lon, brg:v.bearing != null ? +v.bearing : null, speed:v.speed != null ? +v.speed : null, t:ts ? (ts > 1e12 ? ts : ts*1000) : Date.now(), kind:'bus', col:'#FFDD00'}; }), /Carris-Metropolitana/i, /BUS/, 'pt'],
-  ['Warsaw ZTM', [51.95, 20.55, 52.5, 21.45], () => RAIL.relay + '/vehicles?src=warsaw', // every bus and tram (open data through the relay: no browser access of its own); metro and trains stay from the timetable
-  j => { const tl = cityData().flatMap(d => d.lines).filter(l => l.kind === 'tram'), tc = n => tl.find(l => String(l.name) === String(n))?.colour || '#C8102E'; /* (a tram in its line's colour, as drawn) */ return (j.vehicles || []).map(v => ({...v, id:'la:' + v.id, kind:v.tram ? 'tram' : 'bus', col:v.tram ? tc(v.line) : null, brg:v.brg != null ? ((v.brg % 360) + 360) % 360 : null, t:v.t || Date.now()})); }, /pl-Warszawa/i, /BUS|TRAM/, 'pl']]; // (tf: ferries from the timetable)
+  ...[['Warsaw ZTM', 'warsaw', [51.95, 20.55, 52.5, 21.45], /pl-Warszawa/i], ['Kaunas', 'kaunas', [54.8, 23.75, 55.0, 24.1], /lt-kaunas/i], ['Klaipėda', 'klaipeda', [55.6, 21.05, 55.8, 21.3], /lt-klaipeda/i],
+    ['Poznań ZTM', 'poznan', [52.3, 16.75, 52.52, 17.15], /pl-Pozna/i], ['Szczecin ZDiTM', 'szczecin', [53.33, 14.4, 53.55, 14.75], /pl-Szczecin/i], ['ZET (Zagreb)', 'zagreb', [45.7, 15.8, 45.9, 16.2], /hr-zet/i],
+    ['GTT (Turin)', 'turin', [44.95, 7.5, 45.2, 7.85], /Gruppo-Torinese/i], ['Nysse (Tampere)', 'tampere', [61.35, 23.45, 61.65, 24.1], /fi-nysse/i], ['STCP (Porto)', 'porto', [41.05, -8.75, 41.3, -8.45], /stcp/i]].map(([nm, src, bx, rx]) => relayLive(nm, src, bx, rx))]; // (tf: ferries from the timetable)
 // The London Live server (rail/darwin, on the always-on machine): big live feeds (the Netherlands, Rome, Kraków, Brisbane,
 // Tokyo's Toei buses, Ireland…) and live ferries (AIS). When the relay is connected to it, its feeds join the list above.
 const SRV = {feeds:{}, ferries:false, at:0};
@@ -2911,7 +2920,7 @@ async function refreshGps(){ if(document.hidden) return;
     GPS.busy = false; renderBusNote(); return;
   }
   if(regionOf(p) === 'world'){ gpsOnly('tf:', 'es:', 'la:');
-    for(const [nm, bx, url0, parse, , , cc] of LIVE_ABROAD) if(p[0] > bx[0] && p[0] < bx[2] && p[1] > bx[1] && p[1] < bx[3] && z >= 11 && TRAINS_ON && (!cc || inCountry(cc, p))){ // (a feed's rectangle can overlap a border: the Netherlands' covers Ghent) // a city with its own live feed (buses hidden by the Buses switch as usual)
+    for(const [nm, bx, url0, parse, , , cc, src] of LIVE_ABROAD) if((!src || RAIL.liveSrc?.has(src)) && p[0] > bx[0] && p[0] < bx[2] && p[1] > bx[1] && p[1] < bx[3] && z >= 11 && TRAINS_ON && (!cc || inCountry(cc, p))){ // (a feed's rectangle can overlap a border: the Netherlands' covers Ghent) // a city with its own live feed (buses hidden by the Buses switch as usual)
       try{ const url = typeof url0 === 'function' ? url0() : url0, j = await (await bfetch(url, {signal:AbortSignal.timeout(15000)})).json(), vs = parse(j); gpsMerge({vehicles:vs}, 'la:');
         const kinds = [...new Set(vs.map(v => v.kind === 'tram' ? 'trams' : v.kind === 'metro' ? 'metros' : v.kind === 'ferry' ? 'boats' : v.kind === 'train' ? 'trains' : 'buses'))];
         // every live feed here counts (a city's buses and the region's coaches can both be live): each one's timetable twins are hidden
@@ -3149,7 +3158,7 @@ function drawGps(ctx, s, hl0, hw0, mpp){
     else if(g.v.plat && PV.z >= 13 && hl*mpp > 8){ const B = bodyAlong(g.v.plat.pts, g.v.plat.i, p, hl*mpp); if(B && B.length > 2) body = B.map(q => { const w = scr(q); return [w.x, w.y]; }); } // at its platform
     else if((kind === 'tram' || kind === 'metro' || kind === 'train') && !coach && PV.z >= 13 && hl*mpp > 8){ const sc = lineAt(g.v, p);
       if(sc && sc.sn && sc.sn.l){ const B = bodyAlong(sc.sn.l.pts, sc.sn.i, p, hl*mpp); if(B && B.length > 2){ const sh = c.x - scr(p).x, sv = c.y - scr(p).y; body = B.map(q => { const w = scr(q); return [w.x + sh, w.y + sv]; }); } } }
-    if(body){ const col = g.v.col || (tram ? '#7A1F3D' : opCol(g.v.op)), line = w => { ctx.lineWidth = w; ctx.beginPath(); body.forEach((q, k) => k ? ctx.lineTo(q[0], q[1]) : ctx.moveTo(q[0], q[1])); ctx.stroke(); };
+    if(body){ const col = shadeInk(g.v.col || (tram ? '#7A1F3D' : opCol(g.v.op))), line = w => /* (lying along its own line, drawn in that colour: a shade darker, or lighter on the dark map, else it vanished into it: Zagreb's and Warsaw's trams) */ { ctx.lineWidth = w; ctx.beginPath(); body.forEach((q, k) => k ? ctx.lineTo(q[0], q[1]) : ctx.moveTo(q[0], q[1])); ctx.stroke(); };
       ctx.lineJoin = 'round'; ctx.lineCap = 'butt'; ctx.strokeStyle = dark ? 'rgba(0,0,0,.9)' : 'rgba(255,255,255,.95)'; line(2*hw + 4);
       ctx.strokeStyle = col; line(2*hw);
       if(g.v.sched){ const a0 = ctx.globalAlpha; ctx.strokeStyle = MAP_BG(); line(Math.max(1, 2*hw - 3)); ctx.globalAlpha = a0*0.5; ctx.strokeStyle = col; line(Math.max(1, 2*hw - 3)); ctx.globalAlpha = a0; } // placed from the timetable: pale inside, edged in its colour

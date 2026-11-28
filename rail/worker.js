@@ -47,7 +47,7 @@ export default {
     if(request.method !== 'GET') return json({error:'GET only'}, 405, cors);
     try{
       if(url.pathname === '/' || url.pathname === '/health')
-        return json({ok:true, configured:!!env.RDM_KEY, rail:!!env.RDM_KEY, bods:!!env.BODS_KEY, tfe:true, metrolink:!!env.TFGM_KEY, tfl:true, tflKey:!!env.TFL_KEY, darwin:!!env.DARWIN_URL, server:!!env.DARWIN_URL,
+        return json({ok:true, configured:!!env.RDM_KEY, rail:!!env.RDM_KEY, bods:!!env.BODS_KEY, tfe:true, metrolink:!!env.TFGM_KEY, tfl:true, tflKey:!!env.TFL_KEY, live:LIVE_CITIES, darwin:!!env.DARWIN_URL, server:!!env.DARWIN_URL,
           boardUrl:(env.BOARD_URL || DEFAULT_BOARD_URL).replace(/\?.*$/, '')}, 200, cors);
       if(url.pathname === '/vehicles') return json(await vehicles(url, env, ctx), 200, cors, 10);
       if(url.pathname === '/metrolink') return json(await metrolink(env, ctx), 200, cors, 20);
@@ -181,6 +181,8 @@ async function cached(key, ttl, ctx, fn){
   return data;
 }
 const fail = (msg, status) => Object.assign(new Error(msg), {status});
+// the cities /vehicles?src= serves live (the page switches each on once it is here)
+const LIVE_CITIES = ['gdansk', 'tallinn', 'vilnius', 'warsaw', 'kaunas', 'klaipeda', 'szczecin', 'tampere', 'porto', 'poznan', 'zagreb', 'turin'];
 async function vehicles(url, env, ctx){
   const src = url.searchParams.get('src') || 'bods';
   if(src === 'tfe') return cached('tfe', 15, ctx, async () => {
@@ -190,10 +192,17 @@ async function vehicles(url, env, ctx){
   });
   const OPEN = {gdansk:['https://ckan2.multimediagdansk.pl/gpsPositions?v=2', parseGdansk], tallinn:['https://transport.tallinn.ee/gps.txt', parseTallinn],
     vilnius:['https://www.stops.lt/vilnius/gps_full.txt', parseVilnius], renfe:['https://gtfsrt.renfe.com/vehicle_positions.json', parseRenfe],
-    warsaw:['https://mkuran.pl/gtfs/warsaw/vehicles.json', parseWarsaw]};
+    warsaw:['https://mkuran.pl/gtfs/warsaw/vehicles.json', parseWarsaw],
+    kaunas:['https://www.stops.lt/kaunas/gps_full.txt', t => parseStopsLt(t, 'kns', 'Kaunas')], klaipeda:['https://www.stops.lt/klaipeda/gps_full.txt', t => parseStopsLt(t, 'kla', 'Klaipėda')],
+    szczecin:['https://www.zditm.szczecin.pl/api/v1/vehicles', parseSzczecin], tampere:['https://data.itsfactory.fi/journeys/api/1/vehicle-activity', parseTampere],
+    porto:['https://broker.fiware.urbanplatform.portodigital.pt/v2/entities?type=Vehicle&limit=1000&q=vehicleType==bus', parsePorto],
+    // GTFS-realtime (protobuf): read with rtVehicles below; a tram told from its line number
+    poznan:['https://www.ztm.poznan.pl/pl/dla-deweloperow/getGtfsRtFile?file=vehicle_positions.pb', b => rtCity(b, 'poz', 'Poznań', r => /^\d{1,2}$/.test(r)), 1],
+    zagreb:['https://www.zet.hr/gtfs-rt-protobuf', b => rtCity(b, 'zag', 'ZET', r => /^\d{1,2}$/.test(r)), 1],
+    turin:['https://percorsieorari.gtt.to.it/das_gtfsrt/vehicle_position.aspx', b => rtCity(b, 'gtt', 'GTT', r => /^(3|4|9|10|15|16|16CS|16CD)$/.test(r)), 1]};
   if(OPEN[src]) return cached(src, 15, ctx, async () => {
-    const r = await fetch(OPEN[src][0], {signal:AbortSignal.timeout(8000)}); if(!r.ok) throw fail(src + ': HTTP ' + r.status, 502);
-    return {src, vehicles:OPEN[src][1](await r.text())};
+    const r = await fetch(OPEN[src][0], {signal:AbortSignal.timeout(8000), headers:{'user-agent':'LondonLive/1.0 (+https://github.com/finncoates/london-live)'}}); if(!r.ok) throw fail(src + ': HTTP ' + r.status, 502);
+    return {src, vehicles:OPEN[src][1](OPEN[src][2] ? new Uint8Array(await r.arrayBuffer()) : await r.text())};
   });
   if(src === 'bustimes'){ // bustimes.org: every UK operator that shares positions (incl. Cardiff Bus, Lothian, Translink), cached and rounded to be polite
     const b = (url.searchParams.get('bbox') || '').split(',').map(Number);
@@ -237,7 +246,7 @@ async function vehicles(url, env, ctx){
       return {src, vehicles:out};
     });
   }
-  if(src !== 'bods') throw fail('src must be bods, coach, stop, gdstop, bustimes, tfe, gdansk, tallinn, vilnius or warsaw', 400);
+  if(src !== 'bods') throw fail('src must be bods, coach, stop, gdstop, bustimes, tfe or a city: ' + Object.keys(OPEN).join(', '), 400);
   if(!env.BODS_KEY) throw fail('BODS_KEY secret is not set on the worker', 503);
   // bounding box, rounded so nearby viewers share the cache; at most ~0.5° × 0.35° (a city)
   const b = (url.searchParams.get('bbox') || '').split(',').map(Number);
@@ -310,6 +319,37 @@ function parseTallinn(txt){
 function parseWarsaw(txt){ const j = JSON.parse(txt);
   return (j.positions || []).filter(v => v.lat && v.lon).map(v => { const line = String(v.trip_id || '').split(':')[1] || '', tram = /^\d{1,2}$/.test(line);
     return {id:'waw:' + v.id, line, op:'Warsaw ' + (tram ? 'tram' : 'bus'), dest:'', lat:+v.lat, lon:+v.lon, brg:v.bearing != null ? Math.round(+v.bearing) : null, t:v.timestamp ? Date.parse(v.timestamp) : null, tram}; }); }
+// Lithuanian cities on stops.lt (Kaunas, Klaipėda): Vilnius's CSV (lon, lat ×1e6)
+function parseStopsLt(txt, pre, city){ return parseVilnius(txt).map(v => ({...v, id:pre + ':' + v.id.slice(4), op:city + ' ' + (/trol/i.test(v.op) ? 'trolleybus' : 'bus')})); }
+// Szczecin (ZDiTM's open API): {data:[{line_number, vehicle_type, vehicle_number, direction, latitude, longitude, bearing, punctuality}]}
+function parseSzczecin(txt){ return (JSON.parse(txt).data || []).filter(v => v.latitude && v.longitude).map(v => ({id:'szc:' + v.vehicle_number, line:String(v.line_number || ''), op:'ZDiTM ' + v.vehicle_type, dest:v.direction || '',
+  lat:+v.latitude, lon:+v.longitude, brg:v.bearing != null ? +v.bearing : null, t:null, tram:v.vehicle_type === 'tram'})); }
+// Tampere (ITS Factory's SIRI-like journeys API): trams are operator 56920 (lines 1 and 3)
+function parseTampere(txt){ return (JSON.parse(txt).body || []).map(x => { const m = x.monitoredVehicleJourney || {}, l = m.vehicleLocation || {}, tram = m.operatorRef === '56920';
+  return {id:'tre:' + m.vehicleRef, line:m.lineRef || '', op:tram ? 'Tampere tram' : 'Nysse', dest:'', lat:+l.latitude, lon:+l.longitude, brg:m.bearing != null ? +m.bearing : null, t:x.recordedAtTime ? Date.parse(x.recordedAtTime) : null, tram}; }).filter(v => v.lat && v.lon); }
+// Porto (the city's FIWARE broker: STCP's buses)
+function parsePorto(txt){ return (JSON.parse(txt) || []).map(x => { const c = x.location?.value?.coordinates || [], a = x.annotations?.value || [], rt = (a.find(s => /^stcp:route:/.test(s)) || '').split(':')[2] || '';
+  return {id:'opo:' + (x.fleetVehicleId?.value || x.id), line:rt, op:'STCP', dest:'', lat:+c[1], lon:+c[0], brg:x.bearing?.value ?? null, t:x.dateObserved?.value ? Date.parse(x.dateObserved.value) : null, tram:false}; }).filter(v => v.lat && v.lon); }
+// a city's GTFS-realtime vehicle positions → its buses and trams
+function rtCity(b, pre, op, isTram){ return rtVehicles(b).map(v => { const r = String(v.route || v.label.split('/')[0] || '').replace(/U$/, ''), tram = isTram(r);
+  return {id:pre + ':' + (v.vid || v.id), line:r, op:op + ' ' + (tram ? 'tram' : 'bus'), dest:'', lat:v.lat, lon:v.lon, brg:v.brg != null ? Math.round(v.brg) : null, t:v.t, tram}; }); }
+// GTFS-realtime vehicle positions from protobuf bytes, without a library: [{id, vid, trip, route, lat, lon, brg, speed, t, label}]
+function rtVehicles(b){
+  const dv = new DataView(b.buffer, b.byteOffset, b.byteLength), out = [], td = new TextDecoder();
+  const varint = o => { let x = 0, s = 1, c; do{ c = b[o.p++]; x += (c & 127)*s; s *= 128; }while(c & 128 && o.p < b.length); return x; };
+  const fields = (start, end, fn) => { const o = {p:start}; while(o.p < end){ const k = varint(o), f = Math.floor(k/8), w = k & 7;
+      if(w === 0) fn(f, 0, varint(o)); else if(w === 2){ const n = varint(o), s = o.p; o.p += n; fn(f, 2, s, s + n); } else if(w === 5){ fn(f, 5, o.p); o.p += 4; } else if(w === 1){ o.p += 8; } else return; } };
+  const str = (s, e) => td.decode(b.subarray(s, e)), fl = p => dv.getFloat32(p, true);
+  fields(0, b.length, (f, w, s, e) => { if(f !== 2 || w !== 2) return; let id = '', vp = null;
+    fields(s, e, (f2, w2, s2, e2) => { if(f2 === 1 && w2 === 2) id = str(s2, e2); else if(f2 === 4 && w2 === 2) vp = [s2, e2]; });
+    if(!vp) return; const v = {id, vid:'', trip:'', route:'', lat:null, lon:null, brg:null, speed:null, t:null, label:''};
+    fields(vp[0], vp[1], (f3, w3, s3, e3) => {
+      if(f3 === 1 && w3 === 2) fields(s3, e3, (f4, w4, s4, e4) => { if(w4 !== 2) return; if(f4 === 1) v.trip = str(s4, e4); else if(f4 === 5) v.route = str(s4, e4); });
+      else if(f3 === 2 && w3 === 2) fields(s3, e3, (f4, w4, s4) => { if(w4 !== 5) return; if(f4 === 1) v.lat = fl(s4); else if(f4 === 2) v.lon = fl(s4); else if(f4 === 3) v.brg = fl(s4); else if(f4 === 5) v.speed = fl(s4); });
+      else if(f3 === 5 && w3 === 0) v.t = s3*1000;
+      else if(f3 === 8 && w3 === 2) fields(s3, e3, (f4, w4, s4, e4) => { if(w4 !== 2) return; if(f4 === 1) v.vid = str(s4, e4); else if(f4 === 2) v.label = str(s4, e4); }); });
+    if(v.lat && v.lon) out.push(v); });
+  return out; }
 function parseVilnius(txt){
   const rows = txt.trim().split('\n').map(l => l.split(',')), h = rows.shift() || [], ix = n => h.indexOf(n);
   const I = {type:ix('Transportas'), route:ix('Marsrutas'), car:ix('MasinosNumeris'), lon:ix('Ilguma'), lat:ix('Platuma'), az:ix('Azimutas'), late:ix('NuokrypisSekundemis'), dest:ix('KryptiesPavadinimas')};
