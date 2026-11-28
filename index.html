@@ -1685,7 +1685,7 @@ async function platBoards(){
     for(const sv of b.services || []){ if(!sv.platform) continue; const here = sv.calls.find(x => x.crs === crs); if(!here || here.ms == null) continue;
       let best = null, bd = 180000; for(const t of trains.values()){ if(!t.rail || !t.ahead) continue; const a = t.ahead.find(x => x[0] === crs); if(!a) continue;
         const d = Math.abs(a[1] - here.ms); if(d < bd && (!sv.destination || !t.towards || t.towards === sv.destination || sv.destination.includes(t.towards) || t.towards.includes(sv.destination))){ bd = d; best = t; } }
-      if(best){ best.plats ||= {}; best.plats[crs] ||= String(sv.platform).toUpperCase(); } } } }
+      if(best){ best.plats ||= {}; best.plats[crs] ||= String(sv.platform).toUpperCase(); if(+sv.length > 0) best.coaches = +sv.length; } } } }
 setInterval(() => platBoards().catch(() => {}), 30000); setTimeout(() => platBoards().catch(() => {}), 6000);
 function placeTrain(t){
   const r = placeTrain0(t); t.onPlat = null;
@@ -1765,6 +1765,9 @@ function lineLook(kind, W){ // {w, alpha, dash, stripe}
     case 'ferry': case 'cable': return {w:Math.max(1.5, W*0.45), alpha:0.45, dash:[W*1.6, W*1.1]};
     default:      return {w:W, alpha:1};
   } }
+// a National Rail train's length (m): its coaches where the boards give them (~22 m each), else its operator's usual train
+const TOC_LEN = {NT:60, TP:120, VT:220, GR:200, GW:170, XC:110, EM:110, LM:95, AW:60, SR:90, CS:300, SN:160, SE:160, TL:200, SW:160, GN:160, LE:120, CC:160, CH:100, GX:240, HX:200, LO:100, XR:205, ME:65, IL:40, HT:120, GC:120, LD:130, ES:390, TW:56, LT:113, NY:45, SJ:40, BR:50, PT:15, ZZ:150};
+const trainLenM = t => t.coaches ? Math.min(400, t.coaches*22) : TOC_LEN[String(t.line || '').replace(/^nr-/, '')] || 150;
 const REAL_SIZE = {river:[40, 9], cable:[4, 3], tube:[113, 2.65], elizabeth:[205, 2.8], overground:[100, 2.8], dlr:[87, 2.65], tram:[32, 2.65], bus:[11, 2.55], rail:[200, 2.8]};
 let SHOW_ICONS = (() => { try{ return localStorage.getItem('trainIcons') !== '0'; }catch(e){ return true; } })();
 const TAU = 2; // seconds: corrections after a refresh glide rather than jump
@@ -1827,7 +1830,7 @@ function frame(ts, sync){
     if(lane){ c.x += lane.x; c.y += lane.y; }
     if(c.x<-40||c.y<-40||c.x>s.x+40||c.y>s.y+40) continue;
     const cs = Math.cos(t.ang), sn = Math.sin(t.ang);
-    [hl, hw] = size(l); if(l.mode === 'bus' && hl <= hl0){ hl = Math.max(5, hl0*0.5); hw = Math.max(2.4, hw0*0.9); } // buses: short and stubby
+    [hl, hw] = size(l); if(t.rail){ hl = Math.max(hl0, trainLenM(t)/2/mpp); } /* (its own length, not every train 200 m: Whitehaven's two-car Northern train ran from the tunnel to the main road) */ if(l.mode === 'bus' && hl <= hl0){ hl = Math.max(5, hl0*0.5); hw = Math.max(2.4, hw0*0.9); } // buses: short and stubby
     const ux = cs*hl, uy = sn*hl, vx = -sn*hw, vy = cs*hw; // half-length and half-width vectors
     const r = [c.x+ux+vx, c.y+uy+vy, c.x+ux-vx, c.y+uy-vy, c.x-ux-vx, c.y-uy-vy, c.x-ux+vx, c.y-uy+vy];
     // bent along the track: the stretch of the path the train covers (life-size length when zoomed in)

@@ -128,7 +128,7 @@ function normaliseBoard(raw, crs){
     return {
       id:key, boardId:s.serviceID || s.serviceId || null,
       operator:s.operator || null, opCode:s.operatorCode || null,
-      platform:s.platform || null,
+      platform:s.platform || null, length:+s.length || null, /* (coaches: the page draws the train that long) */
       std:here.st, etd:pick(s, 'etd', 'eta') || null,
       cancelled:!!s.isCancelled || here.cancelled,
       reason:s.cancelReason || s.delayReason || null,
